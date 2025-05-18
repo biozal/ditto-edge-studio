@@ -36,14 +36,14 @@ class DittoApp: ObservableObject {
         let authToken = dittoConfigPropertyList["authToken"]! as! String
         let httpApiUrl = dittoConfigPropertyList["httpApiUrl"]! as! String
         let httpApiKey = dittoConfigPropertyList["httpApiKey"]! as! String
-
+        
         return DittoAppConfig(
-            _id: UUID().uuidString,
+            UUID().uuidString,
             name: name,
-            appId: authUrl,
-            authToken: websocketUrl,
-            authUrl: appId,
-            websocketUrl: authToken,
+            appId: appId,
+            authToken: authToken,
+            authUrl:  authUrl,
+            websocketUrl: websocketUrl,
             httpApiUrl: httpApiUrl,
             httpApiKey: httpApiKey
         )

@@ -11,7 +11,7 @@ class DittoAppConfig: Decodable {
     let httpApiUrl: String
     let httpApiKey: String
 
-    init (_id: String,
+    init (_ _id: String,
           name: String,
           appId: String,
           authToken: String,
@@ -45,7 +45,7 @@ class DittoAppConfig: Decodable {
 extension DittoAppConfig {
     static func new() -> DittoAppConfig {
         return DittoAppConfig(
-            _id: UUID().uuidString,
+            UUID().uuidString,
             name: "",
             appId: "",
             authToken: "",
