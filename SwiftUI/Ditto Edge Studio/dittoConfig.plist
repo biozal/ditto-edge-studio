@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>name</key>
+    <string>put name here</string>
+    <key>appId</key>
+    <string>put appId here</string>
+    <key>authUrl</key>
+    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
+    <key>websocketUrl</key>
+    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
+    <key>authToken</key>
+    <string>put authToken here</string>
+    <key>httpApiUrl</key>
+    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
+    <key>httpApiKey</key>
+    <string>put your api key here</string>
+</dict>
+</plist>
