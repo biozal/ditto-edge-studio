@@ -296,7 +296,7 @@ extension DittoManager {
             let query = "SELECT * FROM dittosubscriptions WHERE selectedApp_id = :selectedAppId"
             let arguments = ["selectedAppId": dittoSelectedAppConfig?._id]
             let results = try await ditto.store.execute(query: query, arguments: arguments)
-            var subscriptions = results.items.compactMap { DittoSubscription($0.value)}
+            let subscriptions = results.items.compactMap { DittoSubscription($0.value)}
             try subscriptions.forEach { subscription in
                 //TODO deserialize arguments
                 var sub = subscription
