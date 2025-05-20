@@ -2,19 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>name</key>
-    <string>put name here</string>
-    <key>appId</key>
-    <string>put appId here</string>
-    <key>authUrl</key>
-    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
-    <key>websocketUrl</key>
-    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
-    <key>authToken</key>
-    <string>put authToken here</string>
-    <key>httpApiUrl</key>
-    <string>mongo-connector-preview-1.ditto.dittolive.app</string>
-    <key>httpApiKey</key>
-    <string>put your api key here</string>
+	<key>name</key>
+	<string>ditto-app-studio</string>
+	<key>appId</key>
+	<string>cee54872-63ff-4d1d-8e68-bd05e4db530b</string>
+	<key>authUrl</key>
+	<string>https://m1tpgv.cloud.dittolive.app</string>
+	<key>websocketUrl</key>
+	<string>wss://m1tpgv.cloud.dittolive.app</string>
+	<key>authToken</key>
+	<string>50fa273f-9ef5-46c7-93cc-4a43fa459faf</string>
+	<key>httpApiUrl</key>
+	<string>m1tpgv.cloud.dittolive.app/cee54872-63ff-4d1d-8e68-bd05e4db530b</string>
+	<key>httpApiKey</key>
+	<string>0tCkkS0OYmtlf9zS1wh8XYyK2zi4Nc6u9LrPsTWccivslyCQTFMrLzNHNmeq</string>
 </dict>
 </plist>

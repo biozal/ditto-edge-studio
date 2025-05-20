@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D25038A2DDC3CBC005DD12A /* NewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2503892DDC3CBC005DD12A /* NewView.swift */; };
 		0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28362DDA0EA7004A69D1 /* DittoAllToolsMenu */; };
 		0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28382DDA0EA7004A69D1 /* DittoDataBrowser */; };
 		0D3F283B2DDA0EA7004A69D1 /* DittoDiskUsage in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F283A2DDA0EA7004A69D1 /* DittoDiskUsage */; };
@@ -40,6 +41,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0D2503892DDC3CBC005DD12A /* NewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewView.swift; sourceTree = "<group>"; };
 		0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ditto Edge Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D3F27E12DDA00FB004A69D1 /* Ditto Edge StudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Ditto Edge StudioTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D3F27EB2DDA00FB004A69D1 /* Ditto Edge StudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Ditto Edge StudioUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +54,7 @@
 				Components/DittoAppCard.swift,
 				Components/SecureFieldView.swift,
 				Components/SubscriptionEditorView.swift,
+				Components/SubscriptionTabView.swift,
 				Data/DittoApp.swift,
 				Data/DittoManager.swift,
 				dittoConfig.plist,
@@ -68,6 +71,7 @@
 				Components/DittoAppCard.swift,
 				Components/SecureFieldView.swift,
 				Components/SubscriptionEditorView.swift,
+				Components/SubscriptionTabView.swift,
 				Data/DittoApp.swift,
 				Data/DittoManager.swift,
 				dittoConfig.plist,
@@ -147,6 +151,7 @@
 				0D3F27E42DDA00FB004A69D1 /* Ditto Edge StudioTests */,
 				0D3F27EE2DDA00FB004A69D1 /* Ditto Edge StudioUITests */,
 				0D3F27D42DDA00FA004A69D1 /* Products */,
+				0D2503892DDC3CBC005DD12A /* NewView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -321,6 +326,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D25038A2DDC3CBC005DD12A /* NewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

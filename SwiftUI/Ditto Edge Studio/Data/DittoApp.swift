@@ -5,6 +5,9 @@
 //  Created by Aaron LaBeau on 5/18/25.
 //
 import Foundation
+enum AppError : Error {
+    case error(message: String)
+}
 
 class DittoApp: ObservableObject {
     @Published var appConfig: DittoAppConfig
@@ -15,7 +18,7 @@ class DittoApp: ObservableObject {
     }
     
     func setError(_ error: Error?) {
-        DispatchQueue.main.sync {
+        DispatchQueue.main.async {
             self.error = error
         }
     }

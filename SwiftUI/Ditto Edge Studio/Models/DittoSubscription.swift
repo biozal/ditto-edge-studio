@@ -13,19 +13,28 @@ public struct DittoSubscription : Identifiable {
     public var name: String
     public var query: String
     public var args: [String : Any?]?
-    public var isActive: Bool
     public var syncSubscription: DittoSyncSubscription?
+    
+    init(id: String){
+        self.id = id
+        self.name = ""
+        self.query = ""
+        self.args = nil
+        syncSubscription = nil
+    }
+    
+    init(_ value: [String: Any?]) {
+        self.id = value["_id"] as! String
+        self.name = value["name"] as! String
+        self.query = value["query"] as! String
+        self.args = value["args"] as! [String : Any?]?
+        syncSubscription = nil
+    }
 }
 
 extension DittoSubscription {
     static func new() -> DittoSubscription {
-        return DittoSubscription(
-            id: UUID().uuidString,
-            name: "",
-            query: "",
-            args: nil,
-            isActive: false,
-            syncSubscription: nil)
+        return DittoSubscription(id: UUID().uuidString)
     }
 }
             

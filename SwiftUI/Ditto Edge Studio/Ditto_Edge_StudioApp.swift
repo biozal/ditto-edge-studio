@@ -24,9 +24,14 @@ struct Ditto_Edge_StudioApp: App {
                         appState.error = nil
                     }
                 } message: {
-                    Text(
-                        appState.error?.localizedDescription ?? "Unknown Error"
-                    )
+                    if let appError = appState.error as? AppError {
+                        switch appError {
+                        case .error(let message):
+                            Text(message)
+                        }
+                    } else {
+                        Text( appState.error?.localizedDescription ?? "Unknown Error")
+                    }
                 }
                 .environmentObject(appState)
         }

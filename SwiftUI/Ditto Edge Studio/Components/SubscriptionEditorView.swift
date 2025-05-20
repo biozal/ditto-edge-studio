@@ -11,22 +11,20 @@ struct SubscriptionEditorView: View {
     @State private var name: String
     @State private var query: String
     @State private var arguments: String
-    @State private var isActive: Bool
     
     let subscription: DittoSubscription
-    let onSave: (String, String, String?, Bool) -> Void
+    let onSave: (String, String, String?) -> Void
     let onCancel: () -> Void
     
     init(
         _ subscription: DittoSubscription,
-        onSave: @escaping (String, String, String?, Bool) -> Void,
+        onSave: @escaping (String, String, String?) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.subscription = subscription
         self._name = State(initialValue: subscription.name)
         self._query = State(initialValue: subscription.query)
         self._arguments = State(initialValue: subscription.args?.description ?? "")
-        self._isActive = State(initialValue: subscription.isActive)
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -61,18 +59,10 @@ struct SubscriptionEditorView: View {
                     .foregroundColor(.secondary)
                 TextEditor(text: $arguments)
                     .frame(height: 150)
-                Text("Ex: [{\"key\": \"value\"}]")
+                Text("JSON String Format - Ex: [{\"key\": \"value\"}]")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.bottom, 10)
-#if os(macOS)
-                Divider()
-                    .padding(.bottom, 10)
-#endif
-                Toggle(isOn: $isActive) {
-                    Text("Active")
-                        .font(.subheadline)
-                }
 #if os(macOS)
                 Divider()
                     .padding(.bottom, 10)
@@ -81,7 +71,7 @@ struct SubscriptionEditorView: View {
             Section {
                 HStack(spacing: 16) {
                     Button(action: {
-                        onSave(name, query, arguments.isEmpty ? nil : arguments, isActive)
+                        onSave(name, query, arguments.isEmpty ? nil : arguments)
                     }) {
                         Text("Save")
                             .frame(maxWidth: .infinity)
