@@ -283,6 +283,8 @@ extension DittoManager {
             
             try dittoSelectedApp?.disableSyncWithV3()
             
+            self.dittoSelectedAppConfig = appConfig
+            
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
             
@@ -296,9 +298,10 @@ extension DittoManager {
     }
     
     func hydrateDittoSubscriptions() async throws {
-        if let ditto = dittoLocal {
+        if let ditto = dittoLocal,
+           let id = dittoSelectedAppConfig?._id {
             let query = "SELECT * FROM dittosubscriptions WHERE selectedApp_id = :selectedAppId"
-            let arguments = ["selectedAppId": dittoSelectedAppConfig?._id]
+            let arguments = ["selectedAppId": id]
             let results = try await ditto.store.execute(query: query, arguments: arguments)
             let subscriptions = results.items.compactMap { DittoSubscription($0.value)}
             try subscriptions.forEach { subscription in
@@ -316,15 +319,15 @@ extension DittoManager {
     func addDittoSubscription(_ subscription: DittoSubscription) async throws {
         if let ditto = dittoLocal,
            let selectedAppConfig = dittoSelectedAppConfig {
-            //TODO support arguments
             let query =
-            "INSERT INTO dittosubscriptions INITIAL DOCUMENTS (:newSubscription)"
+            "INSERT INTO dittosubscriptions DOCUMENTS (:newSubscription) ON ID CONFLICT DO UPDATE"
             var arguments: [String: Any] = [
                 "newSubscription": [
                     "_id": subscription.id,
                     "name": subscription.name,
                     "query": subscription.query,
-                    "selectedApp_id": selectedAppConfig._id
+                    "selectedApp_id": selectedAppConfig._id,
+                    "args": ""
                 ]
             ]
             if let args = subscription.args {
@@ -337,17 +340,37 @@ extension DittoManager {
                 query: query,
                 arguments: arguments
             )
+            
             //handle edge case where subscription exists in the cache
-            removeDittoSubscription(subscription)
+            removeDittoSubscriptionFromCache(subscription)
+            
             //setup the subscription now - need to make it mutable, regiser the subscription
             var sub = subscription
             sub.syncSubscription = try dittoSelectedApp?.sync
-                .registerSubscription(query: subscription.query)
+                .registerSubscription(
+                    query: subscription.query,
+                    arguments: subscription.args
+                )
+            
+            //add to the local cache of observable objects to show in the UI
             dittoSubscriptions.append(sub)
         }
     }
     
-    private func removeDittoSubscription(_ subscription: DittoSubscription) {
+    func removeDittoSubscription(_ subscription: DittoSubscription) async throws {
+        if let ditto = dittoLocal {
+            let query = "DELETE FROM dittosubscriptions WHERE _id = :id"
+            let argument = [ "id": subscription.id ]
+            try await ditto.store.execute(
+                query: query,
+                arguments: argument
+            )
+            removeDittoSubscriptionFromCache(subscription)
+        }
+    }
+    
+    private func removeDittoSubscriptionFromCache(_ subscription: DittoSubscription) {
+        
         //handle edge case where this is an add but it already exists
         if let sub = dittoSubscriptions.first(where: {
             $0.id == subscription.id

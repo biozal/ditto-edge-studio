@@ -27,7 +27,11 @@ public struct DittoSubscription : Identifiable {
         self.id = value["_id"] as! String
         self.name = value["name"] as! String
         self.query = value["query"] as! String
-        self.args = value["args"] as! [String : Any?]?
+        if (value.keys.contains("args")) {
+            if let arguments = value["args"] as? [String: Any?] {
+                self.args =  arguments
+            }
+        }
         syncSubscription = nil
     }
 }

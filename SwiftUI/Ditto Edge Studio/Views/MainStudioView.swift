@@ -87,77 +87,64 @@ struct MainStudioView: View {
                 }
                 .tag(1)
                 
-                // Health Metrics Tab
+                // Swift Data Tools Menu
                 NavigationSplitView {
-                    // First Column - Metric Categories
-                    List(viewModel.metricCategories, id: \.self) { category in
-                        Text(category)
+                    // First Column - Listing of Data Tools
+                    List(viewModel.dittoToolsFeatures, id: \.self) { tool in
+                        Text(tool)
                             .onTapGesture {
-                                viewModel.selectedMetricCategory = category
+                                viewModel.selectedDataTool = tool
                             }
                     }
                     .navigationTitle("Tools")
-                } content: {
-                    // Second Column - Metrics in Category
-                    if let category = viewModel.selectedMetricCategory {
-                        List(viewModel.metrics, id: \.self) { metric in
-                            Text(metric)
-                                .onTapGesture {
-                                    viewModel.selectedMetric = metric
-                                }
-                        }
-                        .navigationTitle(category)
-                    } else {
-                        Text("Select a category")
-                    }
                 } detail: {
-                    // Third Column - Metric Details
-                    if let metric = viewModel.selectedMetric {
-                        VStack {
-                            Text("Metric Details")
-                                .font(.title)
-                            Text(metric)
-                                .padding()
-                        }
+                    // Second Column - Metrics in Category
+                    if let tool = viewModel.selectedDataTool {
+                        Text(tool)
                     } else {
-                        Text("Select a metric")
+                        ContentUnavailableView(
+                            "Select Tool",
+                            systemImage: "exclamationmark.triangle.fill",
+                            description: Text(
+                                "Select a tool from the list on the left."
+                            )
+                        )
                     }
                 }
                 .tabItem {
                     Label("Tools", systemImage: "hammer.circle")
                 }
                 .tag(2)
-            }
-            .navigationTitle(viewModel.selectedApp.name)
-            .toolbar {
+                .navigationTitle(viewModel.selectedApp.name)
+                .toolbar {
 #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            Task {
+                                await viewModel.closeSelectedApp()
+                                isMainStudioViewPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
                         }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
                     }
-                }
 #else
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            Task {
+                                await viewModel.closeSelectedApp()
+                                isMainStudioViewPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
                         }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
                     }
-                }
 #endif
+                }
             }
         }
     }
 }
-
 #Preview {
     MainStudioView(
         isMainStudioViewPresented: Binding<Bool>.constant(false),
@@ -182,9 +169,9 @@ extension MainStudioView {
         var selectedQuery: String?
         
         // Health Metrics State
-        var metricCategories = ["Sync", "Storage", "Network"]
+        var dittoToolsFeatures = ["Presence Viewer", "Peers List", "Presence Degration", "Hearbeat", "Disk Usage"]
         var metrics = ["metric1", "metric2", "metric3"]
-        var selectedMetricCategory: String?
+        var selectedDataTool: String?
         var selectedMetric: String?
         
         init(_ dittoAppConfig: DittoAppConfig) {
@@ -201,15 +188,26 @@ extension MainStudioView {
         func saveSubscription(name: String, query: String, args: String?, appState: DittoApp)
         {
             if var subscription = selectedSubscription {
-                
                 subscription.name = name
                 subscription.query = query
                 if let argsString = args {
-                    
+                    do {
+                        if let jsonData = argsString.data(using: .utf8),
+                           let jsonDict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                            subscription.args = jsonDict
+                        } else {
+                            appState.setError(AppError.error(message: "Failed to parse subscription arguments"))
+                        }
+                    } catch {
+                        appState.setError(AppError.error(message: "Invalid JSON format in subscription arguments: \(error.localizedDescription)"))
+                    }
+                } else {
+                    subscription.args = nil
                 }
                 Task {
                     do {
-                        try await DittoManager.shared.addDittoSubscription(subscription )
+                        try await DittoManager.shared.addDittoSubscription(subscription)
+                        subscriptions = await DittoManager.shared.dittoSubscriptions
                     } catch {
                         appState.setError(error)
                     }

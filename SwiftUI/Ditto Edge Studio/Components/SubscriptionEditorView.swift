@@ -25,7 +25,26 @@ struct SubscriptionEditorView: View {
         self.subscription = subscription
         self._name = State(initialValue: subscription.name)
         self._query = State(initialValue: subscription.query)
-        self._arguments = State(initialValue: subscription.args?.description ?? "")
+        
+        // Convert args dictionary to JSON string if it exists
+        let argsJsonString: String
+        if let args = subscription.args {
+            do {
+                let jsonData = try JSONSerialization.data(withJSONObject: args, options: .prettyPrinted)
+                if let jsonString = String(data: jsonData, encoding: .utf8) {
+                    argsJsonString = jsonString
+                } else {
+                    argsJsonString = ""
+                }
+            } catch {
+                print("Error converting args to JSON: \(error)")
+                argsJsonString = ""
+            }
+        } else {
+            argsJsonString = ""
+        }
+        
+        self._arguments = State(initialValue: argsJsonString)
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -76,7 +95,7 @@ struct SubscriptionEditorView: View {
                     } label: {
                         Label("Save", systemImage: "internaldrive")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     
                     Button{
                         onCancel()
