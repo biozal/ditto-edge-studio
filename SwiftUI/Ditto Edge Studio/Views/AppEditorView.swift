@@ -59,7 +59,7 @@ struct AppEditorView: View {
                             isPresented = false
                         }
                     } label: {
-                        Label("Save", systemImage: "square.and.arrow.down")
+                        Label("Save", systemImage: "internaldrive")
                         
                     }
                     .disabled(

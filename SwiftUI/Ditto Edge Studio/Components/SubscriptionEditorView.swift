@@ -8,17 +8,18 @@ import Combine
 import SwiftUI
 
 struct SubscriptionEditorView: View {
+    @EnvironmentObject private var appState: DittoApp
     @State private var name: String
     @State private var query: String
     @State private var arguments: String
     
     let subscription: DittoSubscription
-    let onSave: (String, String, String?) -> Void
+    let onSave: (String, String, String?, DittoApp) -> Void
     let onCancel: () -> Void
     
     init(
         _ subscription: DittoSubscription,
-        onSave: @escaping (String, String, String?) -> Void,
+        onSave: @escaping (String, String, String?, DittoApp) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.subscription = subscription
@@ -70,17 +71,17 @@ struct SubscriptionEditorView: View {
             }
             Section {
                 HStack(spacing: 16) {
-                    Button(action: {
-                        onSave(name, query, arguments.isEmpty ? nil : arguments)
-                    }) {
-                        Text("Save")
-                            .frame(maxWidth: .infinity)
+                    Button{
+                        onSave(name, query, arguments.isEmpty ? nil : arguments, appState)
+                    } label: {
+                        Label("Save", systemImage: "internaldrive")
                     }
                     .buttonStyle(.borderedProminent)
                     
-                    Button(action: onCancel) {
-                        Text("Cancel")
-                            .frame(maxWidth: .infinity)
+                    Button{
+                        onCancel()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
                     }
                     .buttonStyle(.bordered)
                 }
