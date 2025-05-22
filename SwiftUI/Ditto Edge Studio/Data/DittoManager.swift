@@ -12,41 +12,41 @@ import SwiftUI
 // MARK: - DittoService
 actor DittoManager: ObservableObject {
     var isStoreInitialized: Bool = false
-    
+
     // MARK: local cache
     var dittoApp: DittoApp?
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
-    
+
     var localObserver: DittoStoreObserver?
     @Published var dittoAppConfigs: [DittoAppConfig] = []
-    
+
     // MARK: Selected App
     var dittoSelectedAppConfig: DittoAppConfig?
     var dittoSelectedApp: Ditto?
     @Published var dittoSubscriptions: [DittoSubscription] = []
-    
+
     private init() {}
-    
+
     static var shared = DittoManager()
-    
+
     func initializeStore(dittoApp: DittoApp) async throws {
         do {
             if !isStoreInitialized {
                 // setup logging
                 DittoLogger.enabled = true
                 DittoLogger.minimumLogLevel = .debug
-                
+
                 //cache state for future use
                 self.dittoApp = dittoApp
-                
+
                 // Create directory for local database
                 let localDirectoryPath = FileManager.default.urls(
                     for: .applicationSupportDirectory,
                     in: .userDomainMask
                 )[0]
-                    .appendingPathComponent("ditto_appconfig")
-                
+                .appendingPathComponent("ditto_appconfig")
+
                 // Ensure directory exists
                 if !FileManager.default.fileExists(
                     atPath: localDirectoryPath.path
@@ -56,7 +56,7 @@ actor DittoManager: ObservableObject {
                         withIntermediateDirectories: true
                     )
                 }
-                
+
                 //validate that the dittoConfig.plist file is valid
                 if dittoApp.appConfig.appId.isEmpty
                     || dittoApp.appConfig.appId == "put appId here"
@@ -66,7 +66,7 @@ actor DittoManager: ObservableObject {
                     )
                     throw error
                 }
-                
+
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 dittoLocal = Ditto(
                     identity: .onlinePlayground(
@@ -79,13 +79,13 @@ actor DittoManager: ObservableObject {
                     ),
                     persistenceDirectory: localDirectoryPath
                 )
-                
+
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
                         dittoApp.appConfig.websocketUrl
                     )
                 })
-                
+
                 try dittoLocal?.disableSyncWithV3()
                 try await setupLocalSubscription()
                 try registerLocalObserver()
@@ -98,7 +98,7 @@ actor DittoManager: ObservableObject {
 
 // MARK: Subscriptions
 extension DittoManager {
-    
+
     func setupLocalSubscription() async throws {
         if let ditto = dittoLocal {
             //set collection to only sync to local
@@ -111,18 +111,19 @@ extension DittoManager {
                 arguments: ["syncScopes": syncScopes]
             )
             //setup subscription
-            self.localAppConfigSubscription = try ditto.sync.registerSubscription(
-                query: """
-                    SELECT *
-                    FROM dittoappconfigs 
-                    """
-            )
+            self.localAppConfigSubscription = try ditto.sync
+                .registerSubscription(
+                    query: """
+                        SELECT *
+                        FROM dittoappconfigs 
+                        """
+                )
             Task(priority: .background) {
                 try ditto.startSync()
             }
         }
     }
-    
+
     func stopLocalSubscription() {
         if let subscriptionInstance = localAppConfigSubscription {
             subscriptionInstance.cancel()
@@ -133,9 +134,10 @@ extension DittoManager {
 
 // MARK: Register Observer - Live Query
 extension DittoManager {
-    
+
     func registerLocalObserver() throws {
         if let ditto = dittoLocal {
+            let dittoAppRef = self.dittoApp  // Capture reference before closure
             localObserver = try ditto.store.registerObserver(
                 query: """
                     SELECT *
@@ -144,19 +146,32 @@ extension DittoManager {
                     """
             ) { [weak self] results in
                 guard let self else { return }
+                let decoder = JSONDecoder()
                 // Create new DittoAppConfig instances and update the published property
-                let configs = results.items.compactMap {
-                    DittoAppConfig(value: $0.value)
+                let configs = results.items.compactMap { item in
+                    do {
+                        return try decoder.decode(
+                            DittoAppConfig.self,
+                            from: item.jsonData()
+                        )
+                    } catch {
+                        // Use Task to access actor-isolated properties
+                        if let app = dittoAppRef {
+                            app.setError(error)
+                        }
+                        return nil
+                    }
                 }
                 // need to update in a task with async so that this will
                 // be published to the UI thread
                 Task { [weak self] in
                     await self?.setDittoAppConfigs(configs)
                 }
+
             }
         }
     }
-    
+
     private func setDittoAppConfigs(_ configs: [DittoAppConfig]) async {
         self.dittoAppConfigs = configs
     }
@@ -164,12 +179,12 @@ extension DittoManager {
 
 // MARK: Ditto App Config Operations
 extension DittoManager {
-    
+
     func updateDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
         do {
             if let ditto = dittoLocal {
                 let query =
-                "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey WHERE _id = :_id"
+                    "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey WHERE _id = :_id"
                 let arguments = [
                     "_id": appConfig._id,
                     "name": appConfig.name,
@@ -189,12 +204,12 @@ extension DittoManager {
             self.dittoApp?.setError(error)
         }
     }
-    
+
     func addDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
         do {
             if let ditto = dittoLocal {
                 let query =
-                "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"
+                    "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"
                 let arguments = [
                     "newConfig": [
                         "_id": appConfig._id,
@@ -220,7 +235,7 @@ extension DittoManager {
 
 // MARK: Ditto Selected App - Hydration
 extension DittoManager {
-    
+
     func closeDittoSelectedApp() {
         //if an app was already selected, cancel the subscription, observations, and remove the app
         if let ditto = dittoSelectedApp {
@@ -234,14 +249,14 @@ extension DittoManager {
         }
         dittoSelectedApp = nil
     }
-    
+
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
-    -> Bool
+        -> Bool
     {
         var isSuccess: Bool = false
         do {
             closeDittoSelectedApp()
-            
+
             // setup the new selected app
             // need to calculate the directory path so each app has it's own
             // unique directory
@@ -252,8 +267,8 @@ extension DittoManager {
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0]
-                .appendingPathComponent(dbname + "-")
-            
+            .appendingPathComponent(dbname + "-")
+
             // Ensure directory exists
             if !FileManager.default.fileExists(atPath: localDirectoryPath.path)
             {
@@ -274,39 +289,47 @@ extension DittoManager {
                 ),
                 persistenceDirectory: localDirectoryPath
             )
-            
+
             dittoSelectedApp?.updateTransportConfig(block: { config in
                 config.connect.webSocketURLs.insert(
                     appConfig.websocketUrl
                 )
             })
-            
+
             try dittoSelectedApp?.disableSyncWithV3()
-            
+
             self.dittoSelectedAppConfig = appConfig
-            
+
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
-            
+
             // TODO hydrate the observers from the database
-            
+
             isSuccess = true
         } catch {
             self.dittoApp?.setError(error)
         }
         return isSuccess
     }
-    
+
     func hydrateDittoSubscriptions() async throws {
         if let ditto = dittoLocal,
-           let id = dittoSelectedAppConfig?._id {
-            let query = "SELECT * FROM dittosubscriptions WHERE selectedApp_id = :selectedAppId"
+            let id = dittoSelectedAppConfig?._id
+        {
+            let query =
+                "SELECT * FROM dittosubscriptions WHERE selectedApp_id = :selectedAppId"
             let arguments = ["selectedAppId": id]
-            let results = try await ditto.store.execute(query: query, arguments: arguments)
-            let subscriptions = results.items.compactMap { DittoSubscription($0.value)}
+            let results = try await ditto.store.execute(
+                query: query,
+                arguments: arguments
+            )
+            let subscriptions = results.items.compactMap {
+                DittoSubscription($0.value)
+            }
             try subscriptions.forEach { subscription in
                 var sub = subscription
-                sub.syncSubscription = try dittoSelectedApp?.sync.registerSubscription(query: subscription.query)
+                sub.syncSubscription = try dittoSelectedApp?.sync
+                    .registerSubscription(query: subscription.query)
                 self.dittoSubscriptions.append(sub)
             }
         }
@@ -315,19 +338,20 @@ extension DittoManager {
 
 // MARK: Ditto Selected App - Subscription Operations
 extension DittoManager {
-    
+
     func addDittoSubscription(_ subscription: DittoSubscription) async throws {
         if let ditto = dittoLocal,
-           let selectedAppConfig = dittoSelectedAppConfig {
+            let selectedAppConfig = dittoSelectedAppConfig
+        {
             let query =
-            "INSERT INTO dittosubscriptions DOCUMENTS (:newSubscription) ON ID CONFLICT DO UPDATE"
+                "INSERT INTO dittosubscriptions DOCUMENTS (:newSubscription) ON ID CONFLICT DO UPDATE"
             var arguments: [String: Any] = [
                 "newSubscription": [
                     "_id": subscription.id,
                     "name": subscription.name,
                     "query": subscription.query,
                     "selectedApp_id": selectedAppConfig._id,
-                    "args": ""
+                    "args": "",
                 ]
             ]
             if let args = subscription.args {
@@ -340,10 +364,10 @@ extension DittoManager {
                 query: query,
                 arguments: arguments
             )
-            
+
             //handle edge case where subscription exists in the cache
             removeDittoSubscriptionFromCache(subscription)
-            
+
             //setup the subscription now - need to make it mutable, regiser the subscription
             var sub = subscription
             sub.syncSubscription = try dittoSelectedApp?.sync
@@ -351,16 +375,17 @@ extension DittoManager {
                     query: subscription.query,
                     arguments: subscription.args
                 )
-            
+
             //add to the local cache of observable objects to show in the UI
             dittoSubscriptions.append(sub)
         }
     }
-    
-    func removeDittoSubscription(_ subscription: DittoSubscription) async throws {
+
+    func removeDittoSubscription(_ subscription: DittoSubscription) async throws
+    {
         if let ditto = dittoLocal {
             let query = "DELETE FROM dittosubscriptions WHERE _id = :id"
-            let argument = [ "id": subscription.id ]
+            let argument = ["id": subscription.id]
             try await ditto.store.execute(
                 query: query,
                 arguments: argument
@@ -368,9 +393,11 @@ extension DittoManager {
             removeDittoSubscriptionFromCache(subscription)
         }
     }
-    
-    private func removeDittoSubscriptionFromCache(_ subscription: DittoSubscription) {
-        
+
+    private func removeDittoSubscriptionFromCache(
+        _ subscription: DittoSubscription
+    ) {
+
         //handle edge case where this is an add but it already exists
         if let sub = dittoSubscriptions.first(where: {
             $0.id == subscription.id

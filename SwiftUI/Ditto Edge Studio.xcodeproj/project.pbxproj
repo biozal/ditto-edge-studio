@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */; };
 		0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28362DDA0EA7004A69D1 /* DittoAllToolsMenu */; };
 		0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28382DDA0EA7004A69D1 /* DittoDataBrowser */; };
 		0D3F283B2DDA0EA7004A69D1 /* DittoDiskUsage in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F283A2DDA0EA7004A69D1 /* DittoDiskUsage */; };
@@ -51,15 +52,16 @@
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
 				Components/SecureFieldView.swift,
-				Components/SubscriptionEditorView.swift,
-				Components/SubscriptionTabView.swift,
 				Data/DittoManager.swift,
 				DittoApp.swift,
-				dittoConfig.plist,
 				Models/DittoAppConfig.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
+				Views/DittoToolsTabView.swift,
 				Views/MainStudioView.swift,
+				Views/QueryTabView.swift,
+				Views/SubscriptionEditorView.swift,
+				Views/SubscriptionTabView.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Ditto Edge StudioTests */;
 		};
@@ -68,15 +70,16 @@
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
 				Components/SecureFieldView.swift,
-				Components/SubscriptionEditorView.swift,
-				Components/SubscriptionTabView.swift,
 				Data/DittoManager.swift,
 				DittoApp.swift,
-				dittoConfig.plist,
 				Models/DittoAppConfig.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
+				Views/DittoToolsTabView.swift,
 				Views/MainStudioView.swift,
+				Views/QueryTabView.swift,
+				Views/SubscriptionEditorView.swift,
+				Views/SubscriptionTabView.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Ditto Edge StudioUITests */;
 		};
@@ -121,6 +124,7 @@
 				0D3F28432DDA0EA7004A69D1 /* DittoHeartbeat in Frameworks */,
 				0D3F28472DDA0EA7004A69D1 /* DittoPermissionsHealth in Frameworks */,
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
+				0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */,
 				0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -195,6 +199,7 @@
 				0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */,
 				0D3F284D2DDA0EC1004A69D1 /* DittoObjC */,
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
+				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
 			);
 			productName = "Ditto Edge Studio";
 			productReference = 0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */;
@@ -281,6 +286,7 @@
 			packageReferences = (
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
+				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -694,6 +700,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ZeeZide/CodeEditor.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.6;
+			};
+		};
 		0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getditto/DittoSwiftTools";
@@ -713,6 +727,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */;
+			productName = CodeEditor;
+		};
 		0D3F28362DDA0EA7004A69D1 /* DittoAllToolsMenu */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */;
