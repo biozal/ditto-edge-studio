@@ -51,6 +51,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/QueryEditorView.swift,
+				Components/QueryResultsView.swift,
+				Components/ResultJsonViewer.swift,
 				Components/SecureFieldView.swift,
 				Data/DittoManager.swift,
 				DittoApp.swift,
@@ -69,6 +72,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/QueryEditorView.swift,
+				Components/QueryResultsView.swift,
+				Components/ResultJsonViewer.swift,
 				Components/SecureFieldView.swift,
 				Data/DittoManager.swift,
 				DittoApp.swift,

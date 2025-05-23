@@ -39,24 +39,18 @@ struct QueryTabView: View {
                 #endif
             }
         } detail: {
+            #if os(macOS)
             // Second Column - Query History/Favorites
             // TODO switch this out for a list of queries
-            if let query = viewModel.selectedQuery {
-                VStack {
-                    Text("Query Editor")
-                        .font(.title)
-                    Text(query)
-                        .padding()
-                }
-            } else {
-                ContentUnavailableView(
-                    "TODO - create editor",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "I'm too lazy to create the query editor and query results view right now.  This is a placeholder."
-                    )
-                )
+            VSplitView {
+                //top half
+                QueryEditorView(queryText: $viewModel.selectedQuery)
+                //bottom half
+                QueryResultsView(viewModel: viewModel)
             }
+            #else
+            #endif
+
         }
         .toolbar {
             #if os(iPadOS)

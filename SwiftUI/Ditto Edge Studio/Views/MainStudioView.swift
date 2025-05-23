@@ -87,7 +87,6 @@ extension MainStudioView {
         // Peers List State
         var queryHistory: [String] = []
         var queryFavorites: [String] = []
-        var selectedQuery: String?
         
         // Health Metrics State
         var dittoToolsFeatures = ["Presence Viewer", "Peers List", "Presence Degration", "Hearbeat", "Disk Usage"]
@@ -95,10 +94,19 @@ extension MainStudioView {
         var selectedDataTool: String?
         var selectedMetric: String?
         
+        // Query Editor
+        var selectedQuery: String
+        var jsonResults: String
+        var resultsMode: String
+        
         init(_ dittoAppConfig: DittoAppConfig) {
+            self.selectedQuery = ""
+            self.jsonResults = "{}"
+            self.resultsMode = "json"
             self.selectedApp = dittoAppConfig
             Task {
                 subscriptions = await DittoManager.shared.dittoSubscriptions
+                selectedQuery = subscriptions.first?.query ?? ""
             }
         }
         
