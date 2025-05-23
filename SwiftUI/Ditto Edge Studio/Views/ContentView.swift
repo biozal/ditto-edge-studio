@@ -143,6 +143,14 @@ extension ContentView {
             }
         }
         
+        func deleteApp(_ dittoApp: DittoAppConfig, appState: DittoApp) async {
+            do {
+                try await DittoManager.shared.deleteDittoAppConfig(dittoApp)
+            } catch {
+                appState.setError(error)
+            }
+        }
+        
         func loadApps(appState: DittoApp) async {
             isLoading = true
             do {

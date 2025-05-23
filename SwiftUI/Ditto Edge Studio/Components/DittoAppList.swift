@@ -26,6 +26,13 @@ struct DittoAppList: View {
                   }
               }
               .swipeActions(edge: .trailing) {
+                  Button(role: .destructive) {
+                      Task {
+                          await viewModel.deleteApp(dittoApp, appState: appState)
+                      }
+                  } label: {
+                    Label("Delete", systemImage: "trash")
+                }
                 Button(role: .cancel) {
                   viewModel.showAppEditor(dittoApp)
                 } label: {
@@ -51,8 +58,15 @@ struct DittoAppList: View {
               }
             }
             .contextMenu {
-              Button("Edit") {
-                viewModel.showAppEditor(dittoApp)
+              Button {
+                  viewModel.showAppEditor(dittoApp)
+              } label: {
+                    Label("Edit", systemImage: "pencil")
+              }
+              Button("Delete") {
+                  Task {
+                      await viewModel.deleteApp(dittoApp, appState: appState)
+                  }
               }
             }
         }
