@@ -57,11 +57,11 @@
 				Models/DittoAppConfig.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
-				Views/DittoToolsTabView.swift,
 				Views/MainStudioView.swift,
-				Views/QueryTabView.swift,
 				Views/SubscriptionEditorView.swift,
-				Views/SubscriptionTabView.swift,
+				Views/Tabs/DittoToolsTabView.swift,
+				Views/Tabs/QueryTabView.swift,
+				Views/Tabs/SubscriptionTabView.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Ditto Edge StudioTests */;
 		};
@@ -75,11 +75,11 @@
 				Models/DittoAppConfig.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
-				Views/DittoToolsTabView.swift,
 				Views/MainStudioView.swift,
-				Views/QueryTabView.swift,
 				Views/SubscriptionEditorView.swift,
-				Views/SubscriptionTabView.swift,
+				Views/Tabs/DittoToolsTabView.swift,
+				Views/Tabs/QueryTabView.swift,
+				Views/Tabs/SubscriptionTabView.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Ditto Edge StudioUITests */;
 		};

@@ -8,6 +8,7 @@ import Combine
 import DittoSwift
 import Foundation
 import SwiftUI
+import ObjectiveC
 
 // MARK: - DittoService
 actor DittoManager: ObservableObject {
@@ -180,31 +181,6 @@ extension DittoManager {
 // MARK: Ditto App Config Operations
 extension DittoManager {
 
-    func updateDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
-        do {
-            if let ditto = dittoLocal {
-                let query =
-                    "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey WHERE _id = :_id"
-                let arguments = [
-                    "_id": appConfig._id,
-                    "name": appConfig.name,
-                    "appId": appConfig.appId,
-                    "authToken": appConfig.authToken,
-                    "authUrl": appConfig.authUrl,
-                    "websocketUrl": appConfig.websocketUrl,
-                    "httpApiUrl": appConfig.httpApiUrl,
-                    "httpApiKey": appConfig.httpApiKey,
-                ]
-                try await ditto.store.execute(
-                    query: query,
-                    arguments: arguments
-                )
-            }
-        } catch {
-            self.dittoApp?.setError(error)
-        }
-    }
-
     func addDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
         do {
             if let ditto = dittoLocal {
@@ -220,7 +196,42 @@ extension DittoManager {
                         "websocketUrl": appConfig.websocketUrl,
                         "httpApiUrl": appConfig.httpApiUrl,
                         "httpApiKey": appConfig.httpApiKey,
+                        "mode": appConfig.mode,
                     ]
+                ]
+                try await ditto.store.execute(
+                    query: query,
+                    arguments: arguments
+                )
+            }
+        } catch {
+            self.dittoApp?.setError(error)
+        }
+    }
+    
+    func deleteDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
+         if let ditto = dittoLocal {
+             let query = "DELETE FROM dittoappconfigs WHERE _id = :id"
+             let argument = ["id": appConfig._id]
+             try await ditto.store.execute( query: query, arguments: argument )
+         }
+     }
+    
+    func updateDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
+        do {
+            if let ditto = dittoLocal {
+                let query =
+                    "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode WHERE _id = :_id"
+                let arguments = [
+                    "_id": appConfig._id,
+                    "name": appConfig.name,
+                    "appId": appConfig.appId,
+                    "authToken": appConfig.authToken,
+                    "authUrl": appConfig.authUrl,
+                    "websocketUrl": appConfig.websocketUrl,
+                    "httpApiUrl": appConfig.httpApiUrl,
+                    "httpApiKey": appConfig.httpApiKey,
+                    "mode": appConfig.mode,
                 ]
                 try await ditto.store.execute(
                     query: query,
@@ -277,6 +288,12 @@ extension DittoManager {
                     withIntermediateDirectories: true
                 )
             }
+            
+            // Validate inputs before trying to create Ditto
+            guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {
+                throw AppError.error(message: "Invalid app configuration - missing appId or token")
+            }
+            
             //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
             dittoSelectedApp = Ditto(
                 identity: .onlinePlayground(
@@ -287,9 +304,8 @@ extension DittoManager {
                         string: appConfig.authUrl
                     )
                 ),
-                persistenceDirectory: localDirectoryPath
-            )
-
+                persistenceDirectory: localDirectoryPath)
+            
             dittoSelectedApp?.updateTransportConfig(block: { config in
                 config.connect.webSocketURLs.insert(
                     appConfig.websocketUrl

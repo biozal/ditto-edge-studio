@@ -19,18 +19,29 @@ struct AppEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Picker("Mode", selection: $viewModel.mode) {
+                                        Text("Online Playground").tag("online")
+                                        Text("Offline").tag("offline")
+                                    }
+                                    .pickerStyle(.segmented)
                 Section("Basic Information") {
                     TextField("Name", text: $viewModel.name)
                 }
-                Section("Connection Information") {
+
+                Section("Authorization Information") {
                     TextField("AppID", text: $viewModel.appId)
                     TextField("Playground Token", text: $viewModel.authToken)
-                    TextField("Auth URL", text: $viewModel.authUrl)
-                    TextField("Websocket URL", text: $viewModel.websocketUrl)
                 }
-                Section("Connect via HTTP API") {
-                    TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-                    TextField("HTTP API Key", text: $viewModel.httpApiKey)
+
+                if (viewModel.mode == "online") {
+                    Section("BigPeer Information") {
+                        TextField("Auth URL", text: $viewModel.authUrl)
+                        TextField("Websocket URL", text: $viewModel.websocketUrl)
+                    }
+                    Section("Connect via HTTP API") {
+                        TextField("HTTP API URL", text: $viewModel.httpApiUrl)
+                        TextField("HTTP API Key", text: $viewModel.httpApiKey)
+                    }
                 }
             }
 #if os(macOS)
@@ -49,7 +60,7 @@ struct AppEditorView: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction){
-                    Button {
+                    Button ("Save"){
                         Task {
                             do {
                                 try await viewModel.save(appState: appState)
@@ -58,9 +69,6 @@ struct AppEditorView: View {
                             }
                             isPresented = false
                         }
-                    } label: {
-                        Label("Save", systemImage: "internaldrive")
-                        
                     }
                     .disabled(
                         viewModel.appId.isEmpty ||
@@ -88,6 +96,7 @@ extension AppEditorView {
         var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
+        var mode: String
         
         let isNewItem: Bool
         
@@ -100,6 +109,7 @@ extension AppEditorView {
             websocketUrl = appConfig.websocketUrl
             httpApiUrl = appConfig.httpApiUrl
             httpApiKey = appConfig.httpApiKey
+            mode = appConfig.mode
             
             if (appConfig.appId == "") {
                 isNewItem = true
@@ -117,7 +127,8 @@ extension AppEditorView {
                                                authUrl: authUrl,
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,
-                                               httpApiKey: httpApiKey)
+                                               httpApiKey: httpApiKey,
+                                               mode: mode)
                 if isNewItem {
                     try await DittoManager.shared.addDittoAppConfig(appConfig)
                 } else {

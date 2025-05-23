@@ -10,6 +10,7 @@ class DittoAppConfig: Decodable {
     let websocketUrl: String
     let httpApiUrl: String
     let httpApiKey: String
+    let mode: String
 
     init (_ _id: String,
           name: String,
@@ -18,7 +19,8 @@ class DittoAppConfig: Decodable {
           authUrl: String,
           websocketUrl: String,
           httpApiUrl: String,
-          httpApiKey: String) {
+          httpApiKey: String,
+          mode: String = "online") {
         
         self._id = _id
         self.name = name
@@ -28,6 +30,7 @@ class DittoAppConfig: Decodable {
         self.websocketUrl = websocketUrl
         self.httpApiUrl = httpApiUrl
         self.httpApiKey = httpApiKey
+        self.mode = mode
     }
     
     init(value: [String: Any?]) {
@@ -39,6 +42,7 @@ class DittoAppConfig: Decodable {
         self.websocketUrl = value["websocketUrl"] as! String
         self.httpApiUrl = value["httpApiUrl"] as! String
         self.httpApiKey = value["httpApiKey"] as! String
+        self.mode = value["mode"] as! String
     }
 }
 
@@ -52,7 +56,8 @@ extension DittoAppConfig {
             authUrl: "",
             websocketUrl: "",
             httpApiUrl: "",
-            httpApiKey: ""
+            httpApiKey: "",
+            mode: "online"
         )
     }
 }
