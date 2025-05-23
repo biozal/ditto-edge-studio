@@ -310,7 +310,9 @@ extension DittoManager {
                 config.connect.webSocketURLs.insert(
                     appConfig.websocketUrl
                 )
+                config.enableAllPeerToPeer()
             })
+                
 
             try dittoSelectedApp?.disableSyncWithV3()
 
