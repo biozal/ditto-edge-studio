@@ -89,9 +89,18 @@ struct ContentView: View {
                             ),
                             dittoAppConfig: viewModel.dittoAppToEdit!
                         )
-                        #if os(macOS)
-                        .frame(minWidth: 600, idealWidth: 1000, maxWidth: 1080)
-                        #endif
+                   #if os(macOS)
+                       .frame(minWidth: 600, idealWidth: 1000, maxWidth: 1080)
+                   #elseif os(iOS)
+                       .frame(
+                           minWidth: UIDevice.current.userInterfaceIdiom == .pad ? 600 : nil,
+                           idealWidth: UIDevice.current.userInterfaceIdiom == .pad ? 1000 : nil,
+                           maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 1080 : nil,
+                           minHeight: UIDevice.current.userInterfaceIdiom == .pad ? 800 : nil,
+                           idealHeight: UIDevice.current.userInterfaceIdiom == .pad ? 800 : nil,
+                           maxHeight: UIDevice.current.userInterfaceIdiom == .pad ? 1000 : nil
+                       )
+                   #endif
                         .environmentObject(appState)
                         .presentationDetents([.medium, .large])
                     }
