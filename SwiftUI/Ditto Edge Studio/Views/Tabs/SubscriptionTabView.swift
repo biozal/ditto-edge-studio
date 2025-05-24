@@ -123,3 +123,15 @@ struct SubscriptionsTabView: View {
         #endif
     }
 }
+
+#Preview {
+    SubscriptionsTabView(
+        viewModel: .constant(
+            MainStudioView.ViewModel(
+                DittoAppConfig.new(),
+            )
+        ),
+        isMainStudioViewPresented: .constant(true)
+    )
+    .environmentObject(DittoApp())
+}

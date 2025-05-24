@@ -19,9 +19,26 @@ struct QueryResultsView: View {
                         Text("JSON").tag("json")
                         Text("Table").tag("table")
                     }
+                    .padding(.top, 8)
                     .pickerStyle(.segmented)
                     .frame(width: 200)
                     Spacer()
+                    //query button
+                    Button {
+                        Task {
+
+                        }
+                    } label: {
+                        Image(systemName: "info.square")
+                    }.disabled(true)
+                    Button {
+                        Task {
+
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }.padding(.trailing, 8)
+                        .disabled(true)
                 }
                 
                 // Results view using full width

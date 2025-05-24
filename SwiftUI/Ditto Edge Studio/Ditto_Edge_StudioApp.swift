@@ -11,10 +11,12 @@ import SwiftUI
 struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = DittoApp()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: windowSize.width, minHeight: windowSize.height)
                 .alert(
                     "Error",
                     isPresented: Binding(
@@ -37,6 +39,13 @@ struct Ditto_Edge_StudioApp: App {
                 }
                 .environmentObject(appState)
         }
+        .windowResizability(.contentSize)
+                .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
+                .commands {
+                    CommandGroup(replacing: .newItem) {
+                        // Leave empty to remove New Window command
+                    }
+                }
         .onChange(of: scenePhase) { newPhase, oldPhase in
             switch newPhase {
             case .background, .inactive:

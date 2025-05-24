@@ -65,3 +65,16 @@ struct DittoToolsTabView: View {
         #endif
     }
 }
+
+#Preview {
+    DittoToolsTabView(
+        viewModel: .constant(
+            MainStudioView.ViewModel(
+                DittoAppConfig.new(),
+            )
+        ),
+        isMainStudioViewPresented: .constant(true)
+    )
+    .environmentObject(DittoApp())
+}
+

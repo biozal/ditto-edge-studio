@@ -44,7 +44,10 @@ struct QueryTabView: View {
             // TODO switch this out for a list of queries
             VSplitView {
                 //top half
-                QueryEditorView(queryText: $viewModel.selectedQuery)
+                QueryEditorView(
+                    queryText: $viewModel.selectedQuery,
+                    executeModes: $viewModel.executeModes)
+                    
                 //bottom half
                 QueryResultsView(viewModel: viewModel)
             }
@@ -73,4 +76,16 @@ struct QueryTabView: View {
         }
     }
 
+}
+
+#Preview {
+    QueryTabView(
+        viewModel: .constant(
+            MainStudioView.ViewModel(
+                DittoAppConfig.new(),
+            )
+        ),
+        isMainStudioViewPresented: .constant(true)
+    )
+    .environmentObject(DittoApp())
 }

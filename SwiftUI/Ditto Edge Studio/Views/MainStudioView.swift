@@ -44,14 +44,21 @@ struct MainStudioView: View {
                     }
                 .tag(1)
                 .environmentObject(appState)
-
                 
+                // Import Data Tab
+                ImportTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
+                    .tabItem {
+                        Label("Import", systemImage: "square.and.arrow.up")
+                    }
+                    .tag(2)
+                    .environmentObject(appState)
+                    
                 // Swift Data Tools Menu
                 DittoToolsTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
                     .tabItem {
                         Label("Ditto Tools", systemImage: "hammer.circle")
                     }
-                .tag(2)
+                .tag(3)
                 .environmentObject(appState)
                 
                 .navigationTitle(viewModel.selectedApp.name)
@@ -91,7 +98,8 @@ extension MainStudioView {
         var queryHistory: [String] = []
         var queryFavorites: [String] = []
         
-        // Health Metrics State
+        // Tools Menu Options
+        // TODO remove magic strings
         var dittoToolsFeatures = ["Presence Viewer", "Permissions Health", "Presence Degration", "Disk Usage"]
         var selectedDataTool: String?
         var selectedMetric: String?
@@ -100,12 +108,19 @@ extension MainStudioView {
         var selectedQuery: String
         var jsonResults: String
         var resultsMode: String
+        var executeModes: [String]
         
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedQuery = ""
             self.jsonResults = "{}"
             self.resultsMode = "json"
             self.selectedApp = dittoAppConfig
+            if (dittoAppConfig.httpApiUrl == "" || dittoAppConfig.httpApiKey == "") {
+                self.executeModes = ["Local"]
+
+            } else {
+                self.executeModes = ["Local", "HTTP"]
+            }
             Task {
                 subscriptions = await DittoManager.shared.dittoSubscriptions
                 selectedQuery = subscriptions.first?.query ?? ""
