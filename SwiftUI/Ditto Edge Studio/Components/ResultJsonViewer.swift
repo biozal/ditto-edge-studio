@@ -12,9 +12,6 @@ struct ResultJsonViewer : View {
     @Binding var resultText: String
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Result JSON")
-                .font(.headline)
-                .padding(.horizontal)
             CodeEditor(source: resultText, language: .json, theme: .atelierSavannaDark)
         }
     }

@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = DittoApp()
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -34,6 +36,17 @@ struct Ditto_Edge_StudioApp: App {
                     }
                 }
                 .environmentObject(appState)
+        }
+        .onChange(of: scenePhase) { newPhase, oldPhase in
+            switch newPhase {
+            case .background, .inactive:
+                Task {
+                }
+            case .active:
+                break
+            @unknown default:
+                break
+            }
         }
     }
 }

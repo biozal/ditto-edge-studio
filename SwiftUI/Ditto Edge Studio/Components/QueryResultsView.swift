@@ -11,17 +11,29 @@ struct QueryResultsView: View {
     @State var viewModel: MainStudioView.ViewModel
     
     var body: some View {
-        Picker("Results", selection: $viewModel.resultsMode) {
-                                Text("JSON").tag("json")
-                                Text("Table").tag("table")
-                            }
-                            .pickerStyle(.segmented)
-        if viewModel.resultsMode == "json" {
-            ResultJsonViewer(resultText: $viewModel.jsonResults)
-        } else {
-            Text("TODO - Table Viewer")
+            VStack {
+                // Picker centered with specific width
+                HStack {
+                    Spacer()
+                    Picker("", selection: $viewModel.resultsMode) {
+                        Text("JSON").tag("json")
+                        Text("Table").tag("table")
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                    Spacer()
+                }
+                
+                // Results view using full width
+                if viewModel.resultsMode == "json" {
+                    ResultJsonViewer(resultText: $viewModel.jsonResults)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Text("TODO - Table Viewer")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
         }
-    }
 }
 
 #Preview {

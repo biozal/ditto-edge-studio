@@ -11,10 +11,23 @@ struct QueryEditorView : View {
     @Binding var queryText: String
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Query Editor")
-                .font(.headline)
-                .padding(.horizontal)
-            CodeEditor(source: queryText, language: .sql, theme: .atelierSavannaDark)
+            HStack(alignment: .center){
+                Spacer()
+                Button{
+                    Task {
+                        
+                    }
+                } label: {
+                    Image(systemName: "play.fill")
+                        .foregroundColor(.green)
+                }
+            }.padding(.top, 8)
+             .padding(.trailing, 16)
+            CodeEditor(source: $queryText, language: .sql, theme: .atelierSavannaDark)
         }
     }
+}
+
+#Preview {
+    QueryEditorView(queryText: .constant("SELECT * FROM users"))
 }
