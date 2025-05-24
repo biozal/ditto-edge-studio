@@ -60,7 +60,10 @@ struct MainStudioView: View {
         .toolbar {
             #if os(macOS)
             ToolbarItem(placement: .navigation) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
+                HStack {
+                    Image(systemName: "app")
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
             }
             #endif
         }
@@ -89,8 +92,7 @@ extension MainStudioView {
         var queryFavorites: [String] = []
         
         // Health Metrics State
-        var dittoToolsFeatures = ["Presence Viewer", "Peers List", "Presence Degration", "Hearbeat", "Disk Usage"]
-        var metrics = ["metric1", "metric2", "metric3"]
+        var dittoToolsFeatures = ["Presence Viewer", "Permissions Health", "Presence Degration", "Disk Usage"]
         var selectedDataTool: String?
         var selectedMetric: String?
         
