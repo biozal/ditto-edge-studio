@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct QueryResultsView: View {
-    @State var viewModel: MainStudioView.ViewModel
+    @State var viewModel: QueryTabView.ViewModel
     
     var body: some View {
             VStack {
@@ -54,6 +54,6 @@ struct QueryResultsView: View {
 }
 
 #Preview {
-    QueryResultsView(viewModel: MainStudioView.ViewModel(DittoAppConfig.new()))
+    QueryResultsView(viewModel: QueryTabView.ViewModel(DittoAppConfig.new()))
         
 }

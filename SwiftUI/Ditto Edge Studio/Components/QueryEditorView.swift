@@ -10,8 +10,10 @@ import SwiftUI
 struct QueryEditorView: View {
     @Binding var queryText: String
     @Binding var executeModes: [String]
-    @State private var selectedExecuteMode: String = ""
-
+    @Binding var selectedExecuteMode: String
+    @Binding var isLoading: Bool
+    var onExecuteQuery: () async -> Void
+    
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
@@ -32,12 +34,12 @@ struct QueryEditorView: View {
                 //query button
                 Button {
                     Task {
-
+                        await onExecuteQuery()
                     }
                 } label: {
                     Image(systemName: "play.fill")
                         .foregroundColor(.green)
-                }
+                }.disabled(isLoading)
             }.padding(.top, 8)
                 .padding(.trailing, 16)
             CodeEditor(
@@ -52,7 +54,10 @@ struct QueryEditorView: View {
 #Preview {
     QueryEditorView(
         queryText: .constant("SELECT * FROM users"),
-        executeModes: .constant(["Local", "HTTP"])
+        executeModes: .constant(["Local", "HTTP"]),
+        selectedExecuteMode: .constant("Local"),
+        isLoading: .constant(false),
+        onExecuteQuery: { }
     )
 
 }

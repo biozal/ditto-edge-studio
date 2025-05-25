@@ -427,3 +427,14 @@ extension DittoManager {
         }
     }
 }
+
+// MARK: Ditto Execute Query
+extension DittoManager {
+    func executeSelectedAppQuery(query: String) async throws -> [DittoSwift.DittoQueryResultItem]? {
+        if let ditto = dittoSelectedApp {
+            let results = try await ditto.store.execute(query: query)
+            return results.items
+        }
+        return nil
+    }
+}

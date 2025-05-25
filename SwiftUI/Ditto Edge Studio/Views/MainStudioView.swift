@@ -35,7 +35,8 @@ struct MainStudioView: View {
                     .environmentObject(appState)
                 
                 // Query Tab
-                QueryTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
+                QueryTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
+                             dittoAppConfig: viewModel.selectedApp)
                     .tabItem {
                         Label(
                             "Query",
