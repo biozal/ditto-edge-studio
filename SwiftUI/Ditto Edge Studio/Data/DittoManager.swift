@@ -306,7 +306,11 @@ extension DittoManager {
                 ),
                 persistenceDirectory: localDirectoryPath)
             
-            dittoSelectedApp?.updateTransportConfig(block: { config in
+            guard let ditto = dittoSelectedApp else {
+                throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            
+            ditto.updateTransportConfig(block: { config in
                 config.connect.webSocketURLs.insert(
                     appConfig.websocketUrl
                 )
@@ -314,18 +318,21 @@ extension DittoManager {
             })
                 
 
-            try dittoSelectedApp?.disableSyncWithV3()
+            try ditto.disableSyncWithV3()
 
             self.dittoSelectedAppConfig = appConfig
-
+            
+            //start sync in the selected app
+            try ditto.startSync()
+            
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
 
             // TODO hydrate the observers from the database
-
             isSuccess = true
         } catch {
             self.dittoApp?.setError(error)
+            isSuccess = false
         }
         return isSuccess
     }

@@ -37,8 +37,14 @@ struct QueryEditorView: View {
                         await onExecuteQuery()
                     }
                 } label: {
-                    Image(systemName: "play.fill")
-                        .foregroundColor(.green)
+                    if (isLoading) {
+                        Image(systemName: "play.fill")
+                            .foregroundColor(.gray)
+                    } else {
+                        Image(systemName: "play.fill")
+                            .foregroundColor(.green)
+
+                    }
                 }.disabled(isLoading)
             }.padding(.top, 8)
                 .padding(.trailing, 16)
