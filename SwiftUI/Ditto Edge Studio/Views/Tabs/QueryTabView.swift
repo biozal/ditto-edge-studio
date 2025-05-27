@@ -170,7 +170,7 @@ extension QueryTabView {
                                         options: [
                                             .prettyPrinted, .fragmentsAllowed,
                                         ]
-                                    )
+                                     )
                                     return String(data: data, encoding: .utf8)
                                 } catch {
                                     return nil
