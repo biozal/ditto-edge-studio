@@ -1,6 +1,6 @@
 # Edge Studio
 
-Edge Studio is a SwiftUI application that allows you to connect to Ditto Edge Studio and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same AppId.
+Edge Studio is a SwiftUI application that allows you to connect to Edge Studio and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same AppId.
 
 ## Getting Started
 
