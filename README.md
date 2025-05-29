@@ -10,4 +10,3 @@ Copy the dittoConfig.plist file from the root folder into the SwiftUI/Ditto Edge
 
 - A Mac with MacOS 15 and Xcode 16.0 or later installed  
 - An iPad with iOS 18.0 or later installed.
-- An iPhone with iOS 18.0 or later installed.
