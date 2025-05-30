@@ -43,8 +43,13 @@ struct QueryResultsView: View {
                 
                 // Results view using full width
                 if viewModel.resultsMode == "json" {
+#if os(macOS)
+                    ResultJsonTableView(items: $viewModel.jsonResults)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+#else
                     ResultJsonViewer(resultText: $viewModel.jsonResults)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+#endif
                 } else {
                     Text("TODO - Table Viewer")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

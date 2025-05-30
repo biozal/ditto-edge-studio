@@ -50,6 +50,7 @@
 		0D3F28142DDA01D2004A69D1 /* Exceptions for "Ditto Edge Studio" folder in "Ditto Edge StudioTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppKit/ResultJsonTableView.swift,
 				Components/DittoAppCard.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
@@ -77,6 +78,7 @@
 		0D3F28152DDA01D2004A69D1 /* Exceptions for "Ditto Edge Studio" folder in "Ditto Edge StudioUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppKit/ResultJsonTableView.swift,
 				Components/DittoAppCard.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
