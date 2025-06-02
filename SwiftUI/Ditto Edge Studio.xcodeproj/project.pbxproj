@@ -50,7 +50,6 @@
 		0D3F28142DDA01D2004A69D1 /* Exceptions for "Ditto Edge Studio" folder in "Ditto Edge StudioTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppKit/ResultJsonTableView.swift,
 				Components/DittoAppCard.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
@@ -59,12 +58,15 @@
 				Data/DittoManager.swift,
 				DittoApp.swift,
 				Models/DittoAppConfig.swift,
+				Models/DittoObservable.swift,
 				Models/DittoSubscription.swift,
+				Views/AddObserverView.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
 				Views/SubscriptionEditorView.swift,
 				Views/Tabs/DittoToolsTabView.swift,
 				Views/Tabs/ImportTabView.swift,
+				Views/Tabs/ObservablesTab.swift,
 				Views/Tabs/QueryTabView.swift,
 				Views/Tabs/SubscriptionTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
@@ -78,7 +80,6 @@
 		0D3F28152DDA01D2004A69D1 /* Exceptions for "Ditto Edge Studio" folder in "Ditto Edge StudioUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppKit/ResultJsonTableView.swift,
 				Components/DittoAppCard.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
@@ -87,12 +88,15 @@
 				Data/DittoManager.swift,
 				DittoApp.swift,
 				Models/DittoAppConfig.swift,
+				Models/DittoObservable.swift,
 				Models/DittoSubscription.swift,
+				Views/AddObserverView.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
 				Views/SubscriptionEditorView.swift,
 				Views/Tabs/DittoToolsTabView.swift,
 				Views/Tabs/ImportTabView.swift,
+				Views/Tabs/ObservablesTab.swift,
 				Views/Tabs/QueryTabView.swift,
 				Views/Tabs/SubscriptionTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
@@ -279,7 +283,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1630;
-				LastUpgradeCheck = 1630;
+				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					0D3F27D22DDA00FA004A69D1 = {
 						CreatedOnToolsVersion = 16.3;
@@ -416,6 +420,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -478,6 +483,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -506,6 +512,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ditto Edge Studio/Ditto_Edge_Studio.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -551,6 +558,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ditto Edge Studio/Ditto_Edge_Studio.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -594,6 +602,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
@@ -617,6 +626,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
@@ -639,6 +649,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
@@ -661,6 +672,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;

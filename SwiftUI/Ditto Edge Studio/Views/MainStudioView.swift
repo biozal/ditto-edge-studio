@@ -46,12 +46,24 @@ struct MainStudioView: View {
                 .tag(1)
                 .environmentObject(appState)
                 
+                // Query Tab
+                ObservablesTab(isMainStudioViewPresented: $isMainStudioViewPresented,
+                             dittoAppConfig: viewModel.selectedApp)
+                    .tabItem {
+                        Label(
+                            "Observables",
+                            systemImage: "person.2.wave.2"
+                        )
+                    }
+                .tag(2)
+                .environmentObject(appState)
+                
                 // Import Data Tab
                 ImportTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
                     .tabItem {
                         Label("Import", systemImage: "square.and.arrow.up")
                     }
-                    .tag(2)
+                    .tag(3)
                     .environmentObject(appState)
                     
                 // Swift Data Tools Menu
@@ -59,9 +71,8 @@ struct MainStudioView: View {
                     .tabItem {
                         Label("Ditto Tools", systemImage: "hammer.circle")
                     }
-                .tag(3)
+                .tag(4)
                 .environmentObject(appState)
-                
                 .navigationTitle(viewModel.selectedApp.name)
             }
         }
