@@ -7,12 +7,12 @@ import SwiftUI
 import DittoSwift
 
 struct ToolsViewer: View{
-    @Binding var viewModel: MainStudioView.ViewModel
+    @Binding var selectedDataTool: String?
     @State private var ditto: Ditto?
     var body: some View {
         ZStack{
             // Second Column - Metrics in Category
-            if let tool = viewModel.selectedDataTool {
+            if let tool = self.selectedDataTool {
                 switch tool {
                 case "Presence Viewer":
                     if let ditto = ditto {

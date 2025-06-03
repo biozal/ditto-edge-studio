@@ -24,7 +24,8 @@ struct MainStudioView: View {
         NavigationStack {
             // Subscription Tab
             TabView(selection: $selectedTab) {
-                SubscriptionsTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
+                SubscriptionsTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
+                                     dittoAppConfig: viewModel.selectedApp)
                     .tabItem {
                         Label(
                             "Subscriptions",
@@ -47,7 +48,7 @@ struct MainStudioView: View {
                 .environmentObject(appState)
                 
                 // Query Tab
-                ObservablesTab(isMainStudioViewPresented: $isMainStudioViewPresented,
+                ObservablesTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
                              dittoAppConfig: viewModel.selectedApp)
                     .tabItem {
                         Label(
@@ -67,7 +68,8 @@ struct MainStudioView: View {
                     .environmentObject(appState)
                     
                 // Swift Data Tools Menu
-                DittoToolsTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
+                DittoToolsTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
+                                  dittoAppConfig: viewModel.selectedApp)
                     .tabItem {
                         Label("Ditto Tools", systemImage: "hammer.circle")
                     }
@@ -102,80 +104,12 @@ extension MainStudioView {
         var isLoading = false
         var selectedApp: DittoAppConfig
         
-        // Subscriptions State
-        var subscriptions: [DittoSubscription] = []
-        var selectedSubscription: DittoSubscription?
-        
-        // Peers List State
-        var queryHistory: [String] = []
-        var queryFavorites: [String] = []
-        
-        // Tools Menu Options
-        // TODO remove magic strings
-        var dittoToolsFeatures = ["Presence Viewer", "Permissions Health", "Presence Degration", "Disk Usage"]
-        var selectedDataTool: String?
-        var selectedMetric: String?
-        
-        // Query Editor
-        var selectedQuery: String
-        var jsonResults: String
-        var resultsMode: String
-        var executeModes: [String]
-        
         init(_ dittoAppConfig: DittoAppConfig) {
-            self.selectedQuery = ""
-            self.jsonResults = "{}"
-            self.resultsMode = "json"
             self.selectedApp = dittoAppConfig
-            if (dittoAppConfig.httpApiUrl == "" || dittoAppConfig.httpApiKey == "") {
-                self.executeModes = ["Local"]
-
-            } else {
-                self.executeModes = ["Local", "HTTP"]
-            }
-            Task {
-                subscriptions = await DittoManager.shared.dittoSubscriptions
-                selectedQuery = subscriptions.first?.query ?? ""
-            }
         }
         
         func closeSelectedApp() async {
             await DittoManager.shared.closeDittoSelectedApp()
-        }
-        
-        func saveSubscription(name: String, query: String, args: String?, appState: DittoApp)
-        {
-            if var subscription = selectedSubscription {
-                subscription.name = name
-                subscription.query = query
-                if let argsString = args {
-                    do {
-                        if let jsonData = argsString.data(using: .utf8),
-                           let jsonDict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
-                            subscription.args = jsonDict
-                        } else {
-                            appState.setError(AppError.error(message: "Failed to parse subscription arguments"))
-                        }
-                    } catch {
-                        appState.setError(AppError.error(message: "Invalid JSON format in subscription arguments: \(error.localizedDescription)"))
-                    }
-                } else {
-                    subscription.args = nil
-                }
-                Task {
-                    do {
-                        try await DittoManager.shared.addDittoSubscription(subscription)
-                        subscriptions = await DittoManager.shared.dittoSubscriptions
-                    } catch {
-                        appState.setError(error)
-                    }
-                    selectedSubscription = nil
-                }
-            }
-        }
-        
-        func cancelSubscription() {
-            selectedSubscription = nil
         }
     }
 }

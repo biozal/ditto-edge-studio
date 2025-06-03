@@ -7,9 +7,17 @@
 import SwiftUI
 
 struct SubscriptionsTabView: View {
-    @Binding var viewModel: MainStudioView.ViewModel
-    @Binding var isMainStudioViewPresented: Bool
     @EnvironmentObject private var appState: DittoApp
+    @Binding var isMainStudioViewPresented: Bool
+    @State private var viewModel: SubscriptionsTabView.ViewModel
+    
+    init(
+        isMainStudioViewPresented: Binding<Bool>,
+        dittoAppConfig: DittoAppConfig){
+            self._isMainStudioViewPresented = isMainStudioViewPresented
+            self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
+    }
+    
     var body: some View {
         NavigationSplitView {
             if viewModel.subscriptions.isEmpty {
@@ -27,9 +35,10 @@ struct SubscriptionsTabView: View {
                         Section(
                             header:
                                 Text("Subscriptions")
-                                .font(.headline)
+                                .font(.title3)
                                 .foregroundColor(.primary)
                                 .padding(.bottom, 5)
+                                .padding(.top, 10)
                         ) {
                             ForEach(viewModel.subscriptions, id: \.id) {
                                 subscription in
@@ -38,6 +47,7 @@ struct SubscriptionsTabView: View {
                                         viewModel.selectedSubscription =
                                             subscription
                                     }
+                                    .font(.headline)
                             }
                         }
                     #else
@@ -76,7 +86,7 @@ struct SubscriptionsTabView: View {
             }
         }
         #if os(iOS)
-            .navigationSplitViewColumnWidth(250)
+            .navigationSplitViewColumnWidth(300)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(viewModel.selectedApp.name).font(.headline).bold()
@@ -100,7 +110,7 @@ struct SubscriptionsTabView: View {
                 }
             }
         #else
-            .navigationSplitViewColumnWidth(300)
+            .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 600)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -124,14 +134,67 @@ struct SubscriptionsTabView: View {
     }
 }
 
+extension SubscriptionsTabView {
+    @Observable
+    class ViewModel {
+        let selectedApp: DittoAppConfig
+        
+        // Subscriptions State
+        var subscriptions: [DittoSubscription] = []
+        var selectedSubscription: DittoSubscription?
+        
+        init(_ dittoAppConfig: DittoAppConfig) {
+            self.selectedApp = dittoAppConfig
+            
+            Task {
+                subscriptions = await DittoManager.shared.dittoSubscriptions
+            }
+        }
+        
+        func saveSubscription(name: String, query: String, args: String?, appState: DittoApp)
+        {
+            if var subscription = selectedSubscription {
+                subscription.name = name
+                subscription.query = query
+                if let argsString = args {
+                    do {
+                        if let jsonData = argsString.data(using: .utf8),
+                           let jsonDict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                            subscription.args = jsonDict
+                        } else {
+                            appState.setError(AppError.error(message: "Failed to parse subscription arguments"))
+                        }
+                    } catch {
+                        appState.setError(AppError.error(message: "Invalid JSON format in subscription arguments: \(error.localizedDescription)"))
+                    }
+                } else {
+                    subscription.args = nil
+                }
+                Task {
+                    do {
+                        try await DittoManager.shared.addDittoSubscription(subscription)
+                        subscriptions = await DittoManager.shared.dittoSubscriptions
+                    } catch {
+                        appState.setError(error)
+                    }
+                    selectedSubscription = nil
+                }
+            }
+        }
+        
+        func cancelSubscription() {
+            selectedSubscription = nil
+        }
+        
+        func closeSelectedApp() async {
+            await DittoManager.shared.closeDittoSelectedApp()
+        }
+        
+    }
+}
+
 #Preview {
-    SubscriptionsTabView(
-        viewModel: .constant(
-            MainStudioView.ViewModel(
-                DittoAppConfig.new(),
-            )
-        ),
-        isMainStudioViewPresented: .constant(true)
-    )
+    SubscriptionsTabView(isMainStudioViewPresented: .constant(true),
+                         dittoAppConfig: DittoAppConfig.new())
     .environmentObject(DittoApp())
 }

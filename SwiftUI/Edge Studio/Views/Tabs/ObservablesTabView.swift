@@ -7,10 +7,10 @@
 
 import SwiftUI
 
-struct ObservablesTab: View {
+struct ObservablesTabView: View {
     @EnvironmentObject private var appState: DittoApp
     @Binding var isMainStudioViewPresented: Bool
-    @State private var viewModel: ObservablesTab.ViewModel
+    @State private var viewModel: ObservablesTabView.ViewModel
 
     init(
         isMainStudioViewPresented: Binding<Bool>,
@@ -37,9 +37,10 @@ struct ObservablesTab: View {
                         Section(
                             header:
                                 Text("Observers")
-                                .font(.headline)
+                                .font(.title)
                                 .foregroundColor(.primary)
                                 .padding(.bottom, 5)
+                                .padding(.top, 20)
                         ) {
                             ForEach(viewModel.observerables, id: \.id) {
                                 observer in
@@ -65,16 +66,18 @@ struct ObservablesTab: View {
                 .navigationTitle("Observers")
             }
         } content: {
-            ContentUnavailableView(
-                "No Observer Selected",
-                systemImage: "exclamationmark.triangle.fill",
-                description: Text(
-                    "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
+            VStack {
+                ContentUnavailableView(
+                    "No Observer Selected",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
+                    )
                 )
-            )
-            .navigationTitle("Observer Events")
-            
-        } detail: {
+                .navigationTitle("Observer Events")
+            }
+        }
+        detail: {
             ContentUnavailableView(
                 "No Observer Selected",
                 systemImage: "exclamationmark.triangle.fill",
@@ -91,41 +94,45 @@ struct ObservablesTab: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        //viewModel.selectedSubscription = DittoSubscription.new()
+                        viewModel.selectedObservable = DittoObservable.new()
                     } label: {
                         Image(systemName: "plus")
                     }
             }
             #endif
+            
             #if os(macOS)
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
+            ToolbarItem(id: "add", placement: .primaryAction) {
+                Button {
+                    viewModel.selectedObservable = DittoObservable.new()
+                } label: {
+                    Image(systemName: "plus")
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        //viewModel.selectedSubscription = DittoSubscription.new()
-                    } label: {
-                        Image(systemName: "plus")
+            }
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
                     }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
                 }
+            }
             #endif
         }
     }
 }
 
-extension ObservablesTab {
+extension ObservablesTabView {
     @Observable
     @MainActor
     class ViewModel {
         let selectedApp: DittoAppConfig
         var isLoading = false
+        
+        //used for editor
+        var isEditorPresented = false
         
         // Observables State
         var observerables: [DittoObservable] = []
@@ -145,7 +152,7 @@ extension ObservablesTab {
 
 
 #Preview {
-    ObservablesTab(
+    ObservablesTabView(
         isMainStudioViewPresented: .constant(true),
         dittoAppConfig: DittoAppConfig.new()
     )

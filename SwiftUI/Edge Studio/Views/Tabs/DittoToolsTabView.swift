@@ -7,9 +7,17 @@
 import SwiftUI
 
 struct DittoToolsTabView: View {
-    @Binding var viewModel: MainStudioView.ViewModel
-    @Binding var isMainStudioViewPresented: Bool
     @EnvironmentObject private var appState: DittoApp
+    @Binding var isMainStudioViewPresented: Bool
+    
+    @State var viewModel: DittoToolsTabView.ViewModel
+    
+    init(
+        isMainStudioViewPresented: Binding<Bool>,
+        dittoAppConfig: DittoAppConfig) {
+            self._isMainStudioViewPresented = isMainStudioViewPresented
+            self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -41,7 +49,7 @@ struct DittoToolsTabView: View {
             }
             .navigationTitle("Ditto Tools")
         } detail: {
-            ToolsViewer(viewModel: $viewModel)
+            ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
         }
         #if os(iPadOS)
             .toolbar {
@@ -66,15 +74,30 @@ struct DittoToolsTabView: View {
     }
 }
 
+extension DittoToolsTabView {
+    @Observable
+    class ViewModel {
+        let selectedApp: DittoAppConfig
+        
+        // Tools Menu Options
+        // TODO remove magic strings
+        var dittoToolsFeatures = ["Presence Viewer", "Permissions Health", "Presence Degration", "Disk Usage"]
+        var selectedDataTool: String?
+        
+        init(_ dittoAppConfig: DittoAppConfig) {
+            self.selectedApp = dittoAppConfig
+        }
+        
+        func closeSelectedApp() async {
+            await DittoManager.shared.closeDittoSelectedApp()
+        }
+    }
+}
+
 #Preview {
     DittoToolsTabView(
-        viewModel: .constant(
-            MainStudioView.ViewModel(
-                DittoAppConfig.new(),
-            )
-        ),
-        isMainStudioViewPresented: .constant(true)
-    )
+        isMainStudioViewPresented: .constant(true),
+        dittoAppConfig: DittoAppConfig.new())
     .environmentObject(DittoApp())
 }
 

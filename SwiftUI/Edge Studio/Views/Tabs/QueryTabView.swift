@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Highlightr
 
 struct QueryTabView: View {
     @EnvironmentObject private var appState: DittoApp
@@ -120,6 +121,7 @@ extension QueryTabView {
 
         var selectedQuery: String
         var jsonResults: [String]
+            
         var resultsMode: String
         var executeModes: [String]
         var selectedExecuteMode: String
@@ -168,7 +170,10 @@ extension QueryTabView {
                                     let data = try JSONSerialization.data(
                                         withJSONObject: cleanedValue,
                                         options: [
-                                            .prettyPrinted, .fragmentsAllowed,
+                                                .prettyPrinted,
+                                                .fragmentsAllowed,
+                                                .sortedKeys,
+                                                .withoutEscapingSlashes
                                         ]
                                      )
                                     return String(data: data, encoding: .utf8)

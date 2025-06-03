@@ -104,7 +104,11 @@ extension DittoManager {
         if let ditto = dittoLocal {
             //set collection to only sync to local
             let syncScopes = [
-                "dittoappconfigs": "LocalPeerOnly"
+                "dittoappconfigs": "LocalPeerOnly",
+                "dittosubscriptions": "LocalPeerOnly",
+                "dittoobservations": "LocalPeerOnly",
+                "dittofavorites": "LocalPeerOnly",
+                "dittohistory": "LocalPeerOnly",
             ]
             try await ditto.store.execute(
                 query:
