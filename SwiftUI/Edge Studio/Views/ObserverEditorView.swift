@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct AddObserverView: View {
+struct ObserverEditorView: View {
     @EnvironmentObject private var appState: DittoApp
     @StateObject private var viewModel: ViewModel
     
@@ -15,21 +15,20 @@ struct AddObserverView: View {
         self._viewModel = StateObject(wrappedValue: ViewModel(isPresented: isPresented,
                                               selectedApp: dittoAppConfig))
     }
-    
     var body: some View {
-        Text("Add Observer View")
+        Text("Observer Editor View")
     }
 }
 
 #Preview {
-    AddObserverView(
+    ObserverEditorView(
         isPresented: .constant(true),
         dittoAppConfig: DittoAppConfig.new()
     )
 }
 
 
-extension AddObserverView {
+extension ObserverEditorView {
     class ViewModel : ObservableObject {
         @Binding var presentationBinding: Bool
         let selectedApp: DittoAppConfig
