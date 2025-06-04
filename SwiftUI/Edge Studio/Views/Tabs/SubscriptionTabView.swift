@@ -110,7 +110,7 @@ struct SubscriptionsTabView: View {
                 }
             }
         #else
-            .navigationSplitViewColumnWidth(min: 300, ideal: 400, max: 600)
+            .navigationSplitViewColumnWidth(min: 500, ideal: 800, max: 2000)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {

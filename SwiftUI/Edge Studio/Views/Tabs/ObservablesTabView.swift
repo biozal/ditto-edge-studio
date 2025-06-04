@@ -87,6 +87,11 @@ struct ObservablesTabView: View {
             )
             .navigationTitle("Observer Events")
         }
+        .sheet(
+           isPresented: $viewModel.isEditorPresented,
+        ){
+            
+        }
         .toolbar {
             #if os(iPadOS)
                 ToolbarItem(placement: .principal) {
