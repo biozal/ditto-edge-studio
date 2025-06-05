@@ -12,7 +12,8 @@ public struct DittoObservable : Identifiable {
     public var id: String
     public var name: String
     public var query: String
-    public var args: [String : Any?]?
+    public var args: String?
+    public var isActive: Bool
     public var storeObserver: DittoStoreObserver?
     
     init(id: String){
@@ -20,6 +21,7 @@ public struct DittoObservable : Identifiable {
         self.name = ""
         self.query = ""
         self.args = nil
+        self.isActive = false
         storeObserver = nil
     }
     
@@ -27,8 +29,10 @@ public struct DittoObservable : Identifiable {
         self.id = value["_id"] as! String
         self.name = value["name"] as! String
         self.query = value["query"] as! String
+        self.isActive = value["isActive"] as? Bool ?? false
+        
         if (value.keys.contains("args")) {
-            if let arguments = value["args"] as? [String: Any?] {
+            if let arguments = value["args"] as? String {
                 self.args =  arguments
             }
         }

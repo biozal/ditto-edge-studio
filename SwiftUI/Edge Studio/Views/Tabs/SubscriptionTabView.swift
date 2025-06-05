@@ -172,7 +172,7 @@ extension SubscriptionsTabView {
                 }
                 Task {
                     do {
-                        try await DittoManager.shared.addDittoSubscription(subscription)
+                        try await DittoManager.shared.saveDittoSubscription(subscription)
                         subscriptions = await DittoManager.shared.dittoSubscriptions
                     } catch {
                         appState.setError(error)
