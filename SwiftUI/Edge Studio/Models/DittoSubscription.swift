@@ -12,7 +12,7 @@ public struct DittoSubscription : Identifiable {
     public var id: String
     public var name: String
     public var query: String
-    public var args: [String : Any?]?
+    public var args: String?
     public var syncSubscription: DittoSyncSubscription?
     
     init(id: String){
@@ -28,7 +28,7 @@ public struct DittoSubscription : Identifiable {
         self.name = value["name"] as! String
         self.query = value["query"] as! String
         if (value.keys.contains("args")) {
-            if let arguments = value["args"] as? [String: Any?] {
+            if let arguments = value["args"] as? String  {
                 self.args =  arguments
             }
         }

@@ -51,10 +51,13 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/Pill.swift,
+				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
+				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
-				Components/SecureFieldView.swift,
+				Components/SecureField.swift,
 				Data/DittoManager.swift,
 				Data/LocalDB/DittoManager_DittoAppConfig.swift,
 				Data/LocalDB/DittoManager_LocalSubscription.swift,
@@ -66,16 +69,13 @@
 				DittoApp.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoObservable.swift,
+				Models/DittoObserveEvent.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/ObserverEditorView.swift,
-				Views/SubscriptionEditorView.swift,
+				Views/Tabs/DataStoreTabView.swift,
 				Views/Tabs/DittoToolsTabView.swift,
-				Views/Tabs/ImportTabView.swift,
-				Views/Tabs/ObservablesTabView.swift,
 				Views/Tabs/QueryTabView.swift,
-				Views/Tabs/SubscriptionTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
 				Views/Tools/PresenceViewer.swift,
@@ -88,10 +88,13 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/Pill.swift,
+				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,
 				Components/QueryResultsView.swift,
+				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
-				Components/SecureFieldView.swift,
+				Components/SecureField.swift,
 				Data/DittoManager.swift,
 				Data/LocalDB/DittoManager_DittoAppConfig.swift,
 				Data/LocalDB/DittoManager_LocalSubscription.swift,
@@ -103,16 +106,13 @@
 				DittoApp.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoObservable.swift,
+				Models/DittoObserveEvent.swift,
 				Models/DittoSubscription.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/ObserverEditorView.swift,
-				Views/SubscriptionEditorView.swift,
+				Views/Tabs/DataStoreTabView.swift,
 				Views/Tabs/DittoToolsTabView.swift,
-				Views/Tabs/ImportTabView.swift,
-				Views/Tabs/ObservablesTabView.swift,
 				Views/Tabs/QueryTabView.swift,
-				Views/Tabs/SubscriptionTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
 				Views/Tools/PresenceViewer.swift,
@@ -767,7 +767,7 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.10.2;
+				minimumVersion = "4.11.0-rc.4";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

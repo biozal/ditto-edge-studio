@@ -1,7 +1,7 @@
 import CodeEditor
 //
 //  QueryEditorView.swift
-//  Ditto Edge Studio
+//  Edge Studio
 //
 //  Created by Aaron LaBeau on 5/23/25.
 //
@@ -17,7 +17,6 @@ struct QueryEditorView: View {
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
-                Spacer()
                 // Dropdown for execute modes
                 Picker("", selection: $selectedExecuteMode) {
                     ForEach(executeModes, id: \.self) { mode in
@@ -46,6 +45,29 @@ struct QueryEditorView: View {
 
                     }
                 }.disabled(isLoading)
+                
+                if isLoading {
+                #if os(macOS)
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .controlSize(.mini)
+                    }
+                    .padding(1)
+                    .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
+                    .cornerRadius(10)
+                #else
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                    }
+                    .padding(1)
+                    .background(Color(UIColor.systemBackground).opacity(0.9))
+                    .cornerRadius(10)
+                    .shadow(radius: 5)
+                #endif
+                }
+                Spacer()
             }.padding(.top, 8)
                 .padding(.trailing, 16)
             CodeEditor(

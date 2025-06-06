@@ -11,10 +11,10 @@ import Foundation
 // MARK: DittoAppConfig Operations
 extension DittoManager {
     
-    func registerLocalObserver() throws {
+    func registerLocalObservers() throws {
         if let ditto = dittoLocal {
             let dittoAppRef = self.dittoApp  // Capture reference before closure
-            localObserver = try ditto.store.registerObserver(
+            localAppConfigsObserver = try ditto.store.registerObserver(
                 query: """
                     SELECT *
                     FROM dittoappconfigs

@@ -41,11 +41,12 @@ extension DittoManager {
             removeDittoSubscriptionFromCache(subscription)
             
             //setup the subscription now - need to make it mutable, regiser the subscription
+            
+            //TODO fix arguments serialization from string to [String: Any]?
             var sub = subscription
             sub.syncSubscription = try dittoSelectedApp?.sync
                 .registerSubscription(
-                    query: subscription.query,
-                    arguments: subscription.args
+                    query: subscription.query
                 )
             
             //add to the local cache of observable objects to show in the UI

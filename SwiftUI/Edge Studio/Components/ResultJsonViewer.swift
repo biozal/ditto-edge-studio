@@ -47,19 +47,57 @@ struct ResultsList: View {
     }
 }
 
-// Separate component for each result item
 struct ResultItem: View {
     let jsonString: String
-
+    @State private var isCopied = false
+    
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 4) {
-            Text(jsonString)
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
+            HStack {
+                Text(jsonString)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                if isCopied {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .transition(.opacity)
+                }
+            }
             Divider()
                 .padding(.top, 4)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            copyToClipboard()
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.primary.opacity(0.05))
+                .opacity(isCopied ? 1.0 : 0.0)
+        )
+        .animation(.easeInOut(duration: 0.3), value: isCopied)
+    }
+    
+    private func copyToClipboard() {
+#if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(jsonString, forType: .string)
+#else
+        UIPasteboard.general.string = jsonString
+#endif
+        
+        // Show feedback
+        withAnimation {
+            isCopied = true
+        }
+        
+        // Reset after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                isCopied = false
+            }
         }
     }
 }

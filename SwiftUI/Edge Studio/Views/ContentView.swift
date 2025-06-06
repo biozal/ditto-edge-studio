@@ -1,3 +1,4 @@
+import Combine
 //
 //  ContentView.swift
 //  Ditto Edge Studio
@@ -5,28 +6,29 @@
 //  Created by Aaron LaBeau on 5/18/25.
 //
 import SwiftUI
-import Combine
 
 struct ContentView: View {
     @EnvironmentObject private var appState: DittoApp
     @State private var viewModel: ContentView.ViewModel = ViewModel()
-    
+
     // Define columns: 2 for iPad, 1 for iPhone
     var columns: [GridItem] {
-#if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return Array(
-                repeating: .init(.flexible(), spacing: 16),
-                count: 2
-            )
-        }
-#endif
+        #if os(iOS)
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                return Array(
+                    repeating: .init(.flexible(), spacing: 16),
+                    count: 2
+                )
+            }
+        #endif
         return [GridItem(.flexible())]
     }
-    
+
     var body: some View {
         Group {
-            if viewModel.isMainStudioViewPresented, let selectedApp = viewModel.selectedDittoAppConfig {
+            if viewModel.isMainStudioViewPresented,
+                let selectedApp = viewModel.selectedDittoAppConfig
+            {
                 MainStudioView(
                     isMainStudioViewPresented: Binding(
                         get: { viewModel.isMainStudioViewPresented },
@@ -41,40 +43,49 @@ struct ContentView: View {
                         if viewModel.isLoading {
                             AnyView(
                                 ProgressView("Loading Apps...")
-                                    .progressViewStyle(.circular))
+                                    .progressViewStyle(.circular)
+                            )
                         } else if viewModel.dittoApps.isEmpty {
                             AnyView(
                                 ContentUnavailableView(
                                     "No Apps",
-                                    systemImage: "exclamationmark.triangle.fill",
+                                    systemImage:
+                                        "exclamationmark.triangle.fill",
                                     description: Text(
                                         "No apps have been added yet. Click the plus button above to add your first app."
                                     )
                                 )
                             )
                         } else {
-                            DittoAppList(viewModel: viewModel, appState: appState)
+                            DittoAppList(
+                                viewModel: viewModel,
+                                appState: appState
+                            )
                         }
                     }
                     .navigationTitle(Text("Ditto Apps"))
                     .toolbar {
-#if os(iOS)
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                viewModel.showAppEditor(DittoAppConfig.new())
-                            } label: {
-                                Image(systemName: "plus")
+                        #if os(iOS)
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    viewModel.showAppEditor(
+                                        DittoAppConfig.new()
+                                    )
+                                } label: {
+                                    Image(systemName: "plus")
+                                }
                             }
-                        }
-#else
-                        ToolbarItem(placement: .automatic) {
-                            Button {
-                                viewModel.showAppEditor(DittoAppConfig.new())
-                            } label: {
-                                Image(systemName: "plus")
+                        #else
+                            ToolbarItem(placement: .automatic) {
+                                Button {
+                                    viewModel.showAppEditor(
+                                        DittoAppConfig.new()
+                                    )
+                                } label: {
+                                    Image(systemName: "plus")
+                                }
                             }
-                        }
-#endif
+                        #endif
                     }
                     .sheet(
                         isPresented: Binding(
@@ -89,27 +100,38 @@ struct ContentView: View {
                             ),
                             dittoAppConfig: viewModel.dittoAppToEdit!
                         )
-                   #if os(macOS)
-                       .frame(minWidth: 600, idealWidth: 1000, maxWidth: 1080)
-                   #elseif os(iOS)
-                       .frame(
-                           minWidth: UIDevice.current.userInterfaceIdiom == .pad ? 600 : nil,
-                           idealWidth: UIDevice.current.userInterfaceIdiom == .pad ? 1000 : nil,
-                           maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 1080 : nil,
-                           minHeight: UIDevice.current.userInterfaceIdiom == .pad ? 800 : nil,
-                           idealHeight: UIDevice.current.userInterfaceIdiom == .pad ? 800 : nil,
-                           maxHeight: UIDevice.current.userInterfaceIdiom == .pad ? 1000 : nil
-                       )
-                   #endif
+                        #if os(macOS)
+                            .frame(
+                                minWidth: 600,
+                                idealWidth: 1000,
+                                maxWidth: 1080
+                            )
+                        #elseif os(iOS)
+                            .frame(
+                                minWidth: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 600 : nil,
+                                idealWidth: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 1000 : nil,
+                                maxWidth: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 1080 : nil,
+                                minHeight: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 800 : nil,
+                                idealHeight: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 800 : nil,
+                                maxHeight: UIDevice.current.userInterfaceIdiom
+                                    == .pad ? 1000 : nil
+                            )
+                        #endif
                         .environmentObject(appState)
                         .presentationDetents([.medium, .large])
                     }
                 }
             }
         }
-        .task(id: ObjectIdentifier(appState)) {
-            //load the apps from the database
-            await viewModel.loadApps(appState: appState)
+        .onAppear {
+            Task {
+                await viewModel.loadApps(appState: appState)
+            }
         }
     }
 }
@@ -119,18 +141,19 @@ extension ContentView {
     @MainActor
     class ViewModel {
         @ObservationIgnored private var cancellables = Set<AnyCancellable>()
-        
+
         var dittoApps: [DittoAppConfig] = []
         var isLoading = false
-        
+        var isMainStudioLoaded = false
+
         //used for editor
         var isPresented = false
         var dittoAppToEdit: DittoAppConfig?
-        
+
         //used for MainStudioView
         var isMainStudioViewPresented = false
         var selectedDittoAppConfig: DittoAppConfig?
-        
+
         init() {
             // Observe changes to DittoService's planets
             Task { @MainActor in
@@ -142,7 +165,7 @@ extension ContentView {
                     .store(in: &cancellables)
             }
         }
-        
+
         func deleteApp(_ dittoApp: DittoAppConfig, appState: DittoApp) async {
             do {
                 try await DittoManager.shared.deleteDittoAppConfig(dittoApp)
@@ -150,7 +173,7 @@ extension ContentView {
                 appState.setError(error)
             }
         }
-        
+
         func loadApps(appState: DittoApp) async {
             isLoading = true
             do {
@@ -163,17 +186,21 @@ extension ContentView {
             }
             isLoading = false
         }
-        
+
         func showAppEditor(_ dittoApp: DittoAppConfig) {
             dittoAppToEdit = dittoApp
             isPresented = true
         }
-        
-        func showMainStudio(_ dittoApp: DittoAppConfig, appState: DittoApp) async {
+
+        func showMainStudio(_ dittoApp: DittoAppConfig, appState: DittoApp)
+            async
+        {
             do {
                 selectedDittoAppConfig = dittoApp
-                let didSetupDitto = try await DittoManager.shared.hydrateDittoSelectedApp(
-                    dittoApp)
+                let didSetupDitto = try await DittoManager.shared
+                    .hydrateDittoSelectedApp(
+                        dittoApp
+                    )
                 if didSetupDitto {
                     isMainStudioViewPresented = true
                 }

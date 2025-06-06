@@ -1,6 +1,6 @@
 //
 //  DittoAppList.swift
-//  Ditto Edge Studio
+//  Edge Studio
 //
 //  Created by Aaron LaBeau on 5/18/25.
 //

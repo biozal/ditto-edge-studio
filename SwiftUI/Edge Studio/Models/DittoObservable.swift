@@ -1,6 +1,6 @@
 //
 //  DittoObservable.swift
-//  Ditto Edge Studio
+//  Edge Studio
 //
 //  Created by Aaron LaBeau on 6/2/25.
 //

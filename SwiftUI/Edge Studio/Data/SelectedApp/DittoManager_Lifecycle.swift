@@ -26,8 +26,7 @@ extension DittoManager {
     }
     
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
-    -> Bool
-    {
+    -> Bool {
         var isSuccess: Bool = false
         do {
             closeDittoSelectedApp()
@@ -92,7 +91,10 @@ extension DittoManager {
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
             
-            // TODO hydrate the observers from the database
+            // hydrate the observers from the database
+            try await hydrateDittoObservers()
+            
+            
             isSuccess = true
         } catch {
             self.dittoApp?.setError(error)
@@ -122,5 +124,26 @@ extension DittoManager {
                 self.dittoSubscriptions.append(sub)
             }
         }
+    }
+    
+    func hydrateDittoObservers() async throws {
+        if let ditto = dittoLocal,
+           let id = dittoSelectedAppConfig?._id
+        {
+            let query =
+            "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId"
+            let arguments = ["selectedAppId": id]
+            let results = try await ditto.store.execute(
+                query: query,
+                arguments: arguments
+            )
+            
+            results.items.forEach { item in
+                let observable = DittoObservable(item.value)
+                self.dittoObservables.append(observable)
+            }
+        }
+        
+        
     }
 }

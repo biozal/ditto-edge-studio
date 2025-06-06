@@ -1,6 +1,6 @@
 //
 //  AddAppView.swift
-//  Ditto Edge Studio
+//  Edge Studio
 //
 //  Created by Aaron LaBeau on 5/18/25.
 //
@@ -26,21 +26,25 @@ struct AppEditorView: View {
                                     .pickerStyle(.segmented)
                 Section("Basic Information") {
                     TextField("Name", text: $viewModel.name)
+                        .padding(.bottom, 10)
                 }
 
                 Section("Authorization Information") {
                     TextField("AppID", text: $viewModel.appId)
                     TextField("Playground Token", text: $viewModel.authToken)
+                        .padding(.bottom, 10)
                 }
 
                 if (viewModel.mode == "online") {
-                    Section("BigPeer Information") {
+                    Section("Ditto Server (BigPeer) Information") {
                         TextField("Auth URL", text: $viewModel.authUrl)
                         TextField("Websocket URL", text: $viewModel.websocketUrl)
+                            .padding(.bottom, 10)
                     }
-                    Section("Connect via HTTP API") {
+                    Section("Ditto Server - HTTP API") {
                         TextField("HTTP API URL", text: $viewModel.httpApiUrl)
                         TextField("HTTP API Key", text: $viewModel.httpApiKey)
+                            .padding(.bottom, 10)
                     }
                 }
             }

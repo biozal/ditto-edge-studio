@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct SecureFieldView: View {
+struct SecureField: View {
     let label: String
     let value: String
     @Binding var isRevealed: Bool

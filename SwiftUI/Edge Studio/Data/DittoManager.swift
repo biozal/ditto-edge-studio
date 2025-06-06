@@ -1,6 +1,6 @@
 //
 //  DittoManager.swift
-//  Ditto Edge Studio
+//  Edge Studio
 //
 //  Created by Aaron LaBeau on 5/18/25.
 //
@@ -19,14 +19,21 @@ actor DittoManager: ObservableObject {
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
 
-    var localObserver: DittoStoreObserver?
+    var localAppConfigsObserver: DittoStoreObserver?
     @Published var dittoAppConfigs: [DittoAppConfig] = []
 
     // MARK: Selected App
+    var selectedAppCollectionObserver: DittoStoreObserver?
+    var selectedAppHistoryObserver: DittoStoreObserver?
+    var selectedAppFavoritesObserver: DittoStoreObserver?
+
     var dittoSelectedAppConfig: DittoAppConfig?
     var dittoSelectedApp: Ditto?
+    
     @Published var dittoSubscriptions: [DittoSubscription] = []
     @Published var dittoObservables: [DittoObservable] = []
+    @Published var dittoObservableEvents: [DittoObserveEvent] = []
+    @Published var dittoIntialObservationData: [String:String] = [:]
 
     private init() {}
 
@@ -90,7 +97,7 @@ actor DittoManager: ObservableObject {
 
                 try dittoLocal?.disableSyncWithV3()
                 try await setupLocalSubscription()
-                try registerLocalObserver()
+                try registerLocalObservers()
             }
         } catch {
             self.dittoApp?.setError(error)

@@ -23,30 +23,15 @@ struct QueryTabView: View {
 
     var body: some View {
         NavigationSplitView {
-            // First Column - history and favorites
-            if viewModel.queryHistory.isEmpty
-                && viewModel.queryFavorites.isEmpty
-            {
-                ContentUnavailableView(
-                    "No Queries Available",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "No queries have been ran or saved as favorites yet.  Create a query and run it to see history.  Mark a query as a favorite to save it for later."
-                    )
-                )
-
-            } else {
-                List(viewModel.queryHistory, id: \.self) { query in
-                    Text(query)
-                        .onTapGesture {
-                            viewModel.selectedQuery = query
-                        }
-                }
-                .navigationTitle("Query")
-                #if os(macOS)
-                    .navigationSplitViewColumnWidth(200)
-                #endif
-            }
+            // First Column - collections, history, favorites
+            QueryToolbarView(collections: $viewModel.collections,
+                             queries: $viewModel.queryHistory,
+                             favorites: $viewModel.queryFavorites,
+                             toolbarMode: $viewModel.selectedToolbarMode,
+                             selectedQuery: $viewModel.selectedQuery)
+            #if os(macOS)
+            .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
+            #endif
         } detail: {
             #if os(macOS)
                 // Second Column - Query History/Favorites
@@ -65,7 +50,7 @@ struct QueryTabView: View {
                     QueryResultsView(viewModel: viewModel)
                 }
             #else
-            VStack(spacing: 0){
+            VStack{
                 //top half
                 QueryEditorView(
                     queryText: $viewModel.selectedQuery,
@@ -73,35 +58,22 @@ struct QueryTabView: View {
                     selectedExecuteMode: $viewModel.selectedExecuteMode,
                     isLoading: $viewModel.isLoading,
                     onExecuteQuery: executeQuery
-                ).padding(.top, 10)
+              )
+                .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
 
                 //bottom half
                 QueryResultsView(viewModel: viewModel)
             }
             .navigationBarTitleDisplayMode(.inline)
-            .ignoresSafeArea(edges: .top)
             #endif
-
         }
+        #if os(iOS)
         .toolbar {
-            #if os(iPadOS)
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-            #endif
-            #if os(macOS)
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
-            #endif
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
         }
+        #endif
     }
 
     func executeQuery() async {
@@ -116,23 +88,29 @@ extension QueryTabView {
         let selectedApp: DittoAppConfig
         var isLoading = false
 
-        var queryHistory: [String] = []
-        var queryFavorites: [String] = []
+        //toolbar items
+        var queryHistory: [String: String] = [:]
+        var queryFavorites: [String: String] = [:]
+        var collections: [String] = []
+        var selectedToolbarMode: String
 
+        //query editor view
         var selectedQuery: String
-        var jsonResults: [String]
-            
-        var resultsMode: String
         var executeModes: [String]
         var selectedExecuteMode: String
 
-        init(_ dittoAppConfig: DittoAppConfig) {
-            self.selectedQuery = ""
-            self.jsonResults = ["{}"]
-            self.resultsMode = "json"
-            self.selectedApp = dittoAppConfig
+        //results view
+        var resultsMode: String
+        var jsonResults: [String]
 
-            //handle selectedExecuteMode
+        init(_ dittoAppConfig: DittoAppConfig) {
+            self.selectedApp = dittoAppConfig
+            
+            //sidebar section
+            self.selectedToolbarMode = "collections"
+            
+            //query section
+            self.selectedQuery = ""
             self.selectedExecuteMode = "Local"
             if dittoAppConfig.httpApiUrl == ""
                 || dittoAppConfig.httpApiKey == ""
@@ -142,9 +120,20 @@ extension QueryTabView {
             } else {
                 self.executeModes = ["Local", "HTTP"]
             }
+            
+            //query results section
+            self.resultsMode = "json"
+            self.jsonResults = ["{}"]
+            
+            //side bar data load
             Task {
-                let subscriptions = await DittoManager.shared.dittoSubscriptions
-                selectedQuery = subscriptions.first?.query ?? ""
+                collections  = try await DittoManager.shared.getCollections()
+                if collections.isEmpty {
+                    let subscriptions = await DittoManager.shared.dittoSubscriptions
+                    selectedQuery = subscriptions.first?.query ?? ""
+                } else {
+                    selectedQuery = "SELECT * FROM \(collections.first ?? "")"
+                }
             }
         }
 
@@ -194,7 +183,8 @@ extension QueryTabView {
                         jsonResults = ["No results found"]
                     }
                 } else {
-                    //run the query over http
+                    jsonResults = try await DittoManager.shared
+                        .executeSelectedAppQueryHttp(query: selectedQuery)
                 }
             } catch {
                 appState.setError(error)

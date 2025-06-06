@@ -36,12 +36,12 @@ struct DittoAppCard: View {
             
             // Right VStack: Secure fields
             VStack(alignment: .leading, spacing: 12) {
-                SecureFieldView(
+                SecureField(
                     label: "App ID",
                     value: dittoApp.appId,
                     isRevealed: $showAppId
                 )
-                SecureFieldView(
+                SecureField(
                     label: "Auth Token",
                     value: dittoApp.authToken,
                     isRevealed: $showAuthToken

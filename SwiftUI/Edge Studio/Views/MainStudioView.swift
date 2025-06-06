@@ -11,7 +11,7 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
     @State private var selectedTab = 0
-    
+
     init(
         isMainStudioViewPresented: Binding<Bool>,
         dittoAppConfig: DittoAppConfig
@@ -19,71 +19,84 @@ struct MainStudioView: View {
         self._isMainStudioViewPresented = isMainStudioViewPresented
         self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
-    
+
     var body: some View {
         NavigationStack {
             // Subscription Tab
             TabView(selection: $selectedTab) {
-                SubscriptionsTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
-                                     dittoAppConfig: viewModel.selectedApp)
-                    .tabItem {
-                        Label(
-                            "Subscriptions",
-                            systemImage: "document.on.document"
-                        )
-                    }
-                    .tag(0)
-                    .environmentObject(appState)
+                // Data Store Tab
+                DataStoreTabView(
+                    isMainStudioViewPresented: $isMainStudioViewPresented,
+                    dittoAppConfig: viewModel.selectedApp
+                )
+                .tabItem {
+                    Label(
+                        "Data Store",
+                        systemImage: "person.2.wave.2"
+                    )
+                }
+                .tag(0)
+                .environmentObject(appState)
                 
-                // Query Tab
-                QueryTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
-                             dittoAppConfig: viewModel.selectedApp)
-                    .tabItem {
-                        Label(
-                            "Query",
-                            systemImage: "text.page.badge.magnifyingglass"
-                        )
+                #if os(iOS)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            Task {
+                                await viewModel.closeSelectedApp()
+                                isMainStudioViewPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .imageScale(.large) // Make the button larger on iOS
+                        }
                     }
+                }
+                #endif
+
+                // Query Tab
+                QueryTabView(
+                    isMainStudioViewPresented: $isMainStudioViewPresented,
+                    dittoAppConfig: viewModel.selectedApp
+                )
+                .tabItem {
+                    Label(
+                        "Query",
+                        systemImage: "text.page.badge.magnifyingglass"
+                    )
+                }
                 .tag(1)
                 .environmentObject(appState)
-                
-                // Query Tab
-                ObservablesTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
-                             dittoAppConfig: viewModel.selectedApp)
-                    .tabItem {
-                        Label(
-                            "Observables",
-                            systemImage: "person.2.wave.2"
-                        )
-                    }
-                .tag(2)
-                .environmentObject(appState)
-                
-                // Import Data Tab
-                ImportTabView(viewModel: $viewModel, isMainStudioViewPresented: $isMainStudioViewPresented)
-                    .tabItem {
-                        Label("Import", systemImage: "square.and.arrow.up")
-                    }
-                    .tag(3)
-                    .environmentObject(appState)
-                    
+
                 // Swift Data Tools Menu
-                DittoToolsTabView(isMainStudioViewPresented: $isMainStudioViewPresented,
-                                  dittoAppConfig: viewModel.selectedApp)
-                    .tabItem {
-                        Label("Ditto Tools", systemImage: "hammer.circle")
-                    }
-                .tag(4)
+                DittoToolsTabView(
+                    isMainStudioViewPresented: $isMainStudioViewPresented,
+                    dittoAppConfig: viewModel.selectedApp
+                )
+                .tabItem {
+                    Label("Ditto Tools", systemImage: "hammer.circle")
+                }
+                .tag(2)
                 .environmentObject(appState)
                 .navigationTitle(viewModel.selectedApp.name)
             }
         }
         .toolbar {
             #if os(macOS)
-            ToolbarItem(placement: .navigation) {
-                HStack {
-                    Image(systemName: "app")
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                ToolbarItem(placement: .navigation) {
+                    HStack {
+                        Image(systemName: "app")
+                        Text(viewModel.selectedApp.name).font(.headline).bold()
+                    }
+                }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
                 }
             }
             #endif
@@ -103,11 +116,11 @@ extension MainStudioView {
     class ViewModel {
         var isLoading = false
         var selectedApp: DittoAppConfig
-        
+
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
         }
-        
+
         func closeSelectedApp() async {
             await DittoManager.shared.closeDittoSelectedApp()
         }

@@ -26,9 +26,9 @@ struct DittoToolsTabView: View {
                     Section(
                         header:
                             Text("Ditto Tools")
-                            .font(.headline)
+                            .font(.title2)
                             .foregroundColor(.primary)
-                            .padding(.bottom, 5)
+                            .padding(.top, 4)
                     ) {
                         ForEach(viewModel.dittoToolsFeatures, id: \.self) {
                             tool in
@@ -37,6 +37,7 @@ struct DittoToolsTabView: View {
                                     viewModel.selectedDataTool = tool
                                 }
                         }
+                        
                     }
                 #else
                     ForEach(viewModel.dittoToolsFeatures, id: \.self) { tool in
@@ -48,28 +49,20 @@ struct DittoToolsTabView: View {
                 #endif
             }
             .navigationTitle("Ditto Tools")
+            .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
         } detail: {
             ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
         }
-        #if os(iPadOS)
+        #if os(iOS)
+            .navigationSplitViewColumnWidth(300)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text(viewModel.selectedApp.name).font(.headline).bold()
                 }
             }
-        #elseif os(macOS)
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
-            }
+        #else
+            .navigationSplitViewStyle(.automatic)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 320, max: 400)
         #endif
     }
 }
@@ -86,10 +79,6 @@ extension DittoToolsTabView {
         
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
-        }
-        
-        func closeSelectedApp() async {
-            await DittoManager.shared.closeDittoSelectedApp()
         }
     }
 }
