@@ -34,7 +34,8 @@ actor DittoManager: ObservableObject {
     @Published var dittoObservables: [DittoObservable] = []
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
     @Published var dittoIntialObservationData: [String:String] = [:]
-
+    @Published var dittoQueryHistory: [DittoQueryHistory] = []
+    
     private init() {}
 
     static var shared = DittoManager()

@@ -22,7 +22,24 @@ extension DittoManager {
         .filter { !$0.hasPrefix("__") }
         return collections
     }
-    
+   
+    func saveQueryHistory(_ history: DittoQueryHistory) async throws {
+        guard let ditto = dittoLocal,
+        let selectedAppConfig = dittoSelectedAppConfig
+        else {
+            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
+        }
+        let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
+        let arguments: [String: Any] = [
+            "queryHistory": [
+                "_id": history.id,
+                "query": history.query,
+                "createdDate": history.createdDate,
+                "selectedApp_id": selectedAppConfig._id
+            ]
+        ]
+        let results = try await ditto.store.execute(query: query, arguments: arguments)
+    }
     
     func executeSelectedAppQuery(query: String) async throws -> [DittoSwift.DittoQueryResultItem]? {
         if let ditto = dittoSelectedApp {

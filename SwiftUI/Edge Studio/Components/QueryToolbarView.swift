@@ -9,7 +9,7 @@ import SwiftUI
 
 struct QueryToolbarView: View {
     @Binding var collections: [String]
-    @Binding var queries: [String:String]
+    var queries: [DittoQueryHistory]
     @Binding var favorites: [String:String]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
@@ -40,6 +40,17 @@ struct QueryToolbarView: View {
             // Content based on toolbarMode
             if toolbarMode == "history" {
                 Text("History")
+                List(queries) { query in
+                    VStack(alignment: .leading) {
+                        Text(query.query)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    .onTapGesture {
+                        selectedQuery = query.query
+                    }
+                }
             } else if toolbarMode == "favorites" {
                 Text("Favorites")
             } else {
@@ -64,10 +75,26 @@ struct QueryToolbarView: View {
             "users",
             "products"
         ]),
-        queries: .constant([
-            UUID().uuidString: "SELECT * FROM movies",
-            UUID().uuidString: "SELECT * FROM long_collection_name_that_is_very_long"
-        ]),
+        queries: [
+            DittoQueryHistory(
+                id: "1",
+                query: "SELECT * FROM movies",
+                createdDate: Date().addingTimeInterval(-3600)
+                    .ISO8601Format()
+            ),
+            DittoQueryHistory(
+                id: "2",
+                query: "SELECT * FROM users WHERE age > 21",
+                createdDate: Date().addingTimeInterval(-7200)
+                    .ISO8601Format()
+            ),
+            DittoQueryHistory(
+                id: "3",
+                query: "SELECT name, price FROM products WHERE inStock = true",
+                createdDate: Date().addingTimeInterval(-86400)
+                    .ISO8601Format()
+            )
+        ],
         favorites: .constant([
             UUID().uuidString: "SELECT * FROM movies WHERE rating > 4.5",
             UUID().uuidString: "SELECT * FROM movies WHERE year = 2015"

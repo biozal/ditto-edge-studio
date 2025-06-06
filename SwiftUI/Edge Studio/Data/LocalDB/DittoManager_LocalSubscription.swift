@@ -18,8 +18,8 @@ extension DittoManager {
                 "dittoappconfigs": "LocalPeerOnly",
                 "dittosubscriptions": "LocalPeerOnly",
                 "dittoobservations": "LocalPeerOnly",
-                "dittofavorites": "LocalPeerOnly",
-                "dittohistory": "LocalPeerOnly",
+                "dittoqueryfavorites": "LocalPeerOnly",
+                "dittoqueryhistory": "LocalPeerOnly",
             ]
             try await ditto.store.execute(
                 query:

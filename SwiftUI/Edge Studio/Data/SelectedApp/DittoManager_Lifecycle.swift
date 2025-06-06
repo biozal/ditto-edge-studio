@@ -21,6 +21,10 @@ extension DittoManager {
                 }
             }
             dittoSubscriptions.removeAll()
+            
+            // remove the observers
+            selectedAppHistoryObserver?.cancel()
+            selectedAppHistoryObserver = nil
         }
         dittoSelectedApp = nil
     }
@@ -88,12 +92,16 @@ extension DittoManager {
             //start sync in the selected app
             try ditto.startSync()
             
+            // hydrate the query history from the database
+            try await hydrateSelectedAppQueryHistory()
+            
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
             
             // hydrate the observers from the database
             try await hydrateDittoObservers()
             
+
             
             isSuccess = true
         } catch {
@@ -102,6 +110,55 @@ extension DittoManager {
         }
         return isSuccess
     }
+    
+    func hydrateSelectedAppQueryHistory() async throws {
+        if let ditto = dittoLocal,
+           let id = dittoSelectedAppConfig?._id,
+           let dittoAppRef = dittoApp {
+            let query = "SELECT * FROM dittoqueryhistory WHERE selectedApp_id = :selectedAppId"
+            let arguments = ["selectedAppId": id]
+            
+            let decoder = JSONDecoder()
+            
+            //hydrate the initial data from the database
+            let historyResults = try await ditto.store.execute(
+                query: query, arguments: arguments)
+            let historyItems = historyResults.items.compactMap { item in
+                do {
+                    return try decoder.decode(
+                        DittoQueryHistory.self,
+                        from: item.jsonData()
+                    )
+                } catch {
+                    dittoAppRef.setError(error)
+                    return nil
+                }
+            }
+            self.dittoQueryHistory = historyItems
+            
+            //register for any changes in the database
+            self.selectedAppHistoryObserver = try ditto.store.registerObserver(
+                query: query,
+                arguments: arguments
+            ) { [weak self] results in
+                    guard let self else { return }
+                    let historyItems = results.items.compactMap { item in
+                        do {
+                            return try decoder.decode(
+                                DittoQueryHistory.self,
+                                from: item.jsonData()
+                            )
+                        } catch {
+                            dittoAppRef.setError(error)
+                            return nil
+                        }
+                    }
+                Task {@MainActor [weak self] in
+                    await self?.updateQueryHistory(historyItems)
+                }
+            }
+        }
+     }
     
     func hydrateDittoSubscriptions() async throws {
         if let ditto = dittoLocal,
@@ -143,7 +200,9 @@ extension DittoManager {
                 self.dittoObservables.append(observable)
             }
         }
-        
-        
+    }
+    
+    func updateQueryHistory(_ items: [DittoQueryHistory]) {
+        self.dittoQueryHistory = items
     }
 }

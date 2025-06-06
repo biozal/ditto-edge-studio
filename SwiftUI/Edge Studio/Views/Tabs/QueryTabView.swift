@@ -12,7 +12,6 @@ struct QueryTabView: View {
     @EnvironmentObject private var appState: DittoApp
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: QueryTabView.ViewModel
-
     init(
         isMainStudioViewPresented: Binding<Bool>,
         dittoAppConfig: DittoAppConfig
@@ -25,7 +24,7 @@ struct QueryTabView: View {
         NavigationSplitView {
             // First Column - collections, history, favorites
             QueryToolbarView(collections: $viewModel.collections,
-                             queries: $viewModel.queryHistory,
+                             queries: DittoManager.shared.dittoQueryHistory,
                              favorites: $viewModel.queryFavorites,
                              toolbarMode: $viewModel.selectedToolbarMode,
                              selectedQuery: $viewModel.selectedQuery)
@@ -186,6 +185,8 @@ extension QueryTabView {
                     jsonResults = try await DittoManager.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
                 }
+                // Add query to history
+                await addQueryToHistory(appState: appState)
             } catch {
                 appState.setError(error)
             }
@@ -193,7 +194,17 @@ extension QueryTabView {
         }
 
         func addQueryToHistory(appState: DittoApp) async {
-
+            if  !selectedQuery.isEmpty  && selectedQuery.count > 0 {
+                let queryHistory = DittoQueryHistory(
+                    id: UUID().uuidString,
+                    query: selectedQuery,
+                    createdDate: Date().ISO8601Format())
+                do {
+                    try await DittoManager.shared.saveQueryHistory(queryHistory)
+                } catch{
+                    appState.setError(error)
+                }
+            }
         }
 
         func closeSelectedApp() async {
