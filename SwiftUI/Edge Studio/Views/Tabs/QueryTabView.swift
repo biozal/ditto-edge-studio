@@ -24,10 +24,10 @@ struct QueryTabView: View {
         NavigationSplitView {
             // First Column - collections, history, favorites
             QueryToolbarView(collections: $viewModel.collections,
-                             queries: DittoManager.shared.dittoQueryHistory,
                              favorites: $viewModel.queryFavorites,
                              toolbarMode: $viewModel.selectedToolbarMode,
-                             selectedQuery: $viewModel.selectedQuery)
+                             selectedQuery: $viewModel.selectedQuery,
+                             dittoQueryHistory: $viewModel.queryHistory)
             #if os(macOS)
             .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
             #endif
@@ -88,7 +88,7 @@ extension QueryTabView {
         var isLoading = false
 
         //toolbar items
-        var queryHistory: [String: String] = [:]
+        var queryHistory: [DittoQueryHistory] = []
         var queryFavorites: [String: String] = [:]
         var collections: [String] = []
         var selectedToolbarMode: String
@@ -126,7 +126,16 @@ extension QueryTabView {
             
             //side bar data load
             Task {
-                collections  = try await DittoManager.shared.getCollections()
+                queryHistory = try await DittoManager.shared
+                    .hydrateQueryHistory(updateHistory: {
+                        self.queryHistory = $0
+                    })
+                
+                collections  = try await DittoManager.shared
+                    .hydrateCollections(updateCollections: {
+                        self.collections = $0
+                    })
+                
                 if collections.isEmpty {
                     let subscriptions = await DittoManager.shared.dittoSubscriptions
                     selectedQuery = subscriptions.first?.query ?? ""

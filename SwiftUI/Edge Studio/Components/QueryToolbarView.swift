@@ -9,10 +9,10 @@ import SwiftUI
 
 struct QueryToolbarView: View {
     @Binding var collections: [String]
-    var queries: [DittoQueryHistory]
     @Binding var favorites: [String:String]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
+    @Binding var dittoQueryHistory: [DittoQueryHistory]
     
     var body: some View {
         VStack{
@@ -40,7 +40,7 @@ struct QueryToolbarView: View {
             // Content based on toolbarMode
             if toolbarMode == "history" {
                 Text("History")
-                List(queries) { query in
+                List(dittoQueryHistory) { query in
                     VStack(alignment: .leading) {
                         Text(query.query)
                             .lineLimit(3)
@@ -50,6 +50,39 @@ struct QueryToolbarView: View {
                     .onTapGesture {
                         selectedQuery = query.query
                     }
+                    #if os(macOS)
+                    .contextMenu {
+                        Button ("Delete"){
+                            Task {
+                                    try await DittoManager.shared.deleteQueryHistory(query.id)
+                                }
+                            }
+                        
+                        Button ("Favorite"){
+                            Task {
+                                //todo add favorite to database
+                            }
+                        }
+                    }
+                    #else
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task {
+                                try await DittoManager.shared.deleteQueryHistory(query.id)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    #endif
+                    Divider()
+                }
+                Button  {
+                    Task {
+                        try await DittoManager.shared.clearQueryHistory()
+                    }
+                } label: {
+                    Label("Clear History", systemImage: "trash")
                 }
             } else if toolbarMode == "favorites" {
                 Text("Favorites")
@@ -75,7 +108,13 @@ struct QueryToolbarView: View {
             "users",
             "products"
         ]),
-        queries: [
+        favorites: .constant([
+            UUID().uuidString: "SELECT * FROM movies WHERE rating > 4.5",
+            UUID().uuidString: "SELECT * FROM movies WHERE year = 2015"
+        ]),
+        toolbarMode: .constant("collections"),
+        selectedQuery: .constant("SELECT * FROM movies"),
+        dittoQueryHistory: .constant([
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
@@ -94,12 +133,6 @@ struct QueryToolbarView: View {
                 createdDate: Date().addingTimeInterval(-86400)
                     .ISO8601Format()
             )
-        ],
-        favorites: .constant([
-            UUID().uuidString: "SELECT * FROM movies WHERE rating > 4.5",
-            UUID().uuidString: "SELECT * FROM movies WHERE year = 2015"
         ]),
-        toolbarMode: .constant("collections"),
-        selectedQuery: .constant("SELECT * FROM movies")
     )
 }

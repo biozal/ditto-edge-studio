@@ -22,6 +22,27 @@ extension DittoManager {
         .filter { !$0.hasPrefix("__") }
         return collections
     }
+    
+    func deleteQueryHistory(_ id: String) async throws {
+        guard let ditto = dittoLocal
+        else {
+            throw InvalidStateError(message: "No Ditto local database available. You should never see this message.")
+        }
+        let query = "DELETE FROM dittoqueryhistory WHERE _id = :id"
+        let arguments: [String: Any] = [ "id": id ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+    
+    func clearQueryHistory() async throws {
+        guard let ditto = dittoLocal,
+              let selectedAppConfig = dittoSelectedAppConfig
+        else {
+            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
+        }
+        let query = "DELETE FROM dittoqueryhistory WHERE selectedApp_id = :selectedApp_id"
+        let arguments: [String: Any] = [ "selectedApp_id": selectedAppConfig._id ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
    
     func saveQueryHistory(_ history: DittoQueryHistory) async throws {
         guard let ditto = dittoLocal,
@@ -38,7 +59,7 @@ extension DittoManager {
                 "selectedApp_id": selectedAppConfig._id
             ]
         ]
-        let results = try await ditto.store.execute(query: query, arguments: arguments)
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
     }
     
     func executeSelectedAppQuery(query: String) async throws -> [DittoSwift.DittoQueryResultItem]? {

@@ -34,7 +34,6 @@ actor DittoManager: ObservableObject {
     @Published var dittoObservables: [DittoObservable] = []
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
     @Published var dittoIntialObservationData: [String:String] = [:]
-    @Published var dittoQueryHistory: [DittoQueryHistory] = []
     
     private init() {}
 
@@ -46,17 +45,17 @@ actor DittoManager: ObservableObject {
                 // setup logging
                 DittoLogger.enabled = true
                 DittoLogger.minimumLogLevel = .debug
-
+                
                 //cache state for future use
                 self.dittoApp = dittoApp
-
+                
                 // Create directory for local database
                 let localDirectoryPath = FileManager.default.urls(
                     for: .applicationSupportDirectory,
                     in: .userDomainMask
                 )[0]
-                .appendingPathComponent("ditto_appconfig")
-
+                    .appendingPathComponent("ditto_appconfig")
+                
                 // Ensure directory exists
                 if !FileManager.default.fileExists(
                     atPath: localDirectoryPath.path
@@ -66,7 +65,7 @@ actor DittoManager: ObservableObject {
                         withIntermediateDirectories: true
                     )
                 }
-
+                
                 //validate that the dittoConfig.plist file is valid
                 if dittoApp.appConfig.appId.isEmpty
                     || dittoApp.appConfig.appId == "put appId here"
@@ -76,7 +75,7 @@ actor DittoManager: ObservableObject {
                     )
                     throw error
                 }
-
+                
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 dittoLocal = Ditto(
                     identity: .onlinePlayground(
@@ -89,13 +88,13 @@ actor DittoManager: ObservableObject {
                     ),
                     persistenceDirectory: localDirectoryPath
                 )
-
+                
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
                         dittoApp.appConfig.websocketUrl
                     )
                 })
-
+                
                 try dittoLocal?.disableSyncWithV3()
                 try await setupLocalSubscription()
                 try registerLocalObservers()
@@ -104,4 +103,5 @@ actor DittoManager: ObservableObject {
             self.dittoApp?.setError(error)
         }
     }
+    
 }
