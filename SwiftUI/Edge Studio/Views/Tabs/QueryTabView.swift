@@ -5,8 +5,8 @@
 //  Created by Aaron LaBeau on 5/22/25.
 //
 
-import SwiftUI
 import Highlightr
+import SwiftUI
 
 struct QueryTabView: View {
     @EnvironmentObject private var appState: DittoApp
@@ -23,13 +23,15 @@ struct QueryTabView: View {
     var body: some View {
         NavigationSplitView {
             // First Column - collections, history, favorites
-            QueryToolbarView(collections: $viewModel.collections,
-                             favorites: $viewModel.favorites,
-                             history: $viewModel.history,
-                             toolbarMode: $viewModel.selectedToolbarMode,
-                             selectedQuery: $viewModel.selectedQuery)
+            QueryToolbarView(
+                collections: $viewModel.collections,
+                favorites: $viewModel.favorites,
+                history: $viewModel.history,
+                toolbarMode: $viewModel.selectedToolbarMode,
+                selectedQuery: $viewModel.selectedQuery
+            )
             #if os(macOS)
-            .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
+                .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
             #endif
         } detail: {
             #if os(macOS)
@@ -46,32 +48,38 @@ struct QueryTabView: View {
                     )
 
                     //bottom half
-                    QueryResultsView(viewModel: viewModel)
+                    QueryResultsView(
+                        resultsCount: $viewModel.resultsCount,
+                        jsonResults: $viewModel.jsonResults
+                    )
                 }
             #else
-            VStack{
-                //top half
-                QueryEditorView(
-                    queryText: $viewModel.selectedQuery,
-                    executeModes: $viewModel.executeModes,
-                    selectedExecuteMode: $viewModel.selectedExecuteMode,
-                    isLoading: $viewModel.isLoading,
-                    onExecuteQuery: executeQuery
-              )
-                .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
+                VStack {
+                    //top half
+                    QueryEditorView(
+                        queryText: $viewModel.selectedQuery,
+                        executeModes: $viewModel.executeModes,
+                        selectedExecuteMode: $viewModel.selectedExecuteMode,
+                        isLoading: $viewModel.isLoading,
+                        onExecuteQuery: executeQuery
+                    )
+                    .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
 
-                //bottom half
-                QueryResultsView(viewModel: viewModel)
-            }
-            .navigationBarTitleDisplayMode(.inline)
+                    //bottom half
+                    QueryResultsView(
+                        resultsCount: $viewModel.resultsCount,
+                        jsonResults: $viewModel.jsonResults
+                    )
+                }
+                .navigationBarTitleDisplayMode(.inline)
             #endif
         }
         #if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
             }
-        }
         #endif
     }
 
@@ -99,16 +107,15 @@ extension QueryTabView {
         var selectedExecuteMode: String
 
         //results view
-        var resultsMode: String
         var jsonResults: [String]
         var resultsCount: Int
-        
+
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
-            
+
             //sidebar section
             self.selectedToolbarMode = "collections"
-            
+
             //query section
             self.selectedQuery = ""
             self.selectedExecuteMode = "Local"
@@ -120,31 +127,31 @@ extension QueryTabView {
             } else {
                 self.executeModes = ["Local", "HTTP"]
             }
-            
+
             //query results section
             self.resultsCount = 0
-            self.resultsMode = "json"
             self.jsonResults = ["{}"]
-            
+
             //side bar data load
             Task {
                 history = try await DittoManager.shared
                     .hydrateQueryHistory(updateHistory: {
                         self.history = $0
                     })
-                
-                collections  = try await DittoManager.shared
+
+                collections = try await DittoManager.shared
                     .hydrateCollections(updateCollections: {
                         self.collections = $0
                     })
-                
+
                 favorites = try await DittoManager.shared
                     .hydrateQueryFavorites(updateFavorites: {
                         self.favorites = $0
                     })
-                        
+
                 if collections.isEmpty {
-                    let subscriptions = await DittoManager.shared.dittoSubscriptions
+                    let subscriptions = await DittoManager.shared
+                        .dittoSubscriptions
                     selectedQuery = subscriptions.first?.query ?? ""
                 } else {
                     selectedQuery = "SELECT * FROM \(collections.first ?? "")"
@@ -161,40 +168,36 @@ extension QueryTabView {
                             query: selectedQuery
                         )
                     {
-                        if resultsMode == "json" {
-                            // Create an array of JSON strings from the results
-                            let resultJsonStrings = dittoResults.compactMap {
-                                item -> String? in
-                                // Convert [String: Any?] to [String: Any] by removing nil values
-                                let cleanedValue = item.value.compactMapValues {
-                                    $0
-                                }
-
-                                do {
-                                    let data = try JSONSerialization.data(
-                                        withJSONObject: cleanedValue,
-                                        options: [
-                                                .prettyPrinted,
-                                                .fragmentsAllowed,
-                                                .sortedKeys,
-                                                .withoutEscapingSlashes
-                                        ]
-                                     )
-                                    return String(data: data, encoding: .utf8)
-                                } catch {
-                                    return nil
-                                }
+                        // Create an array of JSON strings from the results
+                        let resultJsonStrings = dittoResults.compactMap {
+                            item -> String? in
+                            // Convert [String: Any?] to [String: Any] by removing nil values
+                            let cleanedValue = item.value.compactMapValues {
+                                $0
                             }
 
-                            if !resultJsonStrings.isEmpty {
-                                jsonResults = resultJsonStrings
-                                resultsCount = resultJsonStrings.count
-                            } else {
-                                resultsCount = 0
-                                jsonResults = ["No results"]
+                            do {
+                                let data = try JSONSerialization.data(
+                                    withJSONObject: cleanedValue,
+                                    options: [
+                                        .prettyPrinted,
+                                        .fragmentsAllowed,
+                                        .sortedKeys,
+                                        .withoutEscapingSlashes,
+                                    ]
+                                )
+                                return String(data: data, encoding: .utf8)
+                            } catch {
+                                return nil
                             }
+                        }
+
+                        if !resultJsonStrings.isEmpty {
+                            jsonResults = resultJsonStrings
+                            resultsCount = resultJsonStrings.count
                         } else {
-                            // TODO: put results into a table
+                            resultsCount = 0
+                            jsonResults = ["No results"]
                         }
                     } else {
                         resultsCount = 0
@@ -214,14 +217,15 @@ extension QueryTabView {
         }
 
         func addQueryToHistory(appState: DittoApp) async {
-            if  !selectedQuery.isEmpty  && selectedQuery.count > 0 {
+            if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
                     id: UUID().uuidString,
                     query: selectedQuery,
-                    createdDate: Date().ISO8601Format())
+                    createdDate: Date().ISO8601Format()
+                )
                 do {
                     try await DittoManager.shared.saveQueryHistory(queryHistory)
-                } catch{
+                } catch {
                     appState.setError(error)
                 }
             }
