@@ -39,9 +39,11 @@ struct QueryEditorView: View {
                     if (isLoading) {
                         Image(systemName: "play.fill")
                             .foregroundColor(.gray)
+                            .accessibilityLabel("Execute Query")
                     } else {
                         Image(systemName: "play.fill")
                             .foregroundColor(.green)
+                            .accessibilityLabel("Execute Query")
 
                     }
                 }.disabled(isLoading)
