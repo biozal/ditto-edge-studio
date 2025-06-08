@@ -9,10 +9,10 @@ import SwiftUI
 
 struct QueryToolbarView: View {
     @Binding var collections: [String]
-    @Binding var favorites: [String:String]
+    @Binding var favorites: [DittoQueryHistory]
+    @Binding var history: [DittoQueryHistory]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
-    @Binding var dittoQueryHistory: [DittoQueryHistory]
     
     var body: some View {
         VStack{
@@ -37,10 +37,11 @@ struct QueryToolbarView: View {
             }
             .padding(.leading, 10)
             .padding(.trailing, 10)
+            
             // Content based on toolbarMode
             if toolbarMode == "history" {
                 Text("History")
-                List(dittoQueryHistory) { query in
+                List(history) { query in
                     VStack(alignment: .leading) {
                         Text(query.query)
                             .lineLimit(3)
@@ -57,15 +58,23 @@ struct QueryToolbarView: View {
                                     try await DittoManager.shared.deleteQueryHistory(query.id)
                                 }
                             }
-                        
                         Button ("Favorite"){
                             Task {
-                                //todo add favorite to database
+                                try await DittoManager.shared.saveFavorite(query)
                             }
                         }
                     }
                     #else
                     .swipeActions(edge: .trailing) {
+                        Button(role: .cancel) {
+                            Task {
+                                try await DittoManager.shared
+                                    .saveFavorite(query)
+                            }
+                        } label: {
+                            Label("Favorite", systemImage: "star")
+                        }
+                        
                         Button(role: .destructive) {
                             Task {
                                 try await DittoManager.shared.deleteQueryHistory(query.id)
@@ -86,6 +95,37 @@ struct QueryToolbarView: View {
                 }
             } else if toolbarMode == "favorites" {
                 Text("Favorites")
+                List(favorites) { query in
+                    VStack(alignment: .leading) {
+                        Text(query.query)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    .onTapGesture {
+                        selectedQuery = query.query
+                    }
+#if os(macOS)
+                    .contextMenu {
+                        Button ("Delete"){
+                            Task {
+                                try await DittoManager.shared.deleteFavorite(query.id)
+                            }
+                        }
+                    }
+#else
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task {
+                                try await DittoManager.shared.deleteFavorite(query.id)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+#endif
+                    Divider()
+                }
             } else {
                 Text("Collections")
                 List(collections, id: \.self) { collection in
@@ -94,7 +134,6 @@ struct QueryToolbarView: View {
                             selectedQuery = "SELECT * FROM \(collection)"
                         }
                 }
-                    
             }
             Spacer()
         }
@@ -108,13 +147,7 @@ struct QueryToolbarView: View {
             "users",
             "products"
         ]),
-        favorites: .constant([
-            UUID().uuidString: "SELECT * FROM movies WHERE rating > 4.5",
-            UUID().uuidString: "SELECT * FROM movies WHERE year = 2015"
-        ]),
-        toolbarMode: .constant("collections"),
-        selectedQuery: .constant("SELECT * FROM movies"),
-        dittoQueryHistory: .constant([
+        favorites:  .constant([
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
@@ -134,5 +167,27 @@ struct QueryToolbarView: View {
                     .ISO8601Format()
             )
         ]),
+        history: .constant([
+            DittoQueryHistory(
+                id: "1",
+                query: "SELECT * FROM movies",
+                createdDate: Date().addingTimeInterval(-3600)
+                    .ISO8601Format()
+            ),
+            DittoQueryHistory(
+                id: "2",
+                query: "SELECT * FROM users WHERE age > 21",
+                createdDate: Date().addingTimeInterval(-7200)
+                    .ISO8601Format()
+            ),
+            DittoQueryHistory(
+                id: "3",
+                query: "SELECT name, price FROM products WHERE inStock = true",
+                createdDate: Date().addingTimeInterval(-86400)
+                    .ISO8601Format()
+            )
+        ]),
+        toolbarMode: .constant("collections"),
+        selectedQuery: .constant("SELECT * FROM movies"),
     )
 }

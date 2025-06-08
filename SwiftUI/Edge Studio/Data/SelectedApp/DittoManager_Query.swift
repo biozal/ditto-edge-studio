@@ -8,59 +8,9 @@
 import Foundation
 import DittoSwift
 
-// MARK: Ditto Selected App - Query Operations
 extension DittoManager {
     
-    func getCollections() async throws -> [String]  {
-        guard let ditto = dittoSelectedApp else {
-            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
-        }
-        let query = "SELECT * FROM __collections"
-        let results = try await ditto.store.execute(query: query)
-        let collections =  results.items.compactMap { $0.value["name"] as? String }
-        // Filter out system collections that start with "__"
-        .filter { !$0.hasPrefix("__") }
-        return collections
-    }
-    
-    func deleteQueryHistory(_ id: String) async throws {
-        guard let ditto = dittoLocal
-        else {
-            throw InvalidStateError(message: "No Ditto local database available. You should never see this message.")
-        }
-        let query = "DELETE FROM dittoqueryhistory WHERE _id = :id"
-        let arguments: [String: Any] = [ "id": id ]
-        let _ = try await ditto.store.execute(query: query, arguments: arguments)
-    }
-    
-    func clearQueryHistory() async throws {
-        guard let ditto = dittoLocal,
-              let selectedAppConfig = dittoSelectedAppConfig
-        else {
-            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
-        }
-        let query = "DELETE FROM dittoqueryhistory WHERE selectedApp_id = :selectedApp_id"
-        let arguments: [String: Any] = [ "selectedApp_id": selectedAppConfig._id ]
-        let _ = try await ditto.store.execute(query: query, arguments: arguments)
-    }
-   
-    func saveQueryHistory(_ history: DittoQueryHistory) async throws {
-        guard let ditto = dittoLocal,
-        let selectedAppConfig = dittoSelectedAppConfig
-        else {
-            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
-        }
-        let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
-        let arguments: [String: Any] = [
-            "queryHistory": [
-                "_id": history.id,
-                "query": history.query,
-                "createdDate": history.createdDate,
-                "selectedApp_id": selectedAppConfig._id
-            ]
-        ]
-        let _ = try await ditto.store.execute(query: query, arguments: arguments)
-    }
+    // MARK: Query Execution
     
     func executeSelectedAppQuery(query: String) async throws -> [DittoSwift.DittoQueryResultItem]? {
         if let ditto = dittoSelectedApp {
@@ -125,8 +75,99 @@ extension DittoManager {
         if let jsonString = String(data: data, encoding: .utf8) {
             return [jsonString]
         }
- 
+        
         return ["No results found"]
         
+    }
+    
+    // MARK: Query Favorite
+    
+    func deleteFavorite(_ id: String) async throws {
+        guard let ditto = dittoLocal
+        else {
+            throw InvalidStateError(message: "No Ditto local database available. You should never see this message.")
+        }
+        let query = "DELETE FROM dittoqueryfavorites WHERE _id = :id"
+        let arguments: [String: Any] = [ "id": id ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+
+    func saveFavorite(_ favorite: DittoQueryHistory) async throws {
+        guard let ditto = dittoLocal,
+              let selectedAppConfig = dittoSelectedAppConfig
+        else {
+            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
+        }
+        let query = "INSERT INTO dittoqueryfavorites DOCUMENTS (:queryHistory)"
+        let arguments: [String: Any] = [
+            "queryHistory": [
+                "_id": UUID().uuidString,
+                "query": favorite.query,
+                "createdDate": Date().ISO8601Format(),
+                "selectedApp_id": selectedAppConfig._id
+            ]
+        ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+        
+    // MARK: Query History
+    
+    func clearQueryHistory() async throws {
+        guard let ditto = dittoLocal,
+              let selectedAppConfig = dittoSelectedAppConfig
+        else {
+            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
+        }
+        let query = "DELETE FROM dittoqueryhistory WHERE selectedApp_id = :selectedApp_id"
+        let arguments: [String: Any] = [ "selectedApp_id": selectedAppConfig._id ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+    
+    func deleteQueryHistory(_ id: String) async throws {
+        guard let ditto = dittoLocal
+        else {
+            throw InvalidStateError(message: "No Ditto local database available. You should never see this message.")
+        }
+        let query = "DELETE FROM dittoqueryhistory WHERE _id = :id"
+        let arguments: [String: Any] = [ "id": id ]
+        let _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+   
+    func saveQueryHistory(_ history: DittoQueryHistory) async throws {
+        guard let ditto = dittoLocal,
+              let selectedAppConfig = dittoSelectedAppConfig
+        else {
+            throw InvalidStateError(message: "No Ditto SelectedApp available. You should never see this message.")
+        }
+        //check if we already have the query if so then just update the date, otherwise insert new record
+        let queryCheck = "SELECT * FROM dittoqueryhistory WHERE query = :query"
+        let argumentsCheck: [String: Any] =
+        ["query": history.query]
+        let resultsCheck = try await ditto.store.execute(query: queryCheck, arguments: argumentsCheck)
+        if resultsCheck.items.count > 0 {
+            let decoder = JSONDecoder()
+            guard let item = resultsCheck.items.first else {
+                return
+            }
+            let existingHistory = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+            let query = "UPDATE dittoqueryhistory SET createdDate = :createdDate WHERE _id = :id"
+            let arguments: [String: Any] = [
+                "id": existingHistory.id,
+                "createdDate": Date().ISO8601Format()
+             ]
+            let _ = try await ditto.store.execute(query: query, arguments: arguments)
+            
+        } else {
+            let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
+            let arguments: [String: Any] = [
+                "queryHistory": [
+                    "_id": history.id,
+                    "query": history.query,
+                    "createdDate": history.createdDate,
+                    "selectedApp_id": selectedAppConfig._id
+                ]
+            ]
+            let _ = try await ditto.store.execute(query: query, arguments: arguments)
+        }
     }
 }

@@ -28,6 +28,9 @@ extension DittoManager {
             
             selectedAppCollectionObserver?.cancel()
             selectedAppCollectionObserver = nil
+            
+            selectedAppFavoritesObserver?.cancel()
+            selectedAppFavoritesObserver = nil
         }
         dittoSelectedApp = nil
     }
@@ -107,6 +110,54 @@ extension DittoManager {
             isSuccess = false
         }
         return isSuccess
+    }
+    
+    func hydrateQueryFavorites(updateFavorites: @escaping ([DittoQueryHistory]) -> Void)
+    async throws -> [DittoQueryHistory] {
+        if let ditto = dittoLocal,
+           let id = dittoSelectedAppConfig?._id,
+           let dittoAppRef = dittoApp {
+            let query = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
+            let arguments = ["selectedAppId": id]
+            
+            let decoder = JSONDecoder()
+            
+            //hydrate the initial data from the database
+            let historyResults = try await ditto.store.execute(
+                query: query, arguments: arguments)
+            let historyItems = historyResults.items.compactMap { item in
+                do {
+                    return try decoder.decode(
+                        DittoQueryHistory.self,
+                        from: item.jsonData()
+                    )
+                } catch {
+                    dittoAppRef.setError(error)
+                    return nil
+                }
+            }
+            
+            //register for any changes in the database
+            self.selectedAppFavoritesObserver = try ditto.store.registerObserver(
+                query: query,
+                arguments: arguments
+            ) { [updateFavorites] results in
+                let historyItems = results.items.compactMap { item in
+                    do {
+                        return try decoder.decode(
+                            DittoQueryHistory.self,
+                            from: item.jsonData()
+                        )
+                    } catch {
+                        dittoAppRef.setError(error)
+                        return nil
+                    }
+                }
+                updateFavorites(historyItems)
+            }
+            return historyItems
+        }
+        return []
     }
     
     func hydrateQueryHistory(updateHistory: @escaping ([DittoQueryHistory]) -> Void)

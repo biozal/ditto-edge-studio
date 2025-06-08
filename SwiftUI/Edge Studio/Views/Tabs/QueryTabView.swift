@@ -24,10 +24,10 @@ struct QueryTabView: View {
         NavigationSplitView {
             // First Column - collections, history, favorites
             QueryToolbarView(collections: $viewModel.collections,
-                             favorites: $viewModel.queryFavorites,
+                             favorites: $viewModel.favorites,
+                             history: $viewModel.history,
                              toolbarMode: $viewModel.selectedToolbarMode,
-                             selectedQuery: $viewModel.selectedQuery,
-                             dittoQueryHistory: $viewModel.queryHistory)
+                             selectedQuery: $viewModel.selectedQuery)
             #if os(macOS)
             .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
             #endif
@@ -88,8 +88,8 @@ extension QueryTabView {
         var isLoading = false
 
         //toolbar items
-        var queryHistory: [DittoQueryHistory] = []
-        var queryFavorites: [String: String] = [:]
+        var history: [DittoQueryHistory] = []
+        var favorites: [DittoQueryHistory] = []
         var collections: [String] = []
         var selectedToolbarMode: String
 
@@ -101,7 +101,8 @@ extension QueryTabView {
         //results view
         var resultsMode: String
         var jsonResults: [String]
-
+        var resultsCount: Int
+        
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
             
@@ -121,14 +122,15 @@ extension QueryTabView {
             }
             
             //query results section
+            self.resultsCount = 0
             self.resultsMode = "json"
             self.jsonResults = ["{}"]
             
             //side bar data load
             Task {
-                queryHistory = try await DittoManager.shared
+                history = try await DittoManager.shared
                     .hydrateQueryHistory(updateHistory: {
-                        self.queryHistory = $0
+                        self.history = $0
                     })
                 
                 collections  = try await DittoManager.shared
@@ -136,6 +138,11 @@ extension QueryTabView {
                         self.collections = $0
                     })
                 
+                favorites = try await DittoManager.shared
+                    .hydrateQueryFavorites(updateFavorites: {
+                        self.favorites = $0
+                    })
+                        
                 if collections.isEmpty {
                     let subscriptions = await DittoManager.shared.dittoSubscriptions
                     selectedQuery = subscriptions.first?.query ?? ""
@@ -181,18 +188,22 @@ extension QueryTabView {
 
                             if !resultJsonStrings.isEmpty {
                                 jsonResults = resultJsonStrings
+                                resultsCount = resultJsonStrings.count
                             } else {
+                                resultsCount = 0
                                 jsonResults = ["No results"]
                             }
                         } else {
                             // TODO: put results into a table
                         }
                     } else {
+                        resultsCount = 0
                         jsonResults = ["No results found"]
                     }
                 } else {
                     jsonResults = try await DittoManager.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
+                    resultsCount = jsonResults.count
                 }
                 // Add query to history
                 await addQueryToHistory(appState: appState)
