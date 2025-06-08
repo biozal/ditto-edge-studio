@@ -1,3 +1,6 @@
 SwiftUI/Ditto Edge Studio.xcodeproj/project.xcworkspace/xcuserdata
 .DS_Store
 SwiftUI/Ditto Edge Studio/dittoConfig.plist
+rust/.idea
+rust/target
+.env
