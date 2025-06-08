@@ -18,9 +18,21 @@ public struct DittoObserveEvent {
     public var insertCount: Int = 0
     public var updateCount: Int = 0
     public var deleteCount: Int = 0
-    
+    public var moveCount: Int = 0
+    public var dataCount: Int = 0
+
+    public var data: [String] = []
     public var insertedJson: [String] = []
     public var updatedJson: [String] = []
-    public var deletedJson: [String] = []
+    public var deletedIndexes: [Int] = []
+    
+    public var eventTime: String = ""
+}
 
+extension DittoObserveEvent {
+    static func new(observeId: String) -> DittoObserveEvent {
+        return DittoObserveEvent(
+            id: UUID().uuidString,
+            observeId: observeId)
+    }
 }

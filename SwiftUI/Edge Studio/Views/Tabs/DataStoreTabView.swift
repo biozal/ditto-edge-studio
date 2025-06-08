@@ -22,84 +22,163 @@ struct DataStoreTabView: View {
 
     var body: some View {
         NavigationSplitView {
-            List {
-                subscriptionSection()
-                Spacer()
-                observableSection()
-                Spacer()
-                Section {
-                    Button {
-                        Task {
-                            // Your import task logic here
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up.fill")
-                            Text("Import")
-                            Spacer()
-                        }
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
-                }
-                .listRowInsets(EdgeInsets())
-            }
-            .navigationTitle("Data Store")
-            .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
-        } content: {
             VStack {
-                if viewModel.selectedObservable == nil {
-                    ContentUnavailableView(
-                        "No Observer Selected",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
-                        )
+                Picker("", selection: $viewModel.mode) {
+                    Label(
+                        "Subscriptions",
+                        systemImage: "arrow.trianglehead.2.clockwise"
                     )
-                    .navigationTitle("Observer Events")
-                    .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
+                    .labelStyle(.iconOnly)
+                    .tag("subscriptions")
+                    Label(
+                        "Observers",
+                        systemImage: "eye"
+                    )
+                    .labelStyle(.iconOnly)
+                    .tag("observers")
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+
+                if viewModel.mode == "observers" {
+                    Button {
+                        viewModel.showObserverEditor(
+                            DittoObservable.new()
+                        )
+                    } label: {
+                        Label("Observers", systemImage: "plus.square.fill")
+                    }
+                    List {
+                        observableSection()
+                    }
 
                 } else {
-                    ContentUnavailableView(
-                        "No Observer Events",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Observer events.  Update some data in the collection your observer."
+                    Button {
+                        viewModel.showSubscriptionEditor(
+                            DittoSubscription.new()
                         )
+                    } label: {
+                        Label("Subscriptions", systemImage: "plus.square.fill")
+                    }
+                    .padding(.bottom, 4)
+                    List {
+                        subscriptionSection()
+                    }
+                }
+                Spacer()
+                Button {
+                    Task {
+                        // Your import task logic here
+                    }
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.up.fill")
+                }
+                .padding(.bottom, 8)
+            }
+            .navigationTitle("Data Store")
+            #if os(macOS)
+                .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
+            #endif
+        } content: {
+            if viewModel.mode == "subscriptions" {
+                ContentUnavailableView(
+                    "Information List",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "This is supposed to display a list of topics for you to learn about within the app, but the developer hasn't gotten around to implementing it yet"
                     )
-                    .navigationTitle("Observer Events")
-                    .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
+                )
+            } else {
+                VStack {
+                    if viewModel.selectedObservable == nil {
+                        ContentUnavailableView(
+                            "No Observer Selected",
+                            systemImage: "exclamationmark.triangle.fill",
+                            description: Text(
+                                "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
+                            )
+                        )
+                        .navigationTitle("Observer Events")
+                        .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
+
+                    } else {
+                        if viewModel.observableEvents.isEmpty {
+                            ContentUnavailableView(
+                                "No Observer Events",
+                                systemImage: "exclamationmark.triangle.fill",
+                                description: Text(
+                                    "No Observer events.  Update some data in the collection your observer."
+                                )
+                            )
+                            .navigationTitle("Observer Events")
+                            .frame(
+                                minWidth: 200,
+                                idealWidth: 320,
+                                maxWidth: 400
+                            )
+                        } else {
+                            List(viewModel.observableEvents, id: \.id) {
+                                event in
+                                VStack {
+                                    Text("When: \(event.eventTime)")
+                                    Text("Items Count: \(event.dataCount)")
+                                    Text("Insert Count: \(event.insertCount)")
+                                    Text("Update Count: \(event.updateCount)")
+                                    Text("Delete Count: \(event.deleteCount)")
+                                    Text("Moves Count: \(event.moveCount)")
+                                }
+                            }
+                            .navigationTitle("Observer Events")
+                            .frame(
+                                minWidth: 200,
+                                idealWidth: 320,
+                                maxWidth: 400
+                            )
+                        }
+
+                    }
                 }
             }
         } detail: {
-            ContentUnavailableView(
-                "No Observer Selected",
-                systemImage: "exclamationmark.triangle.fill",
-                description: Text(
-                    "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
+            if viewModel.mode == "subscriptions" {
+                ContentUnavailableView(
+                    "Developer Lazy",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "I'm a lazy developer this should show you information about the app and how to get started."
+                    )
                 )
-            )
-            .navigationTitle("Observer Events")
-        }
-#if os(iOS)
-        .navigationSplitViewColumnWidth(400)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
+            } else {
+                ContentUnavailableView(
+                    "No Observer Selected",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
+                    )
+                )
+                .navigationTitle("Observer Events")
             }
         }
-#else
-        .navigationSplitViewColumnWidth(min: 500, ideal: 800, max: 2000)
-#endif
+        #if os(iOS)
+            .navigationSplitViewColumnWidth(400)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
+            }
+        #else
+            .navigationSplitViewColumnWidth(min: 500, ideal: 800, max: 2000)
+        #endif
         .sheet(
             isPresented: $viewModel.isEditorPresented,
         ) {
             Group {
                 if let subscription = viewModel.selectedSubscription {
                     QueryArgumentEditor(
-                        title: subscription.name.isEmpty ? "New Subscription" : "Edit Subscription",
+                        title: subscription.name.isEmpty
+                            ? "New Subscription" : "Edit Subscription",
                         name: subscription.name,
                         query: subscription.query,
                         arguments: subscription.args ?? "",
@@ -109,7 +188,8 @@ struct DataStoreTabView: View {
                     .environmentObject(appState)
                 } else if let observable = viewModel.selectedObservable {
                     QueryArgumentEditor(
-                        title: observable.name.isEmpty ? "New Observer" : "Edit Observer",
+                        title: observable.name.isEmpty
+                            ? "New Observer" : "Edit Observer",
                         name: observable.name,
                         query: observable.query,
                         arguments: observable.args ?? "",
@@ -144,19 +224,21 @@ struct DataStoreTabView: View {
                 )
             #endif
             .presentationDetents([.medium, .large])
-        }//end of sheet
-     
+        }  //end of sheet
+
     }
-    
+
     fileprivate func subscriptionSection() -> some View {
         return Section {
             if viewModel.subscriptions.isEmpty {
                 VStack {
-                    Text("No subscriptions have been added yet. Click the plus button to add your first subscription.")
-                        .font(.caption)
-                        .lineLimit(nil)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "No subscriptions have been added yet. Click the plus button to add your first subscription."
+                    )
+                    .font(.caption)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -167,104 +249,76 @@ struct DataStoreTabView: View {
                         .onTapGesture {
                             viewModel.showSubscriptionEditor(subscription)
                         }
-                        .contextMenu{
+                        .contextMenu {
                             Button {
                                 Task {
-                                    try await viewModel.deleteSubscription(subscription)
+                                    try await viewModel.deleteSubscription(
+                                        subscription
+                                    )
                                 }
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
+
+                    Divider()
                 }
             }
-        }
-        header: {
-            HStack {
-                Button {
-                    viewModel.showSubscriptionEditor(DittoSubscription.new())
-                } label: {
-                    Image(systemName: "plus.square.fill")
-                        .imageScale(.large)
-                }
-                .buttonStyle(.borderless)
-                
-                Text("Subscriptions")
-                    .font(.title2)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-            }
-            .padding(.top, 4)
         }
     }
-    
+
     fileprivate func observableSection() -> some View {
         return Section {
             if viewModel.observerables.isEmpty {
                 VStack {
-                    Text("No observers have been added yet. Click the plus button to add your first observers.")
-                        .font(.caption)
-                        .lineLimit(nil)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "No observers have been added yet. Click the plus button to add your first observers."
+                    )
+                    .font(.caption)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             } else {
                 ForEach(viewModel.observerables, id: \.id) { observer in
-                    HStack {
-                        Text(observer.name)
-                            .onTapGesture {
-                                viewModel.selectedObservable = observer
+                    Text(observer.name)
+                        .onTapGesture {
+                            viewModel.selectedObservable = observer
+                            Task {
+                                await viewModel.loadObservedEvents()
                             }
-#if os(macOS)
+                        }
+                        #if os(macOS)
                             .contextMenu {
-                                Button("Activate") {
-                                    
-                                }
                                 Button("Delete") {
                                     Task {
                                         do {
                                             try await viewModel
-                                                .deleteObservable(
-                                                    observer
-                                                )
+                                            .deleteObservable(
+                                                observer
+                                            )
                                         } catch {
                                             appState.setError(error)
                                         }
                                     }
                                 }
                             }
-#endif
-                        Spacer()
-                        if observer.isActive {
-                            Pill(text: "Active", color: .green)
-                        } else {
-                            Pill(text: "Inactive", color: .gray)
-                        }
-                    }
+                        #endif
+                    Divider()
                 }
             }
-        } header: {
-            HStack {
-                Button {
-                    viewModel.showObserverEditor(DittoObservable.new())
-                } label: {
-                    Image(systemName: "plus.square.fill")
-                        .imageScale(.large)
-                }
-                .buttonStyle(.borderless)
-                
-                Text("Observers")
-                    .font(.title2)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-            }
-            .padding(.top, 4)
         }
-    }//end of ObservableSection
+    }  //end of ObservableSection
+
+    @ViewBuilder
+    func faIcon(iconCode: String, size: CGFloat) -> some View {
+        Text(iconCode)
+            .font(.custom("FontAwesome6Pro-Regular", size: size))
+            .allowsHitTesting(false)
+            .accessibilityLabel(iconCode)
+    }
 }
 
 extension DataStoreTabView {
@@ -273,6 +327,9 @@ extension DataStoreTabView {
     class ViewModel {
         let selectedApp: DittoAppConfig
         var isLoading = false
+
+        //used for navigation
+        var mode = "subscriptions"
 
         //used for editor
         var isEditorPresented = false
@@ -284,6 +341,8 @@ extension DataStoreTabView {
         // Observables State
         var observerables: [DittoObservable] = []
         var selectedObservable: DittoObservable?
+
+        var observableEvents: [DittoObserveEvent] = []
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
@@ -303,8 +362,9 @@ extension DataStoreTabView {
             selectedObservable = nil
             await DittoManager.shared.closeDittoSelectedApp()
         }
-        
-        func deleteSubscription(_ subscription: DittoSubscription) async throws {
+
+        func deleteSubscription(_ subscription: DittoSubscription) async throws
+        {
             try await DittoManager.shared.removeDittoSubscription(subscription)
             subscriptions = await DittoManager.shared.dittoSubscriptions
         }
@@ -376,6 +436,11 @@ extension DataStoreTabView {
             isEditorPresented = false
         }
 
+        func loadObservedEvents() async {
+            observableEvents = await DittoManager.shared.dittoObservableEvents
+                .filter({ $0.observeId == selectedObservable?.id })
+        }
+
         func loadObservations(_ observable: DittoObservable) async {
             //set the selected observable
             self.selectedObservable = observable
@@ -385,7 +450,7 @@ extension DataStoreTabView {
             selectedObservable = observable
             isEditorPresented = true
         }
-        
+
         func showSubscriptionEditor(_ subscription: DittoSubscription) {
             selectedSubscription = subscription
             isEditorPresented = true

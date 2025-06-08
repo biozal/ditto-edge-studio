@@ -31,6 +31,13 @@ extension DittoManager {
             
             selectedAppFavoritesObserver?.cancel()
             selectedAppFavoritesObserver = nil
+            
+            //close any observers that were registered to show events
+            dittoObservables.forEach { event in
+                if let observer = event.storeObserver {
+                    observer.cancel()
+                }
+            }
         }
         dittoSelectedApp = nil
     }
@@ -106,7 +113,7 @@ extension DittoManager {
             
             isSuccess = true
         } catch {
-            self.dittoApp?.setError(error)
+            self.app?.setError(error)
             isSuccess = false
         }
         return isSuccess
@@ -116,7 +123,7 @@ extension DittoManager {
     async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -164,7 +171,7 @@ extension DittoManager {
         async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM dittoqueryhistory WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -211,7 +218,7 @@ extension DittoManager {
     func hydrateCollections(updateCollections: @escaping ([String]) -> Void)
     async throws -> [String] {
         if let ditto = dittoSelectedApp,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM __collections"
             
             let decoder = JSONDecoder()

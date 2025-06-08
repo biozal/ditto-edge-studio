@@ -14,8 +14,13 @@ import ObjectiveC
 actor DittoManager: ObservableObject {
     var isStoreInitialized: Bool = false
 
-    // MARK: local cache
-    var dittoApp: DittoApp?
+    // MARK: local app cache
+    
+    // local cache is used for remembering things like:
+    // query history, favorites, subscriptions, and observers
+    // always remember to save those in the dittoLocal instance
+    
+    var app: DittoApp?
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
 
@@ -23,13 +28,18 @@ actor DittoManager: ObservableObject {
     @Published var dittoAppConfigs: [DittoAppConfig] = []
 
     // MARK: Selected App
-    var selectedAppCollectionObserver: DittoStoreObserver?
-    var selectedAppHistoryObserver: DittoStoreObserver?
-    var selectedAppFavoritesObserver: DittoStoreObserver?
+    
+    // this is the actual app the user selected
+    // things like query, observer events, and the ditto tools should
+    // use the dittoSelectedApp instance
 
     var dittoSelectedAppConfig: DittoAppConfig?
     var dittoSelectedApp: Ditto?
     
+    var selectedAppCollectionObserver: DittoStoreObserver?
+    var selectedAppHistoryObserver: DittoStoreObserver?
+    var selectedAppFavoritesObserver: DittoStoreObserver?
+
     @Published var dittoSubscriptions: [DittoSubscription] = []
     @Published var dittoObservables: [DittoObservable] = []
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
@@ -47,7 +57,7 @@ actor DittoManager: ObservableObject {
                 DittoLogger.minimumLogLevel = .debug
                 
                 //cache state for future use
-                self.dittoApp = dittoApp
+                self.app = dittoApp
                 
                 // Create directory for local database
                 let localDirectoryPath = FileManager.default.urls(
@@ -100,7 +110,7 @@ actor DittoManager: ObservableObject {
                 try registerLocalObservers()
             }
         } catch {
-            self.dittoApp?.setError(error)
+            self.app?.setError(error)
         }
     }
     

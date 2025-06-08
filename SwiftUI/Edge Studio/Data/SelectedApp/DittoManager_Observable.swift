@@ -11,50 +11,86 @@ import DittoSwift
 // MARK: Ditto Selected App - Observable Operations
 extension DittoManager {
     
-    func activateDittoObservable(_ observable: DittoObservable) async throws {
-        
-        //calculate if we have a dittoIntialObservationData set, if not we need to load that so we can compare changes
-        //that were observed
-        
-        //create a new store observer
-        
-        
-    }
-    
-    func deactivateDittoObservable(_ observable: DittoObservable) async throws {
-        //deactivate the store observer
-        
-    }
-    
     func saveDittoObservable(_ observable: DittoObservable) async throws {
             if let ditto = dittoLocal,
                let selectedAppConfig = dittoSelectedAppConfig {
+                var dittoObservable = observable
                 let query = "INSERT INTO dittoobservations DOCUMENTS (:newObservable) ON ID CONFLICT DO UPDATE"
-                var arguments: [String: Any] = [
+                let arguments: [String: Any] = [
                     "newObservable": [
                         "_id": observable.id,
                         "name": observable.name,
                         "query": observable.query,
                         "selectedApp_id": selectedAppConfig._id,
-                        "args": "",
+                        "args": observable.args ?? "",
                     ]
                 ]
-                if let args = observable.args {
-                    arguments["args"] = args
-                }
                 try await ditto.store.execute(query: query,
                                               arguments: arguments)
-                
                 //handle edge case where observable exists in the cache
                 removeDittoObservableFromCache(observable)
                 
-                dittoObservables.append(observable)
+                //register the observer
+                dittoObservable.storeObserver = try await registerDittoObservable(observable)
+                
+                dittoObservables.append(dittoObservable)
             }
+    }
+    
+    private func registerDittoObservable(_  observable: DittoObservable)
+        async throws -> DittoStoreObserver? {
+            if let ditto = dittoSelectedApp {
+                
+                //used for calculating the diffs
+                let dittoDiffer = DittoDiffer()
+                
+                //TODO: fix arguments serialization
+                let observer = try ditto.store.registerObserver(
+                    query: observable.query,
+                    arguments: [:]
+                ) { [weak self] results in
+                    //required to show the end user when the event fired
+                    var event =  DittoObserveEvent.new(observeId: observable.id)
+                    
+                    event.data = results.items.compactMap { $0.jsonString() }
+                    let diff = dittoDiffer.diff(results.items)
+                    
+                    event.eventTime = Date().ISO8601Format()
+                    
+                    //set diff information
+                    event.deleteCount = diff.deletions.count
+                    event.insertCount = diff.insertions.count
+                    event.updateCount = diff.updates.count
+                    event.moveCount = diff.moves.count
+                    event.dataCount = results.items.count
+                    
+                    event.deletedIndexes = Array(diff.deletions)
+                    
+                    diff.insertions.forEach { index in
+                        let item = event.data[index]
+                        event.insertedJson.append(item)
+                    }
+                    
+                    diff.updates.forEach { index in
+                        let item = event.data[index]
+                        event.updatedJson.append(item)
+                    }
+                  
+                    Task { [weak self] in
+                        await self?.addObservableEvent(event)
+                    }
+                }
+                return observer
+            }
+            return nil
+    }
+    
+    private func addObservableEvent(_ event: DittoObserveEvent) async {
+        dittoObservableEvents.append(event)
     }
     
     func removeDittoObservable(_ observable: DittoObservable) async throws {
         if let ditto = dittoLocal {
-            
             //cancel the store observer if it exists
             if let storeObserver = observable.storeObserver {
                 storeObserver.cancel()
