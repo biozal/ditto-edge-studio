@@ -37,7 +37,7 @@ extension DittoManager {
             }
     }
     
-    private func registerDittoObservable(_  observable: DittoObservable)
+    func registerDittoObservable(_  observable: DittoObservable)
         async throws -> DittoStoreObserver? {
             if let ditto = dittoSelectedApp {
                 
@@ -52,30 +52,18 @@ extension DittoManager {
                     //required to show the end user when the event fired
                     var event =  DittoObserveEvent.new(observeId: observable.id)
                     
-                    event.data = results.items.compactMap { $0.jsonString() }
                     let diff = dittoDiffer.diff(results.items)
                     
                     event.eventTime = Date().ISO8601Format()
                     
                     //set diff information
-                    event.deleteCount = diff.deletions.count
-                    event.insertCount = diff.insertions.count
-                    event.updateCount = diff.updates.count
-                    event.moveCount = diff.moves.count
-                    event.dataCount = results.items.count
-                    
+                    event.insertIndexes = Array(diff.insertions)
                     event.deletedIndexes = Array(diff.deletions)
+                    event.updatedIndexes = Array(diff.updates)
+                    event.movedIndexes = Array(diff.moves)
+                   
+                    event.data = results.items.compactMap { $0.jsonString() }
                     
-                    diff.insertions.forEach { index in
-                        let item = event.data[index]
-                        event.insertedJson.append(item)
-                    }
-                    
-                    diff.updates.forEach { index in
-                        let item = event.data[index]
-                        event.updatedJson.append(item)
-                    }
-                  
                     Task { [weak self] in
                         await self?.addObservableEvent(event)
                     }

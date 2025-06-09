@@ -15,6 +15,7 @@ public struct DittoObservable : Identifiable {
     public var args: String?
     public var isActive: Bool
     public var storeObserver: DittoStoreObserver?
+    public var isLoading: Bool? = false
     
     init(id: String){
         self.id = id

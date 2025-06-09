@@ -10,11 +10,11 @@ import SwiftUI
 
 struct ResultJsonViewer: View {
     @Binding var resultText: [String]
-    @Binding var resultsCount: Int
+    @Binding var resultCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ResultsHeader(count: resultsCount)
+            ResultsHeader(count: resultCount)
             ResultsList(items: resultText)
         }
     }
@@ -109,7 +109,7 @@ struct ResultItem: View {
             "{\n  \"id\": 1,\n  \"name\": \"Test\"\n}",
             "{\n  \"id\": 2,\n  \"name\": \"Sample\"\n}",
         ]),
-        resultsCount: .constant(2)
+        resultCount: .constant(2)
     )
     .frame(width: 400, height: 300)
 }

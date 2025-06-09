@@ -4,10 +4,6 @@
 <dict>
 	<key>CFBundleGetInfoString</key>
 	<string></string>
-	<key>NSApplicationFonts</key>
-	<array>
-		<string>fa-regular-400.ttf</string>
-	</array>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http-alt._tcp.</string>

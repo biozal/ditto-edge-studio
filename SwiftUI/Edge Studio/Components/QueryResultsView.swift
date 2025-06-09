@@ -47,7 +47,7 @@ struct QueryResultsView: View {
 
             ResultJsonViewer(
                 resultText: $jsonResults,
-                resultsCount: $resultsCount
+                resultCount: $resultsCount
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

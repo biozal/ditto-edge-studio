@@ -20,8 +20,6 @@ extension DittoManager {
                     dittoSub.cancel()
                 }
             }
-            dittoSubscriptions.removeAll()
-            
             // remove the observers
             selectedAppHistoryObserver?.cancel()
             selectedAppHistoryObserver = nil
@@ -32,12 +30,20 @@ extension DittoManager {
             selectedAppFavoritesObserver?.cancel()
             selectedAppFavoritesObserver = nil
             
+            dittoSubscriptions.removeAll()
+            dittoSubscriptions = []
+            
             //close any observers that were registered to show events
             dittoObservables.forEach { event in
                 if let observer = event.storeObserver {
                     observer.cancel()
                 }
             }
+            dittoObservables.removeAll()
+            dittoObservables = []
+            
+            dittoObservableEvents.removeAll()
+            dittoObservableEvents = []
         }
         dittoSelectedApp = nil
     }
@@ -294,8 +300,9 @@ extension DittoManager {
                 arguments: arguments
             )
             
-            results.items.forEach { item in
-                let observable = DittoObservable(item.value)
+            for item in results.items {
+                var observable = DittoObservable(item.value)
+                observable.storeObserver = try await registerDittoObservable(observable)
                 self.dittoObservables.append(observable)
             }
         }

@@ -15,15 +15,10 @@ public struct DittoObserveEvent {
     //used to link to the Selected Observer
     public var observeId: String
     
-    public var insertCount: Int = 0
-    public var updateCount: Int = 0
-    public var deleteCount: Int = 0
-    public var moveCount: Int = 0
-    public var dataCount: Int = 0
-
     public var data: [String] = []
-    public var insertedJson: [String] = []
-    public var updatedJson: [String] = []
+    public var insertIndexes: [Int] = []
+    public var updatedIndexes: [Int] = []
+    public var movedIndexes: [(from: Int, to: Int)] = []
     public var deletedIndexes: [Int] = []
     
     public var eventTime: String = ""
@@ -34,5 +29,29 @@ extension DittoObserveEvent {
         return DittoObserveEvent(
             id: UUID().uuidString,
             observeId: observeId)
+    }
+}
+
+// MARK: Calculate Data
+extension DittoObserveEvent {
+    
+    func getInsertedData() -> [String] {
+        return getData(indexes: insertIndexes)
+    }
+    
+    func getUpdatedData() -> [String] {
+        return getData(indexes: updatedIndexes)
+    }
+    
+    private func getData(indexes: [Int]) -> [String] {
+        var items: [String] = []
+        if data.count > 0 && indexes.count > 0 {
+            for index in indexes {
+                if index >= 0 && index < data.count {
+                    items.append(data[index])
+                }
+            }
+        }
+        return items
     }
 }

@@ -91,6 +91,7 @@ struct DataStoreTabView: View {
                     )
                 )
             } else {
+                //draw observable UI
                 VStack {
                     if viewModel.selectedObservable == nil {
                         ContentUnavailableView(
@@ -119,25 +120,8 @@ struct DataStoreTabView: View {
                                 maxWidth: 400
                             )
                         } else {
-                            List(viewModel.observableEvents, id: \.id) {
-                                event in
-                                VStack {
-                                    Text("When: \(event.eventTime)")
-                                    Text("Items Count: \(event.dataCount)")
-                                    Text("Insert Count: \(event.insertCount)")
-                                    Text("Update Count: \(event.updateCount)")
-                                    Text("Delete Count: \(event.deleteCount)")
-                                    Text("Moves Count: \(event.moveCount)")
-                                }
-                            }
-                            .navigationTitle("Observer Events")
-                            .frame(
-                                minWidth: 200,
-                                idealWidth: 320,
-                                maxWidth: 400
-                            )
+                            observableEventsList()
                         }
-
                     }
                 }
             }
@@ -151,14 +135,71 @@ struct DataStoreTabView: View {
                     )
                 )
             } else {
-                ContentUnavailableView(
-                    "No Observer Selected",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
+                if viewModel.selectedEvent == nil {
+                    ContentUnavailableView(
+                        "No Observer Selected",
+                        systemImage: "exclamationmark.triangle.fill",
+                        description: Text(
+                            "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
+                        )
                     )
-                )
-                .navigationTitle("Observer Events")
+                    .navigationTitle("Observer Events")
+                } else {
+                    if viewModel.shouldShowEventDetails(),
+                        let event = viewModel.selectedEvent
+                    {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Picker("", selection: $viewModel.eventMode) {
+                                Text("Items")
+                                    .tag("items")
+                                Text("Inserted")
+                                    .tag("inserted")
+                                Text("Updated")
+                                    .tag("updated")
+                            }
+                            #if os(macOS)
+                                .padding(.top, 24)
+                            #else
+                                .padding(.top, 8)
+                            #endif
+                            .padding(.bottom, 8)
+                            .pickerStyle(.segmented)
+                            .frame(width: 200)
+                            switch viewModel.eventMode {
+                            case "inserted":
+                                VStack(alignment: .leading, spacing: 0) {
+                                    ResultsHeader(
+                                        count: event.insertIndexes.count
+                                    )
+                                    ResultsList(items: event.getInsertedData())
+                                }
+                            case "updated":
+                                VStack(alignment: .leading, spacing: 0) {
+                                    ResultsHeader(
+                                        count: event.updatedIndexes.count
+                                    )
+                                    ResultsList(items: event.getUpdatedData())
+                                }
+                            default:
+                                VStack(alignment: .leading, spacing: 0) {
+                                    ResultsHeader(count: event.data.count)
+                                    ResultsList(items: event.data)
+                                }
+                            }
+                            Spacer()
+                        }
+                    } else {
+                        ContentUnavailableView(
+                            "No Event Data",
+                            systemImage: "exclamationmark.triangle.fill",
+                            description: Text(
+                                "Event had no counters for inserts, updates, deletes, or items. This should never technically speaking happen."
+                            )
+                        )
+
+                    }
+
+                }
             }
         }
         #if os(iOS)
@@ -226,6 +267,33 @@ struct DataStoreTabView: View {
             .presentationDetents([.medium, .large])
         }  //end of sheet
 
+    }
+
+    fileprivate func observableEventsList() -> some View {
+        return List(viewModel.observableEvents, id: \.id) { event in
+            VStack(alignment: .leading) {
+                Text("\(event.eventTime)")
+                    .font(.headline)
+                Text("Items Count: \(event.data.count)")
+                    .padding(.bottom, 6)
+
+                Text("Insert Count: \(event.insertIndexes.count)")
+                Text("Update Count: \(event.updatedIndexes.count)")
+                Text("Delete Count: \(event.deletedIndexes.count)")
+                Text("Moves Count: \(event.movedIndexes.count)")
+                    .padding(.bottom, 6)
+                Divider()
+            }.onTapGesture {
+                viewModel.selectedEvent = event
+            }
+
+        }
+        .navigationTitle("Observer Events")
+        .frame(
+            minWidth: 200,
+            idealWidth: 320,
+            maxWidth: 400
+        )
     }
 
     fileprivate func subscriptionSection() -> some View {
@@ -311,14 +379,6 @@ struct DataStoreTabView: View {
             }
         }
     }  //end of ObservableSection
-
-    @ViewBuilder
-    func faIcon(iconCode: String, size: CGFloat) -> some View {
-        Text(iconCode)
-            .font(.custom("FontAwesome6Pro-Regular", size: size))
-            .allowsHitTesting(false)
-            .accessibilityLabel(iconCode)
-    }
 }
 
 extension DataStoreTabView {
@@ -343,6 +403,8 @@ extension DataStoreTabView {
         var selectedObservable: DittoObservable?
 
         var observableEvents: [DittoObserveEvent] = []
+        var selectedEvent: DittoObserveEvent?
+        var eventMode = "items"
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
@@ -351,6 +413,7 @@ extension DataStoreTabView {
                 subscriptions = await DittoManager.shared.dittoSubscriptions
                 observerables = await DittoManager.shared.dittoObservables
             }
+            selectedEvent = nil
         }
 
         func activateObservable(_ observable: DittoObservable) async throws {
@@ -443,6 +506,16 @@ extension DataStoreTabView {
         func loadObservations(_ observable: DittoObservable) async {
             //set the selected observable
             self.selectedObservable = observable
+        }
+
+        func shouldShowEventDetails() -> Bool {
+            if let event = selectedEvent {
+                return event.data.count > 0
+                || event.insertIndexes.count > 0
+                || event.updatedIndexes.count > 0
+                || event.deletedIndexes.count > 0
+            }
+            return false
         }
 
         func showObserverEditor(_ observable: DittoObservable) {
