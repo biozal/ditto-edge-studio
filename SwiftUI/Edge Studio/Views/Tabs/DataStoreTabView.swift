@@ -438,7 +438,6 @@ extension DataStoreTabView {
 
         func loadObservedEvents() async {
             observableEvents = await DittoManager.shared.dittoObservableEvents
-                .filter({ $0.observeId == selectedObservable?.id })
         }
 
         func loadObservations(_ observable: DittoObservable) async {
