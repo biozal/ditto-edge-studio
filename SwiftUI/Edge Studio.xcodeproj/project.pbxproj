@@ -51,6 +51,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,
@@ -80,6 +81,7 @@
 				Views/Tabs/DittoToolsTabView.swift,
 				Views/Tabs/QueryTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
+				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
 				Views/Tools/PresenceViewer.swift,
 				Views/Tools/ToolsErrorView.swift,
@@ -91,6 +93,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,
@@ -120,6 +123,7 @@
 				Views/Tabs/DittoToolsTabView.swift,
 				Views/Tabs/QueryTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
+				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
 				Views/Tools/PresenceViewer.swift,
 				Views/Tools/ToolsErrorView.swift,
@@ -331,6 +335,7 @@
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
+				0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -529,7 +534,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Ditto_Edge_Studio.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Edge_Studio.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -575,7 +580,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Ditto Edge Studio/Ditto_Edge_Studio.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Edge_Studio.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -765,7 +771,7 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftTools";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 8.0.0;
+				minimumVersion = 8.1.0;
 			};
 		};
 		0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */ = {
@@ -773,7 +779,15 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = "4.11.0-rc.4";
+				minimumVersion = 4.11.0;
+			};
+		};
+		0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mongodb/mongo-swift-driver";
+			requirement = {
+				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

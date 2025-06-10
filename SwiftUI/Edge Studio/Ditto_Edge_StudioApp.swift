@@ -12,7 +12,7 @@ struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = DittoApp()
     @Environment(\.scenePhase) private var scenePhase
     @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
-
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

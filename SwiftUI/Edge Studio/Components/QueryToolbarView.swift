@@ -133,6 +133,7 @@ struct QueryToolbarView: View {
                         .onTapGesture {
                             selectedQuery = "SELECT * FROM \(collection)"
                         }
+                    Divider()
                 }
             }
             Spacer()

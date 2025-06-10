@@ -20,8 +20,6 @@ extension DittoManager {
                     dittoSub.cancel()
                 }
             }
-            dittoSubscriptions.removeAll()
-            
             // remove the observers
             selectedAppHistoryObserver?.cancel()
             selectedAppHistoryObserver = nil
@@ -31,6 +29,21 @@ extension DittoManager {
             
             selectedAppFavoritesObserver?.cancel()
             selectedAppFavoritesObserver = nil
+            
+            dittoSubscriptions.removeAll()
+            dittoSubscriptions = []
+            
+            //close any observers that were registered to show events
+            dittoObservables.forEach { event in
+                if let observer = event.storeObserver {
+                    observer.cancel()
+                }
+            }
+            dittoObservables.removeAll()
+            dittoObservables = []
+            
+            dittoObservableEvents.removeAll()
+            dittoObservableEvents = []
         }
         dittoSelectedApp = nil
     }
@@ -93,6 +106,19 @@ extension DittoManager {
             
             try ditto.disableSyncWithV3()
             
+            // Disable avoid_redundant_bluetooth
+            // https://docs.ditto.live/sdk/latest/sync/managing-redundant-bluetooth-le-connections#disabling-redundant-connections
+            try await ditto.store.execute(
+                query:
+                    "ALTER SYSTEM SET mesh_chooser_avoid_redundant_bluetooth = false"
+            )
+            
+            // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
+            //
+            try await ditto.store.execute(
+                query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
+            )
+            
             self.dittoSelectedAppConfig = appConfig
             
             //start sync in the selected app
@@ -106,7 +132,7 @@ extension DittoManager {
             
             isSuccess = true
         } catch {
-            self.dittoApp?.setError(error)
+            self.app?.setError(error)
             isSuccess = false
         }
         return isSuccess
@@ -116,7 +142,7 @@ extension DittoManager {
     async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -164,7 +190,7 @@ extension DittoManager {
         async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM dittoqueryhistory WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -211,7 +237,7 @@ extension DittoManager {
     func hydrateCollections(updateCollections: @escaping ([String]) -> Void)
     async throws -> [String] {
         if let ditto = dittoSelectedApp,
-           let dittoAppRef = dittoApp {
+           let dittoAppRef = app {
             let query = "SELECT * FROM __collections"
             
             let decoder = JSONDecoder()
@@ -287,8 +313,9 @@ extension DittoManager {
                 arguments: arguments
             )
             
-            results.items.forEach { item in
-                let observable = DittoObservable(item.value)
+            for item in results.items {
+                var observable = DittoObservable(item.value)
+                observable.storeObserver = try await registerDittoObservable(observable)
                 self.dittoObservables.append(observable)
             }
         }

@@ -132,6 +132,7 @@ extension AppEditorView {
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
+                                               mongoDbConnectionString: "",
                                                mode: mode)
                 if isNewItem {
                     try await DittoManager.shared.addDittoAppConfig(appConfig)

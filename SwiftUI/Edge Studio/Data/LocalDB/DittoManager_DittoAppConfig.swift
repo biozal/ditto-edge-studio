@@ -13,7 +13,7 @@ extension DittoManager {
     
     func registerLocalObservers() throws {
         if let ditto = dittoLocal {
-            let dittoAppRef = self.dittoApp  // Capture reference before closure
+            let dittoAppRef = self.app  // Capture reference before closure
             localAppConfigsObserver = try ditto.store.registerObserver(
                 query: """
                     SELECT *
@@ -76,7 +76,7 @@ extension DittoManager {
                 )
             }
         } catch {
-            self.dittoApp?.setError(error)
+            self.app?.setError(error)
         }
     }
     
@@ -110,7 +110,7 @@ extension DittoManager {
                 )
             }
         } catch {
-            self.dittoApp?.setError(error)
+            self.app?.setError(error)
         }
     }
 }
