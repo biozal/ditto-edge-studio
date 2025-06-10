@@ -79,17 +79,20 @@ struct DataStoreTabView: View {
             }
             .navigationTitle("Data Store")
             #if os(macOS)
-                .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
+                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
             #endif
         } content: {
             if viewModel.mode == "subscriptions" {
-                ContentUnavailableView(
-                    "Information List",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "This is supposed to display a list of topics for you to learn about within the app, but the developer hasn't gotten around to implementing it yet"
+                VStack {
+                    ContentUnavailableView(
+                        "Information List",
+                        systemImage: "exclamationmark.triangle.fill",
+                        description: Text(
+                            "This is supposed to display a list of topics for you to learn about within the app, but the developer hasn't gotten around to implementing it yet"
+                        )
                     )
-                )
+                }
+                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
             } else {
                 //draw observable UI
                 VStack {
@@ -102,7 +105,7 @@ struct DataStoreTabView: View {
                             )
                         )
                         .navigationTitle("Observer Events")
-                        .frame(minWidth: 200, idealWidth: 320, maxWidth: 400)
+                        .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
 
                     } else {
                         if viewModel.observableEvents.isEmpty {
@@ -114,13 +117,10 @@ struct DataStoreTabView: View {
                                 )
                             )
                             .navigationTitle("Observer Events")
-                            .frame(
-                                minWidth: 200,
-                                idealWidth: 320,
-                                maxWidth: 400
-                            )
+                            .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
                         } else {
                             observableEventsList()
+                                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
                         }
                     }
                 }
@@ -168,26 +168,19 @@ struct DataStoreTabView: View {
                             switch viewModel.eventMode {
                             case "inserted":
                                 VStack(alignment: .leading, spacing: 0) {
-                                    ResultsHeader(
-                                        count: event.insertIndexes.count
-                                    )
-                                    ResultsList(items: event.getInsertedData())
+                                    ResultJsonViewer(resultText: event.getInsertedData())
                                 }
                             case "updated":
                                 VStack(alignment: .leading, spacing: 0) {
-                                    ResultsHeader(
-                                        count: event.updatedIndexes.count
-                                    )
-                                    ResultsList(items: event.getUpdatedData())
+                                    ResultJsonViewer(resultText: event.getUpdatedData())
                                 }
                             default:
                                 VStack(alignment: .leading, spacing: 0) {
-                                    ResultsHeader(count: event.data.count)
-                                    ResultsList(items: event.data)
+                                    ResultJsonViewer(resultText: event.data)
                                 }
                             }
                             Spacer()
-                        }
+                        }.padding(.leading, 12)
                     } else {
                         ContentUnavailableView(
                             "No Event Data",
@@ -209,8 +202,6 @@ struct DataStoreTabView: View {
                     Text(viewModel.selectedApp.name).font(.headline).bold()
                 }
             }
-        #else
-            .navigationSplitViewColumnWidth(min: 500, ideal: 800, max: 2000)
         #endif
         .sheet(
             isPresented: $viewModel.isEditorPresented,
@@ -289,11 +280,6 @@ struct DataStoreTabView: View {
 
         }
         .navigationTitle("Observer Events")
-        .frame(
-            minWidth: 200,
-            idealWidth: 320,
-            maxWidth: 400
-        )
     }
 
     fileprivate func subscriptionSection() -> some View {
