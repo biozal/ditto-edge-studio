@@ -25,17 +25,17 @@ struct ResultJsonViewer: View {
         default: return [25, 50, 100, 200, 250]
         }
     }
-    private var resultCount: Int
+    private var resultCount: Int {
+        resultText.count
+    }
 
     init(resultText: Binding<[String]>) {
         self._resultText = resultText
-        resultCount = resultText.count
     }
 
     // Convenience initializer for static arrays
     init(resultText: [String]) {
         self._resultText = .constant(resultText)
-        resultCount = resultText.count
     }
     
     private var pageCount: Int {
