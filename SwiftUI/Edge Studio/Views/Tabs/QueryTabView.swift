@@ -66,7 +66,6 @@ struct QueryTabView: View {
 
                     //bottom half
                     QueryResultsView(
-                        resultsCount: $viewModel.resultsCount,
                         jsonResults: $viewModel.jsonResults
                     )
                 }

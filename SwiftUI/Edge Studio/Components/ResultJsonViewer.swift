@@ -15,7 +15,16 @@ struct ResultJsonViewer: View {
     @State private var pageSize = 25
     @State private var isExporting = false
 
-    private let pageSizes = [25, 50, 100, 200, 250]
+    private var pageSizes: [Int] {
+        switch resultCount {
+        case 0...25: return [25]
+        case 26...50: return [25, 50]
+        case 51...100: return [25, 50, 100]
+        case 101...200: return [25, 50, 100, 200]
+        case 201...250: return [25, 50, 100, 200, 250]
+        default: return [25, 50, 100, 200, 250]
+        }
+    }
     private var resultCount: Int
 
     init(resultText: Binding<[String]>) {
@@ -28,7 +37,7 @@ struct ResultJsonViewer: View {
         self._resultText = .constant(resultText)
         resultCount = resultText.count
     }
-
+    
     private var pageCount: Int {
         max(1, Int(ceil(Double(resultText.count) / Double(pageSize))))
     }
@@ -93,7 +102,10 @@ struct ResultJsonViewer: View {
             currentPage = max(1, min(currentPage, pageCount))
         }
         .onChange(of: resultText) { _, _ in
-            currentPage = max(1, min(currentPage, pageCount))
+            currentPage = 1
+            if !pageSizes.contains(pageSize) {
+                pageSize = pageSizes.first ?? 25
+            }
         }
     }
     
