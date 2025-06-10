@@ -39,7 +39,8 @@ class DittoApp: ObservableObject {
         let authToken = dittoConfigPropertyList["authToken"]! as! String
         let httpApiUrl = dittoConfigPropertyList["httpApiUrl"]! as! String
         let httpApiKey = dittoConfigPropertyList["httpApiKey"]! as! String
-        
+        let mongoDbConnectionString =  ""
+
         return DittoAppConfig(
             UUID().uuidString,
             name: name,
@@ -48,7 +49,8 @@ class DittoApp: ObservableObject {
             authUrl:  authUrl,
             websocketUrl: websocketUrl,
             httpApiUrl: httpApiUrl,
-            httpApiKey: httpApiKey
+            httpApiKey: httpApiKey,
+            mongoDbConnectionString: mongoDbConnectionString
         )
     }
 }

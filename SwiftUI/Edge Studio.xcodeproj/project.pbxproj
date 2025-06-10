@@ -335,6 +335,7 @@
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
+				0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -779,6 +780,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 4.11.0;
+			};
+		};
+		0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mongodb/mongo-swift-driver";
+			requirement = {
+				branch = main;
+				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
