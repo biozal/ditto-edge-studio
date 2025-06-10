@@ -22,176 +22,28 @@ struct DataStoreTabView: View {
 
     var body: some View {
         NavigationSplitView {
-            VStack {
-                Picker("", selection: $viewModel.mode) {
-                    Label(
-                        "Subscriptions",
-                        systemImage: "arrow.trianglehead.2.clockwise"
-                    )
-                    .labelStyle(.iconOnly)
-                    .tag("subscriptions")
-                    Label(
-                        "Observers",
-                        systemImage: "eye"
-                    )
-                    .labelStyle(.iconOnly)
-                    .tag("observers")
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 8)
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-
-                if viewModel.mode == "observers" {
-                    Button {
-                        viewModel.showObserverEditor(
-                            DittoObservable.new()
-                        )
-                    } label: {
-                        Label("Observers", systemImage: "plus.square.fill")
-                    }
-                    List {
-                        observableSection()
-                    }
-
-                } else {
-                    Button {
-                        viewModel.showSubscriptionEditor(
-                            DittoSubscription.new()
-                        )
-                    } label: {
-                        Label("Subscriptions", systemImage: "plus.square.fill")
-                    }
-                    .padding(.bottom, 4)
-                    List {
-                        subscriptionSection()
-                    }
-                }
-                Spacer()
-                Button {
-                    Task {
-                        // Your import task logic here
-                    }
-                } label: {
-                    Label("Import", systemImage: "square.and.arrow.up.fill")
-                }
-                .padding(.bottom, 8)
-            }
-            .navigationTitle("Data Store")
-            #if os(macOS)
-                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
-            #endif
+           sidebar()
         } content: {
             if viewModel.mode == "subscriptions" {
-                VStack {
-                    ContentUnavailableView(
-                        "Information List",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(
-                            "This is supposed to display a list of topics for you to learn about within the app, but the developer hasn't gotten around to implementing it yet"
-                        )
-                    )
-                }
-                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+                subscriptionContent()
             } else {
-                //draw observable UI
-                VStack {
-                    if viewModel.selectedObservable == nil {
-                        ContentUnavailableView(
-                            "No Observer Selected",
-                            systemImage: "exclamationmark.triangle.fill",
-                            description: Text(
-                                "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
-                            )
-                        )
-                        .navigationTitle("Observer Events")
-                        .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
-
-                    } else {
-                        if viewModel.observableEvents.isEmpty {
-                            ContentUnavailableView(
-                                "No Observer Events",
-                                systemImage: "exclamationmark.triangle.fill",
-                                description: Text(
-                                    "No Observer events.  Update some data in the collection your observer."
-                                )
-                            )
-                            .navigationTitle("Observer Events")
-                            .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
-                        } else {
-                            observableEventsList()
-                                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
-                        }
-                    }
-                }
+                observableContent()
             }
         } detail: {
             if viewModel.mode == "subscriptions" {
-                ContentUnavailableView(
-                    "Developer Lazy",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "I'm a lazy developer this should show you information about the app and how to get started."
-                    )
-                )
+                subscriptionDetails()
             } else {
                 if viewModel.selectedEvent == nil {
-                    ContentUnavailableView(
-                        "No Observer Selected",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
-                        )
-                    )
-                    .navigationTitle("Observer Events")
+                    observableDetailNoSelection()
                 } else {
                     if viewModel.shouldShowEventDetails(),
                         let event = viewModel.selectedEvent
                     {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Picker("", selection: $viewModel.eventMode) {
-                                Text("Items")
-                                    .tag("items")
-                                Text("Inserted")
-                                    .tag("inserted")
-                                Text("Updated")
-                                    .tag("updated")
-                            }
-                            #if os(macOS)
-                                .padding(.top, 24)
-                            #else
-                                .padding(.top, 8)
-                            #endif
-                            .padding(.bottom, 8)
-                            .pickerStyle(.segmented)
-                            .frame(width: 200)
-                            switch viewModel.eventMode {
-                            case "inserted":
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ResultJsonViewer(resultText: event.getInsertedData())
-                                }
-                            case "updated":
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ResultJsonViewer(resultText: event.getUpdatedData())
-                                }
-                            default:
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ResultJsonViewer(resultText: event.data)
-                                }
-                            }
-                            Spacer()
-                        }.padding(.leading, 12)
+                        observableDetailSelectedEvent(event: event)
+
                     } else {
-                        ContentUnavailableView(
-                            "No Event Data",
-                            systemImage: "exclamationmark.triangle.fill",
-                            description: Text(
-                                "Event had no counters for inserts, updates, deletes, or items. This should never technically speaking happen."
-                            )
-                        )
-
+                        observableDetailNoContent()
                     }
-
                 }
             }
         }
@@ -259,25 +111,205 @@ struct DataStoreTabView: View {
         }  //end of sheet
 
     }
-
+    
+    fileprivate func sidebar() -> some View {
+        return VStack {
+            Picker("", selection: $viewModel.mode) {
+                Label(
+                    "Subscriptions",
+                    systemImage: "arrow.trianglehead.2.clockwise"
+                )
+                .labelStyle(.iconOnly)
+                .tag("subscriptions")
+                Label(
+                    "Observers",
+                    systemImage: "eye"
+                )
+                .labelStyle(.iconOnly)
+                .tag("observers")
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+            
+            if viewModel.mode == "observers" {
+                Button {
+                    viewModel.showObserverEditor(
+                        DittoObservable.new()
+                    )
+                } label: {
+                    Label("Observers", systemImage: "plus.square.fill")
+                }
+                List {
+                    observableSection()
+                }
+                
+            } else {
+                Button {
+                    viewModel.showSubscriptionEditor(
+                        DittoSubscription.new()
+                    )
+                } label: {
+                    Label("Subscriptions", systemImage: "plus.square.fill")
+                }
+                .padding(.bottom, 4)
+                List {
+                    subscriptionSection()
+                }
+            }
+            Spacer()
+            Button {
+                Task {
+                    // Your import task logic here
+                }
+            } label: {
+                Label("Import", systemImage: "square.and.arrow.up.fill")
+            }
+            .padding(.bottom, 8)
+        }
+        .navigationTitle("Data Store")
+        #if os(macOS)
+        .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+        #endif
+    }
+    
+    fileprivate func subscriptionContent() -> some View {
+        return VStack {
+            ContentUnavailableView(
+                "Information List",
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text(
+                    "This is supposed to display a list of topics for you to learn about within the app, but the developer hasn't gotten around to implementing it yet"
+                )
+            )
+        }
+        .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+    }
+    
+    fileprivate func observableContent() -> some View {
+        return VStack {
+            if viewModel.selectedObservable == nil {
+                ContentUnavailableView(
+                    "No Observer Selected",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "No Observer selected.  Select an existing observer or click the plus button in the upper right corner to add your first observer and then select it."
+                    )
+                )
+                .navigationTitle("Observer Events")
+                .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+                
+            } else {
+                if viewModel.observableEvents.isEmpty {
+                    ContentUnavailableView(
+                        "No Observer Events",
+                        systemImage: "exclamationmark.triangle.fill",
+                        description: Text(
+                            "No Observer events.  Update some data in the collection your observer."
+                        )
+                    )
+                    .navigationTitle("Observer Events")
+                    .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+                } else {
+                    observableEventsList()
+                        .frame(minWidth: 200, idealWidth: 250, maxWidth: 250)
+                }
+            }
+        }
+    }
+    
+    fileprivate func subscriptionDetails() -> some View {
+        return VStack {
+            ContentUnavailableView(
+                "Developer Lazy",
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text(
+                    "I'm a lazy developer this should show you information about the app and how to get started."
+                )
+            )
+        }
+    }
+    
+    fileprivate func observableDetailNoSelection() -> some View {
+        return VStack {
+            ContentUnavailableView(
+                "No Observer Selected",
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text(
+                    "No Observer event to view.  Select an existing observer and then an event or click the plus button in the upper right corner to add your first observer and then select it."
+                )
+            )
+            .navigationTitle("Observer Events")
+        }
+    }
+    
+    fileprivate func observableDetailSelectedEvent(event: DittoObserveEvent) -> some View {
+        return  VStack(alignment: .leading, spacing: 0) {
+            Picker("", selection: $viewModel.eventMode) {
+                Text("Items")
+                    .tag("items")
+                Text("Inserted")
+                    .tag("inserted")
+                Text("Updated")
+                    .tag("updated")
+            }
+#if os(macOS)
+            .padding(.top, 24)
+#else
+            .padding(.top, 8)
+#endif
+            .padding(.bottom, 8)
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+            switch viewModel.eventMode {
+                case "inserted":
+                    VStack(alignment: .leading, spacing: 0) {
+                        ResultJsonViewer(resultText: event.getInsertedData())
+                    }
+                case "updated":
+                    VStack(alignment: .leading, spacing: 0) {
+                        ResultJsonViewer(resultText: event.getUpdatedData())
+                    }
+                default:
+                    VStack(alignment: .leading, spacing: 0) {
+                        ResultJsonViewer(resultText: event.data)
+                    }
+            }
+            Spacer()
+        }.padding(.leading, 12)
+    }
+    
+    fileprivate func observableDetailNoContent() -> some View {
+        return VStack {
+            ContentUnavailableView(
+                "No Event Data",
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text(
+                    "Event had no counters for inserts, updates, deletes, or items. This should never technically speaking happen."
+                )
+            )
+        }
+    }
+    
     fileprivate func observableEventsList() -> some View {
         return List(viewModel.observableEvents, id: \.id) { event in
-            VStack(alignment: .leading) {
-                Text("\(event.eventTime)")
-                    .font(.headline)
-                Text("Items Count: \(event.data.count)")
-                    .padding(.bottom, 6)
-
-                Text("Insert Count: \(event.insertIndexes.count)")
-                Text("Update Count: \(event.updatedIndexes.count)")
-                Text("Delete Count: \(event.deletedIndexes.count)")
-                Text("Moves Count: \(event.movedIndexes.count)")
-                    .padding(.bottom, 6)
-                Divider()
-            }.onTapGesture {
-                viewModel.selectedEvent = event
+            if !(event.eventTime.isEmpty || event.eventTime == ""){
+                VStack(alignment: .leading) {
+                    Text("\(event.eventTime)")
+                        .font(.headline)
+                    Text("Items Count: \(event.data.count)")
+                        .padding(.bottom, 6)
+                    
+                    Text("Insert Count: \(event.insertIndexes.count)")
+                    Text("Update Count: \(event.updatedIndexes.count)")
+                    Text("Delete Count: \(event.deletedIndexes.count)")
+                    Text("Moves Count: \(event.movedIndexes.count)")
+                        .padding(.bottom, 6)
+                }.onTapGesture {
+                    viewModel.selectedEvent = event
+                }
             }
-
         }
         .navigationTitle("Observer Events")
     }
@@ -486,6 +518,7 @@ extension DataStoreTabView {
         }
 
         func loadObservedEvents() async {
+            observableEvents = []
             observableEvents = await DittoManager.shared.dittoObservableEvents
         }
 
