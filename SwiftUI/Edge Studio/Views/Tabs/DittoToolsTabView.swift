@@ -74,7 +74,7 @@ extension DittoToolsTabView {
         
         // Tools Menu Options
         // TODO remove magic strings
-        var dittoToolsFeatures = ["Presence Viewer", "Permissions Health", "Disk Usage"]
+        var dittoToolsFeatures = ["Presence Viewer", "Peers List", "Permissions Health", "Disk Usage"]
         var selectedDataTool: String?
         
         init(_ dittoAppConfig: DittoAppConfig) {

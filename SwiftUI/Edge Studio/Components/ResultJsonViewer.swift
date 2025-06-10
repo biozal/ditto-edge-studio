@@ -157,6 +157,8 @@ struct ResultItem: View {
                 Text(jsonString)
                     .font(.system(.body, design: .monospaced))
                     .padding(8)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if isCopied {

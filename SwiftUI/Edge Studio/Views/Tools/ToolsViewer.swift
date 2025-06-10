@@ -20,6 +20,12 @@ struct ToolsViewer: View{
                     } else {
                         ToolsErrorView()
                     }
+                case "Peers List":
+                        if let ditto = ditto {
+                            DittoPeersListView(ditto: ditto)
+                        } else {
+                            ToolsErrorView()
+                        }
                 case "Permissions Health":
                     PermissionsHealthViewer()
                 case "Disk Usage":
