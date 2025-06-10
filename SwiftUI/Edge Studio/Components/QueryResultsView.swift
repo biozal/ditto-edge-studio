@@ -8,48 +8,19 @@
 import SwiftUI
 
 struct QueryResultsView: View {
-    @Binding var resultsCount: Int
     @Binding var jsonResults: [String]
     @State private var isExporting = false
+    @State private var resultsCount: Int = 0
+   
+    init(jsonResults: Binding<[String]>) {
+        _jsonResults = jsonResults
+        resultsCount = _jsonResults.wrappedValue.count
+    }
 
     var body: some View {
         VStack {
-            // Picker centered with specific width
-            HStack {
-                Spacer()
-                Button {
-                    isExporting = true
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .help("Export query results to JSON file")
-                .padding(.trailing, 8)
-                .padding(.top, 8)
-                .disabled(resultsCount == 0)
-                .fileExporter(
-                    isPresented: $isExporting,
-                    document: QueryResultsDocument(
-                        jsonData: flattenJsonResults()
-                    ),
-                    contentType: .json,
-                    defaultFilename: "query_results"
-                ) { result in
-                    switch result {
-                    case .success(let url):
-                        print("Saved to \(url)")
-                    case .failure(let error):
-                        print(
-                            "Error saving file: \(error.localizedDescription)"
-                        )
-                    }
-                }
-            }
-
-            ResultJsonViewer(
-                resultText: $jsonResults,
-                resultCount: $resultsCount
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ResultJsonViewer(resultText: $jsonResults)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -64,8 +35,5 @@ struct QueryResultsView: View {
 }
 
 #Preview {
-    QueryResultsView(
-        resultsCount: .constant(0),
-        jsonResults: .constant(["{\"key\": \"value\"}"])
-    )
+    QueryResultsView(jsonResults: .constant(["{\"key\": \"value\"}"]))
 }

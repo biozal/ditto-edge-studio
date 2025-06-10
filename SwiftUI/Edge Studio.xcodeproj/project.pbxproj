@@ -51,6 +51,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,
@@ -91,6 +92,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
 				Components/QueryEditorView.swift,

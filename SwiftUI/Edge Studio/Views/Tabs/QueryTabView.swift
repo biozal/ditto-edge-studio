@@ -49,7 +49,6 @@ struct QueryTabView: View {
 
                     //bottom half
                     QueryResultsView(
-                        resultsCount: $viewModel.resultsCount,
                         jsonResults: $viewModel.jsonResults
                     )
                 }
@@ -108,7 +107,6 @@ extension QueryTabView {
 
         //results view
         var jsonResults: [String]
-        var resultsCount: Int
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
@@ -129,8 +127,7 @@ extension QueryTabView {
             }
 
             //query results section
-            self.resultsCount = 0
-            self.jsonResults = ["{}"]
+            self.jsonResults = []
 
             //side bar data load
             Task {
@@ -194,19 +191,15 @@ extension QueryTabView {
 
                         if !resultJsonStrings.isEmpty {
                             jsonResults = resultJsonStrings
-                            resultsCount = resultJsonStrings.count
                         } else {
-                            resultsCount = 0
-                            jsonResults = ["No results"]
+                            jsonResults = ["No results found"]
                         }
                     } else {
-                        resultsCount = 0
                         jsonResults = ["No results found"]
                     }
                 } else {
                     jsonResults = try await DittoManager.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
-                    resultsCount = jsonResults.count
                 }
                 // Add query to history
                 await addQueryToHistory(appState: appState)
