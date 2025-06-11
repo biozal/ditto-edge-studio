@@ -28,7 +28,9 @@ struct QueryTabView: View {
                 favorites: $viewModel.favorites,
                 history: $viewModel.history,
                 toolbarMode: $viewModel.selectedToolbarMode,
-                selectedQuery: $viewModel.selectedQuery
+                selectedQuery: $viewModel.selectedQuery,
+                isMongoConnected: $viewModel.isMongoConnected,
+                mongoCollections: $viewModel.mongoCollections
             )
             #if os(macOS)
                 .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
@@ -92,12 +94,14 @@ extension QueryTabView {
     class ViewModel {
         let selectedApp: DittoAppConfig
         var isLoading = false
+        var isMongoConnected = false
 
         //toolbar items
         var history: [DittoQueryHistory] = []
         var favorites: [DittoQueryHistory] = []
         var collections: [String] = []
         var selectedToolbarMode: String
+        var mongoCollections: [String] = []
 
         //query editor view
         var selectedQuery: String
@@ -130,6 +134,10 @@ extension QueryTabView {
 
             //side bar data load
             Task {
+                isMongoConnected = await MongoManager.shared.isConnected
+                
+                mongoCollections = await MongoManager.shared.collections
+                
                 history = try await DittoManager.shared
                     .hydrateQueryHistory(updateHistory: {
                         self.history = $0

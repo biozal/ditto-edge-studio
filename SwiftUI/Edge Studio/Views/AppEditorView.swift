@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MongoKitten
 
 struct AppEditorView: View {
     @EnvironmentObject private var appState: DittoApp
@@ -41,10 +42,43 @@ struct AppEditorView: View {
                         TextField("Websocket URL", text: $viewModel.websocketUrl)
                             .padding(.bottom, 10)
                     }
-                    Section("Ditto Server - HTTP API") {
-                        TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-                        TextField("HTTP API Key", text: $viewModel.httpApiKey)
-                            .padding(.bottom, 10)
+                    Section("Ditto Server - HTTP API - Optional") {
+                        VStack(alignment: .leading) {
+                            TextEditor(text: $viewModel.httpApiUrl)
+                                .frame(minHeight: 40)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.5))
+                                )
+                            Text("HTTP API URL")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 8)
+                            
+                            TextEditor(text: $viewModel.httpApiKey)
+                                .frame(minHeight: 40)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.5))
+                                )
+                            Text("HTTP API Key")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 10)
+                        }
+                    }
+                    Section("MongoDB Driver Connection String - Optional"){
+                        VStack(alignment: .leading) {
+                            TextEditor(text: $viewModel.mongoDbConnectionString)
+                                .frame(minHeight: 80)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.5))
+                                )
+                            Text("Connection String")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
             }
@@ -100,6 +134,7 @@ extension AppEditorView {
         var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
+        var mongoDbConnectionString:String
         var mode: String
         
         let isNewItem: Bool
@@ -113,6 +148,7 @@ extension AppEditorView {
             websocketUrl = appConfig.websocketUrl
             httpApiUrl = appConfig.httpApiUrl
             httpApiKey = appConfig.httpApiKey
+            mongoDbConnectionString = appConfig.mongoDbConnectionString
             mode = appConfig.mode
             
             if (appConfig.appId == "") {
@@ -132,8 +168,19 @@ extension AppEditorView {
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
-                                               mongoDbConnectionString: "",
+                                               mongoDbConnectionString: mongoDbConnectionString,
                                                mode: mode)
+                if !mongoDbConnectionString.isEmpty {
+                    do {
+                        _ = try await MongoDatabase.connect(to: mongoDbConnectionString)
+                    } catch {
+                        appState.setError(error)
+                        let nsError = error as NSError
+                        print ("NS Error: ",nsError)
+                        return
+                    }
+                }
+                
                 if isNewItem {
                     try await DittoManager.shared.addDittoAppConfig(appConfig)
                 } else {
@@ -145,3 +192,4 @@ extension AppEditorView {
         }
     }
 }
+

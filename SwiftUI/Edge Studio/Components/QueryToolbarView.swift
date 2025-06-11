@@ -13,7 +13,9 @@ struct QueryToolbarView: View {
     @Binding var history: [DittoQueryHistory]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
-    
+    @Binding var isMongoConnected: Bool
+    @Binding var mongoCollections: [String]
+
     var body: some View {
         VStack{
             HStack{
@@ -28,6 +30,11 @@ struct QueryToolbarView: View {
                     Label("Favorites", systemImage: "star")
                         .labelStyle(.iconOnly)
                         .tag("favorites")
+                    if (isMongoConnected) {
+                        Label("MongoDB", systemImage: "leaf")
+                            .labelStyle(.iconOnly)
+                            .tag("mongo")
+                    }
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 8)
@@ -126,8 +133,8 @@ struct QueryToolbarView: View {
 #endif
                     Divider()
                 }
-            } else {
-                Text("Collections")
+            } else if toolbarMode == "collections" {
+                Text("Ditto Collections")
                 List(collections, id: \.self) { collection in
                     Text(collection)
                         .onTapGesture {
@@ -135,6 +142,20 @@ struct QueryToolbarView: View {
                         }
                     Divider()
                 }
+            } else {
+                Text("MongoDB Collections")
+                if (mongoCollections.isEmpty) {
+                    
+                } else {
+                    List(mongoCollections, id: \.self){ collection in
+                        Text(collection)
+                            .onTapGesture {
+                                
+                            }
+                        Divider()
+                    }
+                }
+
             }
             Spacer()
         }
@@ -190,5 +211,12 @@ struct QueryToolbarView: View {
         ]),
         toolbarMode: .constant("collections"),
         selectedQuery: .constant("SELECT * FROM movies"),
+        isMongoConnected: .constant(true),
+        mongoCollections: .constant([
+            "movies",
+            "users",
+            "products"
+        ]),
     )
 }
+
