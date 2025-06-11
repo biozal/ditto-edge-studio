@@ -170,7 +170,7 @@ extension AppEditorView {
                                                httpApiKey: httpApiKey,
                                                mongoDbConnectionString: mongoDbConnectionString,
                                                mode: mode)
-                if !mongoDbConnectionString.isEmpty {
+                if !mongoDbConnectionString.isEmpty && mongoDbConnectionString != "" {
                     do {
                         _ = try await MongoDatabase.connect(to: mongoDbConnectionString)
                     } catch {

@@ -24,18 +24,30 @@ struct MainStudioView: View {
         NavigationStack {
             // Subscription Tab
             TabView(selection: $selectedTab) {
-                // Data Store Tab
-                DataStoreTabView(
+                SubscriptionsTabView(
                     isMainStudioViewPresented: $isMainStudioViewPresented,
                     dittoAppConfig: viewModel.selectedApp
                 )
                 .tabItem {
                     Label(
-                        "Data Store",
-                        systemImage: "person.2.wave.2"
+                        "Subscriptions",
+                        systemImage: "arrow.trianglehead.2.clockwise"
                     )
                 }
                 .tag(0)
+                .environmentObject(appState)
+                // Data Store Tab
+                ObserversTabView(
+                    isMainStudioViewPresented: $isMainStudioViewPresented,
+                    dittoAppConfig: viewModel.selectedApp
+                )
+                .tabItem {
+                    Label(
+                        "Observers",
+                        systemImage: "eye"
+                    )
+                }
+                .tag(1)
                 .environmentObject(appState)
                 
                 #if os(iOS)
@@ -65,9 +77,9 @@ struct MainStudioView: View {
                         systemImage: "text.page.badge.magnifyingglass"
                     )
                 }
-                .tag(1)
+                .tag(2)
                 .environmentObject(appState)
-
+                
                 // Swift Data Tools Menu
                 DittoToolsTabView(
                     isMainStudioViewPresented: $isMainStudioViewPresented,
@@ -76,10 +88,25 @@ struct MainStudioView: View {
                 .tabItem {
                     Label("Ditto Tools", systemImage: "hammer.circle")
                 }
-                .tag(2)
+                .tag(3)
                 .environmentObject(appState)
                 .navigationTitle(viewModel.selectedApp.name)
+
+                if viewModel.isMongoDBConnected {
+                    // Swift Data Tools Menu
+                    MongoTabView(
+                        isMainStudioViewPresented: $isMainStudioViewPresented,
+                        dittoAppConfig: viewModel.selectedApp
+                    )
+                    .tabItem {
+                        Label("MongoDB", systemImage: "leaf")
+                    }
+                    .tag(4)
+                    .environmentObject(appState)
+                    .navigationTitle(viewModel.selectedApp.name)
+                }
             }
+                
         }
         .toolbar {
             #if os(macOS)
@@ -116,9 +143,13 @@ extension MainStudioView {
     class ViewModel {
         var isLoading = false
         var selectedApp: DittoAppConfig
+        var isMongoDBConnected: Bool = false
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
+            Task {
+                self.isMongoDBConnected = await MongoManager.shared.isConnected
+            }
         }
 
         func closeSelectedApp() async {

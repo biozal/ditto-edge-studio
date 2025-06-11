@@ -198,7 +198,9 @@ extension ContentView {
             do {
                 selectedDittoAppConfig = dittoApp
                 if let connectionString = selectedDittoAppConfig?.mongoDbConnectionString {
-                    await MongoManager.shared.initializeConnection(connectionString: connectionString, dittoApp: appState)
+                    if (!connectionString.isEmpty && connectionString != "") {
+                        await MongoManager.shared.initializeConnection(connectionString: connectionString, dittoApp: appState)
+                    }
                 }
                 let didSetupDitto = try await DittoManager.shared
                     .hydrateDittoSelectedApp(
