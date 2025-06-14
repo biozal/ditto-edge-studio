@@ -28,8 +28,7 @@ struct QueryTabView: View {
                 favorites: $viewModel.favorites,
                 history: $viewModel.history,
                 toolbarMode: $viewModel.selectedToolbarMode,
-                selectedQuery: $viewModel.selectedQuery
-            )
+                selectedQuery: $viewModel.selectedQuery)
             #if os(macOS)
                 .frame(minWidth: 250, idealWidth: 320, maxWidth: 400)
             #endif

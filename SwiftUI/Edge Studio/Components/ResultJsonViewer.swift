@@ -12,17 +12,18 @@ struct ResultJsonViewer: View {
     @Binding var resultText: [String]
 
     @State private var currentPage = 1
-    @State private var pageSize = 25
+    @State private var pageSize = 10
     @State private var isExporting = false
 
     private var pageSizes: [Int] {
         switch resultCount {
-        case 0...25: return [25]
+        case 0...10: return [10]
+        case 11...25: return [25]
         case 26...50: return [25, 50]
         case 51...100: return [25, 50, 100]
         case 101...200: return [25, 50, 100, 200]
         case 201...250: return [25, 50, 100, 200, 250]
-        default: return [25, 50, 100, 200, 250]
+        default: return [10, 25, 50, 100, 200, 250]
         }
     }
     private var resultCount: Int {
