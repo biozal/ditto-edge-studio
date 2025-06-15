@@ -3,13 +3,16 @@
 //  Ditto Edge Studio
 //
 //  Created by Aaron LaBeau on 5/18/25.
-import Combine
 import SwiftUI
+import Combine
 
 struct MainStudioView: View {
     @EnvironmentObject private var appState: DittoApp
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
+
+    @State private var isMemoryInfoPresented = false
+    @State private var memoryUsageString: String? = nil
 
     //used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
@@ -149,8 +152,20 @@ struct MainStudioView: View {
                 ).environmentObject(appState)
             }
         }
-        .toolbar {
-            #if os(macOS)
+        #if os(macOS)
+            .toolbar {
+                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                    Button {
+                        if let memString = MemoryUtils.residentMemoryMBString() {
+                            memoryUsageString = memString
+                        } else {
+                            memoryUsageString = "Unable to determine memory usage."
+                        }
+                        isMemoryInfoPresented = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                }
                 ToolbarItem(id: "closeButton", placement: .primaryAction) {
                     Button {
                         Task {
@@ -161,21 +176,24 @@ struct MainStudioView: View {
                         Image(systemName: "xmark.circle.fill")
                     }
                 }
-            #endif
-        }
+            }
+            .alert(
+                "App Memory Usage",
+                isPresented: $isMemoryInfoPresented,
+                actions: {
+                    Button("OK", role: .cancel) {}
+                },
+                message: {
+                    Text(memoryUsageString ?? "")
+                }
+            )
+        #endif
     }
-    
+
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
     }
 
-}
-
-#Preview {
-    MainStudioView(
-        isMainStudioViewPresented: Binding<Bool>.constant(false),
-        dittoAppConfig: DittoAppConfig.new()
-    )
 }
 
 //MARK: Sidebar Views
@@ -297,18 +315,36 @@ extension MainStudioView {
                     }
                     #if os(macOS)
                         .contextMenu {
-                            Button("Delete") {
+                            Button {
                                 Task {
-                                    try await DittoManager.shared
-                                    .deleteQueryHistory(query.id)
+                                    do {
+                                        try await DittoManager.shared
+                                        .deleteQueryHistory(query.id)
+                                    }catch{
+                                        appState.setError(error)
+                                    }
                                 }
+                            } label: {
+                                Label(
+                                    "Delete",
+                                    systemImage: "trash"
+                                )
+                                .labelStyle(.titleAndIcon)
                             }
-                            Button("Favorite") {
+                            Button {
                                 Task {
-                                    try await DittoManager.shared.saveFavorite(
-                                        query
-                                    )
+                                    do {
+                                        try await DittoManager.shared.saveFavorite(query)
+                                    }catch{
+                                        appState.setError(error)
+                                    }
                                 }
+                            } label: {
+                                Label(
+                                    "Favorite",
+                                    systemImage: "star"
+                                )
+                                .labelStyle(.titleAndIcon)
                             }
                         }
                     #else
@@ -353,12 +389,20 @@ extension MainStudioView {
                 }
                 #if os(macOS)
                     .contextMenu {
-                        Button("Delete") {
+                        Button {
                             Task {
-                                try await DittoManager.shared.deleteFavorite(
-                                    query.id
-                                )
+                                do {
+                                    try await DittoManager.shared.deleteFavorite(query.id)
+                                }catch{
+                                    appState.setError(error)
+                                }
                             }
+                        } label: {
+                            Label(
+                                "Delete",
+                                systemImage: "trash"
+                            )
+                            .labelStyle(.titleAndIcon)
                         }
                     }
                 #else
@@ -407,21 +451,54 @@ extension MainStudioView {
                         }
                         #if os(macOS)
                             .contextMenu {
-                                Button("Edit") {
+                                if observer.storeObserver == nil {
+                                    Button {
+                                        Task {
+                                        }
+                                    } label: {
+                                        Label(
+                                            "Activate",
+                                            systemImage: "play.circle"
+                                        )
+                                        .labelStyle(.titleAndIcon)
+                                    }
+                                } else {
+                                    Button {
+                                        Task {
+                                        }
+                                    } label: {
+                                        Label(
+                                            "Stop",
+                                            systemImage: "stop.circle"
+                                        )
+                                        .labelStyle(.titleAndIcon)
+                                    }
+                                }
+                                Button {
                                     Task {
                                         viewModel.showObservableEditor(observer)
                                     }
+                                } label: {
+                                    Label(
+                                        "Edit",
+                                        systemImage: "square.and.pencil"
+                                    )
+                                    .labelStyle(.titleAndIcon)
                                 }
-                                Button("Delete") {
+                                Button {
                                     Task {
                                         do {
-                                            try await viewModel.deleteObservable(
-                                                observer
-                                            )
-                                        } catch {
+                                            try await viewModel.deleteObservable(observer)
+                                        }catch{
                                             appState.setError(error)
                                         }
                                     }
+                                } label: {
+                                    Label(
+                                        "Delete",
+                                        systemImage: "trash"
+                                    )
+                                    .labelStyle(.titleAndIcon)
                                 }
                             }
                         #else
@@ -488,149 +565,373 @@ extension MainStudioView {
         return VStack(alignment: .trailing) {
             Text("Tutorial Detail View")
         }
-#if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
-            }
-            ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.closeSelectedApp()
-                        isMainStudioViewPresented = false
+        #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
+                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                    Button {
+                        if let memString = MemoryUtils.residentMemoryMBString() {
+                            memoryUsageString = memString
+                        } else {
+                            memoryUsageString = "Unable to determine memory usage."
+                        }
+                        isMemoryInfoPresented = true
+                    } label: {
+                        Image(systemName: "info.circle")
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                }
+                ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await viewModel.closeSelectedApp()
+                            isMainStudioViewPresented = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
                 }
             }
-        }
-#endif
+            .alert(
+                "App Memory Usage",
+                isPresented: $isMemoryInfoPresented,
+                actions: {
+                    Button("OK", role: .cancel) {}
+                },
+                message: {
+                    Text(memoryUsageString ?? "")
+                }
+            )
+        #endif
     }
 
     func queryDetailView() -> some View {
         return VStack(alignment: .leading) {
-#if os(macOS)
-            VSplitView {
-                //top half
-                QueryEditorView(
-                    queryText: $viewModel.selectedQuery,
-                    executeModes: $viewModel.executeModes,
-                    selectedExecuteMode: $viewModel.selectedExecuteMode,
-                    isLoading: $viewModel.isQueryExecuting,
-                    onExecuteQuery: executeQuery
-                )
-                
-                //bottom half
-                QueryResultsView(
-                    jsonResults: $viewModel.jsonResults
-                )
-            }
-#else
-            VStack {
-                //top half
-                QueryEditorView(
-                    queryText: $viewModel.selectedQuery,
-                    executeModes: $viewModel.executeModes,
-                    selectedExecuteMode: $viewModel.selectedExecuteMode,
-                    isLoading: $viewModel.isQueryExecuting,
-                    onExecuteQuery: executeQuery
-                )
-                .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
-                
-                //bottom half
-                QueryResultsView(
-                    jsonResults: $viewModel.jsonResults
-                )
-            }
-            .navigationBarTitleDisplayMode(.inline)
-#endif
+            #if os(macOS)
+                VSplitView {
+                    //top half
+                    QueryEditorView(
+                        queryText: $viewModel.selectedQuery,
+                        executeModes: $viewModel.executeModes,
+                        selectedExecuteMode: $viewModel.selectedExecuteMode,
+                        isLoading: $viewModel.isQueryExecuting,
+                        onExecuteQuery: executeQuery
+                    )
+
+                    //bottom half
+                    QueryResultsView(
+                        jsonResults: $viewModel.jsonResults
+                    )
+                }
+            #else
+                VStack {
+                    //top half
+                    QueryEditorView(
+                        queryText: $viewModel.selectedQuery,
+                        executeModes: $viewModel.executeModes,
+                        selectedExecuteMode: $viewModel.selectedExecuteMode,
+                        isLoading: $viewModel.isQueryExecuting,
+                        onExecuteQuery: executeQuery
+                    )
+                    .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
+
+                    //bottom half
+                    QueryResultsView(
+                        jsonResults: $viewModel.jsonResults
+                    )
+                }
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
-#if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
-            }
-            ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.closeSelectedApp()
-                        isMainStudioViewPresented = false
+        #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
+                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                    Button {
+                        if let memString = MemoryUtils.residentMemoryMBString() {
+                            memoryUsageString = memString
+                        } else {
+                            memoryUsageString = "Unable to determine memory usage."
+                        }
+                        isMemoryInfoPresented = true
+                    } label: {
+                        Image(systemName: "info.circle")
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                }
+                ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await viewModel.closeSelectedApp()
+                            isMainStudioViewPresented = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
                 }
             }
-        }
-#endif
+            .alert(
+                "App Memory Usage",
+                isPresented: $isMemoryInfoPresented,
+                actions: {
+                    Button("OK", role: .cancel) {}
+                },
+                message: {
+                    Text(memoryUsageString ?? "")
+                }
+            )
+        #endif
     }
 
     func observeDetailView() -> some View {
         return VStack(alignment: .trailing) {
-            Text("Observe Detail View")
-        }
-#if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
+#if os(macOS)
+            VSplitView {
+                if viewModel.selectedObservable == nil {
+                    observableDetailNoContent()
+                        .frame(minHeight: 200)
+
+                } else {
+                    observableEventsList()
+                        .frame(minHeight: 200)
+                }
+                observableDetailSelectedEvent(observeEvent: viewModel.selectedEvent)
             }
-            ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.closeSelectedApp()
-                        isMainStudioViewPresented = false
+#else
+            VStack {
+                if viewModel.selectedObservable == nil {
+                    observableDetailNoContent()
+                } else {
+                    observableEventsList()
+                }
+                observableDetailSelectedEvent(observeEvent: viewModel.selectedEvent)
+            }
+#endif
+        }
+        #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
+                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                    Button {
+                        if let memString = MemoryUtils.residentMemoryMBString() {
+                            memoryUsageString = memString
+                        } else {
+                            memoryUsageString = "Unable to determine memory usage."
+                        }
+                        isMemoryInfoPresented = true
+                    } label: {
+                        Image(systemName: "info.circle")
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                }
+                ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await viewModel.closeSelectedApp()
+                            isMainStudioViewPresented = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
                 }
             }
-        }
-#endif
+            .alert(
+                "App Memory Usage",
+                isPresented: $isMemoryInfoPresented,
+                actions: {
+                    Button("OK", role: .cancel) {}
+                },
+                message: {
+                    Text(memoryUsageString ?? "")
+                }
+            )
+        #endif
     }
 
     func dittoToolsDetailView() -> some View {
         return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
-#if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
-            }
-            ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.closeSelectedApp()
-                        isMainStudioViewPresented = false
+            #if os(iOS)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text(viewModel.selectedApp.name).font(.headline).bold()
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                    ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                        Button {
+                            if let memString = MemoryUtils.residentMemoryMBString() {
+                                memoryUsageString = memString
+                            } else {
+                                memoryUsageString = "Unable to determine memory usage."
+                            }
+                            isMemoryInfoPresented = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                        }
+                    }
+                    ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                        Button {
+                            Task {
+                                await viewModel.closeSelectedApp()
+                                isMainStudioViewPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                    }
                 }
-            }
-        }
-#endif
+                .alert(
+                    "App Memory Usage",
+                    isPresented: $isMemoryInfoPresented,
+                    actions: {
+                        Button("OK", role: .cancel) {}
+                    },
+                    message: {
+                        Text(memoryUsageString ?? "")
+                    }
+                )
+            #endif
     }
 
     func mongoDBDetailView() -> some View {
         return VStack(alignment: .trailing) {
             Text("MongoDb Details View")
         }
-#if os(iOS)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.selectedApp.name).font(.headline).bold()
-            }
-            ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                Button {
-                    Task {
-                        await viewModel.closeSelectedApp()
-                        isMainStudioViewPresented = false
+        #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(viewModel.selectedApp.name).font(.headline).bold()
+                }
+                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                    Button {
+                        if let memString = MemoryUtils.residentMemoryMBString() {
+                            memoryUsageString = memString
+                        } else {
+                            memoryUsageString = "Unable to determine memory usage."
+                        }
+                        isMemoryInfoPresented = true
+                    } label: {
+                        Image(systemName: "info.circle")
                     }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                }
+                ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await viewModel.closeSelectedApp()
+                            isMainStudioViewPresented = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                }
+            }
+            .alert(
+                "App Memory Usage",
+                isPresented: $isMemoryInfoPresented,
+                actions: {
+                    Button("OK", role: .cancel) {}
+                },
+                message: {
+                    Text(memoryUsageString ?? "")
+                }
+            )
+        #endif
+    }
+
+}
+
+//MARK: Observe functions
+extension MainStudioView {
+    
+    fileprivate func observableEventsList() -> some View {
+        return VStack {
+            if viewModel.observableEvents.isEmpty {
+                ContentUnavailableView(
+                    "No Observer Events",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
+                        "Activate an observer to see observable events."
+                    )
+                )
+            } else {
+                List(viewModel.observableEvents, id: \.id) { event in
+                    if !(event.eventTime.isEmpty || event.eventTime == "") {
+                        VStack(alignment: .leading) {
+                            Text("\(event.eventTime)")
+                                .font(.headline)
+                            Text("Items Count: \(event.data.count)")
+                                .padding(.bottom, 6)
+                            
+                            Text("Insert Count: \(event.insertIndexes.count)")
+                            Text("Update Count: \(event.updatedIndexes.count)")
+                            Text("Delete Count: \(event.deletedIndexes.count)")
+                            Text("Moves Count: \(event.movedIndexes.count)")
+                                .padding(.bottom, 6)
+                        }.onTapGesture {
+                            viewModel.selectedEvent = event
+                        }
+                    }
                 }
             }
         }
-#endif
+        .navigationTitle("Observer Events")
     }
-
+    
+    fileprivate func observableDetailNoContent() -> some View {
+        return VStack {
+            ContentUnavailableView(
+                "No Observer Selected",
+                systemImage: "exclamationmark.triangle.fill",
+                description: Text(
+                    "Please select an observer from the siderbar to view events."
+                )
+            )
+        }
+    }
+    
+    fileprivate func observableDetailSelectedEvent(observeEvent: DittoObserveEvent?) -> some View {
+        return VStack(alignment: .leading, spacing: 0) {
+            if let event = observeEvent {
+                Picker("", selection: $viewModel.eventMode) {
+                    Text("Items")
+                        .tag("items")
+                    Text("Inserted")
+                        .tag("inserted")
+                    Text("Updated")
+                        .tag("updated")
+                }
+#if os(macOS)
+                .padding(.top, 24)
+#else
+                .padding(.top, 8)
+#endif
+                .padding(.bottom, 8)
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+                switch viewModel.eventMode {
+                    case "inserted":
+                        VStack(alignment: .leading, spacing: 0) {
+                            ResultJsonViewer(resultText: event.getInsertedData())
+                        }
+                    case "updated":
+                        VStack(alignment: .leading, spacing: 0) {
+                            ResultJsonViewer(resultText: event.getUpdatedData())
+                        }
+                    default:
+                        VStack(alignment: .leading, spacing: 0) {
+                            ResultJsonViewer(resultText: event.data)
+                        }
+                }
+                Spacer()
+            
+            } else {
+                ResultJsonViewer(resultText: [])
+            }
+        }
+        .padding(.leading, 12)
+    }
+    
 }
 
 //MARK: ViewModel
@@ -645,13 +946,15 @@ extension MainStudioView {
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
 
+       
         var selectedObservable: DittoObservable?
         var selectedEvent: DittoObserveEvent?
         var selectedDataTool: String?
 
         var isLoading = false
         var isQueryExecuting = false
-
+        
+        var eventMode = "items"
         let dittoToolsFeatures = [
             "Presence Viewer", "Peers List", "Permissions Health", "Disk Usage",
         ]
@@ -707,7 +1010,7 @@ extension MainStudioView {
 
             //query results section
             self.jsonResults = []
-            
+
             //default the tool to presence viewer
             selectedDataTool = "Presence Viewer"
 
@@ -750,7 +1053,7 @@ extension MainStudioView {
                 isLoading = false
             }
         }
-        
+
         func addQueryToHistory(appState: DittoApp) async {
             if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
@@ -793,7 +1096,7 @@ extension MainStudioView {
             try await DittoManager.shared.removeDittoSubscription(subscription)
             subscriptions = await DittoManager.shared.dittoSubscriptions
         }
-        
+
         func executeQuery(appState: DittoApp) async {
             isQueryExecuting = true
             do {

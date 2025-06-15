@@ -314,8 +314,7 @@ extension DittoManager {
             )
             
             for item in results.items {
-                var observable = DittoObservable(item.value)
-                observable.storeObserver = try await registerDittoObservable(observable)
+                let observable = DittoObservable(item.value)
                 self.dittoObservables.append(observable)
             }
         }
