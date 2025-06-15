@@ -139,6 +139,7 @@ struct QueryToolbarView: View {
             Spacer()
         }
     }
+
 }
 
 #Preview {

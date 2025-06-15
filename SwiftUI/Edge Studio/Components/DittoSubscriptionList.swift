@@ -41,16 +41,17 @@ struct DittoSubscriptionList: View {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
+                    Divider()
                 }
             }
         }
-        .padding(.top, 16)
+        .padding(.top, 4)
 #else
         List {
             ForEach(subscriptions, id: \.id) { subscription in
                 DittoSubscriptionCard(subscription: subscription)
-                    .padding(.bottom, 16)
-                    .padding(.top, 16)
+                    .padding(.bottom, 4)
+                    .padding(.top, 4)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         Task {
@@ -69,6 +70,7 @@ struct DittoSubscriptionList: View {
                             }
                         }
                     }
+                Divider()
             }
         }
 #endif

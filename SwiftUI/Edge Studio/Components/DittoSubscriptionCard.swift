@@ -15,18 +15,18 @@ struct DittoSubscriptionCard: View {
             // Left VStack: Icon and Name
             VStack(alignment: .leading, spacing: 12) {
                 Text(subscription.name)
-                    .font(.title)
+                    .font(.headline)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subscription.query)
-                    .font(.title3)
+                    .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 if let args = subscription.args, !args.isEmpty {
                     Text(args)
-                        .font(.title3)
+                        .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
