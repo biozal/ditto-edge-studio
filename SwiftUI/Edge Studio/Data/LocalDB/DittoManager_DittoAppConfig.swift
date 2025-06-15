@@ -68,6 +68,7 @@ extension DittoManager {
                         "httpApiUrl": appConfig.httpApiUrl,
                         "httpApiKey": appConfig.httpApiKey,
                         "mode": appConfig.mode,
+                        "mongoDbConnectionString": appConfig.mongoDbConnectionString
                     ]
                 ]
                 try await ditto.store.execute(
@@ -92,7 +93,7 @@ extension DittoManager {
         do {
             if let ditto = dittoLocal {
                 let query =
-                "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode WHERE _id = :_id"
+                "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, mongoDbConnectionString = :mongoDbConnectionString WHERE _id = :_id"
                 let arguments = [
                     "_id": appConfig._id,
                     "name": appConfig.name,
@@ -103,6 +104,7 @@ extension DittoManager {
                     "httpApiUrl": appConfig.httpApiUrl,
                     "httpApiKey": appConfig.httpApiKey,
                     "mode": appConfig.mode,
+                    "mongoDbConnectionString": appConfig.mongoDbConnectionString
                 ]
                 try await ditto.store.execute(
                     query: query,
