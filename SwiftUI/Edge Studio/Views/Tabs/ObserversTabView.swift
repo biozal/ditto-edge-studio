@@ -51,11 +51,6 @@ struct ObserversTabView: View {
         }
         #if os(iOS)
             .navigationSplitViewColumnWidth(400)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-            }
         #endif
         .sheet(
             isPresented: $viewModel.isEditorPresented,

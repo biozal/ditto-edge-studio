@@ -488,6 +488,23 @@ extension MainStudioView {
         return VStack(alignment: .trailing) {
             Text("Tutorial Detail View")
         }
+#if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+        }
+#endif
     }
 
     func queryDetailView() -> some View {
@@ -528,22 +545,90 @@ extension MainStudioView {
             .navigationBarTitleDisplayMode(.inline)
 #endif
         }
+#if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+        }
+#endif
     }
 
     func observeDetailView() -> some View {
         return VStack(alignment: .trailing) {
             Text("Observe Detail View")
         }
+#if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+        }
+#endif
     }
 
     func dittoToolsDetailView() -> some View {
         return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
+#if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+        }
+#endif
     }
 
     func mongoDBDetailView() -> some View {
         return VStack(alignment: .trailing) {
             Text("MongoDb Details View")
         }
+#if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.selectedApp.name).font(.headline).bold()
+            }
+            ToolbarItem(id: "closeButton", placement: .primaryAction) {
+                Button {
+                    Task {
+                        await viewModel.closeSelectedApp()
+                        isMainStudioViewPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+        }
+#endif
     }
 
 }
