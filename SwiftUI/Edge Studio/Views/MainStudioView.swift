@@ -198,16 +198,7 @@ struct MainStudioView: View {
 
 //MARK: Sidebar Views
 extension MainStudioView {
-
-    func headerView(title: String) -> some View {
-        return HStack {
-            Spacer()
-            Text(title)
-                .padding(.top, 4)
-            Spacer()
-        }
-    }
-
+    
     func subscriptionSidebarView() -> some View {
         return VStack(alignment: .leading) {
             headerView(title: "Subscriptions")
@@ -427,7 +418,6 @@ extension MainStudioView {
     func observeSidebarView() -> some View {
         return VStack(alignment: .leading) {
             headerView(title: "Observers")
-
             if viewModel.observerables.isEmpty {
                 VStack {
                     Text(
@@ -442,7 +432,7 @@ extension MainStudioView {
                 .padding()
             } else {
                 List(viewModel.observerables) { observer in
-                    Text(observer.name)
+                    observerCard(observer: observer)
                         .onTapGesture {
                             viewModel.selectedObservable = observer
                             Task {
@@ -553,6 +543,45 @@ extension MainStudioView {
                     Divider()
                 }
             }
+            Spacer()
+        }
+    }
+    
+    private func observerCard(observer: DittoObservable) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill((observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15)))
+                .shadow(radius: 1)
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(observer.name)
+                        .font(.headline)
+                        .bold()
+                  
+                }
+                Spacer()
+                if (observer.storeObserver == nil){
+                    Text("Idle")
+                        .font(.subheadline)
+                        .padding(.trailing, 4)
+                } else {
+                    Text("Active")
+                        .font(.subheadline)
+                        .bold()
+                        .padding(.trailing, 4)
+                }
+            }
+            .padding()
+        }
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
+    }
+
+    func headerView(title: String) -> some View {
+        return HStack {
+            Spacer()
+            Text(title)
+                .padding(.top, 4)
             Spacer()
         }
     }
