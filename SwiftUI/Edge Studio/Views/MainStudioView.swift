@@ -1232,8 +1232,10 @@ extension MainStudioView {
                 throw InvalidStoreState(message: "Could not find observable")
             }
             let storeObserver = try await DittoManager.shared.registerDittoStoreObserver(observable)
-            observerables[index].storeObserver = storeObserver
             selectedObservable = observable
+            observerables[index].storeObserver = storeObserver
+            await loadObservedEvents()
+           
         }
         
         func removeStoreObserver(_ observable: DittoObservable) async throws {
@@ -1242,7 +1244,8 @@ extension MainStudioView {
             }
             try await DittoManager.shared.removeDittoStoreObserver(observable)
             observerables[index].storeObserver = nil
-            selectedObservable = nil
+            selectedEvent = nil
+            observableEvents.removeAll()
             observableEvents = []
         }
 
