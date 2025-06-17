@@ -419,17 +419,14 @@ extension MainStudioView {
         return VStack(alignment: .leading) {
             headerView(title: "Observers")
             if viewModel.observerables.isEmpty {
-                VStack {
-                    Text(
+                Spacer()
+                ContentUnavailableView(
+                    "No Observers",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text(
                         "No observers have been added yet. Click the plus button to add your first observers."
                     )
-                    .font(.caption)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                )
             } else {
                 List(viewModel.observerables) { observer in
                     observerCard(observer: observer)
@@ -444,6 +441,11 @@ extension MainStudioView {
                                 if observer.storeObserver == nil {
                                     Button {
                                         Task {
+                                            do {
+                                                try await viewModel.registerStoreObserver(observer)
+                                            } catch {
+                                                appState.setError(error)
+                                            }
                                         }
                                     } label: {
                                         Label(
@@ -455,6 +457,11 @@ extension MainStudioView {
                                 } else {
                                     Button {
                                         Task {
+                                            do {
+                                                try await viewModel.removeStoreObserver(observer)
+                                            } catch {
+                                                appState.setError(error)
+                                            }
                                         }
                                     } label: {
                                         Label(
@@ -974,7 +981,6 @@ extension MainStudioView {
         var actionSheetMode: ActionSheetMode = ActionSheetMode.none
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
-
        
         var selectedObservable: DittoObservable?
         var selectedEvent: DittoObserveEvent?
@@ -1118,6 +1124,8 @@ extension MainStudioView {
         func deleteObservable(_ observable: DittoObservable) async throws {
             try await DittoManager.shared.removeDittoObservable(observable)
             observerables = await DittoManager.shared.dittoObservables
+            observableEvents = []
+            selectedObservable = nil
         }
 
         func deleteSubscription(_ subscription: DittoSubscription) async throws
@@ -1217,6 +1225,25 @@ extension MainStudioView {
         func loadObservedEvents() async {
             observableEvents = []
             observableEvents = await DittoManager.shared.dittoObservableEvents
+        }
+        
+        func registerStoreObserver(_ observable: DittoObservable) async throws {
+            guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
+                throw InvalidStoreState(message: "Could not find observable")
+            }
+            let storeObserver = try await DittoManager.shared.registerDittoStoreObserver(observable)
+            observerables[index].storeObserver = storeObserver
+            selectedObservable = observable
+        }
+        
+        func removeStoreObserver(_ observable: DittoObservable) async throws {
+            guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
+                throw InvalidStoreState(message: "Could not find observable")
+            }
+            try await DittoManager.shared.removeDittoStoreObserver(observable)
+            observerables[index].storeObserver = nil
+            selectedObservable = nil
+            observableEvents = []
         }
 
         func showObservableEditor(_ observable: DittoObservable) {
