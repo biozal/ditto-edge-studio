@@ -5,6 +5,7 @@
 //  Created by Aaron LaBeau on 5/18/25.
 import SwiftUI
 import Combine
+import DittoSwift
 
 struct MainStudioView: View {
     @EnvironmentObject private var appState: DittoApp
@@ -81,7 +82,7 @@ struct MainStudioView: View {
                             viewModel.actionSheetMode = .subscription
                         }
                         Button("Add Observer", systemImage: "eye") {
-                            // Replace with proper action to add observer
+                            viewModel.editorObservable = DittoObservable.new()
                             viewModel.actionSheetMode = .observer
                         }
                     } label: {
@@ -150,7 +151,18 @@ struct MainStudioView: View {
                     onSave: viewModel.formSaveSubscription,
                     onCancel: viewModel.formCancel
                 ).environmentObject(appState)
+            } else if let observer = viewModel.editorObservable {
+                QueryArgumentEditor(
+                    title: observer.name.isEmpty
+                        ? "New Observer" : observer.name,
+                    name: observer.name,
+                    query: observer.query,
+                    arguments: observer.args ?? "",
+                    onSave: viewModel.formSaveObserver,
+                    onCancel: viewModel.formCancel
+                ).environmentObject(appState)
             }
+        
         }
         #if os(macOS)
             .toolbar {
@@ -443,6 +455,7 @@ extension MainStudioView {
                                         Task {
                                             do {
                                                 try await viewModel.registerStoreObserver(observer)
+                                                                                          
                                             } catch {
                                                 appState.setError(error)
                                             }
@@ -470,17 +483,6 @@ extension MainStudioView {
                                         )
                                         .labelStyle(.titleAndIcon)
                                     }
-                                }
-                                Button {
-                                    Task {
-                                        viewModel.showObservableEditor(observer)
-                                    }
-                                } label: {
-                                    Label(
-                                        "Edit",
-                                        systemImage: "square.and.pencil"
-                                    )
-                                    .labelStyle(.titleAndIcon)
                                 }
                                 Button {
                                     Task {
@@ -982,6 +984,7 @@ extension MainStudioView {
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
        
+        var localDbStoreObserver: DittoStoreObserver?
         var selectedObservable: DittoObservable?
         var selectedEvent: DittoObserveEvent?
         var selectedDataTool: String?
@@ -999,6 +1002,7 @@ extension MainStudioView {
         var collections: [String] = []
         var observerables: [DittoObservable] = []
         var observableEvents: [DittoObserveEvent] = []
+        var selectedObservableEvents: [DittoObserveEvent] = []
         var mongoCollections: [String] = []
 
         //query editor view
@@ -1072,9 +1076,26 @@ extension MainStudioView {
                     .hydrateQueryFavorites(updateFavorites: {
                         self.favorites = $0
                     })
-
-                observerables = await DittoManager.shared.dittoObservables
-
+                
+                //hydrate observerables
+                let observerQuery = "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId ORDER BY lastUpdated"
+                let observerArguments = ["selectedAppId": selectedApp._id]
+                let differ = DittoDiffer()
+                if let ditto = await DittoManager.shared.dittoLocal {
+                    localDbStoreObserver = try ditto.store.registerObserver(query: observerQuery, arguments: observerArguments)
+                    { [weak self] results in
+                        let diffs = differ.diff(results.items)
+                        diffs.deletions.forEach { index in
+                            self?.observerables.remove(at: (index))
+                        }
+                        diffs.insertions.forEach { index in
+                            let item = results.items[index]
+                            let insertObserver = DittoObservable(item.value)
+                            self?.observerables.append(insertObserver)
+                        }
+                    }
+                }
+                
                 if collections.isEmpty {
                     let subscriptions = await DittoManager.shared
                         .dittoSubscriptions
@@ -1110,22 +1131,43 @@ extension MainStudioView {
             editorSubscription = nil
             selectedEvent = nil
             selectedObservable = nil
-
+            
+            //remove oservable events registered and running
+            observerables.forEach { observable in
+                if let storeObserver = observable.storeObserver {
+                    storeObserver.cancel()
+                }
+            }
+            
+            if let localDbSO = localDbStoreObserver {
+                localDbSO.cancel()
+            }
+            localDbStoreObserver = nil
+            
             subscriptions = []
             collections = []
             history = []
             favorites = []
             observerables = []
             observableEvents = []
-
+            
             await DittoManager.shared.closeDittoSelectedApp()
         }
 
         func deleteObservable(_ observable: DittoObservable) async throws {
+            
+            if let storeObserver = observable.storeObserver {
+                storeObserver.cancel()
+            }
+            
             try await DittoManager.shared.removeDittoObservable(observable)
-            observerables = await DittoManager.shared.dittoObservables
-            observableEvents = []
-            selectedObservable = nil
+            
+            //remove events for the observable
+            observableEvents.removeAll(where: {$0.observeId == observable.id})
+            
+            if (selectedObservable?.id == observable.id) {
+                selectedObservable = nil
+            }
         }
 
         func deleteSubscription(_ subscription: DittoSubscription) async throws
@@ -1221,28 +1263,95 @@ extension MainStudioView {
             }
             actionSheetMode = .none
         }
+        
+        func formSaveObserver(
+            name: String,
+            query: String,
+            args: String?,
+            appState: DittoApp
+        ) {
+            if var observer = editorObservable {
+                observer.name = name
+                observer.query = query
+                if let argsString = args {
+                    observer.args = argsString
+                } else {
+                    observer.args = nil
+                }
+                Task {
+                    do {
+                        try await DittoManager.shared.saveDittoObservable(observer)
+                    } catch {
+                        appState.setError(error)
+                    }
+                    editorObservable = nil
+                }
+            }
+            actionSheetMode = .none
+        }
 
         func loadObservedEvents() async {
-            observableEvents = []
-            observableEvents = await DittoManager.shared.dittoObservableEvents
+            if let selectedId = selectedObservable?.id {
+                selectedObservableEvents = observableEvents.filter { $0.observeId == selectedId }
+            } else {
+                selectedObservableEvents = []
+            }
         }
         
         func registerStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
             }
-            let storeObserver = try await DittoManager.shared.registerDittoStoreObserver(observable)
+            guard let ditto = await DittoManager.shared.dittoSelectedApp else {
+                throw InvalidStateError(message: "Could not get ditto reference from manager")
+            }
+            if observerables[index].storeObserver != nil {
+                throw InvalidStoreState(message: "Observer already registered")
+            }
+            
+            //if you activate an observable it's instantly selected
             selectedObservable = observable
-            observerables[index].storeObserver = storeObserver
-            await loadObservedEvents()
-           
+            
+            //used for calculating the diffs
+            let dittoDiffer = DittoDiffer()
+            
+            //TODO: fix arguments serialization
+            let observer = try ditto.store.registerObserver(
+                query: observable.query,
+                arguments: [:]
+            ) { [weak self] results in
+                //required to show the end user when the event fired
+                var event = DittoObserveEvent.new(observeId: observable.id)
+
+                let diff = dittoDiffer.diff(results.items)
+
+                event.eventTime = Date().ISO8601Format()
+
+                //set diff information
+                event.insertIndexes = Array(diff.insertions)
+                event.deletedIndexes = Array(diff.deletions)
+                event.updatedIndexes = Array(diff.updates)
+                event.movedIndexes = Array(diff.moves)
+
+                event.data = results.items.compactMap { $0.jsonString() }
+
+                self?.observableEvents.append(event)
+                
+                //if this is the selected observable, add it to the selectedEvents array too
+                if let selectedObservableId = self?.selectedObservable?.id {
+                    if (event.observeId == selectedObservableId) {
+                        self?.selectedObservableEvents.append(event)
+                    }
+                }
+            }
+            observerables[index].storeObserver = observer
         }
         
         func removeStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
             }
-            try await DittoManager.shared.removeDittoStoreObserver(observable)
+            observerables[index].storeObserver?.cancel()
             observerables[index].storeObserver = nil
             selectedEvent = nil
             observableEvents.removeAll()
@@ -1275,3 +1384,4 @@ struct MenuItem: Identifiable, Equatable, Hashable {
     var name: String
     var icon: String
 }
+
