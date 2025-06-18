@@ -12,12 +12,45 @@ extension DittoManager {
     
     // MARK: Query Execution
     
-    func executeSelectedAppQuery(query: String) async throws -> [DittoSwift.DittoQueryResultItem]? {
+    func executeSelectedAppQuery(query: String) async throws -> [String] {
         if let ditto = dittoSelectedApp {
             let results = try await ditto.store.execute(query: query)
-            return results.items
+            if results.items.isEmpty {
+                if (!results.mutatedDocumentIDs().isEmpty) {
+                    let resultsStrings = results.mutatedDocumentIDs().compactMap {
+                        return "Document ID: \($0.stringValue)"
+                    }
+                    return resultsStrings.isEmpty ? ["No results found"] : resultsStrings
+                } else {
+                    return ["No results found"]
+                }
+            } else {
+                let resultJsonStrings = results.items.compactMap {
+                    item -> String? in
+                    // Convert [String: Any?] to [String: Any] by removing nil values
+                    let cleanedValue = item.value.compactMapValues {
+                        $0
+                    }
+                    
+                    do {
+                        let data = try JSONSerialization.data(
+                            withJSONObject: cleanedValue,
+                            options: [
+                                .prettyPrinted,
+                                .fragmentsAllowed,
+                                .sortedKeys,
+                                .withoutEscapingSlashes,
+                            ]
+                        )
+                        return String(data: data, encoding: .utf8)
+                    } catch {
+                        return nil
+                    }
+                }
+                return resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
+            }
         }
-        return nil
+        return ["No results found"]
     }
     
     func executeSelectedAppQueryHttp(query: String) async throws -> [String] {
@@ -51,7 +84,13 @@ extension DittoManager {
         
         // Parse the response data
         if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let results = jsonObject["items"] as? [[String: Any]] {
+           let results = jsonObject["items"] as? [[String: Any]],
+           let mutatedDocumentIDs = jsonObject["mutatedDocumentIds"] as? [String] {
+            
+            // If there are mutated document IDs, return them
+            if (mutatedDocumentIDs.count > 0) {
+                return mutatedDocumentIDs.map { "Document ID: \($0)" }
+            }
             
             // Convert each item to a JSON string
             var resultStrings = [String]()

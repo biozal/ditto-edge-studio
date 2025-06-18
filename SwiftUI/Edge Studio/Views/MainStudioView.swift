@@ -1180,43 +1180,8 @@ extension MainStudioView {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
-                    if let dittoResults = try await DittoManager.shared
-                        .executeSelectedAppQuery(
-                            query: selectedQuery
-                        )
-                    {
-                        // Create an array of JSON strings from the results
-                        let resultJsonStrings = dittoResults.compactMap {
-                            item -> String? in
-                            // Convert [String: Any?] to [String: Any] by removing nil values
-                            let cleanedValue = item.value.compactMapValues {
-                                $0
-                            }
-
-                            do {
-                                let data = try JSONSerialization.data(
-                                    withJSONObject: cleanedValue,
-                                    options: [
-                                        .prettyPrinted,
-                                        .fragmentsAllowed,
-                                        .sortedKeys,
-                                        .withoutEscapingSlashes,
-                                    ]
-                                )
-                                return String(data: data, encoding: .utf8)
-                            } catch {
-                                return nil
-                            }
-                        }
-
-                        if !resultJsonStrings.isEmpty {
-                            jsonResults = resultJsonStrings
-                        } else {
-                            jsonResults = ["No results found"]
-                        }
-                    } else {
-                        jsonResults = ["No results found"]
-                    }
+                     jsonResults = try await DittoManager.shared
+                        .executeSelectedAppQuery(query: selectedQuery)
                 } else {
                     jsonResults = try await DittoManager.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
