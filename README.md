@@ -2,6 +2,17 @@
 
 Edge Studio is an application that allows you to connect to Edge Studio and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same AppId.
 
+## Requirements
+
+### SwiftUI:
+- A Mac with MacOS 15 and Xcode 16.0 or later installed  
+- An iPad with OS 18.0 or later installed.
+
+Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it will build and run on iOS, it has not been tested on iOS.
+
+### Rust:
+TODO
+
 ## Getting Started
 
 - SwiftUI:
@@ -10,11 +21,3 @@ Copy the dittoConfig.plist file from the root folder into the SwiftUI/Ditto Edge
 - Rust:
 TODO
 
-## Requirements
-
-### SwiftUI:
-- A Mac with MacOS 15 and Xcode 16.0 or later installed  
-- An iPad with iOS 18.0 or later installed.
-
-### Rust:
-TODO
