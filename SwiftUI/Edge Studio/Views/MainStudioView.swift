@@ -735,7 +735,7 @@ extension MainStudioView {
                     observableEventsList()
                         .frame(minHeight: 200)
                 }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEvent)
+                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
             }
 #else
             VStack {
@@ -744,7 +744,7 @@ extension MainStudioView {
                 } else {
                     observableEventsList()
                 }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEvent)
+                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
             }
 #endif
         }
@@ -893,6 +893,40 @@ extension MainStudioView {
                     )
                 )
             } else {
+#if os(macOS)
+    Table(viewModel.observableEvents, selection: Binding<Set<String>>(get: {
+        if let selectedId = viewModel.selectedEventId {
+            return Set([selectedId])
+        } else {
+            return Set<String>()
+        }
+    }, set: { newValue in
+        if let first = newValue.first {
+            viewModel.selectedEventId = first
+        } else {
+            viewModel.selectedEventId = nil
+        }
+    })) {
+        TableColumn("Time") { event in
+            Text(event.eventTime)
+        }
+        TableColumn("Count") { event in
+            Text("\(event.data.count)")
+        }
+        TableColumn("Inserted") { event in
+            Text("\(event.insertIndexes.count)")
+        }
+        TableColumn("Updated") { event in
+            Text("\(event.updatedIndexes.count)")
+        }
+        TableColumn("Deleted") { event in
+            Text("\(event.deletedIndexes.count)")
+        }
+        TableColumn("Moves") { event in
+            Text("\(event.movedIndexes.count)")
+        }
+    }
+#else
                 List(viewModel.observableEvents, id: \.id) { event in
                     if !(event.eventTime.isEmpty || event.eventTime == "") {
                         VStack(alignment: .leading) {
@@ -907,10 +941,11 @@ extension MainStudioView {
                             Text("Moves Count: \(event.movedIndexes.count)")
                                 .padding(.bottom, 6)
                         }.onTapGesture {
-                            viewModel.selectedEvent = event
+                            viewModel.selectedEventId = event.id
                         }
                     }
                 }
+#endif
             }
         }
         .navigationTitle("Observer Events")
@@ -986,7 +1021,7 @@ extension MainStudioView {
        
         var localDbStoreObserver: DittoStoreObserver?
         var selectedObservable: DittoObservable?
-        var selectedEvent: DittoObserveEvent?
+        var selectedEventId: String?
         var selectedDataTool: String?
 
         var isLoading = false
@@ -1110,6 +1145,13 @@ extension MainStudioView {
             }
         }
 
+        var selectedEventObject: DittoObserveEvent? {
+            get {
+                guard let selectedId = selectedEventId else { return nil }
+                return observableEvents.first(where: { $0.id == selectedId })
+            }
+        }
+
         func addQueryToHistory(appState: DittoApp) async {
             if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
@@ -1129,7 +1171,7 @@ extension MainStudioView {
             //nil values
             editorObservable = nil
             editorSubscription = nil
-            selectedEvent = nil
+            selectedEventId = nil
             selectedObservable = nil
             
             //remove oservable events registered and running
@@ -1167,6 +1209,9 @@ extension MainStudioView {
             
             if (selectedObservable?.id == observable.id) {
                 selectedObservable = nil
+            }
+            if selectedEventObject?.observeId == observable.id {
+                selectedEventId = nil
             }
         }
 
@@ -1318,7 +1363,7 @@ extension MainStudioView {
             }
             observerables[index].storeObserver?.cancel()
             observerables[index].storeObserver = nil
-            selectedEvent = nil
+            selectedEventId = nil
             observableEvents.removeAll()
             observableEvents = []
         }
