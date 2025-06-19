@@ -501,7 +501,44 @@ extension MainStudioView {
                                 }
                             }
                         #else
-                                //TODO add in swipe for edit and delete
+                            .swipeActions(edge: .trailing) {
+                                if observer.storeObserver == nil {
+                                    Button {
+                                        Task {
+                                            do {
+                                                try await viewModel.registerStoreObserver(observer)
+                                            } catch {
+                                                appState.setError(error)
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Activate", systemImage: "play.circle")
+                                    }
+                                } else {
+                                    Button {
+                                        Task {
+                                            do {
+                                                try await viewModel.removeStoreObserver(observer)
+                                            } catch {
+                                                appState.setError(error)
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Stop", systemImage: "stop.circle")
+                                    }
+                                }
+                                Button(role: .destructive) {
+                                    Task {
+                                        do {
+                                            try await viewModel.deleteObservable(observer)
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         #endif
                     Divider()
                 }
@@ -595,7 +632,6 @@ extension MainStudioView {
         }
     }
 }
-
 //MARK: Detail Views
 extension MainStudioView {
 
@@ -893,62 +929,41 @@ extension MainStudioView {
                     )
                 )
             } else {
-#if os(macOS)
-    Table(viewModel.observableEvents, selection: Binding<Set<String>>(get: {
-        if let selectedId = viewModel.selectedEventId {
-            return Set([selectedId])
-        } else {
-            return Set<String>()
-        }
-    }, set: { newValue in
-        if let first = newValue.first {
-            viewModel.selectedEventId = first
-        } else {
-            viewModel.selectedEventId = nil
-        }
-    })) {
-        TableColumn("Time") { event in
-            Text(event.eventTime)
-        }
-        TableColumn("Count") { event in
-            Text("\(event.data.count)")
-        }
-        TableColumn("Inserted") { event in
-            Text("\(event.insertIndexes.count)")
-        }
-        TableColumn("Updated") { event in
-            Text("\(event.updatedIndexes.count)")
-        }
-        TableColumn("Deleted") { event in
-            Text("\(event.deletedIndexes.count)")
-        }
-        TableColumn("Moves") { event in
-            Text("\(event.movedIndexes.count)")
-        }
-    }
-#else
-                List(viewModel.observableEvents, id: \.id) { event in
-                    if !(event.eventTime.isEmpty || event.eventTime == "") {
-                        VStack(alignment: .leading) {
-                            Text("\(event.eventTime)")
-                                .font(.headline)
-                            Text("Items Count: \(event.data.count)")
-                                .padding(.bottom, 6)
-                            
-                            Text("Insert Count: \(event.insertIndexes.count)")
-                            Text("Update Count: \(event.updatedIndexes.count)")
-                            Text("Delete Count: \(event.deletedIndexes.count)")
-                            Text("Moves Count: \(event.movedIndexes.count)")
-                                .padding(.bottom, 6)
-                        }.onTapGesture {
-                            viewModel.selectedEventId = event.id
-                        }
+                Table(viewModel.observableEvents, selection: Binding<Set<String>>(get: {
+                    if let selectedId = viewModel.selectedEventId {
+                        return Set([selectedId])
+                    } else {
+                        return Set<String>()
+                    }
+                }, set: { newValue in
+                    if let first = newValue.first {
+                        viewModel.selectedEventId = first
+                    } else {
+                        viewModel.selectedEventId = nil
+                    }
+                })) {
+                    TableColumn("Time") { event in
+                        Text(event.eventTime)
+                    }
+                    TableColumn("Count") { event in
+                        Text("\(event.data.count)")
+                    }
+                    TableColumn("Inserted") { event in
+                        Text("\(event.insertIndexes.count)")
+                    }
+                    TableColumn("Updated") { event in
+                        Text("\(event.updatedIndexes.count)")
+                    }
+                    TableColumn("Deleted") { event in
+                        Text("\(event.deletedIndexes.count)")
+                    }
+                    TableColumn("Moves") { event in
+                        Text("\(event.movedIndexes.count)")
                     }
                 }
-#endif
+                .navigationTitle("Observer Events")
             }
         }
-        .navigationTitle("Observer Events")
     }
     
     fileprivate func observableDetailNoContent() -> some View {
