@@ -106,13 +106,6 @@ extension DittoManager {
             
             try ditto.disableSyncWithV3()
             
-            // Disable avoid_redundant_bluetooth
-            // https://docs.ditto.live/sdk/latest/sync/managing-redundant-bluetooth-le-connections#disabling-redundant-connections
-            try await ditto.store.execute(
-                query:
-                    "ALTER SYSTEM SET mesh_chooser_avoid_redundant_bluetooth = false"
-            )
-            
             // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
             //
             try await ditto.store.execute(
@@ -126,9 +119,6 @@ extension DittoManager {
             
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
-            
-            // hydrate the observers from the database
-            try await hydrateDittoObservers()
             
             isSuccess = true
         } catch {
@@ -297,26 +287,6 @@ extension DittoManager {
                 sub.syncSubscription = try dittoSelectedApp?.sync
                     .registerSubscription(query: subscription.query)
                 self.dittoSubscriptions.append(sub)
-            }
-        }
-    }
-    
-    func hydrateDittoObservers() async throws {
-        if let ditto = dittoLocal,
-           let id = dittoSelectedAppConfig?._id
-        {
-            let query =
-            "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId"
-            let arguments = ["selectedAppId": id]
-            let results = try await ditto.store.execute(
-                query: query,
-                arguments: arguments
-            )
-            
-            for item in results.items {
-                var observable = DittoObservable(item.value)
-                observable.storeObserver = try await registerDittoObservable(observable)
-                self.dittoObservables.append(observable)
             }
         }
     }

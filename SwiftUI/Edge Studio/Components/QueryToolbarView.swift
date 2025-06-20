@@ -13,7 +13,7 @@ struct QueryToolbarView: View {
     @Binding var history: [DittoQueryHistory]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
-    
+
     var body: some View {
         VStack{
             HStack{
@@ -127,7 +127,7 @@ struct QueryToolbarView: View {
                     Divider()
                 }
             } else {
-                Text("Collections")
+                Text("Ditto Collections")
                 List(collections, id: \.self) { collection in
                     Text(collection)
                         .onTapGesture {
@@ -139,6 +139,7 @@ struct QueryToolbarView: View {
             Spacer()
         }
     }
+
 }
 
 #Preview {
@@ -192,3 +193,4 @@ struct QueryToolbarView: View {
         selectedQuery: .constant("SELECT * FROM movies"),
     )
 }
+

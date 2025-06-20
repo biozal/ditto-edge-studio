@@ -21,6 +21,10 @@
 		0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */; };
 		0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284D2DDA0EC1004A69D1 /* DittoObjC */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
+		0DE5B1F92DF9177D001574F6 /* Meow in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1F82DF9177D001574F6 /* Meow */; };
+		0DE5B1FB2DF9177D001574F6 /* MongoClient in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FA2DF9177D001574F6 /* MongoClient */; };
+		0DE5B1FD2DF9177D001574F6 /* MongoCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FC2DF9177D001574F6 /* MongoCore */; };
+		0DE5B1FF2DF9177D001574F6 /* MongoKitten in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FE2DF9177D001574F6 /* MongoKitten */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +55,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/DittoSubscriptionCard.swift,
+				Components/DittoSubscriptionList.swift,
+				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
@@ -62,12 +69,14 @@
 				Data/DittoManager.swift,
 				Data/LocalDB/DittoManager_DittoAppConfig.swift,
 				Data/LocalDB/DittoManager_LocalSubscription.swift,
+				Data/MongoManager.swift,
 				Data/SelectedApp/DittoManager_Import.swift,
 				Data/SelectedApp/DittoManager_Lifecycle.swift,
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
 				DittoApp.swift,
+				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -77,9 +86,7 @@
 				Models/QueryResultsDocument.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/Tabs/DataStoreTabView.swift,
-				Views/Tabs/DittoToolsTabView.swift,
-				Views/Tabs/QueryTabView.swift,
+				Views/Tabs/ObserversTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
@@ -93,6 +100,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/DittoAppCard.swift,
+				Components/DittoSubscriptionCard.swift,
+				Components/DittoSubscriptionList.swift,
+				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
 				Components/QueryArgumentEditor.swift,
@@ -104,12 +114,14 @@
 				Data/DittoManager.swift,
 				Data/LocalDB/DittoManager_DittoAppConfig.swift,
 				Data/LocalDB/DittoManager_LocalSubscription.swift,
+				Data/MongoManager.swift,
 				Data/SelectedApp/DittoManager_Import.swift,
 				Data/SelectedApp/DittoManager_Lifecycle.swift,
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
 				DittoApp.swift,
+				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -119,9 +131,7 @@
 				Models/QueryResultsDocument.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/Tabs/DataStoreTabView.swift,
-				Views/Tabs/DittoToolsTabView.swift,
-				Views/Tabs/QueryTabView.swift,
+				Views/Tabs/ObserversTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
@@ -166,9 +176,13 @@
 				0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */,
 				0D3F28492DDA0EA7004A69D1 /* DittoPresenceDegradation in Frameworks */,
 				0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */,
+				0DE5B1FF2DF9177D001574F6 /* MongoKitten in Frameworks */,
+				0DE5B1FD2DF9177D001574F6 /* MongoCore in Frameworks */,
 				0D3F283D2DDA0EA7004A69D1 /* DittoExportData in Frameworks */,
+				0DE5B1F92DF9177D001574F6 /* Meow in Frameworks */,
 				0D3F28452DDA0EA7004A69D1 /* DittoPeersList in Frameworks */,
 				0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */,
+				0DE5B1FB2DF9177D001574F6 /* MongoClient in Frameworks */,
 				0D3F28432DDA0EA7004A69D1 /* DittoHeartbeat in Frameworks */,
 				0D3F28472DDA0EA7004A69D1 /* DittoPermissionsHealth in Frameworks */,
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
@@ -200,6 +214,7 @@
 				0D3F27D52DDA00FA004A69D1 /* Edge Studio */,
 				0D3F27E42DDA00FB004A69D1 /* Edge StudioTests */,
 				0D3F27EE2DDA00FB004A69D1 /* Edge StudioUITests */,
+				0DE5B1F22DF8FD3D001574F6 /* Frameworks */,
 				0D3F27D42DDA00FA004A69D1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -212,6 +227,13 @@
 				0D3F27EB2DDA00FB004A69D1 /* Edge StudioUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0DE5B1F22DF8FD3D001574F6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -248,6 +270,10 @@
 				0D3F284D2DDA0EC1004A69D1 /* DittoObjC */,
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
 				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
+				0DE5B1F82DF9177D001574F6 /* Meow */,
+				0DE5B1FA2DF9177D001574F6 /* MongoClient */,
+				0DE5B1FC2DF9177D001574F6 /* MongoCore */,
+				0DE5B1FE2DF9177D001574F6 /* MongoKitten */,
 			);
 			productName = "Ditto Edge Studio";
 			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Studio.app */;
@@ -335,7 +361,7 @@
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
-				0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */,
+				0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -534,52 +560,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Edge_Studio.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = E3FRN9JNGJ;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Edge Studio";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Uses WiFi to connect and sync with nearby devices";
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
-				XROS_DEPLOYMENT_TARGET = 2.0;
-			};
-			name = Debug;
-		};
-		0D3F27F72DDA00FB004A69D1 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Edge_Studio.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -609,7 +590,55 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		0D3F27F72DDA00FB004A69D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "Edge Studio/Edge_Studio.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Edge Studio";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Uses WiFi to connect and sync with nearby devices";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -782,12 +811,12 @@
 				minimumVersion = 4.11.0;
 			};
 		};
-		0DB0CE452DF8EECD00363F8B /* XCRemoteSwiftPackageReference "mongo-swift-driver" */ = {
+		0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/mongodb/mongo-swift-driver";
+			repositoryURL = "https://github.com/orlandos-nl/MongoKitten.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.9.9;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -862,6 +891,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */;
 			productName = DittoSwift;
+		};
+		0DE5B1F82DF9177D001574F6 /* Meow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = Meow;
+		};
+		0DE5B1FA2DF9177D001574F6 /* MongoClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoClient;
+		};
+		0DE5B1FC2DF9177D001574F6 /* MongoCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoCore;
+		};
+		0DE5B1FE2DF9177D001574F6 /* MongoKitten */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
+			productName = MongoKitten;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

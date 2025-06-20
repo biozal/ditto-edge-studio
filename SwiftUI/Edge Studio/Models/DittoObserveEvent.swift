@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct DittoObserveEvent {
+public struct DittoObserveEvent: Identifiable {
     
     //used for tracking unique observe events
     public var id: String
@@ -55,3 +55,4 @@ extension DittoObserveEvent {
         return items
     }
 }
+

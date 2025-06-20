@@ -1,6 +1,15 @@
 {
-  "originHash" : "45191b8ca33051351b994132921f32b2bae843a78c87d5eac6b38a9c3d5ef073",
+  "originHash" : "e7ff343c234cad3724824a9319c74cafecb63c6b45b19986d70128c1628c4270",
   "pins" : [
+    {
+      "identity" : "bson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/orlandos-nl/BSON.git",
+      "state" : {
+        "revision" : "4240cf68b5d161434034a493741f0ae08cbef017",
+        "version" : "8.2.0"
+      }
+    },
     {
       "identity" : "codeeditor",
       "kind" : "remoteSourceControl",
@@ -38,6 +47,15 @@
       }
     },
     {
+      "identity" : "dnsclient",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/orlandos-nl/DNSClient.git",
+      "state" : {
+        "revision" : "551fbddbf4fa728d4cd86f6a5208fe4f925f0549",
+        "version" : "2.4.4"
+      }
+    },
+    {
       "identity" : "highlightr",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/helje5/Highlightr",
@@ -47,21 +65,12 @@
       }
     },
     {
-      "identity" : "mongo-swift-driver",
+      "identity" : "mongokitten",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mongodb/mongo-swift-driver",
+      "location" : "https://github.com/orlandos-nl/MongoKitten.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "1f62248482bccd5a0f67c46793828674f9057d9d"
-      }
-    },
-    {
-      "identity" : "nimble",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Quick/Nimble.git",
-      "state" : {
-        "revision" : "7a46a5fc86cb917f69e3daf79fcb045283d8f008",
-        "version" : "8.1.2"
+        "revision" : "e403140d7b59c8ba0c2b00f552933d28470d3a6e",
+        "version" : "7.9.9"
       }
     },
     {
@@ -74,15 +83,6 @@
       }
     },
     {
-      "identity" : "swift-bson",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mongodb/swift-bson",
-      "state" : {
-        "revision" : "d18d9798987b737a7162ce6678da18561b5c629a",
-        "version" : "3.1.0"
-      }
-    },
-    {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
@@ -92,21 +92,30 @@
       }
     },
     {
-      "identity" : "swift-extras-base64",
+      "identity" : "swift-distributed-tracing",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swift-extras/swift-extras-base64",
+      "location" : "https://github.com/apple/swift-distributed-tracing.git",
       "state" : {
-        "revision" : "778e00dd7cc2b7970742f061cffc87dd570e6bfa",
-        "version" : "0.5.0"
+        "revision" : "a64a0abc2530f767af15dd88dda7f64d5f1ff9de",
+        "version" : "1.2.0"
       }
     },
     {
-      "identity" : "swift-extras-json",
+      "identity" : "swift-log",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swift-extras/swift-extras-json",
+      "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "122b9454ef01bf89a4c190b8fd3717ddd0a2fbd0",
-        "version" : "0.6.0"
+        "revision" : "3d8596ed08bd13520157f0355e35caed215ffbfa",
+        "version" : "1.6.3"
+      }
+    },
+    {
+      "identity" : "swift-metrics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-metrics.git",
+      "state" : {
+        "revision" : "4c83e1cdf4ba538ef6e43a9bbd0bcc33a0ca46e3",
+        "version" : "2.7.0"
       }
     },
     {
@@ -116,6 +125,33 @@
       "state" : {
         "revision" : "34d486b01cd891297ac615e40d5999536a1e138d",
         "version" : "2.83.0"
+      }
+    },
+    {
+      "identity" : "swift-nio-ssl",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-nio-ssl.git",
+      "state" : {
+        "revision" : "4b38f35946d00d8f6176fe58f96d83aba64b36c7",
+        "version" : "2.31.0"
+      }
+    },
+    {
+      "identity" : "swift-nio-transport-services",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-nio-transport-services.git",
+      "state" : {
+        "revision" : "cd1e89816d345d2523b11c55654570acd5cd4c56",
+        "version" : "1.24.0"
+      }
+    },
+    {
+      "identity" : "swift-service-context",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-service-context.git",
+      "state" : {
+        "revision" : "1983448fefc717a2bc2ebde5490fe99873c5b8a6",
+        "version" : "1.2.1"
       }
     },
     {
