@@ -33,16 +33,41 @@ jobs:
         # Set the partition list
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
         
+        # List available identities to verify
+        echo "Available signing identities:"
+        security find-identity -v -p codesigning build.keychain
+        
+        # Also check system keychain for comparison
+        echo "System keychain identities:"
+        security find-identity -v -p codesigning login.keychain
+        
     - name: Build for Release
       run: |
         cd SwiftUI
+        
+        # Try to find the exact certificate name
+        CERT_NAME=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -n 1 | sed 's/.*"\(.*\)".*/\1/')
+        
+        if [ -z "$CERT_NAME" ]; then
+          echo "No Developer ID Application certificate found in build keychain"
+          echo "Trying system keychain..."
+          CERT_NAME=$(security find-identity -v -p codesigning login.keychain | grep "Developer ID Application" | head -n 1 | sed 's/.*"\(.*\)".*/\1/')
+        fi
+        
+        if [ -z "$CERT_NAME" ]; then
+          echo "ERROR: No Developer ID Application certificate found"
+          exit 1
+        fi
+        
+        echo "Using certificate: $CERT_NAME"
+        
         xcodebuild -project "Edge Studio.xcodeproj" \
           -scheme "Edge Studio" \
           -configuration Release \
           -destination 'platform=macOS,arch=arm64' \
           -archivePath "build/Edge Studio.xcarchive" \
           archive \
-          CODE_SIGN_IDENTITY="Developer ID Application" \
+          CODE_SIGN_IDENTITY="$CERT_NAME" \
           CODE_SIGN_STYLE="Manual" \
           PROVISIONING_PROFILE_SPECIFIER="" \
           DEVELOPMENT_TEAM="${{ secrets.DEVELOPMENT_TEAM }}"
