@@ -83,40 +83,38 @@ extension DittoManager {
         }
         
         // Parse the response data
-        if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let results = jsonObject["items"] as? [[String: Any]],
-           let mutatedDocumentIDs = jsonObject["mutatedDocumentIds"] as? [String] {
-            
-            // If there are mutated document IDs, return them
-            if (mutatedDocumentIDs.count > 0) {
-                return mutatedDocumentIDs.map { "Document ID: \($0)" }
-            }
-            
-            // Convert each item to a JSON string
-            var resultStrings = [String]()
-            
-            for item in results {
-                if let itemData = try? JSONSerialization.data(withJSONObject: item,
-                                                              options: [
-                                                                .withoutEscapingSlashes,
-                                                                .fragmentsAllowed,
-                                                                .prettyPrinted,
-                                                                .sortedKeys]),
-                   let itemString = String(data: itemData, encoding: .utf8) {
-                    resultStrings.append(itemString)
+        if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let mutatedDocumentIDs = (jsonObject["mutatedDocumentIds"] as? [String]) {
+                if mutatedDocumentIDs.count > 0 {
+                    return mutatedDocumentIDs.map { "Document ID: \($0)" }
                 }
             }
             
-            return resultStrings.isEmpty ? ["No items found"] : resultStrings
+            if let results = jsonObject["items"] as? [[String: Any]] {
+                // Convert each item to a JSON string
+                var resultStrings = [String]()
+                
+                for item in results {
+                    if let itemData = try? JSONSerialization.data(withJSONObject: item,
+                                                                  options: [
+                                                                    .withoutEscapingSlashes,
+                                                                    .fragmentsAllowed,
+                                                                    .prettyPrinted,
+                                                                    .sortedKeys]),
+                       let itemString = String(data: itemData, encoding: .utf8) {
+                        resultStrings.append(itemString)
+                    }
+                }
+                
+                return resultStrings.isEmpty ? ["No items found"] : resultStrings
+            }
         }
         
         // If response format is different, return the whole thing as one item
         if let jsonString = String(data: data, encoding: .utf8) {
             return [jsonString]
         }
-        
         return ["No results found"]
-        
     }
     
     // MARK: Query Favorite

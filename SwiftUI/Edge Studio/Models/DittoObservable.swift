@@ -33,7 +33,7 @@ public struct DittoObservable : Identifiable {
         self.name = value["name"] as! String
         self.query = value["query"] as! String
         self.isActive = value["isActive"] as? Bool ?? false
-        self.lastUpdated = value["lastUpdated"] as? String ?? ""
+        self.lastUpdated = value["lastUpdated"] as? String ?? nil
 
         if (value.keys.contains("args")) {
             if let arguments = value["args"] as? String {
