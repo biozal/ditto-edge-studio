@@ -76,7 +76,6 @@
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
 				DittoApp.swift,
-				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -121,7 +120,6 @@
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
 				DittoApp.swift,
-				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -846,7 +844,7 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.11.0;
+				minimumVersion = 4.11.1;
 			};
 		};
 		0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */ = {
