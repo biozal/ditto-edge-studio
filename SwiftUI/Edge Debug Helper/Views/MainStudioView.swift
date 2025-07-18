@@ -12,8 +12,7 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
 
-    @State private var isMemoryInfoPresented = false
-    @State private var memoryUsageString: String? = nil
+    @State private var isSyncEnabled: Bool = false
 
     //used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
@@ -164,19 +163,38 @@ struct MainStudioView: View {
             }
         
         }
+        .onAppear {
+            Task {
+                for await value in await DittoManager.shared.$selectedAppIsSyncEnabled.values {
+                    await MainActor.run {
+                        isSyncEnabled = value
+                    }
+                }
+            }
+        }
         #if os(macOS)
             .toolbar {
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
+                ToolbarItem(id: "syncButton", placement: .primaryAction) {
                     Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
+                        if isSyncEnabled {
+                            Task { @MainActor in
+                                await DittoManager.shared.selectedAppStopSync()
+                            }
                         } else {
-                            memoryUsageString = "Unable to determine memory usage."
+                            Task { @MainActor in
+                                do {
+                                    try await DittoManager.shared.selectedAppStartSync()
+                                } catch {
+                                    appState.setError(error)
+                                }
+                            }
+                            
                         }
-                        isMemoryInfoPresented = true
                     } label: {
-                        Image(systemName: "info.circle")
+                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
+                            .foregroundColor(isSyncEnabled ? .green : .red)
                     }
+                    .help(isSyncEnabled ? "Disable Sync" : "Enable Sync")
                 }
                 ToolbarItem(id: "closeButton", placement: .primaryAction) {
                     Button {
@@ -187,18 +205,9 @@ struct MainStudioView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                     }
+                    .help("Close App")
                 }
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
     }
 
@@ -1039,6 +1048,8 @@ extension MainStudioView {
         var selectedEventId: String?
         var selectedDataTool: String?
 
+        @ObservationIgnored private var syncEnabledCancellable: AnyCancellable?
+
         var isLoading = false
         var isQueryExecuting = false
         
@@ -1102,9 +1113,11 @@ extension MainStudioView {
 
             //default the tool to presence viewer
             selectedDataTool = "Presence Viewer"
+            
 
             Task {
                 isLoading = true
+                
                 if await MongoManager.shared.isConnected {
                     self.mainMenuItems.append(
                         MenuItem(id: 7, name: "MongoDb", icon: "leaf")

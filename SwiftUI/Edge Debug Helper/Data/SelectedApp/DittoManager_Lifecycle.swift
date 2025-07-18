@@ -48,6 +48,25 @@ extension DittoManager {
         dittoSelectedApp = nil
     }
     
+    func selectedAppStartSync() throws {
+        do {
+            try dittoSelectedApp?.startSync()
+            self.selectedAppIsSyncEnabled = true
+        } catch {
+            self.app?.setError(error)
+            self.selectedAppIsSyncEnabled = false
+        }
+    }
+    
+    func selectedAppStopSync() {
+        dittoSelectedApp?.stopSync()
+        self.selectedAppIsSyncEnabled = false
+    }
+}
+
+// MARK: Ditto Selected App -  Hydration
+extension DittoManager {
+    
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
     -> Bool {
         var isSuccess: Bool = false
@@ -116,7 +135,7 @@ extension DittoManager {
             
             //start sync in the selected app
             try ditto.startSync()
-            
+            selectedAppIsSyncEnabled = true
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
             
