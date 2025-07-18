@@ -39,12 +39,13 @@ actor DittoManager: ObservableObject {
     var selectedAppCollectionObserver: DittoStoreObserver?
     var selectedAppHistoryObserver: DittoStoreObserver?
     var selectedAppFavoritesObserver: DittoStoreObserver?
+    @Published var selectedAppIsSyncEnabled = false
 
     @Published var dittoSubscriptions: [DittoSubscription] = []
     @Published var dittoObservables: [DittoObservable] = []
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
     @Published var dittoIntialObservationData: [String: String] = [:]
-
+    
     private init() {}
 
     static var shared = DittoManager()
