@@ -53,7 +53,7 @@ extension DittoManager {
             try dittoSelectedApp?.startSync()
             self.selectedAppIsSyncEnabled = true
         } catch {
-            self.app?.setError(error)
+            appState.setError(error)
             self.selectedAppIsSyncEnabled = false
         }
     }
