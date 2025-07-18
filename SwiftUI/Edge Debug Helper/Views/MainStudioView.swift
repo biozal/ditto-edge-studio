@@ -1048,8 +1048,6 @@ extension MainStudioView {
         var selectedEventId: String?
         var selectedDataTool: String?
 
-        @ObservationIgnored private var syncEnabledCancellable: AnyCancellable?
-
         var isLoading = false
         var isQueryExecuting = false
         
