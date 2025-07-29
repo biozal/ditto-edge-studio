@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ObserversTabView: View {
-    @EnvironmentObject private var appState: DittoApp
+    @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: ObserversTabView.ViewModel
     @State private var splitPosition: CGFloat = 300  // initial height
@@ -316,7 +316,7 @@ extension ObserversTabView {
             name: String,
             query: String,
             args: String?,
-            appState: DittoApp
+            appState: AppState
         ) {
             if var observerable = selectedObservable {
                 observerable.name = name
@@ -366,5 +366,5 @@ extension ObserversTabView {
         isMainStudioViewPresented: .constant(true),
         dittoAppConfig: DittoAppConfig.new()
     )
-    .environmentObject(DittoApp())
+    .environmentObject(AppState())
 }

@@ -12,7 +12,7 @@ struct DittoSubscriptionList: View {
     var onEdit: (_ subscription: DittoSubscription) async -> Void
     var onDelete: (_ subscription: DittoSubscription) async throws -> Void
 
-    let appState: DittoApp
+    let appState: AppState
 
     var body: some View {
         #if os(iOS)
@@ -107,6 +107,6 @@ struct DittoSubscriptionList: View {
         ]),
         onEdit: { _ in },
         onDelete: { _ in },
-        appState: DittoApp()
+        appState: AppState()
     )
 }

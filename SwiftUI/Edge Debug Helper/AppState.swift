@@ -9,12 +9,12 @@ enum AppError : Error {
     case error(message: String)
 }
 
-class DittoApp: ObservableObject {
+class AppState: ObservableObject {
     @Published var appConfig: DittoAppConfig
     @Published var error: Error? = nil
     
     init() {
-        appConfig = DittoApp.loadAppConfig()
+        appConfig = AppState.loadAppConfig()
     }
     
     func setError(_ error: Error?) {
@@ -50,7 +50,9 @@ class DittoApp: ObservableObject {
             websocketUrl: websocketUrl,
             httpApiUrl: httpApiUrl,
             httpApiKey: httpApiKey,
-            mongoDbConnectionString: mongoDbConnectionString
+            mongoDbConnectionString: mongoDbConnectionString,
+            mode: "online",
+            allowUntrustedCerts: false
         )
     }
 }

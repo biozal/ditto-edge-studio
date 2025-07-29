@@ -54,6 +54,7 @@
 		0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppState.swift,
 				Components/DittoAppCard.swift,
 				Components/DittoSubscriptionCard.swift,
 				Components/DittoSubscriptionList.swift,
@@ -75,7 +76,6 @@
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
-				DittoApp.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -98,6 +98,7 @@
 		0D0266822E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppState.swift,
 				Components/DittoAppCard.swift,
 				Components/DittoSubscriptionCard.swift,
 				Components/DittoSubscriptionList.swift,
@@ -119,7 +120,6 @@
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
-				DittoApp.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,

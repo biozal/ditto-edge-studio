@@ -8,7 +8,7 @@ import Combine
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var appState: DittoApp
+    @EnvironmentObject private var appState: AppState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
     // Define columns: 2 for iPad, 1 for iPhone
@@ -166,7 +166,7 @@ extension ContentView {
             }
         }
 
-        func deleteApp(_ dittoApp: DittoAppConfig, appState: DittoApp) async {
+        func deleteApp(_ dittoApp: DittoAppConfig, appState: AppState) async {
             do {
                 try await DittoManager.shared.deleteDittoAppConfig(dittoApp)
             } catch {
@@ -174,11 +174,11 @@ extension ContentView {
             }
         }
 
-        func loadApps(appState: DittoApp) async {
+        func loadApps(appState: AppState) async {
             isLoading = true
             do {
                 try await DittoManager.shared.initializeStore(
-                    dittoApp: appState
+                    appState: appState
                 )
                 dittoApps = await DittoManager.shared.dittoAppConfigs
             } catch {
@@ -192,14 +192,18 @@ extension ContentView {
             isPresented = true
         }
 
-        func showMainStudio(_ dittoApp: DittoAppConfig, appState: DittoApp)
+        func showMainStudio(_ dittoApp: DittoAppConfig, appState: AppState)
             async
         {
             do {
                 selectedDittoAppConfig = dittoApp
                 if let connectionString = selectedDittoAppConfig?.mongoDbConnectionString {
                     if (!connectionString.isEmpty && connectionString != "") {
-                        await MongoManager.shared.initializeConnection(connectionString: connectionString, dittoApp: appState)
+                        await MongoManager.shared
+                            .initializeConnection(
+                                connectionString: connectionString,
+                                appState: appState
+                            )
                     }
                 }
                 let didSetupDitto = try await DittoManager.shared

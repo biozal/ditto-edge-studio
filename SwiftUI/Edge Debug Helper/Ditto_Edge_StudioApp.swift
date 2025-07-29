@@ -9,7 +9,7 @@ import SwiftUI
 
 @main
 struct Ditto_Edge_StudioApp: App {
-    @StateObject private var appState = DittoApp()
+    @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
     @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
     

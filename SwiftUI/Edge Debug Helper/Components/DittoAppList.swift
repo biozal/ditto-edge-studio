@@ -9,7 +9,7 @@ import Combine
 
 struct DittoAppList: View {
   let viewModel: ContentView.ViewModel
-  let appState: DittoApp
+  let appState: AppState
 
   var body: some View {
     #if os(iOS)

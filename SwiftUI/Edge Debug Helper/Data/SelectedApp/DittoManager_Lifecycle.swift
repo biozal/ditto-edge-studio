@@ -53,7 +53,7 @@ extension DittoManager {
             try dittoSelectedApp?.startSync()
             self.selectedAppIsSyncEnabled = true
         } catch {
-            appState.setError(error)
+            appState?.setError(error)
             self.selectedAppIsSyncEnabled = false
         }
     }
@@ -141,7 +141,7 @@ extension DittoManager {
             
             isSuccess = true
         } catch {
-            self.app?.setError(error)
+            self.appState?.setError(error)
             isSuccess = false
         }
         return isSuccess
@@ -151,7 +151,7 @@ extension DittoManager {
     async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = app {
+           let appState {
             let query = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -167,7 +167,7 @@ extension DittoManager {
                         from: item.jsonData()
                     )
                 } catch {
-                    dittoAppRef.setError(error)
+                    appState.setError(error)
                     return nil
                 }
             }
@@ -184,7 +184,7 @@ extension DittoManager {
                             from: item.jsonData()
                         )
                     } catch {
-                        dittoAppRef.setError(error)
+                        appState.setError(error)
                         return nil
                     }
                 }
@@ -199,7 +199,7 @@ extension DittoManager {
         async throws -> [DittoQueryHistory] {
         if let ditto = dittoLocal,
            let id = dittoSelectedAppConfig?._id,
-           let dittoAppRef = app {
+           let appState {
             let query = "SELECT * FROM dittoqueryhistory WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
             let arguments = ["selectedAppId": id]
             
@@ -215,7 +215,7 @@ extension DittoManager {
                         from: item.jsonData()
                     )
                 } catch {
-                    dittoAppRef.setError(error)
+                    appState.setError(error)
                     return nil
                 }
             }
@@ -232,7 +232,7 @@ extension DittoManager {
                                 from: item.jsonData()
                             )
                         } catch {
-                            dittoAppRef.setError(error)
+                            appState.setError(error)
                             return nil
                         }
                     }
@@ -246,7 +246,7 @@ extension DittoManager {
     func hydrateCollections(updateCollections: @escaping ([String]) -> Void)
     async throws -> [String] {
         if let ditto = dittoSelectedApp,
-           let dittoAppRef = app {
+           let appState {
             let query = "SELECT * FROM __collections"
             
             let decoder = JSONDecoder()
@@ -260,7 +260,7 @@ extension DittoManager {
                         from: item.jsonData()
                     )
                 } catch {
-                    dittoAppRef.setError(error)
+                    appState.setError(error)
                     return nil
                 }
             }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
@@ -276,7 +276,7 @@ extension DittoManager {
                             from: item.jsonData()
                         )
                     } catch {
-                        dittoAppRef.setError(error)
+                        appState.setError(error)
                         return nil
                     }
                 }.filter { !$0.name.hasPrefix("__") } // Filter out system collections

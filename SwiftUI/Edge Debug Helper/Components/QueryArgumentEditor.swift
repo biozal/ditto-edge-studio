@@ -9,14 +9,14 @@ import CodeEditor
 import SwiftUI
 
 struct QueryArgumentEditor: View {
-    @EnvironmentObject private var appState: DittoApp
-    
+    @EnvironmentObject private var appState: AppState
+
     @State var title: String
     @State var name: String
     @State var query: String
     @State var arguments: String
     
-    let onSave: (String, String, String?, DittoApp) -> Void
+    let onSave: (String, String, String?, AppState) -> Void
     let onCancel: () -> Void
     
 #if os(macOS)
@@ -27,7 +27,7 @@ struct QueryArgumentEditor: View {
          name: String = "",
          query: String = "",
          arguments: String = "",
-         onSave: @escaping (String, String, String?, DittoApp) -> Void,
+         onSave: @escaping (String, String, String?, AppState) -> Void,
          onCancel: @escaping () -> Void) {
         
         self._title = State(initialValue: title)
@@ -121,7 +121,7 @@ struct QueryArgumentEditor: View {
 }
 
 #Preview {
-    let onSave: (String, String, String?, DittoApp) -> Void = { _, _, _, _ in }
+    let onSave: (String, String, String?, AppState) -> Void = { _, _, _, _ in }
     let onCancel: () -> Void = { }
     
     QueryArgumentEditor(
@@ -132,5 +132,5 @@ struct QueryArgumentEditor: View {
         onSave: onSave,
         onCancel: onCancel
     )
-    .environmentObject(DittoApp())
+    .environmentObject(AppState())
 }

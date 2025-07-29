@@ -8,7 +8,7 @@ import Combine
 import DittoSwift
 
 struct MainStudioView: View {
-    @EnvironmentObject private var appState: DittoApp
+    @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
 
@@ -1075,7 +1075,7 @@ extension MainStudioView {
             }
         }
 
-        func addQueryToHistory(appState: DittoApp) async {
+        func addQueryToHistory(appState: AppState) async {
             if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
                     id: UUID().uuidString,
@@ -1144,7 +1144,7 @@ extension MainStudioView {
             subscriptions = await DittoManager.shared.dittoSubscriptions
         }
 
-        func executeQuery(appState: DittoApp) async {
+        func executeQuery(appState: AppState) async {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
@@ -1171,7 +1171,7 @@ extension MainStudioView {
             name: String,
             query: String,
             args: String?,
-            appState: DittoApp
+            appState: AppState
         ) {
             if var subscription = editorSubscription {
                 subscription.name = name
@@ -1201,7 +1201,7 @@ extension MainStudioView {
             name: String,
             query: String,
             args: String?,
-            appState: DittoApp
+            appState: AppState
         ) {
             if var observer = editorObservable {
                 observer.name = name

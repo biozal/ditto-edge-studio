@@ -20,7 +20,7 @@ actor DittoManager: ObservableObject {
     // query history, favorites, subscriptions, and observers
     // always remember to save those in the dittoLocal instance
 
-    var app: DittoApp?
+    var appState: AppState?
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
 
@@ -50,7 +50,7 @@ actor DittoManager: ObservableObject {
 
     static var shared = DittoManager()
 
-    func initializeStore(dittoApp: DittoApp) async throws {
+    func initializeStore(appState: AppState) async throws {
         do {
             if !isStoreInitialized {
                 // setup logging
@@ -58,7 +58,7 @@ actor DittoManager: ObservableObject {
                 DittoLogger.minimumLogLevel = .debug
 
                 //cache state for future use
-                self.app = dittoApp
+                self.appState =  appState
 
                 // Create directory for local database
                 let localDirectoryPath = FileManager.default.urls(
@@ -78,8 +78,8 @@ actor DittoManager: ObservableObject {
                 }
 
                 //validate that the dittoConfig.plist file is valid
-                if dittoApp.appConfig.appId.isEmpty
-                    || dittoApp.appConfig.appId == "put appId here"
+                if appState.appConfig.appId.isEmpty
+                    || appState.appConfig.appId == "put appId here"
                 {
                     let error = AppError.error(
                         message: "dittoConfig.plist error - App ID is empty"
@@ -90,11 +90,11 @@ actor DittoManager: ObservableObject {
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 dittoLocal = Ditto(
                     identity: .onlinePlayground(
-                        appID: dittoApp.appConfig.appId,
-                        token: dittoApp.appConfig.authToken,
+                        appID: appState.appConfig.appId,
+                        token: appState.appConfig.authToken,
                         enableDittoCloudSync: false,
                         customAuthURL: URL(
-                            string: dittoApp.appConfig.authUrl
+                            string: appState.appConfig.authUrl
                         )
                     ),
                     persistenceDirectory: localDirectoryPath
@@ -102,7 +102,7 @@ actor DittoManager: ObservableObject {
 
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
-                        dittoApp.appConfig.websocketUrl
+                        appState.appConfig.websocketUrl
                     )
                 })
 
@@ -124,7 +124,7 @@ actor DittoManager: ObservableObject {
                 try registerLocalObservers()
             }
         } catch {
-            self.app?.setError(error)
+            self.appState?.setError(error)
         }
     }
 
