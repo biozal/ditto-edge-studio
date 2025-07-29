@@ -48,9 +48,9 @@ extension DittoManager {
         dittoSelectedApp = nil
     }
     
-    func selectedAppStartSync() throws {
+    func selectedAppStartSync() async throws {
         do {
-            try dittoSelectedApp?.startSync()
+            try await dittoSelectedApp?.startSync()
             self.selectedAppIsSyncEnabled = true
         } catch {
             appState?.setError(error)
