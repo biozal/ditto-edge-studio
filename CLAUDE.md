@@ -23,6 +23,9 @@ xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" 
 ```
 
 ### Rust CLI
+
+Review CLAUDE.md file in the rust directory.
+
 ```bash
 # Build debug
 cd rust && cargo build

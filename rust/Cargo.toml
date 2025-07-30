@@ -31,3 +31,5 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 uuid = "1.13"
+owo-colors = "4.2.2"
+inquire = "0.7.5"
