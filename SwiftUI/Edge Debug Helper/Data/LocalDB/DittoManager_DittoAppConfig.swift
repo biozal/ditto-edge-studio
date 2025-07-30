@@ -57,7 +57,7 @@ extension DittoManager {
             if let ditto = dittoLocal {
                 let query =
                 "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"
-                let arguments = [
+                let arguments: [String: Any] = [
                     "newConfig": [
                         "_id": appConfig._id,
                         "name": appConfig.name,
@@ -68,6 +68,7 @@ extension DittoManager {
                         "httpApiUrl": appConfig.httpApiUrl,
                         "httpApiKey": appConfig.httpApiKey,
                         "mode": appConfig.mode,
+                        "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                         "mongoDbConnectionString": appConfig.mongoDbConnectionString
                     ]
                 ]
@@ -93,8 +94,8 @@ extension DittoManager {
         do {
             if let ditto = dittoLocal {
                 let query =
-                "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, mongoDbConnectionString = :mongoDbConnectionString WHERE _id = :_id"
-                let arguments = [
+                "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, mongoDbConnectionString = :mongoDbConnectionString WHERE _id = :_id"
+                let arguments: [String: Any] = [
                     "_id": appConfig._id,
                     "name": appConfig.name,
                     "appId": appConfig.appId,
@@ -104,6 +105,7 @@ extension DittoManager {
                     "httpApiUrl": appConfig.httpApiUrl,
                     "httpApiKey": appConfig.httpApiKey,
                     "mode": appConfig.mode,
+                    "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                     "mongoDbConnectionString": appConfig.mongoDbConnectionString
                 ]
                 try await ditto.store.execute(

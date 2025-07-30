@@ -77,9 +77,8 @@ extension DittoManager {
         let (data, response): (Data, URLResponse)
         
         if appConfig.allowUntrustedCerts {
-            // Create a custom URLSession that allows untrusted certificates
-            let delegate = AllowUntrustedCertsDelegate()
-            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            // Use cached URLSession that allows untrusted certificates
+            let session = getCachedUntrustedSession()
             (data, response) = try await session.data(for: request)
         } else {
             (data, response) = try await URLSession.shared.data(for: request)
@@ -214,20 +213,6 @@ extension DittoManager {
                 ]
             ]
             let _ = try await ditto.store.execute(query: query, arguments: arguments)
-        }
-    }
-}
-
-// URLSession delegate to allow untrusted certificates
-class AllowUntrustedCertsDelegate: NSObject, URLSessionDelegate {
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-           let serverTrust = challenge.protectionSpace.serverTrust {
-            // Accept the server trust without validation
-            let credential = URLCredential(trust: serverTrust)
-            completionHandler(.useCredential, credential)
-        } else {
-            completionHandler(.performDefaultHandling, nil)
         }
     }
 }

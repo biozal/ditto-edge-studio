@@ -46,9 +46,44 @@ actor DittoManager: ObservableObject {
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
     @Published var dittoIntialObservationData: [String: String] = [:]
     
+    // MARK: - Cached URLSession for untrusted certificates
+    private static var cachedUntrustedSession: URLSession?
+    private static let untrustedSessionLock = NSLock()
+    
     private init() {}
 
     static var shared = DittoManager()
+    
+    // MARK: - URLSession Caching
+    
+    func getCachedUntrustedSession() -> URLSession {
+        Self.untrustedSessionLock.lock()
+        defer { Self.untrustedSessionLock.unlock() }
+        
+        if let cachedSession = Self.cachedUntrustedSession {
+            return cachedSession
+        }
+        
+        // Create new session with delegate for untrusted certificates
+        let delegate = AllowUntrustedCertsDelegate()
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        Self.cachedUntrustedSession = session
+        return session
+    }
+    
+    // MARK: - URLSession delegate to allow untrusted certificates
+    class AllowUntrustedCertsDelegate: NSObject, URLSessionDelegate {
+        func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+               let serverTrust = challenge.protectionSpace.serverTrust {
+                // Accept the server trust without validation
+                let credential = URLCredential(trust: serverTrust)
+                completionHandler(.useCredential, credential)
+            } else {
+                completionHandler(.performDefaultHandling, nil)
+            }
+        }
+    }
 
     func initializeStore(appState: AppState) async throws {
         do {
