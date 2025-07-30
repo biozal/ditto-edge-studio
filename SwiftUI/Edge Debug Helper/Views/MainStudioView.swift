@@ -973,7 +973,7 @@ extension MainStudioView {
                 
                 if await MongoManager.shared.isConnected {
                     self.mainMenuItems.append(
-                        MenuItem(id: 8, name: "MongoDb", icon: "leaf")
+                        MenuItem(id: 7, name: "MongoDb", icon: "leaf")
                     )
                 }
                 subscriptions = await DittoManager.shared.dittoSubscriptions
