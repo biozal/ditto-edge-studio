@@ -60,8 +60,6 @@ struct MainStudioView: View {
                     favoritesSidebarView()
                 case "Observer":
                     observeSidebarView()
-                case "Automator 5000":
-                    automatorSidebarView()
                 case "Ditto Tools":
                     dittoToolsSidebarView()
                 case "MongoDb":
@@ -132,8 +130,6 @@ struct MainStudioView: View {
                 observeDetailView()
             case "Ditto Tools":
                 dittoToolsDetailView()
-            case "Automator 5000":
-                tutorialDetailView()
             case "MongoDb":
                 mongoDBDetailView()
             default:
@@ -574,43 +570,6 @@ extension MainStudioView {
             Spacer()
         }
     }
-    
-    func automatorSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Automator 5000")
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading Automations...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.collections.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Automations",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Automations found."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                List(viewModel.collections, id: \.self) { collection in
-                    Text(collection)
-                        .onTapGesture {
-                            viewModel.selectedQuery =
-                                "SELECT * FROM \(collection)"
-                        }
-                    Divider()
-                }
-                Spacer()
-            }
-        }
-    }
 
     func dittoToolsSidebarView() -> some View {
         return VStack(alignment: .leading) {
@@ -987,8 +946,7 @@ extension MainStudioView {
                 MenuItem(id: 3, name: "History", icon: "clock"),
                 MenuItem(id: 4, name: "Favorites", icon: "star"),
                 MenuItem(id: 5, name: "Observer", icon: "eye"),
-                MenuItem(id: 6, name: "Automator 5000", icon: "hammer.circle"),
-                MenuItem(id: 7, name: "Ditto Tools", icon: "gearshape"),
+                MenuItem(id: 6, name: "Ditto Tools", icon: "gearshape"),
             ]
 
             //query section
