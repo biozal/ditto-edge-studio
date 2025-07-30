@@ -1,13 +1,9 @@
+SwiftUI/build
 SwiftUI/Ditto Edge Studio.xcodeproj/project.xcworkspace/xcuserdata
 .DS_Store
 SwiftUI/Ditto Edge Studio/dittoConfig.plist
+SwiftUI/scripts/*.dmg
+SwiftUI/scripts/*.dmg.zip
 rust/.idea
 rust/target
 .env
-kmp/.gradle
-kmp/.idea
-kmp/.kotlin
-kmp/build
-kmp/composeApp/build
-kmp/iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/labeaaa.xcuserdatad
-kmp/iosApp/iosApp.xcodeproj/xcuserdata/labeaaa.xcuserdatad
