@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 
-use edge_studio::{term, Shutdown};
+use edgebot::{term, Shutdown};
 use dittolive_ditto::{fs::PersistentRoot, identity::OnlinePlayground, AppId, Ditto };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

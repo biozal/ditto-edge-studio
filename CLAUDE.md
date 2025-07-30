@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ditto Edge Studio is a cross-platform development tool for working with Ditto databases. It consists of:
+Edge Debug Helper is a set of cross-platform development tools for working with Ditto databases. It consists of:
 - **SwiftUI App** (macOS/iPadOS): Main GUI application for querying and managing Ditto databases
-- **Rust CLI** (in development): Command-line interface for Edge Studio
+- **Rust CLI ** (in development): Command-line interface called Edge Bot (codename Grimlock) for automating workflows and tasks.
 
 ## Build Commands
 
@@ -22,7 +22,7 @@ xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" 
 xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -configuration Release archive
 ```
 
-### Rust CLI
+### Rust CLI - Edge Bot (codename Grimlock)
 ```bash
 # Build debug
 cd rust && cargo build
@@ -34,12 +34,14 @@ cd rust && cargo build --release
 cd rust && cargo test
 
 # Run the CLI
-cd rust && cargo run --bin edge-studio
+cd rust && cargo run --bin edgebot
 ```
 
 ## Architecture
 
 ### SwiftUI App Structure
+This is all the code found in the SwiftUI folder.
+
 - **DittoManager**: Core service managing Ditto SDK operations, split into modules:
   - `DittoManager.swift`: Base configuration and initialization
   - `DittoManager_Lifecycle.swift`: Connection management and sync controls

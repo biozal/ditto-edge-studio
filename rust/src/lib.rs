@@ -17,7 +17,7 @@ pub type Shutdown<T = Arc<anyhow::Error>> = async_shutdown::ShutdownManager<T>;
 /// The two match arms here are equivalent:
 ///
 /// ```
-/// # use edge_studio::key;
+/// # use edgebot:key;
 /// use crossterm::event::{Event, KeyCode, KeyEvent};
 /// # fn example(event: Event) {
 /// match event {
