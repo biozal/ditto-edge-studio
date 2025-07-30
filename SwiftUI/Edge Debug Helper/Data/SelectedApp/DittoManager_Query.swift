@@ -58,7 +58,9 @@ extension DittoManager {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"];
         }
         
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/store/execute"
+        let urlString = (appConfig.httpApiUrl.contains(
+            "ditto.live"
+        ) || appConfig.httpApiUrl.contains("dittolive")) ? "https://\(appConfig.httpApiUrl)/api/v4/store/execute" : "https://\(appConfig.httpApiUrl)/\(appConfig.appId)/api/v4/store/execute"
         let authorization = "Bearer \(appConfig.httpApiKey)"
         
         guard let url = URL(string: urlString) else {
