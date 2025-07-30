@@ -57,7 +57,9 @@ extension DittoManager {
         guard let appConfig = dittoSelectedAppConfig  else {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"];
         }
-        
+
+        //convience to auto create the URL for local installs -
+        //this can break if the main portal ever channges the URLs from ditto.live or dittolive
         let urlString = (appConfig.httpApiUrl.contains(
             "ditto.live"
         ) || appConfig.httpApiUrl.contains("dittolive")) ? "https://\(appConfig.httpApiUrl)/api/v4/store/execute" : "https://\(appConfig.httpApiUrl)/\(appConfig.appId)/api/v4/store/execute"
