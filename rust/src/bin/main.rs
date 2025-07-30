@@ -1,9 +1,8 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 
-use edgebot::{term, Shutdown};
 use dittolive_ditto::{fs::PersistentRoot, identity::OnlinePlayground, AppId, Ditto };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -41,8 +40,6 @@ async fn main() -> Result<()> {
     try_init_dotenv().ok();
     let cli = Cli::parse();
     cli.try_init_tracing()?;
-    let shutdown = <Shutdown>::new();
-    let (terminal, _cleanup) = term::init_crossterm()?;
 
     let ditto = try_init_ditto(
         cli.app_id, 
@@ -53,21 +50,14 @@ async fn main() -> Result<()> {
     //TODO Start Main App Listing UI
     println!("Hello, world!");
 
-
+    tracing::info!("Moving to quit");
     // Wait for shutdown to complete or timeout
-    drop(_cleanup);
     tokio::select! {
-        _ = shutdown.wait_shutdown_complete() => {
-            tracing::info!("[SHUTDOWN] Graceful shutdown complete, quitting");
-        }
         _ = tokio::time::sleep(Duration::from_secs(2)) => {
             tracing::error!("[SHUTDOWN] Graceful shutdown timer expired, force-quitting!");
             std::process::exit(1);
         }
     }
-
-    tracing::info!("Moving to quit");
-    Ok(())
 }
 
 fn try_init_ditto(
