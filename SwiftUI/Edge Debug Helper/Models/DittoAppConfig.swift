@@ -12,6 +12,7 @@ class DittoAppConfig: Decodable {
     var httpApiKey: String
     var mongoDbConnectionString: String
     var mode: String
+    var allowUntrustedCerts: Bool
 
     init(
         _ _id: String,
@@ -23,7 +24,8 @@ class DittoAppConfig: Decodable {
         httpApiUrl: String,
         httpApiKey: String,
         mongoDbConnectionString: String,
-        mode: String = "online"
+        mode: String = "online",
+        allowUntrustedCerts: Bool = false
     ) {
 
         self._id = _id
@@ -36,6 +38,7 @@ class DittoAppConfig: Decodable {
         self.httpApiKey = httpApiKey
         self.mongoDbConnectionString = mongoDbConnectionString
         self.mode = mode
+        self.allowUntrustedCerts = allowUntrustedCerts
     }
     enum CodingKeys: String, CodingKey {
         case _id
@@ -48,6 +51,7 @@ class DittoAppConfig: Decodable {
         case httpApiKey
         case mongoDbConnectionString
         case mode
+        case allowUntrustedCerts
     }
 
     required init(from decoder: Decoder) throws {
@@ -63,6 +67,7 @@ class DittoAppConfig: Decodable {
         mongoDbConnectionString = try container
             .decodeIfPresent(String.self, forKey: .mongoDbConnectionString) ?? ""
         mode = try container.decode(String.self, forKey: .mode)
+        allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
     }
 }
 
@@ -78,7 +83,8 @@ extension DittoAppConfig {
             httpApiUrl: "",
             httpApiKey: "",
             mongoDbConnectionString: "",
-            mode: "online"
+            mode: "online",
+            allowUntrustedCerts: false
         )
     }
 }

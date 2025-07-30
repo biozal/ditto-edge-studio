@@ -16,7 +16,7 @@ actor MongoManager: ObservableObject {
     
     var isConnected: Bool = false
     
-    var app: DittoApp?
+    var appState: AppState?
     var connectionString: String = ""
     var mongoDatabase: MongoDatabase?
     
@@ -26,8 +26,8 @@ actor MongoManager: ObservableObject {
     
     static var shared = MongoManager()
     
-    func initializeConnection(connectionString: String, dittoApp: DittoApp) async {
-        self.app = dittoApp
+    func initializeConnection(connectionString: String, appState: AppState) async {
+        self.appState = appState
         do {
             mongoDatabase = try await MongoDatabase.connect(to: connectionString)
             if let collectionsList = try await mongoDatabase?.listCollections() {
@@ -37,7 +37,7 @@ actor MongoManager: ObservableObject {
                 isConnected = true
             }
         } catch {
-            self.app?.setError(error)
+            self.appState?.setError(error)
         }
     }
     

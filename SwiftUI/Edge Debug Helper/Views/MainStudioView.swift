@@ -8,12 +8,12 @@ import Combine
 import DittoSwift
 
 struct MainStudioView: View {
-    @EnvironmentObject private var appState: DittoApp
+    @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
+    @StateObject private var dittoManager = DittoManager.shared
 
-    @State private var isMemoryInfoPresented = false
-    @State private var memoryUsageString: String? = nil
+
 
     //used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
@@ -164,42 +164,61 @@ struct MainStudioView: View {
             }
         
         }
+        .onAppear {
+            // No longer needed - using DittoManager state directly
+        }
         #if os(macOS)
             .toolbar {
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                    Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
-                        } else {
-                            memoryUsageString = "Unable to determine memory usage."
-                        }
-                        isMemoryInfoPresented = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
+                syncToolbarButton()
+                closeToolbarButton()
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
+    }
+    
+    func appNameToolbarLabel() -> some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Text(viewModel.selectedApp.name).font(.headline).bold()
+        }
+    }
+    
+    func syncToolbarButton() -> some ToolbarContent {
+        ToolbarItem(id: "syncButton", placement: .primaryAction) {
+            Button {
+                if dittoManager.selectedAppIsSyncEnabled {
+                    Task { @MainActor in
+                        await dittoManager.selectedAppStopSync()
+                    }
+                } else {
+                    Task { @MainActor in
+                        do {
+                            try await dittoManager.selectedAppStartSync()
+                        } catch {
+                            appState.setError(error)
+                        }
+                    }
+                    
+                }
+            } label: {
+                Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
+                    .foregroundColor(dittoManager.selectedAppIsSyncEnabled ? .green : .red)
+            }
+            .help(dittoManager.selectedAppIsSyncEnabled ? "Disable Sync" : "Enable Sync")
+        }
+    }
+    
+    func closeToolbarButton() -> some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                Task {
+                    await viewModel.closeSelectedApp()
+                    isMainStudioViewPresented = false
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.red)
+            }
+            .help("Close App")
+        }
     }
 
     func executeQuery() async {
@@ -641,42 +660,10 @@ extension MainStudioView {
         }
         #if os(iOS)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                    Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
-                        } else {
-                            memoryUsageString = "Unable to determine memory usage."
-                        }
-                        isMemoryInfoPresented = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
     }
 
@@ -720,42 +707,10 @@ extension MainStudioView {
         }
         #if os(iOS)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                    Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
-                        } else {
-                            memoryUsageString = "Unable to determine memory usage."
-                        }
-                        isMemoryInfoPresented = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
     }
 
@@ -786,42 +741,10 @@ extension MainStudioView {
         }
         #if os(iOS)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                    Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
-                        } else {
-                            memoryUsageString = "Unable to determine memory usage."
-                        }
-                        isMemoryInfoPresented = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
     }
 
@@ -829,42 +752,10 @@ extension MainStudioView {
         return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
             #if os(iOS)
                 .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        Text(viewModel.selectedApp.name).font(.headline).bold()
-                    }
-                    ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                        Button {
-                            if let memString = MemoryUtils.residentMemoryMBString() {
-                                memoryUsageString = memString
-                            } else {
-                                memoryUsageString = "Unable to determine memory usage."
-                            }
-                            isMemoryInfoPresented = true
-                        } label: {
-                            Image(systemName: "info.circle")
-                        }
-                    }
-                    ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                        Button {
-                            Task {
-                                await viewModel.closeSelectedApp()
-                                isMainStudioViewPresented = false
-                            }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                    }
+                    appNameToolbarLabel()
+                    syncToolbarButton()
+                    closeToolbarButton()
                 }
-                .alert(
-                    "App Memory Usage",
-                    isPresented: $isMemoryInfoPresented,
-                    actions: {
-                        Button("OK", role: .cancel) {}
-                    },
-                    message: {
-                        Text(memoryUsageString ?? "")
-                    }
-                )
             #endif
     }
 
@@ -874,42 +765,10 @@ extension MainStudioView {
         }
         #if os(iOS)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(viewModel.selectedApp.name).font(.headline).bold()
-                }
-                ToolbarItem(id: "infoButton", placement: .primaryAction) {
-                    Button {
-                        if let memString = MemoryUtils.residentMemoryMBString() {
-                            memoryUsageString = memString
-                        } else {
-                            memoryUsageString = "Unable to determine memory usage."
-                        }
-                        isMemoryInfoPresented = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-                ToolbarItem(id: "closeButton", placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.closeSelectedApp()
-                            isMainStudioViewPresented = false
-                        }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                }
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
             }
-            .alert(
-                "App Memory Usage",
-                isPresented: $isMemoryInfoPresented,
-                actions: {
-                    Button("OK", role: .cancel) {}
-                },
-                message: {
-                    Text(memoryUsageString ?? "")
-                }
-            )
         #endif
     }
 
@@ -1102,9 +961,11 @@ extension MainStudioView {
 
             //default the tool to presence viewer
             selectedDataTool = "Presence Viewer"
+            
 
             Task {
                 isLoading = true
+                
                 if await MongoManager.shared.isConnected {
                     self.mainMenuItems.append(
                         MenuItem(id: 7, name: "MongoDb", icon: "leaf")
@@ -1167,7 +1028,7 @@ extension MainStudioView {
             }
         }
 
-        func addQueryToHistory(appState: DittoApp) async {
+        func addQueryToHistory(appState: AppState) async {
             if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
                     id: UUID().uuidString,
@@ -1236,7 +1097,7 @@ extension MainStudioView {
             subscriptions = await DittoManager.shared.dittoSubscriptions
         }
 
-        func executeQuery(appState: DittoApp) async {
+        func executeQuery(appState: AppState) async {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
@@ -1263,7 +1124,7 @@ extension MainStudioView {
             name: String,
             query: String,
             args: String?,
-            appState: DittoApp
+            appState: AppState
         ) {
             if var subscription = editorSubscription {
                 subscription.name = name
@@ -1293,7 +1154,7 @@ extension MainStudioView {
             name: String,
             query: String,
             args: String?,
-            appState: DittoApp
+            appState: AppState
         ) {
             if var observer = editorObservable {
                 observer.name = name

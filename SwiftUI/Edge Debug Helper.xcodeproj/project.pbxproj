@@ -54,6 +54,7 @@
 		0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppState.swift,
 				Components/DittoAppCard.swift,
 				Components/DittoSubscriptionCard.swift,
 				Components/DittoSubscriptionList.swift,
@@ -75,8 +76,6 @@
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
-				DittoApp.swift,
-				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -99,6 +98,7 @@
 		0D0266822E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppState.swift,
 				Components/DittoAppCard.swift,
 				Components/DittoSubscriptionCard.swift,
 				Components/DittoSubscriptionList.swift,
@@ -120,8 +120,6 @@
 				Data/SelectedApp/DittoManager_Observable.swift,
 				Data/SelectedApp/DittoManager_Query.swift,
 				Data/SelectedApp/DittoManager_Subscription.swift,
-				DittoApp.swift,
-				MemoryUtils.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -201,16 +199,6 @@
 			path = "Edge Debugg Helper UITests";
 			sourceTree = "<group>";
 		};
-		0D3F27E42DDA00FB004A69D1 /* Edge StudioTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Edge StudioTests";
-			sourceTree = "<group>";
-		};
-		0D3F27EE2DDA00FB004A69D1 /* Edge StudioUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Edge StudioUITests";
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -262,8 +250,6 @@
 				0D026A232E0606B30072B715 /* Edge Debugg Helper UITests */,
 				0D026A202E0606990072B715 /* Edge Debug Helper Tests */,
 				0D02662B2E06059D0072B715 /* Edge Debug Helper */,
-				0D3F27E42DDA00FB004A69D1 /* Edge StudioTests */,
-				0D3F27EE2DDA00FB004A69D1 /* Edge StudioUITests */,
 				0DE5B1F22DF8FD3D001574F6 /* Frameworks */,
 				0D3F27D42DDA00FA004A69D1 /* Products */,
 			);
@@ -344,9 +330,6 @@
 			dependencies = (
 				0D3F27E32DDA00FB004A69D1 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				0D3F27E42DDA00FB004A69D1 /* Edge StudioTests */,
-			);
 			name = "Edge Debug HelperTests";
 			packageProductDependencies = (
 			);
@@ -366,9 +349,6 @@
 			);
 			dependencies = (
 				0D3F27ED2DDA00FB004A69D1 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				0D3F27EE2DDA00FB004A69D1 /* Edge StudioUITests */,
 			);
 			name = "Edge Debug HelperUITests";
 			packageProductDependencies = (
@@ -643,7 +623,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -693,7 +673,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -864,7 +844,7 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.11.0;
+				minimumVersion = 4.11.1;
 			};
 		};
 		0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */ = {

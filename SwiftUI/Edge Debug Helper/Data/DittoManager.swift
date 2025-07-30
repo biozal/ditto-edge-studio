@@ -20,7 +20,7 @@ actor DittoManager: ObservableObject {
     // query history, favorites, subscriptions, and observers
     // always remember to save those in the dittoLocal instance
 
-    var app: DittoApp?
+    var appState: AppState?
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
 
@@ -39,17 +39,53 @@ actor DittoManager: ObservableObject {
     var selectedAppCollectionObserver: DittoStoreObserver?
     var selectedAppHistoryObserver: DittoStoreObserver?
     var selectedAppFavoritesObserver: DittoStoreObserver?
+    @Published var selectedAppIsSyncEnabled = false
 
     @Published var dittoSubscriptions: [DittoSubscription] = []
     @Published var dittoObservables: [DittoObservable] = []
     @Published var dittoObservableEvents: [DittoObserveEvent] = []
     @Published var dittoIntialObservationData: [String: String] = [:]
-
+    
+    // MARK: - Cached URLSession for untrusted certificates
+    private static var cachedUntrustedSession: URLSession?
+    private static let untrustedSessionLock = NSLock()
+    
     private init() {}
 
     static var shared = DittoManager()
+    
+    // MARK: - URLSession Caching
+    
+    func getCachedUntrustedSession() -> URLSession {
+        Self.untrustedSessionLock.lock()
+        defer { Self.untrustedSessionLock.unlock() }
+        
+        if let cachedSession = Self.cachedUntrustedSession {
+            return cachedSession
+        }
+        
+        // Create new session with delegate for untrusted certificates
+        let delegate = AllowUntrustedCertsDelegate()
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        Self.cachedUntrustedSession = session
+        return session
+    }
+    
+    // MARK: - URLSession delegate to allow untrusted certificates
+    class AllowUntrustedCertsDelegate: NSObject, URLSessionDelegate {
+        func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+               let serverTrust = challenge.protectionSpace.serverTrust {
+                // Accept the server trust without validation
+                let credential = URLCredential(trust: serverTrust)
+                completionHandler(.useCredential, credential)
+            } else {
+                completionHandler(.performDefaultHandling, nil)
+            }
+        }
+    }
 
-    func initializeStore(dittoApp: DittoApp) async throws {
+    func initializeStore(appState: AppState) async throws {
         do {
             if !isStoreInitialized {
                 // setup logging
@@ -57,7 +93,7 @@ actor DittoManager: ObservableObject {
                 DittoLogger.minimumLogLevel = .debug
 
                 //cache state for future use
-                self.app = dittoApp
+                self.appState =  appState
 
                 // Create directory for local database
                 let localDirectoryPath = FileManager.default.urls(
@@ -77,8 +113,8 @@ actor DittoManager: ObservableObject {
                 }
 
                 //validate that the dittoConfig.plist file is valid
-                if dittoApp.appConfig.appId.isEmpty
-                    || dittoApp.appConfig.appId == "put appId here"
+                if appState.appConfig.appId.isEmpty
+                    || appState.appConfig.appId == "put appId here"
                 {
                     let error = AppError.error(
                         message: "dittoConfig.plist error - App ID is empty"
@@ -89,11 +125,11 @@ actor DittoManager: ObservableObject {
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 dittoLocal = Ditto(
                     identity: .onlinePlayground(
-                        appID: dittoApp.appConfig.appId,
-                        token: dittoApp.appConfig.authToken,
+                        appID: appState.appConfig.appId,
+                        token: appState.appConfig.authToken,
                         enableDittoCloudSync: false,
                         customAuthURL: URL(
-                            string: dittoApp.appConfig.authUrl
+                            string: appState.appConfig.authUrl
                         )
                     ),
                     persistenceDirectory: localDirectoryPath
@@ -101,7 +137,7 @@ actor DittoManager: ObservableObject {
 
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
-                        dittoApp.appConfig.websocketUrl
+                        appState.appConfig.websocketUrl
                     )
                 })
 
@@ -123,7 +159,7 @@ actor DittoManager: ObservableObject {
                 try registerLocalObservers()
             }
         } catch {
-            self.app?.setError(error)
+            self.appState?.setError(error)
         }
     }
 

@@ -9,7 +9,7 @@ import SwiftUI
 import MongoKitten
 
 struct AppEditorView: View {
-    @EnvironmentObject private var appState: DittoApp
+    @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
     
@@ -64,6 +64,16 @@ struct AppEditorView: View {
                             Text("HTTP API Key")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .padding(.bottom, 10)
+                            
+                            Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
+                                .padding(.bottom, 5)
+                            
+                            Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .padding(.bottom, 10)
                         }
                     }
@@ -136,6 +146,7 @@ extension AppEditorView {
         var httpApiKey: String
         var mongoDbConnectionString:String
         var mode: String
+        var allowUntrustedCerts: Bool
         
         let isNewItem: Bool
         
@@ -150,6 +161,7 @@ extension AppEditorView {
             httpApiKey = appConfig.httpApiKey
             mongoDbConnectionString = appConfig.mongoDbConnectionString
             mode = appConfig.mode
+            allowUntrustedCerts = appConfig.allowUntrustedCerts
             
             if (appConfig.appId == "") {
                 isNewItem = true
@@ -158,7 +170,7 @@ extension AppEditorView {
             }
         }
         
-        func save(appState: DittoApp) async throws {
+        func save(appState: AppState) async throws {
             do {
                 let appConfig = DittoAppConfig(_id,
                                                name: name,
@@ -169,7 +181,8 @@ extension AppEditorView {
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
                                                mongoDbConnectionString: mongoDbConnectionString,
-                                               mode: mode)
+                                               mode: mode,
+                                               allowUntrustedCerts: allowUntrustedCerts)
                 if !mongoDbConnectionString.isEmpty && mongoDbConnectionString != "" {
                     do {
                         _ = try await MongoDatabase.connect(to: mongoDbConnectionString)

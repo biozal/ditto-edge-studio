@@ -74,7 +74,15 @@ extension DittoManager {
         let requestBody = ["statement": query]
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response): (Data, URLResponse)
+        
+        if appConfig.allowUntrustedCerts {
+            // Use cached URLSession that allows untrusted certificates
+            let session = getCachedUntrustedSession()
+            (data, response) = try await session.data(for: request)
+        } else {
+            (data, response) = try await URLSession.shared.data(for: request)
+        }
         
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
