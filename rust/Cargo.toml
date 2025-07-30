@@ -1,14 +1,14 @@
 [package]
-name = "edge-studio"
+name = "edgebot"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "edge-studio"
+name = "edgebot"
 path = "src/bin/main.rs"
 
 [lib]
-name = "edge_studio"
+name = "edgebot"
 path = "src/lib.rs"
 
 [dependencies]
