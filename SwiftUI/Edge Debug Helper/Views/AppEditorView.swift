@@ -69,7 +69,7 @@ struct AppEditorView: View {
                             Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
                                 .padding(.bottom, 5)
                             
-                            Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses security risks. Only check this if you know what you are doing.")
+                            Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.leading)
