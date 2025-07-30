@@ -11,8 +11,9 @@ struct MainStudioView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
+    @StateObject private var dittoManager = DittoManager.shared
 
-    @State private var isSyncEnabled: Bool = false
+
 
     //used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
@@ -164,13 +165,7 @@ struct MainStudioView: View {
         
         }
         .onAppear {
-            Task {
-                for await value in await DittoManager.shared.$selectedAppIsSyncEnabled.values {
-                    await MainActor.run {
-                        isSyncEnabled = value
-                    }
-                }
-            }
+            // No longer needed - using DittoManager state directly
         }
         #if os(macOS)
             .toolbar {
@@ -189,14 +184,14 @@ struct MainStudioView: View {
     func syncToolbarButton() -> some ToolbarContent {
         ToolbarItem(id: "syncButton", placement: .primaryAction) {
             Button {
-                if isSyncEnabled {
+                if dittoManager.selectedAppIsSyncEnabled {
                     Task { @MainActor in
-                        await DittoManager.shared.selectedAppStopSync()
+                        await dittoManager.selectedAppStopSync()
                     }
                 } else {
                     Task { @MainActor in
                         do {
-                            try await DittoManager.shared.selectedAppStartSync()
+                            try await dittoManager.selectedAppStartSync()
                         } catch {
                             appState.setError(error)
                         }
@@ -205,9 +200,9 @@ struct MainStudioView: View {
                 }
             } label: {
                 Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
-                    .foregroundColor(isSyncEnabled ? .green : .red)
+                    .foregroundColor(dittoManager.selectedAppIsSyncEnabled ? .green : .red)
             }
-            .help(isSyncEnabled ? "Disable Sync" : "Enable Sync")
+            .help(dittoManager.selectedAppIsSyncEnabled ? "Disable Sync" : "Enable Sync")
         }
     }
     
