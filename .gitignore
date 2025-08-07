@@ -7,3 +7,5 @@ SwiftUI/scripts/*.dmg.zip
 rust/.idea
 rust/target
 .env
+edgetbot/target
+edgetbot/.idea
