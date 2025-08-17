@@ -7,3 +7,4 @@ SwiftUI/scripts/*.dmg.zip
 rust/.idea
 rust/target
 .env
+rust/.vscode
