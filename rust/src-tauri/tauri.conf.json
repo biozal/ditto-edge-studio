@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ditto-edge-studio",
+  "productName": "Ditto Edge Studio",
   "version": "0.1.0",
   "identifier": "com.costoda.ditto-edge-studio",
   "build": {
@@ -12,9 +12,10 @@
   "app": {
     "windows": [
       {
-        "title": "ditto-edge-studio",
-        "width": 800,
-        "height": 600
+        "title": "Ditto Edge Studio",
+        "width": 1400,
+        "height": 800,
+        "titleBarStyle": "Transparent"
       }
     ],
     "security": {
@@ -30,6 +31,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": [
+      "../.env",
+      "../Info.plist"
+    ],
+    "macOS": {
+      "entitlements": "../entitlements.plist"
+    }
   }
 }

@@ -1,50 +1,66 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import LogsWindow from "./components/LogsWindow";
+import AppListing from "./components/AppListing";
+import ErrorModal from "./components/ErrorModal";
+import { useDitto } from "./providers/DittoProvider";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { error: dittoError } = useDitto();
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  async function openLogsWindow() {
+    try {
+      await invoke("open_logs_window");
+    } catch (error) {
+      console.error("Failed to open logs window:", error);
+    }
   }
 
+  // Keyboard shortcut handler for Cmd+L
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for Cmd+L (Mac) or Ctrl+L (Windows/Linux)
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        openLogsWindow();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Check if this is the logs window
+  if ((window as any).__IS_LOGS_WINDOW__) {
+    return <LogsWindow />;
+  }
+
+  // Handle Ditto initialization errors
+  useEffect(() => {
+    if (dittoError) {
+      setError(dittoError);
+    }
+  }, [dittoError]);
+
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <div className="app-container">
+      {/* Main content area with app listing */}
+      <main className="app-main">
+        <AppListing />
+      </main>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+      {/* Error Modal */}
+      {error && (
+        <ErrorModal
+          error={error}
+          onClose={() => setError(null)}
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+      )}
+    </div>
   );
 }
 

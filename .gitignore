@@ -8,3 +8,5 @@ rust/.idea
 rust/target
 .env
 rust/.vscode
+rust/debug
+rust/designs

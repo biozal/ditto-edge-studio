@@ -141,13 +141,6 @@ actor DittoManager: ObservableObject {
                     )
                 })
 
-                // Disable avoid_redundant_bluetooth
-                // https://docs.ditto.live/sdk/latest/sync/managing-redundant-bluetooth-le-connections#disabling-redundant-connections
-                try await dittoLocal?.store.execute(
-                    query:
-                        "ALTER SYSTEM SET mesh_chooser_avoid_redundant_bluetooth = false"
-                )
-
                 // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
                 // 
                 try await dittoLocal?.store.execute(
