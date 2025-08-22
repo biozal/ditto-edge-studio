@@ -55,9 +55,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppState.swift,
-				Components/DittoAppCard.swift,
-				Components/DittoSubscriptionCard.swift,
-				Components/DittoSubscriptionList.swift,
+				Components/DatabaseCard.swift,
 				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
@@ -67,15 +65,15 @@
 				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
 				Components/SecureField.swift,
+				Components/SubscriptionCard.swift,
+				Components/SubscriptionList.swift,
+				Data/DittoManager_DatabaseSub.swift,
 				Data/DittoManager.swift,
-				Data/LocalDB/DittoManager_DittoAppConfig.swift,
-				Data/LocalDB/DittoManager_LocalSubscription.swift,
 				Data/MongoManager.swift,
-				Data/SelectedApp/DittoManager_Import.swift,
-				Data/SelectedApp/DittoManager_Lifecycle.swift,
-				Data/SelectedApp/DittoManager_Observable.swift,
-				Data/SelectedApp/DittoManager_Query.swift,
-				Data/SelectedApp/DittoManager_Subscription.swift,
+				Data/SelectedDatabase/DittoManager_Lifecycle.swift,
+				Data/SelectedDatabase/DittoManager_Observable.swift,
+				Data/SelectedDatabase/DittoManager_Query.swift,
+				Data/SelectedDatabase/DittoManager_Subscription.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -101,9 +99,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppState.swift,
-				Components/DittoAppCard.swift,
-				Components/DittoSubscriptionCard.swift,
-				Components/DittoSubscriptionList.swift,
+				Components/DatabaseCard.swift,
 				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
@@ -113,15 +109,15 @@
 				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
 				Components/SecureField.swift,
+				Components/SubscriptionCard.swift,
+				Components/SubscriptionList.swift,
+				Data/DittoManager_DatabaseSub.swift,
 				Data/DittoManager.swift,
-				Data/LocalDB/DittoManager_DittoAppConfig.swift,
-				Data/LocalDB/DittoManager_LocalSubscription.swift,
 				Data/MongoManager.swift,
-				Data/SelectedApp/DittoManager_Import.swift,
-				Data/SelectedApp/DittoManager_Lifecycle.swift,
-				Data/SelectedApp/DittoManager_Observable.swift,
-				Data/SelectedApp/DittoManager_Query.swift,
-				Data/SelectedApp/DittoManager_Subscription.swift,
+				Data/SelectedDatabase/DittoManager_Lifecycle.swift,
+				Data/SelectedDatabase/DittoManager_Observable.swift,
+				Data/SelectedDatabase/DittoManager_Query.swift,
+				Data/SelectedDatabase/DittoManager_Subscription.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
@@ -369,7 +365,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1630;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					0D3F27D22DDA00FA004A69D1 = {
 						CreatedOnToolsVersion = 16.3;
@@ -531,6 +527,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -587,6 +584,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -604,8 +602,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";
@@ -654,8 +657,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";

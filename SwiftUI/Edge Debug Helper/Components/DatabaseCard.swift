@@ -8,7 +8,7 @@
 import SwiftUI
 import Combine
 
-struct DittoAppCard: View {
+struct DatabaseCard: View {
     let dittoApp: DittoAppConfig
     var onEdit: () -> Void
     

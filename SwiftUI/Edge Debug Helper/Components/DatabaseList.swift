@@ -7,7 +7,7 @@
 import SwiftUI
 import Combine
 
-struct DittoAppList: View {
+struct DatabaseList: View {
   let viewModel: ContentView.ViewModel
   let appState: AppState
 
@@ -46,7 +46,7 @@ struct DittoAppList: View {
     #else
       List {
         ForEach(viewModel.dittoApps, id: \._id) { dittoApp in
-          DittoAppCard(dittoApp: dittoApp) {}
+          DatabaseCard(dittoApp: dittoApp) {}
             .padding(.bottom, 16)
             .padding(.top, 16)
             .contentShape(Rectangle())

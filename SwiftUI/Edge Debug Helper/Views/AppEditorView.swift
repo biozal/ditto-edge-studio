@@ -149,6 +149,7 @@ extension AppEditorView {
         var allowUntrustedCerts: Bool
         
         let isNewItem: Bool
+        private let databaseRepository = DatabaseRepository.shared
         
         init(_ appConfig: DittoAppConfig) {
             _id =  appConfig._id
@@ -195,9 +196,9 @@ extension AppEditorView {
                 }
                 
                 if isNewItem {
-                    try await DittoManager.shared.addDittoAppConfig(appConfig)
+                    try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {
-                    try await DittoManager.shared.updateDittoAppConfig(appConfig)
+                    try await databaseRepository.updateDittoAppConfig(appConfig)
                 }
             } catch {
                 appState.setError(error)

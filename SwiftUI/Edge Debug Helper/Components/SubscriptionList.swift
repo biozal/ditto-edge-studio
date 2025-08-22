@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct DittoSubscriptionList: View {
+struct SubscriptionList: View {
     @Binding var subscriptions: [DittoSubscription]
     var onEdit: (_ subscription: DittoSubscription) async -> Void
     var onDelete: (_ subscription: DittoSubscription) async throws -> Void
@@ -23,7 +23,7 @@ struct DittoSubscriptionList: View {
                     )
                 ) {
                     ForEach(subscriptions, id: \.id) { subscription in
-                        DittoSubscriptionCard(subscription: subscription)
+                        SubscriptionCard(subscription: subscription)
                             .padding(.bottom, 16)
                             .padding(.top, 16)
                             .contentShape(Rectangle())
@@ -53,7 +53,7 @@ struct DittoSubscriptionList: View {
         #else
             List {
                 ForEach(subscriptions, id: \.id) { subscription in
-                    DittoSubscriptionCard(subscription: subscription)
+                    SubscriptionCard(subscription: subscription)
                         .padding(.bottom, 4)
                         .padding(.top, 4)
                         .contentShape(Rectangle())
@@ -88,7 +88,7 @@ struct DittoSubscriptionList: View {
 }
 
 #Preview {
-    DittoSubscriptionList(
+    SubscriptionList(
         subscriptions: .constant([
             DittoSubscription(
                 [

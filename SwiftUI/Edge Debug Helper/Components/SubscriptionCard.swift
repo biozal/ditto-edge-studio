@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct DittoSubscriptionCard: View {
+struct SubscriptionCard: View {
     let subscription: DittoSubscription
     
     var body: some View {
@@ -49,7 +49,7 @@ struct DittoSubscriptionCard: View {
 }
 
 #Preview {
-    DittoSubscriptionCard(
+    SubscriptionCard(
         subscription: DittoSubscription(
             ["_id": "1",
             "name": "Example Subscription",

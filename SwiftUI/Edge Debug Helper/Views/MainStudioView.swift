@@ -254,7 +254,7 @@ extension MainStudioView {
                 )
                 Spacer()
             } else {
-                DittoSubscriptionList(
+                SubscriptionList(
                     subscriptions: $viewModel.subscriptions,
                     onEdit: viewModel.showSubscriptionEditor,
                     onDelete: viewModel.deleteSubscription,

@@ -10,8 +10,7 @@ import DittoSwift
 
 // MARK: Ditto Local DB - Subscriptions
 extension DittoManager {
-    
-    func setupLocalSubscription() async throws {
+    func setupDatabaseConfigSubscriptions() async throws {
         if let ditto = dittoLocal {
             //set collection to only sync to local
             let syncScopes = [
@@ -40,7 +39,7 @@ extension DittoManager {
         }
     }
     
-    func stopLocalSubscription() {
+    func stopDatabaseConfigSubscription() {
         if let subscriptionInstance = localAppConfigSubscription {
             subscriptionInstance.cancel()
             dittoLocal?.sync.stop()

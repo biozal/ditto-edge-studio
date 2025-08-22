@@ -42,22 +42,22 @@ struct ContentView: View {
                     Group {
                         if viewModel.isLoading {
                             AnyView(
-                                ProgressView("Loading Apps...")
+                                ProgressView("Loading Database Configs...")
                                     .progressViewStyle(.circular)
                             )
                         } else if viewModel.dittoApps.isEmpty {
                             AnyView(
                                 ContentUnavailableView(
-                                    "No Apps",
+                                    "No Database Configurations",
                                     systemImage:
                                         "exclamationmark.triangle.fill",
                                     description: Text(
-                                        "No apps have been added yet. Click the plus button above to add your first app."
+                                        "No databases have been added yet. Click the plus button above to add your first app."
                                     )
                                 )
                             )
                         } else {
-                            DittoAppList(
+                            DatabaseList(
                                 viewModel: viewModel,
                                 appState: appState
                             )
@@ -141,6 +141,7 @@ extension ContentView {
     @MainActor
     class ViewModel {
         @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+        private let databaseRepository = DatabaseRepository.shared
 
         var dittoApps: [DittoAppConfig] = []
         var isLoading = false
@@ -155,20 +156,13 @@ extension ContentView {
         var selectedDittoAppConfig: DittoAppConfig?
 
         init() {
-            // Observe changes to DittoService's planets
-            Task { @MainActor in
-                await DittoManager.shared.$dittoAppConfigs
-                    .receive(on: RunLoop.main)
-                    .sink { [weak self] updatedApps in
-                        self?.dittoApps = updatedApps
-                    }
-                    .store(in: &cancellables)
-            }
+            // Repository callback will be set up when loadApps is called
         }
 
         func deleteApp(_ dittoApp: DittoAppConfig, appState: AppState) async {
             do {
-                try await DittoManager.shared.deleteDittoAppConfig(dittoApp)
+                // Now requires await since DatabaseRepository is an actor
+                try await databaseRepository.deleteDittoAppConfig(dittoApp)
             } catch {
                 appState.setError(error)
             }
@@ -177,10 +171,23 @@ extension ContentView {
         func loadApps(appState: AppState) async {
             isLoading = true
             do {
+                // Initialize DittoManager first
                 try await DittoManager.shared.initializeStore(
                     appState: appState
                 )
-                dittoApps = await DittoManager.shared.dittoAppConfigs
+                
+                // Set appState in repository (now requires await since it's an actor)
+                await databaseRepository.setAppState(appState)
+                
+                // Set up callback using the new setter method (now requires await)
+                await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
+                    Task { @MainActor [weak self] in
+                        self?.dittoApps = configs
+                    }
+                }
+                
+                // Register observers after setting up callback (requires await)
+                try await databaseRepository.registerLocalObservers()
             } catch {
                 appState.setError(error)
             }

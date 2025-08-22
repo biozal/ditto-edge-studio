@@ -24,8 +24,6 @@ actor DittoManager: ObservableObject {
     var dittoLocal: Ditto?
     var localAppConfigSubscription: DittoSyncSubscription?
 
-    var localAppConfigsObserver: DittoStoreObserver?
-    @Published var dittoAppConfigs: [DittoAppConfig] = []
 
     // MARK: Selected App
 
@@ -148,8 +146,7 @@ actor DittoManager: ObservableObject {
                 )
 
                 try dittoLocal?.disableSyncWithV3()
-                try await setupLocalSubscription()
-                try registerLocalObservers()
+                try await setupDatabaseConfigSubscriptions()
             }
         } catch {
             self.appState?.setError(error)
