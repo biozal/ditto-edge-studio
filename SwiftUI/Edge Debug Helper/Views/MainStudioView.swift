@@ -134,7 +134,7 @@ struct MainStudioView: View {
             case "MongoDb":
                 mongoDBDetailView()
             default:
-                tutorialDetailView()
+                syncDetailView()
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
@@ -654,9 +654,9 @@ extension MainStudioView {
 //MARK: Detail Views
 extension MainStudioView {
 
-    func tutorialDetailView() -> some View {
+    func syncDetailView() -> some View {
         return VStack(alignment: .trailing) {
-            Text("Tutorial Detail View")
+            Text("Sync Status")
         }
         #if os(iOS)
             .toolbar {

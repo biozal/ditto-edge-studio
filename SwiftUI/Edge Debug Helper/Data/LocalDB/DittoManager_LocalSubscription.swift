@@ -35,7 +35,7 @@ extension DittoManager {
                         """
                 )
             Task(priority: .background) {
-                try ditto.startSync()
+                try ditto.sync.start()
             }
         }
     }
@@ -43,7 +43,7 @@ extension DittoManager {
     func stopLocalSubscription() {
         if let subscriptionInstance = localAppConfigSubscription {
             subscriptionInstance.cancel()
-            dittoLocal?.stopSync()
+            dittoLocal?.sync.stop()
         }
     }
 }

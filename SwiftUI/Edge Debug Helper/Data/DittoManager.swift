@@ -89,7 +89,7 @@ actor DittoManager: ObservableObject {
         do {
             if !isStoreInitialized {
                 // setup logging
-                DittoLogger.enabled = true
+                DittoLogger.isEnabled = true
                 DittoLogger.minimumLogLevel = .debug
 
                 //cache state for future use

@@ -14,7 +14,7 @@ extension DittoManager {
     func closeDittoSelectedApp() {
         //if an app was already selected, cancel the subscription, observations, and remove the app
         if let ditto = dittoSelectedApp {
-            ditto.stopSync()
+            ditto.sync.stop()
             self.dittoSubscriptions.forEach { subscription in
                 if let dittoSub = subscription.syncSubscription {
                     dittoSub.cancel()
@@ -48,9 +48,9 @@ extension DittoManager {
         dittoSelectedApp = nil
     }
     
-    func selectedAppStartSync() async throws {
+    func selectedAppStartSync() throws {
         do {
-            try await dittoSelectedApp?.startSync()
+            try dittoSelectedApp?.sync.start()
             self.selectedAppIsSyncEnabled = true
         } catch {
             appState?.setError(error)
@@ -59,7 +59,7 @@ extension DittoManager {
     }
     
     func selectedAppStopSync() {
-        dittoSelectedApp?.stopSync()
+        dittoSelectedApp?.sync.stop()
         self.selectedAppIsSyncEnabled = false
     }
 }
@@ -134,7 +134,7 @@ extension DittoManager {
             self.dittoSelectedAppConfig = appConfig
             
             //start sync in the selected app
-            try ditto.startSync()
+            try ditto.sync.start()
             selectedAppIsSyncEnabled = true
             // hydrate the subscriptions from the local database
             try await hydrateDittoSubscriptions()
