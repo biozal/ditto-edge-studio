@@ -18,11 +18,11 @@ const SecureTextInput: React.FC<SecureTextInputProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
+  const MASK_LENGTH = 32;
   const generateMaskedText = (text: string): string => {
     if (!text) return "";
-    // Generate a random number of stars between 20-40 to obscure the actual length
-    const starCount = Math.floor(Math.random() * 21) + 20;
-    return "•".repeat(starCount);
+    // Use a fixed number of masking characters to obscure the actual length
+    return "•".repeat(MASK_LENGTH);
   };
 
   const toggleVisibility = () => {
