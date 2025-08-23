@@ -176,8 +176,27 @@ extension ContentView {
                     appState: appState
                 )
                 
-                // Set appState in repository (now requires await since it's an actor)
+                //setup the local database subscription for registered apps
                 await databaseRepository.setAppState(appState)
+                try await databaseRepository.setupDatabaseConfigSubscriptions()
+                
+                // Set appState in SystemRepository as well
+                await SystemRepository.shared.setAppState(appState)
+                
+                // Set appState in ObservableRepository as well
+                await ObservableRepository.shared.setAppState(appState)
+                
+                // Set appState in FavoritesRepository as well
+                await FavoritesRepository.shared.setAppState(appState)
+                
+                // Set appState in HistoryRepository as well
+                await HistoryRepository.shared.setAppState(appState)
+                
+                // Set appState in CollectionsRepository as well
+                await CollectionsRepository.shared.setAppState(appState)
+                
+                // Set appState in SubscriptionsRepository as well
+                await SubscriptionsRepository.shared.setAppState(appState)
                 
                 // Set up callback using the new setter method (now requires await)
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
@@ -204,15 +223,6 @@ extension ContentView {
         {
             do {
                 selectedDittoAppConfig = dittoApp
-                if let connectionString = selectedDittoAppConfig?.mongoDbConnectionString {
-                    if (!connectionString.isEmpty && connectionString != "") {
-                        await MongoManager.shared
-                            .initializeConnection(
-                                connectionString: connectionString,
-                                appState: appState
-                            )
-                    }
-                }
                 let didSetupDitto = try await DittoManager.shared
                     .hydrateDittoSelectedApp(
                         dittoApp

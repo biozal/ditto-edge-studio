@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import MongoKitten
 
 struct AppEditorView: View {
     @EnvironmentObject private var appState: AppState
@@ -77,19 +76,6 @@ struct AppEditorView: View {
                                 .padding(.bottom, 10)
                         }
                     }
-                    Section("MongoDB Driver Connection String - Optional"){
-                        VStack(alignment: .leading) {
-                            TextEditor(text: $viewModel.mongoDbConnectionString)
-                                .frame(minHeight: 80)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.secondary.opacity(0.5))
-                                )
-                            Text("Connection String")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
                 }
             }
 #if os(macOS)
@@ -144,7 +130,6 @@ extension AppEditorView {
         var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
-        var mongoDbConnectionString:String
         var mode: String
         var allowUntrustedCerts: Bool
         
@@ -160,7 +145,6 @@ extension AppEditorView {
             websocketUrl = appConfig.websocketUrl
             httpApiUrl = appConfig.httpApiUrl
             httpApiKey = appConfig.httpApiKey
-            mongoDbConnectionString = appConfig.mongoDbConnectionString
             mode = appConfig.mode
             allowUntrustedCerts = appConfig.allowUntrustedCerts
             
@@ -181,20 +165,8 @@ extension AppEditorView {
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
-                                               mongoDbConnectionString: mongoDbConnectionString,
                                                mode: mode,
                                                allowUntrustedCerts: allowUntrustedCerts)
-                if !mongoDbConnectionString.isEmpty && mongoDbConnectionString != "" {
-                    do {
-                        _ = try await MongoDatabase.connect(to: mongoDbConnectionString)
-                    } catch {
-                        appState.setError(error)
-                        let nsError = error as NSError
-                        print ("NS Error: ",nsError)
-                        return
-                    }
-                }
-                
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {

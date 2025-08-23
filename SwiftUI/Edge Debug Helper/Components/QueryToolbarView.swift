@@ -1,10 +1,3 @@
-//
-//  QueryToolbarView.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/5/25.
-//
-
 import SwiftUI
 
 struct QueryToolbarView: View {
@@ -55,12 +48,12 @@ struct QueryToolbarView: View {
                     .contextMenu {
                         Button ("Delete"){
                             Task {
-                                    try await DittoManager.shared.deleteQueryHistory(query.id)
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
                                 }
                             }
                         Button ("Favorite"){
                             Task {
-                                try await DittoManager.shared.saveFavorite(query)
+                                try await FavoritesRepository.shared.saveFavorite(query)
                             }
                         }
                     }
@@ -68,7 +61,7 @@ struct QueryToolbarView: View {
                     .swipeActions(edge: .trailing) {
                         Button(role: .cancel) {
                             Task {
-                                try await DittoManager.shared
+                                try await FavoritesRepository.shared
                                     .saveFavorite(query)
                             }
                         } label: {
@@ -88,7 +81,7 @@ struct QueryToolbarView: View {
                 }
                 Button  {
                     Task {
-                        try await DittoManager.shared.clearQueryHistory()
+                        try await HistoryRepository.shared.clearQueryHistory()
                     }
                 } label: {
                     Label("Clear History", systemImage: "trash")
@@ -109,7 +102,7 @@ struct QueryToolbarView: View {
                     .contextMenu {
                         Button ("Delete"){
                             Task {
-                                try await DittoManager.shared.deleteFavorite(query.id)
+                                try await FavoritesRepository.shared.deleteFavorite(query.id)
                             }
                         }
                     }
@@ -117,7 +110,7 @@ struct QueryToolbarView: View {
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
                             Task {
-                                try await DittoManager.shared.deleteFavorite(query.id)
+                                try await FavoritesRepository.shared.deleteFavorite(query.id)
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")

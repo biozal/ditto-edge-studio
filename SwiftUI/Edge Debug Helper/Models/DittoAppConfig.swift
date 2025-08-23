@@ -10,7 +10,6 @@ class DittoAppConfig: Decodable {
     var websocketUrl: String
     var httpApiUrl: String
     var httpApiKey: String
-    var mongoDbConnectionString: String
     var mode: String
     var allowUntrustedCerts: Bool
 
@@ -23,7 +22,6 @@ class DittoAppConfig: Decodable {
         websocketUrl: String,
         httpApiUrl: String,
         httpApiKey: String,
-        mongoDbConnectionString: String,
         mode: String = "online",
         allowUntrustedCerts: Bool = false
     ) {
@@ -36,7 +34,6 @@ class DittoAppConfig: Decodable {
         self.websocketUrl = websocketUrl
         self.httpApiUrl = httpApiUrl
         self.httpApiKey = httpApiKey
-        self.mongoDbConnectionString = mongoDbConnectionString
         self.mode = mode
         self.allowUntrustedCerts = allowUntrustedCerts
     }
@@ -49,7 +46,6 @@ class DittoAppConfig: Decodable {
         case websocketUrl
         case httpApiUrl
         case httpApiKey
-        case mongoDbConnectionString
         case mode
         case allowUntrustedCerts
     }
@@ -64,8 +60,6 @@ class DittoAppConfig: Decodable {
         websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
         httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
         httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
-        mongoDbConnectionString = try container
-            .decodeIfPresent(String.self, forKey: .mongoDbConnectionString) ?? ""
         mode = try container.decode(String.self, forKey: .mode)
         allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
     }
@@ -82,7 +76,6 @@ extension DittoAppConfig {
             websocketUrl: "",
             httpApiUrl: "",
             httpApiKey: "",
-            mongoDbConnectionString: "",
             mode: "online",
             allowUntrustedCerts: false
         )

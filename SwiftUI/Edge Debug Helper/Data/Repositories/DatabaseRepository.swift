@@ -1,10 +1,3 @@
-//
-//  DatabaseRepository.swift
-//  Edge Studio
-//
-//  Created by Assistant on 8/22/25.
-//
-
 import DittoSwift
 import Foundation
 
@@ -21,15 +14,52 @@ actor DatabaseRepository {
     // Store the callback inside the actor
     private var onDittoDatabaseConfigUpdate: (([DittoAppConfig]) -> Void)?
     
+    var localAppConfigSubscription: DittoSyncSubscription?
+    
     private init() { }
     
-    func setAppState(_ appState: AppState) {
-        self.appState = appState
+    deinit {
+        dittoDatabaseConfigsObserver?.cancel()
+    }
+
+    func addDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
+        let ditto = await dittoManager.dittoLocal
+        guard let ditto = ditto else { return }
+        
+        do {
+            let query =
+            "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"
+            let arguments: [String: Any] = [
+                "newConfig": [
+                    "_id": appConfig._id,
+                    "name": appConfig.name,
+                    "appId": appConfig.appId,
+                    "authToken": appConfig.authToken,
+                    "authUrl": appConfig.authUrl,
+                    "websocketUrl": appConfig.websocketUrl,
+                    "httpApiUrl": appConfig.httpApiUrl,
+                    "httpApiKey": appConfig.httpApiKey,
+                    "mode": appConfig.mode,
+                    "allowUntrustedCerts": appConfig.allowUntrustedCerts,
+                ]
+            ]
+            try await ditto.store.execute(
+                query: query,
+                arguments: arguments
+            )
+        } catch {
+            self.appState?.setError(error)
+            throw error
+        }
     }
     
-    // Function to set the callback from outside the actor
-    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping ([DittoAppConfig]) -> Void) {
-        self.onDittoDatabaseConfigUpdate = callback
+    func deleteDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
+        let ditto = await dittoManager.dittoLocal
+        guard let ditto = ditto else { return }
+        
+        let query = "DELETE FROM dittoappconfigs WHERE _id = :id"
+        let argument = ["id": appConfig._id]
+        try await ditto.store.execute(query: query, arguments: argument)
     }
     
     func registerLocalObservers() async throws {
@@ -73,45 +103,53 @@ actor DatabaseRepository {
         }
     }
     
-    func addDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
-        let ditto = await dittoManager.dittoLocal
-        guard let ditto = ditto else { return }
-        
-        do {
-            let query =
-            "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"
-            let arguments: [String: Any] = [
-                "newConfig": [
-                    "_id": appConfig._id,
-                    "name": appConfig.name,
-                    "appId": appConfig.appId,
-                    "authToken": appConfig.authToken,
-                    "authUrl": appConfig.authUrl,
-                    "websocketUrl": appConfig.websocketUrl,
-                    "httpApiUrl": appConfig.httpApiUrl,
-                    "httpApiKey": appConfig.httpApiKey,
-                    "mode": appConfig.mode,
-                    "allowUntrustedCerts": appConfig.allowUntrustedCerts,
-                    "mongoDbConnectionString": appConfig.mongoDbConnectionString
-                ]
+    func setAppState(_ appState: AppState) {
+        self.appState = appState
+    }
+    
+    // Function to set the callback from outside the actor
+    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping ([DittoAppConfig]) -> Void) {
+        self.onDittoDatabaseConfigUpdate = callback
+    }
+    
+    func setupDatabaseConfigSubscriptions() async throws {
+        if let ditto = await DittoManager.shared.dittoLocal {
+            //set collection to only sync to local
+            let syncScopes = [
+                "dittoappconfigs": "LocalPeerOnly",
+                "dittosubscriptions": "LocalPeerOnly",
+                "dittoobservations": "LocalPeerOnly",
+                "dittoqueryfavorites": "LocalPeerOnly",
+                "dittoqueryhistory": "LocalPeerOnly",
             ]
             try await ditto.store.execute(
-                query: query,
-                arguments: arguments
+                query:
+                    "ALTER SYSTEM SET USER_COLLECTION_SYNC_SCOPES = :syncScopes",
+                arguments: ["syncScopes": syncScopes]
             )
-        } catch {
-            self.appState?.setError(error)
-            throw error
+            //setup subscription
+            self.localAppConfigSubscription = try ditto.sync
+                .registerSubscription(
+                    query: """
+                        SELECT *
+                        FROM dittoappconfigs 
+                        """
+                )
+            Task(priority: .background) {
+                try ditto.sync.start()
+            }
         }
     }
     
-    func deleteDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
+    func stopDatabaseConfigSubscription() async {
         let ditto = await dittoManager.dittoLocal
         guard let ditto = ditto else { return }
         
-        let query = "DELETE FROM dittoappconfigs WHERE _id = :id"
-        let argument = ["id": appConfig._id]
-        try await ditto.store.execute(query: query, arguments: argument)
+        if let subscriptionInstance = localAppConfigSubscription {
+            subscriptionInstance.cancel()
+            ditto.sync.stop()
+        }
+        localAppConfigSubscription = nil
     }
     
     func updateDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
@@ -120,7 +158,7 @@ actor DatabaseRepository {
         
         do {
             let query =
-            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, mongoDbConnectionString = :mongoDbConnectionString WHERE _id = :_id"
+            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts WHERE _id = :_id"
             let arguments: [String: Any] = [
                 "_id": appConfig._id,
                 "name": appConfig.name,
@@ -132,7 +170,6 @@ actor DatabaseRepository {
                 "httpApiKey": appConfig.httpApiKey,
                 "mode": appConfig.mode,
                 "allowUntrustedCerts": appConfig.allowUntrustedCerts,
-                "mongoDbConnectionString": appConfig.mongoDbConnectionString
             ]
             try await ditto.store.execute(
                 query: query,
@@ -142,9 +179,5 @@ actor DatabaseRepository {
             self.appState?.setError(error)
             throw error
         }
-    }
-    
-    deinit {
-        dittoDatabaseConfigsObserver?.cancel()
     }
 }
