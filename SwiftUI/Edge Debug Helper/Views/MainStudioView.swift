@@ -11,6 +11,7 @@ struct MainStudioView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
+    @State private var showingImportView = false
 
 
 
@@ -102,10 +103,7 @@ struct MainStudioView: View {
                         }
                     } else if viewModel.selectedMenuItem.name == "Collections" {
                         Button {
-                            Task {
-                                try await HistoryRepository.shared
-                                    .clearQueryHistory()
-                            }
+                            showingImportView = true
                         } label: {
                             Label(
                                 "Import",
@@ -162,6 +160,10 @@ struct MainStudioView: View {
                 ).environmentObject(appState)
             }
         
+        }
+        .sheet(isPresented: $showingImportView) {
+            ImportDataView(isPresented: $showingImportView)
+                .environmentObject(appState)
         }
         .onAppear {
             // No longer needed - using DittoManager state directly
