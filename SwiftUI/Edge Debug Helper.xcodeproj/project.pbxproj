@@ -21,10 +21,6 @@
 		0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */; };
 		0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284D2DDA0EC1004A69D1 /* DittoObjC */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
-		0DE5B1F92DF9177D001574F6 /* Meow in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1F82DF9177D001574F6 /* Meow */; };
-		0DE5B1FB2DF9177D001574F6 /* MongoClient in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FA2DF9177D001574F6 /* MongoClient */; };
-		0DE5B1FD2DF9177D001574F6 /* MongoCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FC2DF9177D001574F6 /* MongoCore */; };
-		0DE5B1FF2DF9177D001574F6 /* MongoKitten in Frameworks */ = {isa = PBXBuildFile; productRef = 0DE5B1FE2DF9177D001574F6 /* MongoKitten */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,9 +51,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppState.swift,
-				Components/DittoAppCard.swift,
-				Components/DittoSubscriptionCard.swift,
-				Components/DittoSubscriptionList.swift,
+				Components/DatabaseCard.swift,
 				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
@@ -67,25 +61,21 @@
 				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
 				Components/SecureField.swift,
+				Components/SubscriptionCard.swift,
+				Components/SubscriptionList.swift,
+				Data/AllowUntrustedCertsDelegate.swift,
 				Data/DittoManager.swift,
-				Data/LocalDB/DittoManager_DittoAppConfig.swift,
-				Data/LocalDB/DittoManager_LocalSubscription.swift,
-				Data/MongoManager.swift,
-				Data/SelectedApp/DittoManager_Import.swift,
-				Data/SelectedApp/DittoManager_Lifecycle.swift,
-				Data/SelectedApp/DittoManager_Observable.swift,
-				Data/SelectedApp/DittoManager_Query.swift,
-				Data/SelectedApp/DittoManager_Subscription.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
 				Models/DittoObserveEvent.swift,
 				Models/DittoQueryHistory.swift,
 				Models/DittoSubscription.swift,
+				Models/IndexInfo.swift,
 				Models/QueryResultsDocument.swift,
+				Models/SyncStatus.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/Tabs/ObserversTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
@@ -99,9 +89,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppState.swift,
-				Components/DittoAppCard.swift,
-				Components/DittoSubscriptionCard.swift,
-				Components/DittoSubscriptionList.swift,
+				Components/DatabaseCard.swift,
 				Components/MongoSidebarView.swift,
 				Components/PaginationControls.swift,
 				Components/Pill.swift,
@@ -111,25 +99,21 @@
 				Components/QueryToolbarView.swift,
 				Components/ResultJsonViewer.swift,
 				Components/SecureField.swift,
+				Components/SubscriptionCard.swift,
+				Components/SubscriptionList.swift,
+				Data/AllowUntrustedCertsDelegate.swift,
 				Data/DittoManager.swift,
-				Data/LocalDB/DittoManager_DittoAppConfig.swift,
-				Data/LocalDB/DittoManager_LocalSubscription.swift,
-				Data/MongoManager.swift,
-				Data/SelectedApp/DittoManager_Import.swift,
-				Data/SelectedApp/DittoManager_Lifecycle.swift,
-				Data/SelectedApp/DittoManager_Observable.swift,
-				Data/SelectedApp/DittoManager_Query.swift,
-				Data/SelectedApp/DittoManager_Subscription.swift,
 				Models/DittoAppConfig.swift,
 				Models/DittoCollectionModel.swift,
 				Models/DittoObservable.swift,
 				Models/DittoObserveEvent.swift,
 				Models/DittoQueryHistory.swift,
 				Models/DittoSubscription.swift,
+				Models/IndexInfo.swift,
 				Models/QueryResultsDocument.swift,
+				Models/SyncStatus.swift,
 				Views/AppEditorView.swift,
 				Views/MainStudioView.swift,
-				Views/Tabs/ObserversTabView.swift,
 				Views/Tools/DiskUsageViewer.swift,
 				Views/Tools/DittoPeersListView.swift,
 				Views/Tools/PermissionsHealthViewer.swift,
@@ -212,13 +196,9 @@
 				0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */,
 				0D3F28492DDA0EA7004A69D1 /* DittoPresenceDegradation in Frameworks */,
 				0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */,
-				0DE5B1FF2DF9177D001574F6 /* MongoKitten in Frameworks */,
-				0DE5B1FD2DF9177D001574F6 /* MongoCore in Frameworks */,
 				0D3F283D2DDA0EA7004A69D1 /* DittoExportData in Frameworks */,
-				0DE5B1F92DF9177D001574F6 /* Meow in Frameworks */,
 				0D3F28452DDA0EA7004A69D1 /* DittoPeersList in Frameworks */,
 				0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */,
-				0DE5B1FB2DF9177D001574F6 /* MongoClient in Frameworks */,
 				0D3F28432DDA0EA7004A69D1 /* DittoHeartbeat in Frameworks */,
 				0D3F28472DDA0EA7004A69D1 /* DittoPermissionsHealth in Frameworks */,
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
@@ -308,10 +288,6 @@
 				0D3F284D2DDA0EC1004A69D1 /* DittoObjC */,
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
 				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
-				0DE5B1F82DF9177D001574F6 /* Meow */,
-				0DE5B1FA2DF9177D001574F6 /* MongoClient */,
-				0DE5B1FC2DF9177D001574F6 /* MongoCore */,
-				0DE5B1FE2DF9177D001574F6 /* MongoKitten */,
 			);
 			productName = "Ditto Edge Studio";
 			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */;
@@ -365,7 +341,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1630;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					0D3F27D22DDA00FA004A69D1 = {
 						CreatedOnToolsVersion = 16.3;
@@ -393,7 +369,6 @@
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
-				0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -527,6 +502,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -583,6 +559,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -600,8 +577,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";
@@ -623,7 +605,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -650,8 +632,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";
@@ -673,7 +660,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -844,15 +831,7 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.11.1;
-			};
-		};
-		0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orlandos-nl/MongoKitten.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 7.9.9;
+				minimumVersion = 4.12.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -927,26 +906,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */;
 			productName = DittoSwift;
-		};
-		0DE5B1F82DF9177D001574F6 /* Meow */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
-			productName = Meow;
-		};
-		0DE5B1FA2DF9177D001574F6 /* MongoClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
-			productName = MongoClient;
-		};
-		0DE5B1FC2DF9177D001574F6 /* MongoCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
-			productName = MongoCore;
-		};
-		0DE5B1FE2DF9177D001574F6 /* MongoKitten */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0DE5B1F72DF9177D001574F6 /* XCRemoteSwiftPackageReference "MongoKitten" */;
-			productName = MongoKitten;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

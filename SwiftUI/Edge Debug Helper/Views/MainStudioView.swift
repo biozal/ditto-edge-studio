@@ -11,7 +11,7 @@ struct MainStudioView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
-    @StateObject private var dittoManager = DittoManager.shared
+    @State private var showingImportView = false
 
 
 
@@ -94,7 +94,7 @@ struct MainStudioView: View {
                     if viewModel.selectedMenuItem.name == "History" {
                         Button {
                             Task {
-                                try await DittoManager.shared
+                                try await HistoryRepository.shared
                                     .clearQueryHistory()
                             }
                         } label: {
@@ -102,17 +102,8 @@ struct MainStudioView: View {
                                 .labelStyle(.iconOnly)
                         }
                     } else if viewModel.selectedMenuItem.name == "Collections" {
-                        Button {
-                            Task {
-                                try await DittoManager.shared
-                                    .clearQueryHistory()
-                            }
-                        } label: {
-                            Label(
-                                "Import",
-                                systemImage: "square.and.arrow.down.on.square"
-                            )
-                            .labelStyle(.titleAndIcon)
+                        Button("Import") {
+                            showingImportView = true
                         }
                     }
                 }
@@ -134,7 +125,7 @@ struct MainStudioView: View {
             case "MongoDb":
                 mongoDBDetailView()
             default:
-                tutorialDetailView()
+                syncDetailView()
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
@@ -164,6 +155,10 @@ struct MainStudioView: View {
             }
         
         }
+        .sheet(isPresented: $showingImportView) {
+            ImportDataView(isPresented: $showingImportView)
+                .environmentObject(appState)
+        }
         .onAppear {
             // No longer needed - using DittoManager state directly
         }
@@ -184,25 +179,18 @@ struct MainStudioView: View {
     func syncToolbarButton() -> some ToolbarContent {
         ToolbarItem(id: "syncButton", placement: .primaryAction) {
             Button {
-                if dittoManager.selectedAppIsSyncEnabled {
-                    Task { @MainActor in
-                        await dittoManager.selectedAppStopSync()
+                Task {
+                    do {
+                        try await viewModel.toggleSync()
+                    } catch {
+                        appState.setError(error)
                     }
-                } else {
-                    Task { @MainActor in
-                        do {
-                            try await dittoManager.selectedAppStartSync()
-                        } catch {
-                            appState.setError(error)
-                        }
-                    }
-                    
                 }
             } label: {
                 Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
-                    .foregroundColor(dittoManager.selectedAppIsSyncEnabled ? .green : .red)
+                    .foregroundColor(viewModel.isSyncEnabled ? .green : .red)
             }
-            .help(dittoManager.selectedAppIsSyncEnabled ? "Disable Sync" : "Enable Sync")
+            .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
         }
     }
     
@@ -254,7 +242,7 @@ extension MainStudioView {
                 )
                 Spacer()
             } else {
-                DittoSubscriptionList(
+                SubscriptionList(
                     subscriptions: $viewModel.subscriptions,
                     onEdit: viewModel.showSubscriptionEditor,
                     onDelete: viewModel.deleteSubscription,
@@ -340,7 +328,7 @@ extension MainStudioView {
                             Button {
                                 Task {
                                     do {
-                                        try await DittoManager.shared
+                                        try await HistoryRepository.shared
                                         .deleteQueryHistory(query.id)
                                     }catch{
                                         appState.setError(error)
@@ -356,7 +344,7 @@ extension MainStudioView {
                             Button {
                                 Task {
                                     do {
-                                        try await DittoManager.shared.saveFavorite(query)
+                                        try await FavoritesRepository.shared.saveFavorite(query)
                                     }catch{
                                         appState.setError(error)
                                     }
@@ -373,7 +361,7 @@ extension MainStudioView {
                         .swipeActions(edge: .trailing) {
                             Button(role: .cancel) {
                                 Task {
-                                    try await DittoManager.shared
+                                    try await FavoritesRepository.shared
                                     .saveFavorite(query)
                                 }
                             } label: {
@@ -414,7 +402,7 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await DittoManager.shared.deleteFavorite(query.id)
+                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
                                 }catch{
                                     appState.setError(error)
                                 }
@@ -431,7 +419,7 @@ extension MainStudioView {
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
                             Task {
-                                try await DittoManager.shared.deleteFavorite(
+                                try await FavoritesRepository.shared.deleteFavorite(
                                     query.id
                                 )
                             }
@@ -654,9 +642,45 @@ extension MainStudioView {
 //MARK: Detail Views
 extension MainStudioView {
 
-    func tutorialDetailView() -> some View {
-        return VStack(alignment: .trailing) {
-            Text("Tutorial Detail View")
+    func syncDetailView() -> some View {
+        return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
+            // Header with last update time
+            HStack {
+                Text("Connected Peers")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                if let lastUpdate = viewModel.syncStatusItems.first?.lastUpdateReceivedTime {
+                    Text("Last updated: \(Date(timeIntervalSince1970: lastUpdate / 1000.0), formatter: dateFormatter)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            
+            if viewModel.syncStatusItems.isEmpty {
+                Spacer()
+                HStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Sync Status Available",
+                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                        description: Text("Enable sync to see connected peers and their status")
+                    )
+                    Spacer()
+                }
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(viewModel.syncStatusItems) { statusInfo in
+                            syncStatusCard(for: statusInfo)
+                        }
+                    }
+                    .padding()
+                }
+            }
         }
         #if os(iOS)
             .toolbar {
@@ -665,6 +689,85 @@ extension MainStudioView {
                 closeToolbarButton()
             }
         #endif
+    }
+    
+    private func syncStatusCard(for status: SyncStatusInfo) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with peer type and connection status
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(status.peerType)
+                        .font(.headline)
+                        .bold()
+                    Text(status.id)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusColor(for: status.syncSessionStatus))
+                        .frame(width: 8, height: 8)
+                    Text(status.syncSessionStatus)
+                        .font(.subheadline)
+                        .foregroundColor(statusColor(for: status.syncSessionStatus))
+                }
+            }
+            
+            Divider()
+            
+            // Sync information
+            VStack(alignment: .leading, spacing: 8) {
+                if let commitId = status.syncedUpToLocalCommitId {
+                    HStack {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Synced to local database commit: \(commitId)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                HStack {
+                    Image(systemName: "clock")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Text("Last update: \(status.formattedLastUpdate)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
+    }
+    
+    private func statusColor(for status: String) -> Color {
+        switch status {
+        case "Connected":
+            return .green
+        case "Connecting":
+            return .orange
+        case "Disconnected":
+            return .red
+        default:
+            return .gray
+        }
+    }
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .medium
+        return formatter
     }
 
     func queryDetailView() -> some View {
@@ -893,10 +996,13 @@ extension MainStudioView {
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
        
-        var localDbStoreObserver: DittoStoreObserver?
         var selectedObservable: DittoObservable?
         var selectedEventId: String?
         var selectedDataTool: String?
+        
+        // Sync status properties
+        var syncStatusItems: [SyncStatusInfo] = []
+        var isSyncEnabled = true  // Track sync status here
 
         var isLoading = false
         var isQueryExecuting = false
@@ -962,60 +1068,78 @@ extension MainStudioView {
             //default the tool to presence viewer
             selectedDataTool = "Presence Viewer"
             
+            // Setup SystemRepository callback
+            Task {
+                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems in
+                    Task { @MainActor in
+                        self?.syncStatusItems = statusItems
+                    }
+                }
+            }
+            
+            // Setup ObservableRepository callback
+            Task {
+                await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
+                    Task { @MainActor in
+                        self?.observerables = observables
+                    }
+                }
+            }
+            
+            // Setup FavoritesRepository callback
+            Task {
+                await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
+                    Task { @MainActor in
+                        self?.favorites = favorites
+                    }
+                }
+            }
+            
+            // Setup HistoryRepository callback
+            Task {
+                await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
+                    Task { @MainActor in
+                        self?.history = history
+                    }
+                }
+            }
 
             Task {
                 isLoading = true
                 
-                if await MongoManager.shared.isConnected {
-                    self.mainMenuItems.append(
-                        MenuItem(id: 7, name: "MongoDb", icon: "leaf")
-                    )
+                await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
+                    self.subscriptions = newSubscriptions
                 }
-                subscriptions = await DittoManager.shared.dittoSubscriptions
+                subscriptions = try await SubscriptionsRepository.shared.hydrateDittoSubscriptions()
 
-                collections = try await DittoManager.shared
-                    .hydrateCollections(updateCollections: {
-                        self.collections = $0
-                    })
+                await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
+                    self.collections = newCollections
+                }
+                collections = try await CollectionsRepository.shared.hydrateCollections()
 
-                history = try await DittoManager.shared
-                    .hydrateQueryHistory(updateHistory: {
-                        self.history = $0
-                    })
+                history = try await HistoryRepository.shared.hydrateQueryHistory()
 
-                favorites = try await DittoManager.shared
-                    .hydrateQueryFavorites(updateFavorites: {
-                        self.favorites = $0
-                    })
+                favorites = try await FavoritesRepository.shared.hydrateQueryFavorites()
                 
-                //hydrate observerables
-                let observerQuery = "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId ORDER BY lastUpdated"
-                let observerArguments = ["selectedAppId": selectedApp._id]
-                let differ = DittoDiffer()
-                if let ditto = await DittoManager.shared.dittoLocal {
-                    localDbStoreObserver = try ditto.store.registerObserver(query: observerQuery, arguments: observerArguments)
-                    { [weak self] results in
-                        let diffs = differ.diff(results.items)
-                        diffs.deletions.forEach { index in
-                            self?.observerables.remove(at: (index))
-                        }
-                        diffs.insertions.forEach { index in
-                            let item = results.items[index]
-                            let insertObserver = DittoObservable(item.value)
-                            self?.observerables.append(insertObserver)
-                        }
-                    }
+                // Start observing observables through repository
+                do {
+                    try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
+                } catch {
+                    print("Failed to register observables observer: \(error)")
                 }
                 
                 if collections.isEmpty {
-                    let subscriptions = await DittoManager.shared
-                        .dittoSubscriptions
                     selectedQuery = subscriptions.first?.query ?? ""
                 } else {
                     selectedQuery = "SELECT * FROM \(collections.first ?? "")"
                 }
 
-                mongoCollections = await MongoManager.shared.collections
+                // Start observing sync status
+                do {
+                    try await SystemRepository.shared.registerSyncStatusObserver()
+                } catch {
+                    print("Failed to register sync status observer: \(error)")
+                }
 
                 isLoading = false
             }
@@ -1036,7 +1160,7 @@ extension MainStudioView {
                     createdDate: Date().ISO8601Format()
                 )
                 do {
-                    try await DittoManager.shared.saveQueryHistory(queryHistory)
+                    try await HistoryRepository.shared.saveQueryHistory(queryHistory)
                 } catch {
                     appState.setError(error)
                 }
@@ -1044,23 +1168,11 @@ extension MainStudioView {
         }
 
         func closeSelectedApp() async {
-            //nil values
+            // First, clean up UI state immediately on main actor
             editorObservable = nil
             editorSubscription = nil
             selectedEventId = nil
             selectedObservable = nil
-            
-            //remove oservable events registered and running
-            observerables.forEach { observable in
-                if let storeObserver = observable.storeObserver {
-                    storeObserver.cancel()
-                }
-            }
-            
-            if let localDbSO = localDbStoreObserver {
-                localDbSO.cancel()
-            }
-            localDbStoreObserver = nil
             
             subscriptions = []
             collections = []
@@ -1068,8 +1180,62 @@ extension MainStudioView {
             favorites = []
             observerables = []
             observableEvents = []
+            syncStatusItems = []
+            isSyncEnabled = false
             
-            await DittoManager.shared.closeDittoSelectedApp()
+            // Perform heavy cleanup operations on background queue to avoid priority inversion
+            await performCleanupOperations()
+        }
+        
+        private func performCleanupOperations() async {
+            // Capture observables on main actor before moving to background queues
+            let observablesToCleanup = observerables
+            
+            // Use TaskGroup to run cleanup operations concurrently on background queues
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask(priority: .utility) {
+                    // Cancel observable store observers
+                    for observable in observablesToCleanup {
+                        observable.storeObserver?.cancel()
+                    }
+                }
+                
+                group.addTask(priority: .utility) {
+                    // Stop repository observers (now using detached tasks internally)
+                    await SystemRepository.shared.stopObserver()
+                    await ObservableRepository.shared.stopObserver()
+                    await FavoritesRepository.shared.stopObserver()
+                    await HistoryRepository.shared.stopObserver()
+                    await CollectionsRepository.shared.stopObserver()
+                    await SubscriptionsRepository.shared.cancelAllSubscriptions()
+                    await DatabaseRepository.shared.stopDatabaseConfigSubscription()
+                }
+                
+                group.addTask(priority: .utility) {
+                    // Close DittoManager selected app
+                    await DittoManager.shared.closeDittoSelectedApp()
+                }
+            }
+        }
+        
+        func toggleSync() async throws {
+            if isSyncEnabled {
+                await DittoManager.shared.selectedAppStopSync()
+                isSyncEnabled = false
+            } else {
+                try await DittoManager.shared.selectedAppStartSync()
+                isSyncEnabled = true
+            }
+        }
+        
+        func startSync() async throws {
+            try await DittoManager.shared.selectedAppStartSync()
+            isSyncEnabled = true
+        }
+        
+        func stopSync() async {
+            await DittoManager.shared.selectedAppStopSync()
+            isSyncEnabled = false
         }
 
         func deleteObservable(_ observable: DittoObservable) async throws {
@@ -1078,7 +1244,7 @@ extension MainStudioView {
                 storeObserver.cancel()
             }
             
-            try await DittoManager.shared.removeDittoObservable(observable)
+            try await ObservableRepository.shared.removeDittoObservable(observable)
             
             //remove events for the observable
             observableEvents.removeAll(where: {$0.observeId == observable.id})
@@ -1093,18 +1259,17 @@ extension MainStudioView {
 
         func deleteSubscription(_ subscription: DittoSubscription) async throws
         {
-            try await DittoManager.shared.removeDittoSubscription(subscription)
-            subscriptions = await DittoManager.shared.dittoSubscriptions
+            try await SubscriptionsRepository.shared.removeDittoSubscription(subscription)
         }
 
         func executeQuery(appState: AppState) async {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
-                     jsonResults = try await DittoManager.shared
+                     jsonResults = try await QueryService.shared
                         .executeSelectedAppQuery(query: selectedQuery)
                 } else {
-                    jsonResults = try await DittoManager.shared
+                    jsonResults = try await QueryService.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
                 }
                 // Add query to history
@@ -1136,11 +1301,9 @@ extension MainStudioView {
                 }
                 Task {
                     do {
-                        try await DittoManager.shared.saveDittoSubscription(
+                        try await SubscriptionsRepository.shared.saveDittoSubscription(
                             subscription
                         )
-                        subscriptions = await DittoManager.shared
-                            .dittoSubscriptions
                     } catch {
                         appState.setError(error)
                     }
@@ -1166,7 +1329,7 @@ extension MainStudioView {
                 }
                 Task {
                     do {
-                        try await DittoManager.shared.saveDittoObservable(observer)
+                        try await ObservableRepository.shared.saveDittoObservable(observer)
                     } catch {
                         appState.setError(error)
                     }
@@ -1219,7 +1382,10 @@ extension MainStudioView {
                 event.updatedIndexes = Array(diff.updates)
                 event.movedIndexes = Array(diff.moves)
 
-                event.data = results.items.compactMap { $0.jsonString() }
+                event.data = results.items.compactMap {
+                    let data = $0.jsonData()
+                    return String(data: data, encoding: .utf8)
+                }
 
                 self?.observableEvents.append(event)
                 

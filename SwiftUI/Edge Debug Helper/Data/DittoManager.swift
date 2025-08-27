@@ -1,50 +1,18 @@
-//
-//  DittoManager.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 5/18/25.
-//
-import Combine
 import DittoSwift
 import Foundation
-import ObjectiveC
-import SwiftUI
 
 // MARK: - DittoService
-actor DittoManager: ObservableObject {
+actor DittoManager {
     var isStoreInitialized: Bool = false
-
-    // MARK: local app cache
-
-    // local cache is used for remembering things like:
-    // query history, favorites, subscriptions, and observers
-    // always remember to save those in the dittoLocal instance
 
     var appState: AppState?
     var dittoLocal: Ditto?
-    var localAppConfigSubscription: DittoSyncSubscription?
-
-    var localAppConfigsObserver: DittoStoreObserver?
-    @Published var dittoAppConfigs: [DittoAppConfig] = []
-
-    // MARK: Selected App
 
     // this is the actual app the user selected
     // things like query, observer events, and the ditto tools should
     // use the dittoSelectedApp instance
-
     var dittoSelectedAppConfig: DittoAppConfig?
     var dittoSelectedApp: Ditto?
-
-    var selectedAppCollectionObserver: DittoStoreObserver?
-    var selectedAppHistoryObserver: DittoStoreObserver?
-    var selectedAppFavoritesObserver: DittoStoreObserver?
-    @Published var selectedAppIsSyncEnabled = false
-
-    @Published var dittoSubscriptions: [DittoSubscription] = []
-    @Published var dittoObservables: [DittoObservable] = []
-    @Published var dittoObservableEvents: [DittoObserveEvent] = []
-    @Published var dittoIntialObservationData: [String: String] = [:]
     
     // MARK: - Cached URLSession for untrusted certificates
     private static var cachedUntrustedSession: URLSession?
@@ -55,7 +23,6 @@ actor DittoManager: ObservableObject {
     static var shared = DittoManager()
     
     // MARK: - URLSession Caching
-    
     func getCachedUntrustedSession() -> URLSession {
         Self.untrustedSessionLock.lock()
         defer { Self.untrustedSessionLock.unlock() }
@@ -71,25 +38,11 @@ actor DittoManager: ObservableObject {
         return session
     }
     
-    // MARK: - URLSession delegate to allow untrusted certificates
-    class AllowUntrustedCertsDelegate: NSObject, URLSessionDelegate {
-        func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-               let serverTrust = challenge.protectionSpace.serverTrust {
-                // Accept the server trust without validation
-                let credential = URLCredential(trust: serverTrust)
-                completionHandler(.useCredential, credential)
-            } else {
-                completionHandler(.performDefaultHandling, nil)
-            }
-        }
-    }
-
     func initializeStore(appState: AppState) async throws {
         do {
             if !isStoreInitialized {
                 // setup logging
-                DittoLogger.enabled = true
+                DittoLogger.isEnabled = true
                 DittoLogger.minimumLogLevel = .debug
 
                 //cache state for future use
@@ -141,26 +94,125 @@ actor DittoManager: ObservableObject {
                     )
                 })
 
-                // Disable avoid_redundant_bluetooth
-                // https://docs.ditto.live/sdk/latest/sync/managing-redundant-bluetooth-le-connections#disabling-redundant-connections
-                try await dittoLocal?.store.execute(
-                    query:
-                        "ALTER SYSTEM SET mesh_chooser_avoid_redundant_bluetooth = false"
-                )
-
                 // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
                 // 
                 try await dittoLocal?.store.execute(
                     query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
                 )
-
                 try dittoLocal?.disableSyncWithV3()
-                try await setupLocalSubscription()
-                try registerLocalObservers()
             }
         } catch {
             self.appState?.setError(error)
         }
     }
-
+    
+    func closeDittoSelectedApp() async {
+        //if an app was already selected, cancel the subscription, observations, and remove the app
+        if let ditto = dittoSelectedApp {
+            await Task.detached(priority: .utility) {
+                ditto.sync.stop()
+            }.value
+        }
+        dittoSelectedApp = nil
+    }
+    
+    func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
+    -> Bool {
+        var isSuccess: Bool = false
+        do {
+            await closeDittoSelectedApp()
+            
+            // setup the new selected app
+            // need to calculate the directory path so each app has it's own
+            // unique directory
+            let dbname = appConfig.name.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).lowercased()
+            let localDirectoryPath = FileManager.default.urls(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask
+            )[0]
+                .appendingPathComponent(dbname + "-")
+            
+            // Ensure directory exists
+            if !FileManager.default.fileExists(atPath: localDirectoryPath.path)
+            {
+                try FileManager.default.createDirectory(
+                    at: localDirectoryPath,
+                    withIntermediateDirectories: true
+                )
+            }
+            
+            // Validate inputs before trying to create Ditto
+            guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {
+                throw AppError.error(message: "Invalid app configuration - missing appId or token")
+            }
+            
+            //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
+            dittoSelectedApp = Ditto(
+                identity: .onlinePlayground(
+                    appID: appConfig.appId,
+                    token: appConfig.authToken,
+                    enableDittoCloudSync: false,
+                    customAuthURL: URL(
+                        string: appConfig.authUrl
+                    )
+                ),
+                persistenceDirectory: localDirectoryPath)
+            
+            guard let ditto = dittoSelectedApp else {
+                throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            
+            ditto.updateTransportConfig(block: { config in
+                config.connect.webSocketURLs.insert(
+                    appConfig.websocketUrl
+                )
+                config.enableAllPeerToPeer()
+            })
+            
+            
+            try ditto.disableSyncWithV3()
+            
+            // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
+            //
+            try await ditto.store.execute(
+                query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
+            )
+            
+            self.dittoSelectedAppConfig = appConfig
+            
+            //start sync in the selected app on background queue to avoid priority inversion
+            try await Task.detached(priority: .utility) {
+                try ditto.sync.start()
+            }.value
+            
+            isSuccess = true
+        } catch {
+            self.appState?.setError(error)
+            isSuccess = false
+        }
+        return isSuccess
+    }
+    
+    func selectedAppStartSync() async throws {
+        do {
+            if let ditto = dittoSelectedApp {
+                try await Task.detached(priority: .utility) {
+                    try ditto.sync.start()
+                }.value
+            }
+        } catch {
+            appState?.setError(error)
+            throw error
+        }
+    }
+    
+    func selectedAppStopSync() async {
+        if let ditto = dittoSelectedApp {
+            await Task.detached(priority: .utility) {
+                ditto.sync.stop()
+            }.value
+        }
+    }
 }

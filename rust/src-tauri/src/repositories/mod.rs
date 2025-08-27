@@ -1,0 +1,3 @@
+pub mod ditto_local_cache_repository;
+
+pub use ditto_local_cache_repository::DittoLocalCacheRepository;
