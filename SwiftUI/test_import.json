@@ -1,0 +1,12 @@
+[
+  {
+    "_id": "test1",
+    "name": "Test Document 1",
+    "value": 100
+  },
+  {
+    "_id": "test2",
+    "name": "Test Document 2",
+    "value": 200
+  }
+]

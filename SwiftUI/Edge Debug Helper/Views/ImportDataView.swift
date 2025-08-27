@@ -18,6 +18,7 @@ struct ImportDataView: View {
     @State private var importError: String? = nil
     @State private var importSuccess: Bool = false
     @State private var successMessage: String = ""
+    @State private var useInitialInsert: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -83,6 +84,42 @@ struct ImportDataView: View {
                     } else {
                         TextField("New collection name", text: $collectionName)
                             .textFieldStyle(.roundedBorder)
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Insert Type")
+                        .font(.headline)
+                    
+                    HStack(spacing: 16) {
+                        Toggle(isOn: $useInitialInsert) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(useInitialInsert ? "Initial Documents Insert" : "Regular Insert")
+                                    .font(.system(size: 13))
+                                Text(useInitialInsert ? 
+                                     "Use for first-time data import (WITH INITIAL DOCUMENTS)" : 
+                                     "Use for adding data to existing collections")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                    }
+                    
+                    if useInitialInsert {
+                        HStack(spacing: 4) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                            Text("Initial insert is designed for loading data for the first time and has special optimizations.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.blue.opacity(0.1))
+                        )
                     }
                 }
             }
@@ -201,7 +238,7 @@ struct ImportDataView: View {
         }
         .padding(30)
         .frame(width: 550)
-        .frame(minHeight: 400, maxHeight: 500)
+        .frame(minHeight: 500, maxHeight: 600)
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [UTType.json],
@@ -281,7 +318,8 @@ struct ImportDataView: View {
                 
                 let result = try await ImportService.shared.importData(
                     from: fileURL,
-                    to: targetCollection
+                    to: targetCollection,
+                    insertType: useInitialInsert ? .initial : .regular
                 ) { progress in
                     Task { @MainActor in
                         self.importProgress = progress

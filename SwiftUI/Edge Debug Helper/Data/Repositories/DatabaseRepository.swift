@@ -135,7 +135,8 @@ actor DatabaseRepository {
                         FROM dittoappconfigs 
                         """
                 )
-            Task(priority: .background) {
+            // Use detached task with utility priority to prevent threading priority inversion
+            Task.detached(priority: .utility) {
                 try ditto.sync.start()
             }
         }
@@ -147,7 +148,10 @@ actor DatabaseRepository {
         
         if let subscriptionInstance = localAppConfigSubscription {
             subscriptionInstance.cancel()
-            ditto.sync.stop()
+            // Use detached task with utility priority to prevent threading priority inversion
+            await Task.detached(priority: .utility) {
+                ditto.sync.stop()
+            }.value
         }
         localAppConfigSubscription = nil
     }

@@ -7,6 +7,11 @@ struct ImportService {
     
     private init() {}
     
+    enum InsertType {
+        case regular
+        case initial
+    }
+    
     struct ImportResult {
         let successCount: Int
         let failureCount: Int
@@ -37,6 +42,7 @@ struct ImportService {
     func importData(
         from url: URL,
         to collection: String,
+        insertType: InsertType = .regular,
         progressHandler: @escaping (ImportProgress) -> Void
     ) async throws -> ImportResult {
         // Start accessing the security-scoped resource
@@ -68,51 +74,71 @@ struct ImportService {
         var failureCount = 0
         var errors: [String] = []
         
-        for (index, document) in documents.enumerated() {
-            let documentId = document["_id"] as? String ?? "unknown"
+        // Validate collection name to prevent SQL injection
+        guard collection.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+            throw ImportError.invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
+        }
+        
+        // Process documents in batches for better performance
+        let batchSize = 50
+        for (batchIndex, batch) in documents.chunked(into: batchSize).enumerated() {
+            let batchStartIndex = batchIndex * batchSize
             
-            // Report progress
-            progressHandler(ImportProgress(
-                current: index + 1,
-                total: totalDocuments,
-                currentDocumentId: documentId
-            ))
-            
-            do {
-                // Validate collection name to prevent issues
-                guard collection.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
-                    throw ImportError.invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
-                }
+            for (indexInBatch, document) in batch.enumerated() {
+                let globalIndex = batchStartIndex + indexInBatch
+                let documentId = document["_id"] as? String ?? "unknown"
                 
-                // Validate document structure
-                guard let documentId = document["_id"] as? String, !documentId.isEmpty else {
-                    throw ImportError.missingID("Document is missing a valid '_id' field")
-                }
+                // Report progress
+                progressHandler(ImportProgress(
+                    current: globalIndex + 1,
+                    total: totalDocuments,
+                    currentDocumentId: documentId
+                ))
                 
-                // Use Ditto's collection API instead of raw DQL to avoid SQL parsing issues
-                // This is much safer and handles escaping automatically
-                try await withErrorHandling {
-                    try await ditto.store
-                        .collection(collection)
-                        .upsert(document)
+                do {
+                    // Validate document structure
+                    guard let documentId = document["_id"] as? String, !documentId.isEmpty else {
+                        throw ImportError.missingID("Document is missing a valid '_id' field")
+                    }
+                    
+                    // Convert document to JSON string
+                    let jsonData = try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys])
+                    guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                        throw ImportError.encodingError("Failed to encode document as JSON")
+                    }
+                    
+                    // Build the appropriate DQL INSERT statement
+                    let dqlQuery: String
+                    if insertType == .initial {
+                        // Use INSERT WITH INITIAL DOCUMENTS for initial data load
+                        dqlQuery = "INSERT INTO \(collection) DOCUMENTS (\(jsonString)) WITH INITIAL DOCUMENTS"
+                    } else {
+                        // Use regular INSERT for normal operations
+                        dqlQuery = "INSERT INTO \(collection) DOCUMENTS (\(jsonString))"
+                    }
+                    
+                    // Execute the DQL query using store.execute
+                    try await withErrorHandling {
+                        _ = try await ditto.store.execute(query: dqlQuery)
+                    }
+                    
+                    successCount += 1
+                    
+                    // Add small delay to make progress visible for small datasets
+                    if totalDocuments < 50 {
+                        try await Task.sleep(nanoseconds: 10_000_000) // 10ms delay
+                    }
+                } catch let dittoError as DittoError {
+                    failureCount += 1
+                    let errorMessage = "Ditto error for document \(documentId): \(dittoError.localizedDescription)"
+                    errors.append(errorMessage)
+                    print("Ditto Import Error: \(errorMessage)")
+                } catch {
+                    failureCount += 1
+                    let errorMessage = "Failed to import document \(documentId): \(error.localizedDescription)"
+                    errors.append(errorMessage)
+                    print("Import Error: \(errorMessage)")
                 }
-                
-                successCount += 1
-                
-                // Add small delay to make progress visible for small datasets
-                if totalDocuments < 50 {
-                    try await Task.sleep(nanoseconds: 10_000_000) // 10ms delay
-                }
-            } catch let dittoError as DittoError {
-                failureCount += 1
-                let errorMessage = "Ditto error for document \(documentId): \(dittoError.localizedDescription)"
-                errors.append(errorMessage)
-                print("Ditto Import Error: \(errorMessage)")
-            } catch {
-                failureCount += 1
-                let errorMessage = "Failed to import document \(documentId): \(error.localizedDescription)"
-                errors.append(errorMessage)
-                print("Import Error: \(errorMessage)")
             }
         }
         
@@ -152,6 +178,15 @@ enum ImportError: LocalizedError {
              .fileAccessDenied(let message),
              .invalidCollectionName(let message):
             return message
+        }
+    }
+}
+
+// Extension to support chunking arrays
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }

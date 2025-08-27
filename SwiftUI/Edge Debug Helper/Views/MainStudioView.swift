@@ -102,14 +102,8 @@ struct MainStudioView: View {
                                 .labelStyle(.iconOnly)
                         }
                     } else if viewModel.selectedMenuItem.name == "Collections" {
-                        Button {
+                        Button("Import") {
                             showingImportView = true
-                        } label: {
-                            Label(
-                                "Import",
-                                systemImage: "square.and.arrow.down.on.square"
-                            )
-                            .labelStyle(.titleAndIcon)
                         }
                     }
                 }
@@ -649,7 +643,7 @@ extension MainStudioView {
 extension MainStudioView {
 
     func syncDetailView() -> some View {
-        return VStack(alignment: .leading) {
+        return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
             // Header with last update time
             HStack {
                 Text("Connected Peers")
@@ -667,11 +661,15 @@ extension MainStudioView {
             
             if viewModel.syncStatusItems.isEmpty {
                 Spacer()
-                ContentUnavailableView(
-                    "No Sync Status Available",
-                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                    description: Text("Enable sync to see connected peers and their status")
-                )
+                HStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Sync Status Available",
+                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                        description: Text("Enable sync to see connected peers and their status")
+                    )
+                    Spacer()
+                }
                 Spacer()
             } else {
                 ScrollView {
