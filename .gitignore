@@ -10,3 +10,8 @@ rust/target
 rust/.vscode
 rust/debug
 rust/designs
+kmp/.gradle
+kmp/.idea
+kmp/.kotlin
+kmp/build
+kmp/composeApp/build
