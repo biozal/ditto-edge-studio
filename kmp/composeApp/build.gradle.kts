@@ -16,7 +16,7 @@ kotlin {
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 
@@ -35,7 +35,6 @@ kotlin {
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        outputModuleName.set("composeApp")
         browser {
             val rootDirPath = project.rootDir.path
             val projectDirPath = project.projectDir.path
@@ -112,11 +111,41 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.ditto.edgestudio.kmp.dittoedgestudio.MainKt"
+        
+        // JVM arguments to set macOS application name
+        jvmArgs += listOf(
+            "-Dapple.awt.application.name=Ditto Edge Studio"
+        )
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.ditto.edgestudio.kmp.dittoedgestudio"
+            packageName = "ditto-edge-studio"
             packageVersion = "1.0.0"
+            
+            macOS {
+                bundleID = "com.ditto.edgestudio.kmp.dittoedgestudio"
+                
+                // Entitlements configuration for macOS permissions
+                entitlementsFile.set(project.file("entitlements.plist"))
+                runtimeEntitlementsFile.set(project.file("runtime-entitlements.plist"))
+                
+                // Optional: minimum system version
+                minimumSystemVersion = "12.0"
+                
+                // Optional: App name displayed in macOS
+                dockName = "Ditto Edge Studio"
+            }
+            
+            windows {
+                // Windows-specific configuration
+                menuGroup = "Ditto"
+                perUserInstall = true
+            }
+            
+            linux {
+                // Linux-specific configuration
+                menuGroup = "Development"
+            }
         }
     }
 }
