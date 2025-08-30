@@ -13,115 +13,154 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         
-        <!-- Sample Header/Toolbar -->
+        <!-- Header with Title and Add Database Button -->
         <Border Grid.Row="0" 
                 Background="{DynamicResource SecondaryBackgroundBrush}" 
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="10">
-                <Label Content="Ditto Edge Studio" 
-                       FontSize="18" 
+            <Grid Margin="15,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <Label Grid.Column="0"
+                       Content="Database Configurations" 
+                       FontSize="20" 
                        FontWeight="Bold"
+                       VerticalAlignment="Center"
                        Style="{DynamicResource ThemedLabel}"/>
-            </StackPanel>
+                
+                <Button Grid.Column="1"
+                        Content="Add Database"
+                        Command="{Binding AddDatabaseCommand}"
+                        Padding="15,8"
+                        Style="{DynamicResource ThemedButton}"/>
+            </Grid>
         </Border>
         
-        <!-- Main Content Area -->
-        <Grid Grid.Row="1" Margin="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="15">
+            <!-- Database List -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding DatabaseConfigs}"
+                              x:Name="DatabaseItemsControl">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource SecondaryBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Margin="0,0,0,15"
+                                    Padding="20">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="10"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Database Name -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="{Binding Name}"
+                                               FontSize="18"
+                                               FontWeight="Bold"
+                                               Style="{DynamicResource ThemedTextBlock}"/>
+                                    
+                                    <!-- Database ID -->
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal"
+                                                Margin="0,0,0,8">
+                                        <TextBlock Text="Database ID: "
+                                                   FontWeight="SemiBold"
+                                                   Style="{DynamicResource ThemedTextBlock}"/>
+                                        <Button Content="***************"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                FontFamily="Consolas"
+                                                Tag="{Binding DatabaseId}"
+                                                Click="ShowSecureField_Click"
+                                                Style="{DynamicResource ThemedButton}"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Auth Token -->
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal">
+                                        <TextBlock Text="Auth Token: "
+                                                   FontWeight="SemiBold"
+                                                   Style="{DynamicResource ThemedTextBlock}"/>
+                                        <Button Content="***************"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                FontFamily="Consolas"
+                                                Tag="{Binding AuthToken}"
+                                                Click="ShowSecureField_Click"
+                                                Style="{DynamicResource ThemedButton}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
             
-            <!-- Left Panel - Sample Database List -->
-            <Border Grid.Column="0" 
-                    Background="{DynamicResource SecondaryBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Margin="0,0,5,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    
-                    <Label Grid.Row="0" 
-                           Content="Databases" 
-                           FontWeight="Bold"
-                           Margin="5"
-                           Style="{DynamicResource ThemedLabel}"/>
-                    
-                    <ListBox Grid.Row="1" 
-                             x:Name="DatabaseListBox"
-                             Style="{DynamicResource ThemedListBox}"
-                             ItemContainerStyle="{DynamicResource ThemedListBoxItem}"
-                             Margin="5">
-                        <ListBoxItem Content="Sample Database 1"/>
-                        <ListBoxItem Content="Sample Database 2"/>
-                        <ListBoxItem Content="Sample Database 3"/>
-                    </ListBox>
-                    
-                    <Button Grid.Row="2" 
-                            Content="Add Database" 
-                            Margin="5"
-                            Style="{DynamicResource ThemedButton}"/>
-                </Grid>
-            </Border>
-            
-            <!-- Right Panel - Main Content -->
-            <Border Grid.Column="1" 
-                    Background="{DynamicResource SecondaryBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Margin="5,0,0,0">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    
-                    <Label Grid.Row="0" 
-                           Content="Query Editor" 
-                           FontWeight="Bold"
-                           Style="{DynamicResource ThemedLabel}"/>
-                    
-                    <TextBox Grid.Row="1" 
-                             Height="100" 
-                             Margin="0,5"
-                             VerticalScrollBarVisibility="Auto"
-                             AcceptsReturn="True"
-                             Style="{DynamicResource ThemedTextBox}"
-                             Text="SELECT * FROM collection"/>
-                    
-                    <Border Grid.Row="2" 
-                            Margin="0,5"
-                            Background="{DynamicResource BackgroundBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1">
-                        <ScrollViewer>
-                            <TextBlock Text="Query results will appear here..."
-                                       Foreground="{DynamicResource DisabledBrush}"
-                                       Margin="10"/>
-                        </ScrollViewer>
-                    </Border>
-                    
-                    <StackPanel Grid.Row="3" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right"
-                                Margin="0,5,0,0">
-                        <Button Content="Clear" 
-                                Margin="0,0,5,0"
-                                Style="{DynamicResource ThemedButton}"/>
-                        <Button Content="Execute Query"
-                                Style="{DynamicResource ThemedButton}"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
+            <!-- Empty State Message -->
+            <Grid x:Name="EmptyStateMessage">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasDatabaseConfigs}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock Text="No database configurations registered.&#x0a;Click 'Add Database' to get started."
+                           FontSize="16"
+                           Foreground="{DynamicResource DisabledBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"/>
+            </Grid>
         </Grid>
+        
+        <!-- Error Message Popup -->
+        <Popup x:Name="ErrorPopup" 
+               Placement="Center"
+               PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+               StaysOpen="False"
+               AllowsTransparency="True">
+            <Border Background="{DynamicResource SecondaryBackgroundBrush}"
+                    BorderBrush="Red"
+                    BorderThickness="2"
+                    CornerRadius="5"
+                    Padding="15"
+                    MaxWidth="400">
+                <StackPanel>
+                    <TextBlock Text="Error"
+                               FontWeight="Bold"
+                               Foreground="Red"
+                               FontSize="14"
+                               Margin="0,0,0,8"/>
+                    <TextBlock x:Name="ErrorMessageText"
+                               TextWrapping="Wrap"
+                               Style="{DynamicResource ThemedTextBlock}"/>
+                    <Button Content="OK"
+                            HorizontalAlignment="Right"
+                            Margin="0,10,0,0"
+                            Click="CloseErrorPopup_Click"
+                            Style="{DynamicResource ThemedButton}"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

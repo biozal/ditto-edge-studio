@@ -8,7 +8,6 @@ namespace EdgeStudio.Models
     [property: JsonPropertyName("databaseId")] string DatabaseId,
     [property: JsonPropertyName("authToken")] string AuthToken,
     [property: JsonPropertyName("authURL")] string AuthUrl,
-    [property: JsonPropertyName("websocketURL")] string WebsocketUrl,
     [property: JsonPropertyName("httpApiUrl")] string HttpApiUrl,
     [property: JsonPropertyName("httpApiKey")] string HttpApiKey,
     [property: JsonPropertyName("mode")] string Mode,

@@ -71,7 +71,6 @@ namespace EdgeStudio
                 DatabaseId: envVars.GetValueOrDefault("DITTO_DATABASE_ID") ?? throw new InvalidOperationException("DITTO_DATABASE_ID not found in .env"),
                 AuthToken: envVars.GetValueOrDefault("DITTO_AUTH_TOKEN") ?? throw new InvalidOperationException("DITTO_AUTH_TOKEN not found in .env"),
                 AuthUrl: envVars.GetValueOrDefault("DITTO_AUTH_URL") ?? throw new InvalidOperationException("DITTO_AUTH_URL not found in .env"),
-                WebsocketUrl: envVars.GetValueOrDefault("DITTO_WEBSOCKET_URL", ""),
                 HttpApiUrl: envVars.GetValueOrDefault("DITTO_HTTP_API_URL", ""),
                 HttpApiKey: envVars.GetValueOrDefault("DITTO_HTTP_API_KEY", ""),
                 Mode: envVars.GetValueOrDefault("DITTO_MODE", "default"),
@@ -90,6 +89,9 @@ namespace EdgeStudio
             
             // Register repositories
             services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
+            
+            // Register ViewModels
+            services.AddSingleton<ViewModels.MainWindowViewModel>();
             
             // Register windows
             services.AddSingleton<MainWindow>();

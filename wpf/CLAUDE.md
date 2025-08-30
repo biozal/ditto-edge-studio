@@ -29,7 +29,7 @@ dotnet build EdgeStudio.sln
 dotnet build EdgeStudio.sln -c Release
 
 # Run the application
-dotnet run --project EdgeStudio.csproj
+dotnet run --project EdgeStudio/EdgeStudio.csproj
 ```
 
 ## Build Commands
@@ -66,31 +66,72 @@ dotnet publish -c Release -r win-x64 --self-contained
 ### Project Structure
 Located in the `wpf/` directory:
 
-- **EdgeStudio.csproj**: Main project file defining dependencies and build configuration
+**Solution Files:**
 - **EdgeStudio.sln**: Visual Studio solution file
-- **App.xaml / App.xaml.cs**: Application entry point and global resources
-- **MainWindow.xaml / MainWindow.xaml.cs**: Main application window
-- **AssemblyInfo.cs**: Assembly metadata and versioning
+- **CLAUDE.md**: Project documentation and guidance
 
-### Planned Features (to match SwiftUI version)
-- **Data Layer**:
+**EdgeStudio Project:**
+- **EdgeStudio/EdgeStudio.csproj**: Main project file defining dependencies and build configuration
+- **EdgeStudio/App.xaml / App.xaml.cs**: Application entry point and global resources
+- **EdgeStudio/AssemblyInfo.cs**: Assembly metadata and versioning
+- **EdgeStudio/AppExceptions.cs**: Global exception handling
+
+**Data Layer:**
+- **EdgeStudio/Data/DittoManager.cs**: Core Ditto database connection manager
+- **EdgeStudio/Data/Repositories/**:
+  - `IDatabaseRepository.cs`: Database repository interface
+  - `DittoDatabaseRepository.cs`: Ditto-specific database repository implementation
+
+**Models:**
+- **EdgeStudio/Models/DittoDatabaseConfig.cs**: Configuration model for Ditto database connections
+
+**ViewModels (MVVM):**
+- **EdgeStudio/ViewModels/MainWindowViewModel.cs**: Main window view model
+
+**Views:**
+- **EdgeStudio/Views/**:
+  - `MainWindow.xaml / MainWindow.xaml.cs`: Main application window
+  - `LoadingWindow.xaml / LoadingWindow.xaml.cs`: Loading/splash screen
+- **EdgeStudio/MainWindow.xaml.cs**: Legacy main window (moved to Views folder)
+
+**Themes:**
+- **EdgeStudio/Themes/**:
+  - `DarkTheme.xaml`: Dark theme resource dictionary
+  - `LightTheme.xaml`: Light theme resource dictionary
+
+**Helpers:**
+- **EdgeStudio/Helpers/**:
+  - `EnvFileReader.cs`: Environment file configuration reader
+  - `ThemeHelper.cs`: Theme management utilities
+
+**Test Project:**
+- **EdgeStudioTests/EdgeStudioTests.csproj**: Test project configuration
+- **EdgeStudioTests/Test1.cs**: Sample test file
+- **EdgeStudioTests/MSTestSettings.cs**: MSTest configuration
+
+### Current Implementation Status
+- **Data Layer**: ✅ Implemented
   - DittoManager service for database connections
-  - Query execution service
-  - Repository pattern for data management
-  - Observable pattern for real-time updates
+  - Repository pattern with interface-based design
+  - Configuration model for database settings
 
-- **Views and Controls**:
-  - Multi-app connection management
-  - Query editor with syntax highlighting
-  - Results viewer with JSON formatting
-  - Subscription management interface
-  - Presence and peer viewer
-  - System health monitoring
+- **MVVM Architecture**: ✅ Partially Implemented
+  - MainWindowViewModel for main window data binding
+  - Separation of Views into dedicated folder
+  - Repository pattern for data access
 
-- **MVVM Architecture**:
-  - ViewModels for data binding
-  - Commands for user interactions
-  - Data binding for reactive UI updates
+- **UI Framework**: ✅ Implemented
+  - Theme system with light/dark mode support
+  - Loading window for application startup
+  - Main window structure in place
+
+- **Configuration**: ✅ Implemented
+  - Environment file reader for configuration
+  - Ditto database configuration model
+
+- **Testing**: ✅ Initialized
+  - MSTest framework configured
+  - Test project structure in place
 
 ## Configuration Requirements
 
@@ -127,14 +168,19 @@ Configuration storage options:
 ## Testing
 
 ### Unit Tests
-- Create test project: `EdgeStudio.Tests`
-- Use MSTest, NUnit, or xUnit framework
+- **EdgeStudioTests**: MSTest-based test project
+- Use MSTest framework for unit testing
 - Mock Ditto dependencies for isolated testing
+- Run tests: `dotnet test EdgeStudioTests/EdgeStudioTests.csproj`
 
 ### Integration Tests
 - Test actual Ditto connections
 - Verify query execution and results
 - Test subscription mechanisms
+
+### Test Structure
+- **EdgeStudioTests/MSTestSettings.cs**: MSTest configuration and settings
+- **EdgeStudioTests/Test1.cs**: Sample test implementation
 
 ## Platform Requirements
 
@@ -172,11 +218,11 @@ Configuration storage options:
 ## MVVM Pattern Implementation
 
 ### ViewModels
-- MainViewModel: Orchestrates app-level state
-- ConnectionViewModel: Manages Ditto connections
-- QueryViewModel: Handles query execution
-- SubscriptionViewModel: Manages subscriptions
-- ObservableViewModel: Handles observable events
+- **MainWindowViewModel**: Currently implemented - orchestrates main window state
+- **ConnectionViewModel**: Planned - manages Ditto connections
+- **QueryViewModel**: Planned - handles query execution
+- **SubscriptionViewModel**: Planned - manages subscriptions
+- **ObservableViewModel**: Planned - handles observable events
 
 ### Data Binding
 - Use INotifyPropertyChanged or CommunityToolkit.Mvvm
