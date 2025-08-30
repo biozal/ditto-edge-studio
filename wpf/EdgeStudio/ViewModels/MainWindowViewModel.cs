@@ -66,6 +66,11 @@ namespace EdgeStudio.ViewModels
         [RelayCommand]
         private void EditDatabase(DittoDatabaseConfig config)
         {
+            if (config == null)
+            {
+                return;
+            }
+            
             DatabaseFormModel.LoadFromConfig(config);
             ShowEditDatabaseForm?.Invoke();
         }

@@ -20,19 +20,56 @@ namespace EdgeStudio.Models
         private string authUrl = string.Empty;
         
         [ObservableProperty]
+        private string websocketUrl = string.Empty;
+        
+        [ObservableProperty]
         private string httpApiUrl = string.Empty;
         
         [ObservableProperty]
         private string httpApiKey = string.Empty;
         
         [ObservableProperty]
-        private string mode = "default";
+        private string mode = "online";
         
         [ObservableProperty]
         private bool allowUntrustedCerts = false;
         
         [ObservableProperty]
         private bool isEditMode = false;
+        
+        public bool IsOnlineMode
+        {
+            get => Mode == "online";
+            set
+            {
+                if (value)
+                {
+                    Mode = "online";
+                }
+                OnPropertyChanged(nameof(IsOnlineMode));
+                OnPropertyChanged(nameof(IsOfflineMode));
+            }
+        }
+        
+        public bool IsOfflineMode
+        {
+            get => Mode == "offline";
+            set
+            {
+                if (value)
+                {
+                    Mode = "offline";
+                }
+                OnPropertyChanged(nameof(IsOnlineMode));
+                OnPropertyChanged(nameof(IsOfflineMode));
+            }
+        }
+        
+        partial void OnModeChanged(string value)
+        {
+            OnPropertyChanged(nameof(IsOnlineMode));
+            OnPropertyChanged(nameof(IsOfflineMode));
+        }
 
         public void Reset()
         {
@@ -41,9 +78,10 @@ namespace EdgeStudio.Models
             DatabaseId = string.Empty;
             AuthToken = string.Empty;
             AuthUrl = string.Empty;
+            WebsocketUrl = string.Empty;
             HttpApiUrl = string.Empty;
             HttpApiKey = string.Empty;
-            Mode = "default";
+            Mode = "online";
             AllowUntrustedCerts = false;
             IsEditMode = false;
         }
@@ -55,6 +93,7 @@ namespace EdgeStudio.Models
             DatabaseId = config.DatabaseId;
             AuthToken = config.AuthToken;
             AuthUrl = config.AuthUrl;
+            WebsocketUrl = config.WebsocketUrl ?? string.Empty;
             HttpApiUrl = config.HttpApiUrl;
             HttpApiKey = config.HttpApiKey;
             Mode = config.Mode;
@@ -70,6 +109,7 @@ namespace EdgeStudio.Models
                 DatabaseId: DatabaseId,
                 AuthToken: AuthToken,
                 AuthUrl: AuthUrl,
+                WebsocketUrl: WebsocketUrl,
                 HttpApiUrl: HttpApiUrl,
                 HttpApiKey: HttpApiKey,
                 Mode: Mode,

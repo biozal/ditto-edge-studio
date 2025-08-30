@@ -22,11 +22,14 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(string.Empty, _model.DatabaseId);
             Assert.AreEqual(string.Empty, _model.AuthToken);
             Assert.AreEqual(string.Empty, _model.AuthUrl);
+            Assert.AreEqual(string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiKey);
-            Assert.AreEqual("default", _model.Mode);
+            Assert.AreEqual("online", _model.Mode);
             Assert.IsFalse(_model.AllowUntrustedCerts);
             Assert.IsFalse(_model.IsEditMode);
+            Assert.IsTrue(_model.IsOnlineMode);
+            Assert.IsFalse(_model.IsOfflineMode);
         }
 
         [TestMethod]
@@ -38,9 +41,10 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
+            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
-            _model.Mode = "production";
+            _model.Mode = "offline";
             _model.AllowUntrustedCerts = true;
             _model.IsEditMode = true;
 
@@ -50,11 +54,14 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual("db-123", _model.DatabaseId);
             Assert.AreEqual("token-abc", _model.AuthToken);
             Assert.AreEqual("https://auth.example.com", _model.AuthUrl);
+            Assert.AreEqual("wss://ws.example.com", _model.WebsocketUrl);
             Assert.AreEqual("https://api.example.com", _model.HttpApiUrl);
             Assert.AreEqual("api-key-xyz", _model.HttpApiKey);
-            Assert.AreEqual("production", _model.Mode);
+            Assert.AreEqual("offline", _model.Mode);
             Assert.IsTrue(_model.AllowUntrustedCerts);
             Assert.IsTrue(_model.IsEditMode);
+            Assert.IsFalse(_model.IsOnlineMode);
+            Assert.IsTrue(_model.IsOfflineMode);
         }
 
         [TestMethod]
@@ -66,9 +73,10 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
+            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
-            _model.Mode = "production";
+            _model.Mode = "offline";
             _model.AllowUntrustedCerts = true;
             _model.IsEditMode = true;
 
@@ -81,11 +89,14 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(string.Empty, _model.DatabaseId);
             Assert.AreEqual(string.Empty, _model.AuthToken);
             Assert.AreEqual(string.Empty, _model.AuthUrl);
+            Assert.AreEqual(string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiKey);
-            Assert.AreEqual("default", _model.Mode);
+            Assert.AreEqual("online", _model.Mode);
             Assert.IsFalse(_model.AllowUntrustedCerts);
             Assert.IsFalse(_model.IsEditMode);
+            Assert.IsTrue(_model.IsOnlineMode);
+            Assert.IsFalse(_model.IsOfflineMode);
         }
 
         [TestMethod]
@@ -103,6 +114,7 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(config.DatabaseId, _model.DatabaseId);
             Assert.AreEqual(config.AuthToken, _model.AuthToken);
             Assert.AreEqual(config.AuthUrl, _model.AuthUrl);
+            Assert.AreEqual(config.WebsocketUrl ?? string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(config.HttpApiUrl, _model.HttpApiUrl);
             Assert.AreEqual(config.HttpApiKey, _model.HttpApiKey);
             Assert.AreEqual(config.Mode, _model.Mode);
@@ -119,9 +131,10 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
+            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
-            _model.Mode = "production";
+            _model.Mode = "online";
             _model.AllowUntrustedCerts = true;
 
             // Act
@@ -133,6 +146,7 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(_model.DatabaseId, config.DatabaseId);
             Assert.AreEqual(_model.AuthToken, config.AuthToken);
             Assert.AreEqual(_model.AuthUrl, config.AuthUrl);
+            Assert.AreEqual(_model.WebsocketUrl, config.WebsocketUrl);
             Assert.AreEqual(_model.HttpApiUrl, config.HttpApiUrl);
             Assert.AreEqual(_model.HttpApiKey, config.HttpApiKey);
             Assert.AreEqual(_model.Mode, config.Mode);
@@ -191,6 +205,7 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(originalConfig.DatabaseId, recreatedConfig.DatabaseId);
             Assert.AreEqual(originalConfig.AuthToken, recreatedConfig.AuthToken);
             Assert.AreEqual(originalConfig.AuthUrl, recreatedConfig.AuthUrl);
+            Assert.AreEqual(originalConfig.WebsocketUrl ?? string.Empty, recreatedConfig.WebsocketUrl);
             Assert.AreEqual(originalConfig.HttpApiUrl, recreatedConfig.HttpApiUrl);
             Assert.AreEqual(originalConfig.HttpApiKey, recreatedConfig.HttpApiKey);
             Assert.AreEqual(originalConfig.Mode, recreatedConfig.Mode);
@@ -219,6 +234,70 @@ namespace EdgeStudioTests.Models
             Assert.IsTrue(propertyChangedEvents.Contains(nameof(_model.AllowUntrustedCerts)));
         }
 
+        [TestMethod]
+        public void IsOnlineMode_WhenModeIsOnline_ReturnsTrue()
+        {
+            // Arrange
+            _model.Mode = "online";
+
+            // Assert
+            Assert.IsTrue(_model.IsOnlineMode);
+            Assert.IsFalse(_model.IsOfflineMode);
+        }
+
+        [TestMethod]
+        public void IsOfflineMode_WhenModeIsOffline_ReturnsTrue()
+        {
+            // Arrange
+            _model.Mode = "offline";
+
+            // Assert
+            Assert.IsFalse(_model.IsOnlineMode);
+            Assert.IsTrue(_model.IsOfflineMode);
+        }
+
+        [TestMethod]
+        public void IsOnlineMode_WhenSetToTrue_UpdatesModeToOnline()
+        {
+            // Arrange
+            _model.Mode = "offline";
+            var propertyChangedEvents = new List<string>();
+            _model.PropertyChanged += (sender, e) =>
+            {
+                if (e.PropertyName != null)
+                    propertyChangedEvents.Add(e.PropertyName);
+            };
+
+            // Act
+            _model.IsOnlineMode = true;
+
+            // Assert
+            Assert.AreEqual("online", _model.Mode);
+            Assert.IsTrue(propertyChangedEvents.Contains(nameof(_model.IsOnlineMode)));
+            Assert.IsTrue(propertyChangedEvents.Contains(nameof(_model.IsOfflineMode)));
+        }
+
+        [TestMethod]
+        public void IsOfflineMode_WhenSetToTrue_UpdatesModeToOffline()
+        {
+            // Arrange
+            _model.Mode = "online";
+            var propertyChangedEvents = new List<string>();
+            _model.PropertyChanged += (sender, e) =>
+            {
+                if (e.PropertyName != null)
+                    propertyChangedEvents.Add(e.PropertyName);
+            };
+
+            // Act
+            _model.IsOfflineMode = true;
+
+            // Assert
+            Assert.AreEqual("offline", _model.Mode);
+            Assert.IsTrue(propertyChangedEvents.Contains(nameof(_model.IsOnlineMode)));
+            Assert.IsTrue(propertyChangedEvents.Contains(nameof(_model.IsOfflineMode)));
+        }
+
         private static DittoDatabaseConfig CreateTestDatabaseConfig()
         {
             return new DittoDatabaseConfig(
@@ -227,9 +306,10 @@ namespace EdgeStudioTests.Models
                 DatabaseId: "test-db-id",
                 AuthToken: "test-token",
                 AuthUrl: "https://auth.test.example.com",
+                WebsocketUrl: "wss://ws.test.example.com",
                 HttpApiUrl: "https://api.test.example.com",
                 HttpApiKey: "test-api-key",
-                Mode: "test",
+                Mode: "online",
                 AllowUntrustedCerts: true
             );
         }

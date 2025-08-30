@@ -184,14 +184,14 @@
         <Popup x:Name="DatabaseFormPopup"
                Placement="Center"
                PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
-               StaysOpen="False"
+               StaysOpen="True"
                AllowsTransparency="True">
             <Border Background="{DynamicResource SecondaryBackgroundBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="2"
                     CornerRadius="8"
-                    Padding="20"
-                    MinWidth="450">
+                    Padding="25"
+                    Width="700">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -202,8 +202,8 @@
                     <!-- Title -->
                     <TextBlock Grid.Row="0"
                                x:Name="DatabaseFormTitle"
-                               Text="Add Database Configuration"
-                               FontSize="18"
+                               Text="Edit Ditto App Config"
+                               FontSize="20"
                                FontWeight="Bold"
                                Margin="0,0,0,20"
                                Style="{DynamicResource ThemedTextBlock}"/>
@@ -211,92 +211,247 @@
                     <!-- Form Fields -->
                     <ScrollViewer Grid.Row="1" 
                                   VerticalScrollBarVisibility="Auto"
-                                  MaxHeight="400">
-                        <StackPanel>
+                                  MaxHeight="500"
+                                  Padding="0,0,15,0">
+                        <StackPanel Margin="0,0,5,0">
+                            <!-- Mode Selector -->
+                            <StackPanel Margin="0,0,0,20">
+                                <Label Content="Mode" 
+                                       FontWeight="SemiBold" 
+                                       Margin="0,0,0,8"
+                                       Style="{DynamicResource ThemedLabel}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Online Playground Button -->
+                                    <RadioButton Grid.Column="0"
+                                                 x:Name="OnlinePlaygroundRadio"
+                                                 GroupName="ModeSelection"
+                                                 IsChecked="{Binding DatabaseFormModel.IsOnlineMode}"
+                                                 Margin="0,0,5,0">
+                                        <RadioButton.Template>
+                                            <ControlTemplate TargetType="RadioButton">
+                                                <Border x:Name="Border"
+                                                        Background="{DynamicResource BackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="15,10">
+                                                    <TextBlock x:Name="OnlineText"
+                                                               Text="Online Playground"
+                                                               HorizontalAlignment="Center"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource ForegroundBrush}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="Border" Property="Background" Value="{DynamicResource SecondaryBackgroundBrush}"/>
+                                                        <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}"/>
+                                                        <Setter TargetName="OnlineText" Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </RadioButton.Template>
+                                    </RadioButton>
+                                    
+                                    <!-- Offline Button -->
+                                    <RadioButton Grid.Column="1"
+                                                 x:Name="OfflineRadio"
+                                                 GroupName="ModeSelection"
+                                                 IsChecked="{Binding DatabaseFormModel.IsOfflineMode}"
+                                                 Margin="5,0,0,0">
+                                        <RadioButton.Template>
+                                            <ControlTemplate TargetType="RadioButton">
+                                                <Border x:Name="Border"
+                                                        Background="{DynamicResource BackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="15,10">
+                                                    <TextBlock x:Name="OfflineText"
+                                                               Text="Offline"
+                                                               HorizontalAlignment="Center"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource ForegroundBrush}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="Border" Property="Background" Value="{DynamicResource SecondaryBackgroundBrush}"/>
+                                                        <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}"/>
+                                                        <Setter TargetName="OfflineText" Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </RadioButton.Template>
+                                    </RadioButton>
+                                </Grid>
+                            </StackPanel>
+                            
+                            <!-- Basic Information Section -->
+                            <TextBlock Text="Basic Information" 
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Margin="0,10,0,10"
+                                       Style="{DynamicResource ThemedTextBlock}"/>
+                            
                             <!-- Name -->
                             <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Name *" 
-                                           FontWeight="SemiBold" 
-                                           Margin="0,0,0,5"
-                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <Label Content="Name" 
+                                       FontWeight="Normal" 
+                                       Margin="0,0,0,5"
+                                       Style="{DynamicResource ThemedLabel}"/>
                                 <TextBox x:Name="NameTextBox"
                                          Text="{Binding DatabaseFormModel.Name, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{DynamicResource ThemedTextBox}"/>
                             </StackPanel>
                             
-                            <!-- Database ID -->
+                            <!-- Authorization Information Section -->
+                            <TextBlock Text="Authorization Information" 
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Margin="0,10,0,10"
+                                       Style="{DynamicResource ThemedTextBlock}"/>
+                            
+                            <!-- Database ID (AppID in macOS) -->
                             <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Database ID *" 
-                                           FontWeight="SemiBold" 
-                                           Margin="0,0,0,5"
-                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <Label Content="DatabaseId" 
+                                       FontWeight="Normal" 
+                                       Margin="0,0,0,5"
+                                       Style="{DynamicResource ThemedLabel}"/>
                                 <TextBox x:Name="DatabaseIdTextBox"
                                          Text="{Binding DatabaseFormModel.DatabaseId, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
                                          Style="{DynamicResource ThemedTextBox}"/>
                             </StackPanel>
                             
-                            <!-- Auth Token -->
+                            <!-- Auth Token (Playground Token in macOS) -->
                             <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Auth Token *" 
-                                           FontWeight="SemiBold" 
-                                           Margin="0,0,0,5"
-                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseFormModel.IsOfflineMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Label Content="Auth Token" 
+                                       FontWeight="Normal" 
+                                       Margin="0,0,0,5"
+                                       Style="{DynamicResource ThemedLabel}"/>
                                 <TextBox x:Name="AuthTokenTextBox"
                                          Text="{Binding DatabaseFormModel.AuthToken, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
                                          Style="{DynamicResource ThemedTextBox}"/>
                             </StackPanel>
                             
-                            <!-- Auth URL -->
-                            <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Auth URL *" 
-                                           FontWeight="SemiBold" 
-                                           Margin="0,0,0,5"
+                            <!-- Ditto Server (BigPeer) Information Section - Only for Online Mode -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseFormModel.IsOfflineMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                
+                                <TextBlock Text="Ditto Server (BigPeer) Information" 
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Margin="0,10,0,10"
                                            Style="{DynamicResource ThemedTextBlock}"/>
-                                <TextBox x:Name="AuthUrlTextBox"
-                                         Text="{Binding DatabaseFormModel.AuthUrl, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{DynamicResource ThemedTextBox}"/>
+                                
+                                <!-- Auth URL -->
+                                <StackPanel Margin="0,0,0,15">
+                                    <Label Content="Auth URL" 
+                                           FontWeight="Normal" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedLabel}"/>
+                                    <TextBox x:Name="AuthUrlTextBox"
+                                             Text="{Binding DatabaseFormModel.AuthUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"
+                                             Style="{DynamicResource ThemedTextBox}"/>
+                                </StackPanel>
+                                
+                                <!-- Websocket URL -->
+                                <StackPanel Margin="0,0,0,15">
+                                    <Label Content="Websocket URL" 
+                                           FontWeight="Normal" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedLabel}"/>
+                                    <TextBox x:Name="WebsocketUrlTextBox"
+                                             Text="{Binding DatabaseFormModel.WebsocketUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"
+                                             Style="{DynamicResource ThemedTextBox}"/>
+                                </StackPanel>
                             </StackPanel>
                             
-                            <!-- HTTP API URL -->
-                            <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="HTTP API URL" 
-                                           FontWeight="SemiBold" 
-                                           Margin="0,0,0,5"
+                            <!-- Ditto Server - HTTP API - Optional Section - Only for Online Mode -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseFormModel.IsOfflineMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                
+                                <TextBlock Text="Ditto Server - HTTP API - Optional" 
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Margin="0,10,0,10"
                                            Style="{DynamicResource ThemedTextBlock}"/>
-                                <TextBox x:Name="HttpApiUrlTextBox"
-                                         Text="{Binding DatabaseFormModel.HttpApiUrl, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{DynamicResource ThemedTextBox}"/>
-                            </StackPanel>
-                            
-                            <!-- HTTP API Key -->
-                            <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="HTTP API Key" 
-                                           FontWeight="SemiBold" 
+                                
+                                <!-- HTTP API URL -->
+                                <StackPanel Margin="0,0,0,15">
+                                    <Label Content="HTTP API URL" 
+                                           FontWeight="Normal" 
                                            Margin="0,0,0,5"
-                                           Style="{DynamicResource ThemedTextBlock}"/>
-                                <TextBox x:Name="HttpApiKeyTextBox"
-                                         Text="{Binding DatabaseFormModel.HttpApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{DynamicResource ThemedTextBox}"/>
-                            </StackPanel>
-                            
-                            <!-- Mode -->
-                            <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Mode" 
-                                           FontWeight="SemiBold" 
+                                           Style="{DynamicResource ThemedLabel}"/>
+                                    <TextBox x:Name="HttpApiUrlTextBox"
+                                             Text="{Binding DatabaseFormModel.HttpApiUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"
+                                             Style="{DynamicResource ThemedTextBox}"/>
+                                </StackPanel>
+                                
+                                <!-- HTTP API Key -->
+                                <StackPanel Margin="0,0,0,15">
+                                    <Label Content="HTTP API Key" 
+                                           FontWeight="Normal" 
                                            Margin="0,0,0,5"
-                                           Style="{DynamicResource ThemedTextBlock}"/>
-                                <TextBox x:Name="ModeTextBox"
-                                         Text="{Binding DatabaseFormModel.Mode, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{DynamicResource ThemedTextBox}"/>
+                                           Style="{DynamicResource ThemedLabel}"/>
+                                    <TextBox x:Name="HttpApiKeyTextBox"
+                                             Text="{Binding DatabaseFormModel.HttpApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas"
+                                             Style="{DynamicResource ThemedTextBox}"/>
+                                </StackPanel>
                             </StackPanel>
                             
                             <!-- Allow Untrusted Certs -->
                             <CheckBox x:Name="AllowUntrustedCertsCheckBox"
-                                      Content="Allow Untrusted Certificates"
+                                      Content="Allow untrusted certificates"
                                       IsChecked="{Binding DatabaseFormModel.AllowUntrustedCerts}"
-                                      Margin="0,10,0,0">
+                                      Margin="0,10,0,0"
+                                      ToolTip="By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.">
                                 <CheckBox.Style>
                                     <Style TargetType="CheckBox">
+                                        <Setter Property="Visibility" Value="Visible"/>
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                                         <Setter Property="Background" Value="Transparent"/>
                                         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
@@ -354,6 +509,11 @@
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DatabaseFormModel.IsOfflineMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
                                     </Style>
                                 </CheckBox.Style>
                             </CheckBox>
@@ -365,13 +525,15 @@
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Margin="0,20,0,0">
-                        <Button Content="Cancel"
+                        <Button x:Name="CancelButton"
+                                Content="Cancel"
                                 Margin="0,0,10,0"
-                                Padding="15,8"
+                                Padding="20,10"
                                 Click="CancelDatabaseForm_Click"
                                 Style="{DynamicResource ThemedButton}"/>
-                        <Button Content="Save"
-                                Padding="15,8"
+                        <Button x:Name="SaveButton"
+                                Content="Save"
+                                Padding="20,10"
                                 Command="{Binding SaveDatabaseCommand}"
                                 Style="{DynamicResource ThemedButton}"/>
                     </StackPanel>
