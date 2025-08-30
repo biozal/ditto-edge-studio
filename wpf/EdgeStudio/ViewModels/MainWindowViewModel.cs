@@ -9,12 +9,10 @@ namespace EdgeStudio.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
-        private readonly IDittoManager _dittoManager;
         private readonly IDatabaseRepository _databaseRepository;
 
-        public MainWindowViewModel(IDittoManager dittoManager, IDatabaseRepository databaseRepository)
+        public MainWindowViewModel(IDatabaseRepository databaseRepository)
         {
-            _dittoManager = dittoManager ?? throw new ArgumentNullException(nameof(dittoManager));
             _databaseRepository = databaseRepository ?? throw new ArgumentNullException(nameof(databaseRepository));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
@@ -26,12 +24,6 @@ namespace EdgeStudio.ViewModels
             // Initialize async operations
             _ = InitializeAsync();
         }
-
-        [ObservableProperty]
-        private string queryText = "SELECT * FROM collection";
-
-        [ObservableProperty]
-        private string queryResults = "Query results will appear here...";
 
         [ObservableProperty]
         private bool isLoading;
@@ -63,37 +55,6 @@ namespace EdgeStudio.ViewModels
         public event Action? ShowEditDatabaseForm;
         public event Action? HideDatabaseForm;
 
-        [RelayCommand]
-        private async Task ExecuteQueryAsync()
-        {
-            if (string.IsNullOrWhiteSpace(QueryText))
-                return;
-
-            try
-            {
-                IsLoading = true;
-                
-                // TODO: Implement actual query execution using DittoManager
-                // For now, just simulate a query execution
-                await Task.Delay(500); // Simulate async work
-                QueryResults = $"Query executed: {QueryText}\nTimestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
-            }
-            catch (Exception ex)
-            {
-                QueryResults = $"Error executing query: {ex.Message}";
-            }
-            finally
-            {
-                IsLoading = false;
-            }
-        }
-
-        [RelayCommand]
-        private void ClearQuery()
-        {
-            QueryText = string.Empty;
-            QueryResults = "Query results will appear here...";
-        }
 
         [RelayCommand]
         private void AddDatabase()
@@ -114,24 +75,16 @@ namespace EdgeStudio.ViewModels
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[DEBUG] DeleteDatabaseAsync called for database: {config?.Name} (ID: {config?.Id})");
-                
                 if (config == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("[DEBUG] DeleteDatabaseAsync: config is null!");
                     ErrorOccurred?.Invoke(this, "Cannot delete: database configuration is null.");
                     return;
                 }
-
-                System.Diagnostics.Debug.WriteLine($"[DEBUG] DatabaseConfigs count before delete: {DatabaseConfigs.Count}");
                 
                 await _databaseRepository.DeleteDittoDatabaseConfig(config);
-                
-                System.Diagnostics.Debug.WriteLine("[DEBUG] DeleteDittoDatabaseConfig completed successfully");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[DEBUG] DeleteDatabaseAsync exception: {ex.Message}");
                 ErrorOccurred?.Invoke(this, $"Failed to delete database configuration: {ex.Message}");
             }
         }

@@ -6,7 +6,7 @@ using System.Windows;
 
 namespace EdgeStudio.Data.Repositories
 {
-    public class DittoDatabaseRepository(DittoManager _dittoManager)
+    public class DittoDatabaseRepository(IDittoManager _dittoManager)
         : IDatabaseRepository, IDisposable
     {
         private DittoSyncSubscription? _localAppConfigSubscription;
