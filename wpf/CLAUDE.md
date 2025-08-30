@@ -22,11 +22,11 @@ Edge Studio WPF is a Windows desktop application for querying and managing Ditto
 # Restore NuGet packages
 dotnet restore
 
-# Build the solution
-dotnet build EdgeStudio.sln
+# Build the solution with test validation
+dotnet build EdgeStudio.sln && dotnet test EdgeStudioTests/EdgeStudioTests.csproj --no-build
 
-# Build in Release configuration
-dotnet build EdgeStudio.sln -c Release
+# Build in Release configuration with test validation
+dotnet build EdgeStudio.sln -c Release && dotnet test EdgeStudioTests/EdgeStudioTests.csproj -c Release --no-build
 
 # Run the application
 dotnet run --project EdgeStudio/EdgeStudio.csproj
@@ -35,24 +35,29 @@ dotnet run --project EdgeStudio/EdgeStudio.csproj
 ## Build Commands
 
 ### Command Line (dotnet CLI)
+**IMPORTANT:** All builds must run tests and validate no new warnings are introduced.
+
 ```bash
 # Clean the solution
 dotnet clean
 
-# Build Debug configuration
-dotnet build
+# Build Debug configuration with test validation and warning checks
+dotnet build --verbosity normal --warnaserror && dotnet test EdgeStudioTests/EdgeStudioTests.csproj --no-build
 
-# Build Release configuration
-dotnet build -c Release
+# Build Release configuration with test validation and warning checks
+dotnet build -c Release --verbosity normal --warnaserror && dotnet test EdgeStudioTests/EdgeStudioTests.csproj -c Release --no-build
 
 # Run the application
-dotnet run
+dotnet run --project EdgeStudio/EdgeStudio.csproj
 
-# Run tests (when available)
-dotnet test
+# Run tests only
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj
 
-# Publish for Windows
-dotnet publish -c Release -r win-x64 --self-contained
+# Run tests with detailed output
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj --logger "console;verbosity=detailed"
+
+# Publish for Windows with test validation
+dotnet build -c Release --warnaserror && dotnet test EdgeStudioTests/EdgeStudioTests.csproj -c Release --no-build && dotnet publish EdgeStudio/EdgeStudio.csproj -c Release -r win-x64 --self-contained
 ```
 
 ### Visual Studio
@@ -105,8 +110,9 @@ Located in the `wpf/` directory:
   - `ThemeHelper.cs`: Theme management utilities
 
 **Test Project:**
-- **EdgeStudioTests/EdgeStudioTests.csproj**: Test project configuration
-- **EdgeStudioTests/Test1.cs**: Sample test file
+- **EdgeStudioTests/EdgeStudioTests.csproj**: Test project configuration with MSTest and Moq dependencies
+- **EdgeStudioTests/ViewModels/MainWindowViewModelTests.cs**: Comprehensive MainWindowViewModel tests with mocked dependencies
+- **EdgeStudioTests/Models/DatabaseFormModelTests.cs**: Complete DatabaseFormModel test coverage
 - **EdgeStudioTests/MSTestSettings.cs**: MSTest configuration
 
 ### Current Implementation Status
@@ -129,9 +135,11 @@ Located in the `wpf/` directory:
   - Environment file reader for configuration
   - Ditto database configuration model
 
-- **Testing**: ✅ Initialized
-  - MSTest framework configured
-  - Test project structure in place
+- **Testing**: ✅ Implemented
+  - MSTest framework with comprehensive test coverage
+  - Moq framework for dependency mocking
+  - Full test coverage for ViewModels and Models
+  - Build process includes automatic test validation
 
 ## Configuration Requirements
 
@@ -167,20 +175,83 @@ Configuration storage options:
 
 ## Testing
 
-### Unit Tests
-- **EdgeStudioTests**: MSTest-based test project
-- Use MSTest framework for unit testing
-- Mock Ditto dependencies for isolated testing
-- Run tests: `dotnet test EdgeStudioTests/EdgeStudioTests.csproj`
+**CRITICAL:** All builds must validate tests pass and no new warnings are introduced. Testing is mandatory for all code changes.
+
+### Test Framework
+- **MSTest**: Primary testing framework
+- **Moq**: Mocking framework for dependency isolation
+- **Test Coverage**: Comprehensive coverage required for all ViewModels and Models
+
+### Unit Tests Structure
+- **EdgeStudioTests/ViewModels/**: ViewModel test classes
+  - `MainWindowViewModelTests.cs`: Complete MainWindowViewModel test coverage including:
+    - Constructor validation with null parameter handling
+    - Command execution testing (ExecuteQueryCommand, ClearQueryCommand, etc.)
+    - Property change notification validation
+    - Error handling and event triggering
+    - CRUD operations with mocked repository
+    - Edge cases and validation scenarios
+
+- **EdgeStudioTests/Models/**: Model test classes
+  - `DatabaseFormModelTests.cs`: Complete DatabaseFormModel test coverage including:
+    - Property initialization and default values
+    - Property change notifications
+    - Reset functionality
+    - LoadFromConfig/ToConfig roundtrip testing
+    - ID generation for new configurations
+
+### Mocking Strategy
+```csharp
+// Example mocking pattern used throughout tests
+private Mock<DittoManager> _mockDittoManager;
+private Mock<IDatabaseRepository> _mockDatabaseRepository;
+
+[TestInitialize]
+public void Setup()
+{
+    _mockDittoManager = new Mock<DittoManager>();
+    _mockDatabaseRepository = new Mock<IDatabaseRepository>();
+    _viewModel = new MainWindowViewModel(_mockDittoManager.Object, _mockDatabaseRepository.Object);
+}
+```
+
+### Test Execution Commands
+```bash
+# Run all tests
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj
+
+# Run tests with detailed output
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj --logger "console;verbosity=detailed"
+
+# Run tests for specific class
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj --filter "ClassName=MainWindowViewModelTests"
+
+# Run tests with coverage (if coverage tools installed)
+dotnet test EdgeStudioTests/EdgeStudioTests.csproj --collect:"XPlat Code Coverage"
+```
 
 ### Integration Tests
-- Test actual Ditto connections
+- Test actual Ditto connections (when needed)
 - Verify query execution and results
 - Test subscription mechanisms
+- **Note**: Integration tests should be kept minimal and isolated from unit tests
 
-### Test Structure
-- **EdgeStudioTests/MSTestSettings.cs**: MSTest configuration and settings
-- **EdgeStudioTests/Test1.cs**: Sample test implementation
+### Test Requirements
+1. **Code Coverage**: All public methods must have test coverage
+2. **Dependency Isolation**: All external dependencies must be mocked
+3. **Edge Cases**: Test null inputs, empty collections, error conditions
+4. **Async Operations**: Proper async/await testing patterns
+5. **Event Testing**: Verify event triggering and handling
+6. **Validation Testing**: Test all validation logic and error messages
+
+### Test Dependencies
+```xml
+<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="17.12.6" />
+<PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="1.4.3" />
+<PackageReference Include="MSTest" Version="3.6.4" />
+<PackageReference Include="Moq" Version="4.20.72" />
+```
 
 ## Platform Requirements
 
@@ -269,6 +340,9 @@ Configuration storage options:
 - Use async/await for asynchronous operations
 - Implement IDisposable for resource cleanup
 - Use dependency injection for testability
+- **Write comprehensive tests**: All new code must include corresponding unit tests
+- **Mock external dependencies**: Use Moq framework for dependency isolation
+- **Follow MVVM patterns**: Separate concerns between View, ViewModel, and Model layers
 
 ## Future Enhancements
 

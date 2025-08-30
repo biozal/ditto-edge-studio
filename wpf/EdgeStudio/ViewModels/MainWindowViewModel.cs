@@ -9,15 +9,16 @@ namespace EdgeStudio.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
-        private readonly DittoManager _dittoManager;
+        private readonly IDittoManager _dittoManager;
         private readonly IDatabaseRepository _databaseRepository;
 
-        public MainWindowViewModel(DittoManager dittoManager, IDatabaseRepository databaseRepository)
+        public MainWindowViewModel(IDittoManager dittoManager, IDatabaseRepository databaseRepository)
         {
             _dittoManager = dittoManager ?? throw new ArgumentNullException(nameof(dittoManager));
             _databaseRepository = databaseRepository ?? throw new ArgumentNullException(nameof(databaseRepository));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
+            DatabaseFormModel = new Models.DatabaseFormModel();
             
             // Subscribe to collection changes to update HasDatabaseConfigs
             DatabaseConfigs.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasDatabaseConfigs));
@@ -41,6 +42,11 @@ namespace EdgeStudio.ViewModels
         public ObservableCollection<DittoDatabaseConfig> DatabaseConfigs { get; }
         
         /// <summary>
+        /// Form model for add/edit database dialog
+        /// </summary>
+        public Models.DatabaseFormModel DatabaseFormModel { get; }
+        
+        /// <summary>
         /// Returns true when there are no database configurations (for empty state visibility)
         /// </summary>
         public bool HasDatabaseConfigs => DatabaseConfigs.Count == 0;
@@ -49,6 +55,13 @@ namespace EdgeStudio.ViewModels
         /// Event raised when an error occurs
         /// </summary>
         public event EventHandler<string>? ErrorOccurred;
+        
+        /// <summary>
+        /// Event raised when UI needs to show/hide forms
+        /// </summary>
+        public event Action? ShowAddDatabaseForm;
+        public event Action? ShowEditDatabaseForm;
+        public event Action? HideDatabaseForm;
 
         [RelayCommand]
         private async Task ExecuteQueryAsync()
@@ -83,23 +96,83 @@ namespace EdgeStudio.ViewModels
         }
 
         [RelayCommand]
-        private async Task AddDatabaseAsync()
+        private void AddDatabase()
         {
-            // TODO: Show dialog to add new database configuration
-            // For now, just add a sample config
-            var newConfig = new DittoDatabaseConfig(
-                Id: Guid.NewGuid().ToString(),
-                Name: $"New Database {DatabaseConfigs.Count + 1}",
-                DatabaseId: "sample-id",
-                AuthToken: "sample-token",
-                AuthUrl: "https://example.com",
-                HttpApiUrl: "https://api.example.com",
-                HttpApiKey: "sample-key",
-                Mode: "default",
-                AllowUntrustedCerts: false
-            );
+            DatabaseFormModel.Reset();
+            ShowAddDatabaseForm?.Invoke();
+        }
+        
+        [RelayCommand]
+        private void EditDatabase(DittoDatabaseConfig config)
+        {
+            DatabaseFormModel.LoadFromConfig(config);
+            ShowEditDatabaseForm?.Invoke();
+        }
+        
+        [RelayCommand]
+        private async Task DeleteDatabaseAsync(DittoDatabaseConfig config)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[DEBUG] DeleteDatabaseAsync called for database: {config?.Name} (ID: {config?.Id})");
+                
+                if (config == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[DEBUG] DeleteDatabaseAsync: config is null!");
+                    ErrorOccurred?.Invoke(this, "Cannot delete: database configuration is null.");
+                    return;
+                }
 
-            await _databaseRepository.AddDittoDatabaseConfig(newConfig);
+                System.Diagnostics.Debug.WriteLine($"[DEBUG] DatabaseConfigs count before delete: {DatabaseConfigs.Count}");
+                
+                await _databaseRepository.DeleteDittoDatabaseConfig(config);
+                
+                System.Diagnostics.Debug.WriteLine("[DEBUG] DeleteDittoDatabaseConfig completed successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DEBUG] DeleteDatabaseAsync exception: {ex.Message}");
+                ErrorOccurred?.Invoke(this, $"Failed to delete database configuration: {ex.Message}");
+            }
+        }
+        
+        [RelayCommand]
+        private async Task SaveDatabaseAsync()
+        {
+            try
+            {
+                // Validate required fields
+                if (string.IsNullOrWhiteSpace(DatabaseFormModel.Name) ||
+                    string.IsNullOrWhiteSpace(DatabaseFormModel.DatabaseId) ||
+                    string.IsNullOrWhiteSpace(DatabaseFormModel.AuthToken) ||
+                    string.IsNullOrWhiteSpace(DatabaseFormModel.AuthUrl))
+                {
+                    ErrorOccurred?.Invoke(this, "Please fill in all required fields (marked with *).");
+                    return;
+                }
+
+                var config = DatabaseFormModel.ToConfig();
+                
+                if (DatabaseFormModel.IsEditMode)
+                {
+                    await _databaseRepository.UpdateDatabaseConfig(config);
+                }
+                else
+                {
+                    await _databaseRepository.AddDittoDatabaseConfig(config);
+                }
+                
+                HideDatabaseForm?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                ErrorOccurred?.Invoke(this, $"Failed to save database configuration: {ex.Message}");
+            }
+        }
+        
+        public void CancelDatabaseForm()
+        {
+            DatabaseFormModel.Reset();
         }
 
         private async Task InitializeAsync()

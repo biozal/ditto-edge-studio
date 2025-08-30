@@ -22,6 +22,11 @@ namespace EdgeStudio
             
             // Subscribe to error messages from ViewModel
             _viewModel.ErrorOccurred += OnErrorOccurred;
+            
+            // Subscribe to form dialog events
+            _viewModel.ShowAddDatabaseForm += ShowAddDatabaseForm;
+            _viewModel.ShowEditDatabaseForm += ShowEditDatabaseForm;
+            _viewModel.HideDatabaseForm += HideDatabaseForm;
         }
         
         private void ShowSecureField_Click(object sender, RoutedEventArgs e)
@@ -64,10 +69,38 @@ namespace EdgeStudio
             ErrorPopup.IsOpen = false;
         }
         
+        private void CancelDatabaseForm_Click(object sender, RoutedEventArgs e)
+        {
+            DatabaseFormPopup.IsOpen = false;
+            _viewModel.CancelDatabaseForm();
+        }
+        
+        public void ShowAddDatabaseForm()
+        {
+            DatabaseFormTitle.Text = "Add Database Configuration";
+            DatabaseFormPopup.IsOpen = true;
+        }
+        
+        public void ShowEditDatabaseForm()
+        {
+            DatabaseFormTitle.Text = "Edit Database Configuration";
+            DatabaseFormPopup.IsOpen = true;
+        }
+        
+        public void HideDatabaseForm()
+        {
+            DatabaseFormPopup.IsOpen = false;
+        }
+        
         protected override void OnClosed(EventArgs e)
         {
             // Unsubscribe from error events
             _viewModel.ErrorOccurred -= OnErrorOccurred;
+            
+            // Unsubscribe from form dialog events
+            _viewModel.ShowAddDatabaseForm -= ShowAddDatabaseForm;
+            _viewModel.ShowEditDatabaseForm -= ShowEditDatabaseForm;
+            _viewModel.HideDatabaseForm -= HideDatabaseForm;
             
             // Clean up the ViewModel when window is closed
             _viewModel.Cleanup();

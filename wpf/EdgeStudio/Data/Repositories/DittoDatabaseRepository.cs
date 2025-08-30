@@ -12,8 +12,8 @@ namespace EdgeStudio.Data.Repositories
         private DittoSyncSubscription? _localAppConfigSubscription;
         private DittoStoreObserver? _localDittoStoreObserver;
         private bool disposedValue;
-        private List<string?> _previousDocumentIds = new List<string?>(); // Store only extracted IDs
-        private DittoDiffer _differ = new DittoDiffer();
+        private List<string> _previousDocumentIds = new List<string>(); // Store only extracted IDs
+        private readonly DittoDiffer _differ = new DittoDiffer();
 
         public async Task AddDittoDatabaseConfig(DittoDatabaseConfig config)
         {
@@ -41,67 +41,85 @@ namespace EdgeStudio.Data.Repositories
         public async Task DeleteDittoDatabaseConfig(DittoDatabaseConfig config)
         {
             var ditto = GetDitto();
-            await ditto.Store.ExecuteAsync("DELETE FROM dittodatabaseconfigs WHERE _id = :id",
-                new Dictionary<string, object> { { "id", config.Id } });
+            var query = "DELETE FROM dittodatabaseconfigs WHERE _id = :id";
+            var args = new Dictionary<string, object> { { "id", config.Id } };
+            
+            await ditto.Store.ExecuteAsync(query, args);
         }
 
         public void RegisterLocalObservers(ObservableCollection<DittoDatabaseConfig> databaseConfigs, Action<string> errorMessage)
         {
-            
-
             var ditto = GetDitto();
             _localDittoStoreObserver = ditto.Store.RegisterObserver("SELECT * FROM dittodatabaseconfigs ORDER BY name", (result) =>
             {
-                if (result != null && result.Items.Count > 0)
+                if (result != null)
                 {
-                    var diff = _differ.Diff(result.Items);
-                    // Extract current document IDs and dematerialize items
-                    var currentDocumentIds = result.Items?.Select(item =>
+                    List<string> currentDocumentIds;
+                    
+                    if (result.Items.Count > 0)
                     {
-                        var id = item.Value.TryGetValue("_id", out var idObj) ? idObj?.ToString() : "";
-                        item.Dematerialize(); // Release memory after extracting data
-                        return id;
-                    }).ToList() ?? new();
-
-                    // Handle deletions using stored IDs from previous emission
-                    foreach (var index in diff.Deletions)
-                    {
-                        if (index < _previousDocumentIds.Count)
+                        var diff = _differ.Diff(result.Items);
+                        
+                        // Extract current document IDs and dematerialize items
+                        currentDocumentIds = result.Items?.Select(item =>
                         {
-                            var deletedId = _previousDocumentIds[index];
-                            if (deletedId != null)
+                            var id = item.Value.TryGetValue("_id", out var idObj) ? idObj?.ToString() ?? "" : "";
+                            item.Dematerialize(); // Release memory after extracting data
+                            return id;
+                        }).Where(id => id != null).ToList() ?? new List<string>();
+
+                        // Handle deletions using stored IDs from previous emission
+                        foreach (var index in diff.Deletions)
+                        {
+                            if (index < _previousDocumentIds.Count)
                             {
+                                var deletedId = _previousDocumentIds[index];
+                                
                                 //make sure to do the update on the Main UI Thread
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    databaseConfigs.Remove(databaseConfigs.First(dc => dc.Id == deletedId));
+                                    var configToRemove = databaseConfigs.FirstOrDefault(dc => dc.Id == deletedId);
+                                    if (configToRemove != null)
+                                    {
+                                        databaseConfigs.Remove(configToRemove);
+                                    }
                                 });
                             }
                         }
-                    }
 
-                    // Handle insertions using current IDs
-                    foreach (var index in diff.Insertions)
-                    {
-                        DittoDatabaseConfig newConfig = GetDitoDatabaseConfigFromQueryResult(result, index);
-                        //make sure to do the update on the Main UI Thread
-                        Application.Current.Dispatcher.Invoke(() =>
+                        // Handle insertions using current IDs
+                        foreach (var index in diff.Insertions)
                         {
-                            databaseConfigs.Add(newConfig);
-                        });
-                    }
+                            DittoDatabaseConfig newConfig = GetDitoDatabaseConfigFromQueryResult(result, index);
+                            //make sure to do the update on the Main UI Thread
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                databaseConfigs.Add(newConfig);
+                            });
+                        }
 
-                    // Handle updates using current IDs
-                    foreach (var index in diff.Updates)
-                    {
-                        var updatedId = currentDocumentIds[index];
-                        if (updatedId != null)
+                        // Handle updates using current IDs
+                        foreach (var index in diff.Updates)
                         {
+                            var updatedId = currentDocumentIds[index];
                             DittoDatabaseConfig newConfig = GetDitoDatabaseConfigFromQueryResult(result, index);
                             var updateIndex = databaseConfigs.IndexOf(databaseConfigs.First(dc => dc.Id == updatedId));
                             Application.Current.Dispatcher.Invoke(() =>
                             {
                                 databaseConfigs[updateIndex] = newConfig;
+                            });
+                        }
+                    }
+                    else
+                    {
+                        currentDocumentIds = new List<string>();
+                        
+                        // If we previously had items but now have none, clear the UI collection
+                        if (_previousDocumentIds.Count > 0)
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                databaseConfigs.Clear();
                             });
                         }
                     }

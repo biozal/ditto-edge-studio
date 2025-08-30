@@ -73,6 +73,23 @@
                                                FontWeight="Bold"
                                                Style="{DynamicResource ThemedTextBlock}"/>
                                     
+                                    <!-- Action Buttons -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right">
+                                        <Button Content="Edit"
+                                                Margin="0,0,8,0"
+                                                Padding="12,4"
+                                                Command="{Binding DataContext.EditDatabaseCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{DynamicResource ThemedButton}"/>
+                                        <Button Content="Delete"
+                                                Padding="12,4"
+                                                Command="{Binding DataContext.DeleteDatabaseCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{DynamicResource ThemedButton}"/>
+                                    </StackPanel>
+                                    
                                     <!-- Database ID -->
                                     <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                                                 Orientation="Horizontal"
@@ -160,6 +177,205 @@
                             Click="CloseErrorPopup_Click"
                             Style="{DynamicResource ThemedButton}"/>
                 </StackPanel>
+            </Border>
+        </Popup>
+        
+        <!-- Add/Edit Database Popup -->
+        <Popup x:Name="DatabaseFormPopup"
+               Placement="Center"
+               PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+               StaysOpen="False"
+               AllowsTransparency="True">
+            <Border Background="{DynamicResource SecondaryBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="20"
+                    MinWidth="450">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Title -->
+                    <TextBlock Grid.Row="0"
+                               x:Name="DatabaseFormTitle"
+                               Text="Add Database Configuration"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               Margin="0,0,0,20"
+                               Style="{DynamicResource ThemedTextBlock}"/>
+                    
+                    <!-- Form Fields -->
+                    <ScrollViewer Grid.Row="1" 
+                                  VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="400">
+                        <StackPanel>
+                            <!-- Name -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Name *" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="NameTextBox"
+                                         Text="{Binding DatabaseFormModel.Name, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- Database ID -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Database ID *" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="DatabaseIdTextBox"
+                                         Text="{Binding DatabaseFormModel.DatabaseId, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- Auth Token -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Auth Token *" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="AuthTokenTextBox"
+                                         Text="{Binding DatabaseFormModel.AuthToken, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- Auth URL -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Auth URL *" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="AuthUrlTextBox"
+                                         Text="{Binding DatabaseFormModel.AuthUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- HTTP API URL -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="HTTP API URL" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="HttpApiUrlTextBox"
+                                         Text="{Binding DatabaseFormModel.HttpApiUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- HTTP API Key -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="HTTP API Key" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="HttpApiKeyTextBox"
+                                         Text="{Binding DatabaseFormModel.HttpApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- Mode -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Mode" 
+                                           FontWeight="SemiBold" 
+                                           Margin="0,0,0,5"
+                                           Style="{DynamicResource ThemedTextBlock}"/>
+                                <TextBox x:Name="ModeTextBox"
+                                         Text="{Binding DatabaseFormModel.Mode, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{DynamicResource ThemedTextBox}"/>
+                            </StackPanel>
+                            
+                            <!-- Allow Untrusted Certs -->
+                            <CheckBox x:Name="AllowUntrustedCertsCheckBox"
+                                      Content="Allow Untrusted Certificates"
+                                      IsChecked="{Binding DatabaseFormModel.AllowUntrustedCerts}"
+                                      Margin="0,10,0,0">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                                        <Setter Property="FontSize" Value="14"/>
+                                        <Setter Property="Padding" Value="6,0,0,0"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="CheckBox">
+                                                    <Grid Background="Transparent">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        
+                                                        <!-- Checkbox visual -->
+                                                        <Border Grid.Column="0"
+                                                                x:Name="CheckBoxBorder"
+                                                                Width="16"
+                                                                Height="16"
+                                                                Background="{DynamicResource BackgroundBrush}"
+                                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="2"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,6,0">
+                                                            <Path x:Name="CheckMark"
+                                                                  Data="M 0 2 L 2 4 L 6 0"
+                                                                  Stroke="{DynamicResource TextBrush}"
+                                                                  StrokeThickness="2"
+                                                                  Visibility="Collapsed"
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        
+                                                        <!-- Text content -->
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{TemplateBinding Content}"
+                                                                   Foreground="{DynamicResource TextBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="{TemplateBinding FontSize}"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                                            <Setter TargetName="CheckBoxBorder" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{DynamicResource DisabledBrush}"/>
+                                                            <Setter TargetName="CheckMark" Property="Stroke" Value="{DynamicResource DisabledBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Buttons -->
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,20,0,0">
+                        <Button Content="Cancel"
+                                Margin="0,0,10,0"
+                                Padding="15,8"
+                                Click="CancelDatabaseForm_Click"
+                                Style="{DynamicResource ThemedButton}"/>
+                        <Button Content="Save"
+                                Padding="15,8"
+                                Command="{Binding SaveDatabaseCommand}"
+                                Style="{DynamicResource ThemedButton}"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Popup>
     </Grid>
