@@ -17,7 +17,7 @@ namespace EdgeStudio.Data.Repositories
 
         public async Task AddDittoDatabaseConfig(DittoDatabaseConfig config)
         {
-            var ditto = GetDitto();
+            var ditto = _dittoManager.GetLocalDitto();
             var query = "INSERT INTO dittodatabaseconfigs INITIAL DOCUMENTS (:newConfig)";
             var args = new Dictionary<string, object>
             {
@@ -40,16 +40,43 @@ namespace EdgeStudio.Data.Repositories
 
         public async Task DeleteDittoDatabaseConfig(DittoDatabaseConfig config)
         {
-            var ditto = GetDitto();
+            var ditto = _dittoManager.GetLocalDitto();
             var query = "DELETE FROM dittodatabaseconfigs WHERE _id = :id";
             var args = new Dictionary<string, object> { { "id", config.Id } };
             
             await ditto.Store.ExecuteAsync(query, args);
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+
+                    _localAppConfigSubscription?.Cancel();
+                    _localAppConfigSubscription = null;
+
+                    _localDittoStoreObserver?.Cancel();
+                    _localDittoStoreObserver = null;
+
+                    _differ.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
         public void RegisterLocalObservers(ObservableCollection<DittoDatabaseConfig> databaseConfigs, Action<string> errorMessage)
         {
-            var ditto = GetDitto();
+            var ditto = _dittoManager.GetLocalDitto();
             _localDittoStoreObserver = ditto.Store.RegisterObserver("SELECT * FROM dittodatabaseconfigs ORDER BY name", (result) =>
             {
                 if (result != null)
@@ -143,7 +170,7 @@ namespace EdgeStudio.Data.Repositories
        
         public async Task SetupDatabaseConfigSubscriptions()
         {
-            var ditto = GetDitto();
+            var ditto = _dittoManager.GetLocalDitto();
             // Set sync scopes for collections to local peer only so they don't sync
             // by accident
             var syncScopes = new Dictionary<string, string> {
@@ -165,7 +192,7 @@ namespace EdgeStudio.Data.Repositories
 
         public async Task UpdateDatabaseConfig(DittoDatabaseConfig config)
         {
-            var ditto = GetDitto();
+            var ditto = _dittoManager.GetLocalDitto();
             var query = "UPDATE dittodatabaseconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts WHERE _id = :_id";
             var args = new Dictionary<string, object>
             {
@@ -180,42 +207,6 @@ namespace EdgeStudio.Data.Repositories
                 { "allowUntrustedCerts", config.AllowUntrustedCerts }
             };
             await ditto.Store.ExecuteAsync(query, args);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-
-                    _localAppConfigSubscription?.Cancel();
-                    _localAppConfigSubscription = null;
-
-                    _localDittoStoreObserver?.Cancel();
-                    _localDittoStoreObserver = null;
-
-                    _differ.Dispose();
-                }
-
-                disposedValue = true;
-            }
-        }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        private Ditto GetDitto()
-        {
-            if (_dittoManager.DittoLocal is null)
-            {
-                throw new InvalidStateException("DittoManager is not properly initialized.");
-            }
-            return _dittoManager.DittoLocal;
         }
 
         private static DittoDatabaseConfig GetDitoDatabaseConfigFromQueryResult(DittoQueryResult result, int index)

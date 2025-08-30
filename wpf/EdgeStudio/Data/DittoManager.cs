@@ -13,6 +13,24 @@ namespace EdgeStudio.Data
 
         public DittoDatabaseConfig? SelectedDatabaseConfig { get; set; } = null;
 
+        public void CloseSelectedApp()
+        {
+            if (DittoSelectedApp != null)
+            {
+                DittoSelectedApp.Sync.Stop();
+                DittoSelectedApp = null;
+            }
+        }
+
+        public Ditto GetLocalDitto()
+        {
+            if (DittoLocal is null)
+            {
+                throw new InvalidStateException("DittoManager is not properly initialized.");
+            }
+            return DittoLocal;
+        }
+
         public async Task InitializeDittoAsync(DittoDatabaseConfig databaseConfig)
         {
             if (!_isStoreInitialized)
@@ -133,14 +151,5 @@ namespace EdgeStudio.Data
             }
             this.DittoSelectedApp.Sync.Stop();
         }
-
-        public void CloseSelectedApp()
-        {
-            if (DittoSelectedApp != null)
-            {
-                DittoSelectedApp.Sync.Stop();
-                DittoSelectedApp = null;
-            }
-        } 
     }
 }
