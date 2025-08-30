@@ -85,7 +85,7 @@ namespace EdgeStudio
             var services = new ServiceCollection();
             
             // Register DittoManager as singleton
-            services.AddSingleton(dittoManager);
+            services.AddSingleton<IDittoManager>(dittoManager);
             
             // Register repositories
             services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();

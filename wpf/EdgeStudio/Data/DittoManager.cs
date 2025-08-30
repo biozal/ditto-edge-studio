@@ -4,7 +4,7 @@ using System.IO;
 
 namespace EdgeStudio.Data
 {
-    public class DittoManager
+    public class DittoManager : IDittoManager
     {
         private bool _isStoreInitialized = false;
 
