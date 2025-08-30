@@ -89,6 +89,7 @@ namespace EdgeStudio
             
             // Register repositories
             services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
+            services.AddSingleton<ISubscriptionRepository, DittoSubscriptionRepository>();
             
             // Register ViewModels
             services.AddSingleton<ViewModels.MainWindowViewModel>();
