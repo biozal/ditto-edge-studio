@@ -1,0 +1,140 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    
+    <!-- Light Theme Colors -->
+    <Color x:Key="BackgroundColor">#FFFFFF</Color>
+    <Color x:Key="ForegroundColor">#000000</Color>
+    <Color x:Key="SecondaryBackgroundColor">#F5F5F5</Color>
+    <Color x:Key="AccentColor">#0078D4</Color>
+    <Color x:Key="BorderColor">#E0E0E0</Color>
+    <Color x:Key="HoverColor">#F0F0F0</Color>
+    <Color x:Key="SelectedColor">#E3F2FD</Color>
+    <Color x:Key="DisabledColor">#9E9E9E</Color>
+    <Color x:Key="ErrorColor">#D32F2F</Color>
+    <Color x:Key="SuccessColor">#388E3C</Color>
+    <Color x:Key="WarningColor">#FFA000</Color>
+    <Color x:Key="InfoColor">#1976D2</Color>
+    
+    <!-- Control-specific colors -->
+    <Color x:Key="ButtonBackgroundColor">#F0F0F0</Color>
+    <Color x:Key="ButtonForegroundColor">#000000</Color>
+    <Color x:Key="ButtonHoverColor">#E0E0E0</Color>
+    <Color x:Key="ButtonPressedColor">#D0D0D0</Color>
+    
+    <Color x:Key="TextBoxBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="TextBoxForegroundColor">#000000</Color>
+    <Color x:Key="TextBoxBorderColor">#CCCCCC</Color>
+    
+    <Color x:Key="ListBoxBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="ListBoxItemHoverColor">#F5F5F5</Color>
+    <Color x:Key="ListBoxItemSelectedColor">#E3F2FD</Color>
+    
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+    <SolidColorBrush x:Key="ForegroundBrush" Color="{StaticResource ForegroundColor}"/>
+    <SolidColorBrush x:Key="SecondaryBackgroundBrush" Color="{StaticResource SecondaryBackgroundColor}"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource HoverColor}"/>
+    <SolidColorBrush x:Key="SelectedBrush" Color="{StaticResource SelectedColor}"/>
+    <SolidColorBrush x:Key="DisabledBrush" Color="{StaticResource DisabledColor}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}"/>
+    
+    <!-- Control-specific brushes -->
+    <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="{StaticResource ButtonBackgroundColor}"/>
+    <SolidColorBrush x:Key="ButtonForegroundBrush" Color="{StaticResource ButtonForegroundColor}"/>
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="{StaticResource ButtonHoverColor}"/>
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="{StaticResource ButtonPressedColor}"/>
+    
+    <SolidColorBrush x:Key="TextBoxBackgroundBrush" Color="{StaticResource TextBoxBackgroundColor}"/>
+    <SolidColorBrush x:Key="TextBoxForegroundBrush" Color="{StaticResource TextBoxForegroundColor}"/>
+    <SolidColorBrush x:Key="TextBoxBorderBrush" Color="{StaticResource TextBoxBorderColor}"/>
+    
+    <SolidColorBrush x:Key="ListBoxBackgroundBrush" Color="{StaticResource ListBoxBackgroundColor}"/>
+    <SolidColorBrush x:Key="ListBoxItemHoverBrush" Color="{StaticResource ListBoxItemHoverColor}"/>
+    <SolidColorBrush x:Key="ListBoxItemSelectedBrush" Color="{StaticResource ListBoxItemSelectedColor}"/>
+    
+    <!-- Common Styles -->
+    <Style x:Key="ThemedWindow" TargetType="Window">
+        <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+    </Style>
+    
+    <Style x:Key="ThemedButton" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource ButtonPressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <Style x:Key="ThemedTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{DynamicResource TextBoxBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBoxForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource TextBoxBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="5"/>
+    </Style>
+    
+    <Style x:Key="ThemedLabel" TargetType="Label">
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+    </Style>
+    
+    <Style x:Key="ThemedListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="{DynamicResource ListBoxBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    
+    <Style x:Key="ThemedListBoxItem" TargetType="ListBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border Background="{TemplateBinding Background}" 
+                            BorderThickness="0"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource ListBoxItemHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource ListBoxItemSelectedBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+</ResourceDictionary>

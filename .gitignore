@@ -10,3 +10,8 @@ rust/target
 rust/.vscode
 rust/debug
 rust/designs
+/wpf/.claude
+/wpf/.vs
+/wpf/EdgeStudio/bin
+/wpf/EdgeStudio/obj
+/wpf/EdgeStudioTests/obj
