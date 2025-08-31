@@ -4,6 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:material="using:Material.Avalonia"
+             xmlns:navigation="using:EdgeStudio.Views.Navigation"
+             xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
              x:Class="EdgeStudio.Views.EdgeStudioView"
              x:DataType="vm:EdgeStudioViewModel">
@@ -19,7 +21,11 @@
         </Grid.RowDefinitions>
 
         <!-- Top Bar -->
-        <Border Grid.Row="0" Background="{DynamicResource MaterialPrimaryBrush}" Padding="24,16">
+        <Border Grid.Row="0" 
+                Background="{DynamicResource MaterialSurfaceBrush}" 
+                BorderBrush="{DynamicResource MaterialDividerBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="24,16">
             <Grid ColumnDefinitions="*,Auto">
                 <!-- Database Info -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16">
@@ -27,144 +33,134 @@
                     <TextBlock Text="database" 
                                FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
                                FontSize="24" 
-                               Foreground="{DynamicResource MaterialPrimaryForegroundBrush}"
+                               Foreground="{DynamicResource MaterialPrimaryBrush}"
                                VerticalAlignment="Center"/>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding SelectedDatabase.Name, FallbackValue='Edge Studio Workspace'}" 
                                    FontSize="18" 
                                    FontWeight="Bold"
-                                   Foreground="{DynamicResource MaterialPrimaryForegroundBrush}"/>
+                                   Foreground="{DynamicResource MaterialBodyBrush}"/>
                         <TextBlock Text="{Binding SelectedDatabase.DatabaseId, FallbackValue='Database workspace'}" 
                                    FontSize="12"
-                                   Foreground="{DynamicResource MaterialPrimaryForegroundBrush}"
-                                   Opacity="0.8"/>
+                                   Foreground="{DynamicResource MaterialBodyBrush}"
+                                   Opacity="0.7"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Close Button -->
                 <Button Grid.Column="1" 
                         Content="✕ Close"
-                        Classes="Flat"
-                        Foreground="{DynamicResource MaterialPrimaryForegroundBrush}"
-                        BorderBrush="{DynamicResource MaterialPrimaryForegroundBrush}"
+                        Padding="15,8"
                         Click="CloseButton_Click"/>
             </Grid>
         </Border>
 
-        <!-- Main Content Area -->
+        <!-- Main Content Area - VSCode-like Three Column Layout -->
         <Grid Grid.Row="1" Background="{DynamicResource MaterialBackgroundBrush}">
-            <!-- Content will be expanded later with tabs, query editor, etc. -->
-            <!-- For now, show a welcome message -->
-            <Border Background="{DynamicResource MaterialCardBackgroundBrush}"
-                    CornerRadius="8"
-                    Margin="24"
-                    Padding="48">
-                <StackPanel Spacing="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <!-- Success Icon -->
-                    <TextBlock Text="🎉" 
-                               FontSize="72"
-                               HorizontalAlignment="Center"/>
-                    
-                    <!-- Welcome Message -->
-                    <TextBlock Text="Edge Studio Workspace" 
-                               FontSize="28" 
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource MaterialPrimaryBrush}"/>
-                    
-                    <!-- Database Info -->
-                    <StackPanel Spacing="8" HorizontalAlignment="Center">
-                        <TextBlock Text="{Binding SelectedDatabase.Name, StringFormat='Connected to: {0}'}" 
-                                   FontSize="16"
-                                   HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource MaterialBodyBrush}"/>
-                        <TextBlock Text="{Binding SelectedDatabase.DatabaseId, StringFormat='Database ID: {0}'}" 
-                                   FontSize="14"
-                                   HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource MaterialBodyBrush}"
-                                   Opacity="0.7"/>
-                        <TextBlock Text="{Binding SelectedDatabase.Mode, StringFormat='Mode: {0}'}" 
-                                   FontSize="14"
+            <Grid.ColumnDefinitions>
+                <!-- Navigation Bar -->
+                <ColumnDefinition Width="48" MinWidth="48" MaxWidth="60"/>
+                <!-- First Splitter -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Listing Panel -->
+                <ColumnDefinition Width="300" MinWidth="200" MaxWidth="500"/>
+                <!-- Second Splitter -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Main Content Area -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Navigation Bar -->
+            <navigation:NavigationBar Grid.Column="0" 
+                                      DataContext="{Binding NavigationViewModel}"/>
+            
+            <!-- First Splitter -->
+            <GridSplitter Grid.Column="1" 
+                          Width="1"
+                          Background="{DynamicResource MaterialDividerBrush}"/>
+            
+            <!-- Listing Panel -->
+            <ContentControl Grid.Column="2" 
+                            Content="{Binding CurrentListingViewModel}">
+                <ContentControl.ContentTemplate>
+                    <DataTemplate>
+                        <ContentControl Content="{Binding}">
+                            <ContentControl.Resources>
+                                <!-- Data Templates for each listing type -->
+                                <DataTemplate x:Key="{x:Type vm:SubscriptionViewModel}">
+                                    <workspaces:SubscriptionListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:CollectionsViewModel}">
+                                    <workspaces:CollectionsListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:HistoryViewModel}">
+                                    <workspaces:HistoryListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:FavoritesViewModel}">
+                                    <workspaces:FavoritesListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:IndexViewModel}">
+                                    <workspaces:IndexListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:ObserversViewModel}">
+                                    <workspaces:ObserverListingView/>
+                                </DataTemplate>
+                                <DataTemplate x:Key="{x:Type vm:ToolsViewModel}">
+                                    <workspaces:ToolsListingView/>
+                                </DataTemplate>
+                            </ContentControl.Resources>
+                        </ContentControl>
+                    </DataTemplate>
+                </ContentControl.ContentTemplate>
+            </ContentControl>
+            
+            <!-- Second Splitter -->
+            <GridSplitter Grid.Column="3" 
+                          Width="1"
+                          Background="{DynamicResource MaterialDividerBrush}"/>
+            
+            <!-- Main Content Area -->
+            <Grid Grid.Column="4">
+                <!-- Show detail view when item is selected, otherwise show welcome -->
+                <ContentControl Content="{Binding CurrentDetailViewModel}">
+                    <ContentControl.ContentTemplate>
+                        <DataTemplate>
+                            <ContentControl Content="{Binding}">
+                                <ContentControl.Resources>
+                                    <!-- Data Templates for each detail type -->
+                                    <DataTemplate x:Key="{x:Type vm:SubscriptionViewModel}">
+                                        <workspaces:SubscriptionDetailsView/>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="{x:Type vm:QueryViewModel}">
+                                        <workspaces:QueryView/>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="{x:Type vm:ObserversViewModel}">
+                                        <workspaces:ObserverDetailView/>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="{x:Type vm:ToolsViewModel}">
+                                        <workspaces:ToolsDetailView/>
+                                    </DataTemplate>
+                                </ContentControl.Resources>
+                            </ContentControl>
+                        </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                </ContentControl>
+                
+                <!-- Welcome message when no detail view is selected -->
+                <Border Background="{DynamicResource MaterialCardBackgroundBrush}"
+                        CornerRadius="8"
+                        Margin="24"
+                        Padding="32"
+                        IsVisible="{Binding CurrentDetailViewModel, Converter={x:Static ObjectConverters.IsNull}}">
+                    <StackPanel Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="Select an item from the list to view details" 
+                                   FontSize="18"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource MaterialBodyBrush}"
                                    Opacity="0.7"/>
                     </StackPanel>
-                    
-                    <!-- Feature Cards -->
-                    <Grid ColumnDefinitions="*,*,*" Margin="0,24,0,0">
-                        <Border Grid.Column="0" 
-                                Background="{DynamicResource MaterialSurfaceBrush}"
-                                CornerRadius="8"
-                                Padding="20"
-                                Margin="0,0,8,0">
-                            <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                <TextBlock Text="📝" FontSize="32" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Query Editor" 
-                                           FontSize="16" 
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"/>
-                                <TextBlock Text="Execute DQL queries"
-                                           FontSize="12"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"
-                                           Opacity="0.7"
-                                           TextAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                        
-                        <Border Grid.Column="1" 
-                                Background="{DynamicResource MaterialSurfaceBrush}"
-                                CornerRadius="8"
-                                Padding="20"
-                                Margin="4,0">
-                            <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                <TextBlock Text="📊" FontSize="32" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Data Explorer" 
-                                           FontSize="16" 
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"/>
-                                <TextBlock Text="Browse collections"
-                                           FontSize="12"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"
-                                           Opacity="0.7"
-                                           TextAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                        
-                        <Border Grid.Column="2" 
-                                Background="{DynamicResource MaterialSurfaceBrush}"
-                                CornerRadius="8"
-                                Padding="20"
-                                Margin="8,0,0,0">
-                            <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                <TextBlock Text="👥" FontSize="32" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Sync Status" 
-                                           FontSize="16" 
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"/>
-                                <TextBlock Text="Monitor peers"
-                                           FontSize="12"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MaterialBodyBrush}"
-                                           Opacity="0.7"
-                                           TextAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                    
-                    <!-- Coming Soon Note -->
-                    <TextBlock Text="Full workspace features coming soon..."
-                               FontSize="14"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource MaterialBodyBrush}"
-                               Opacity="0.5"
-                               Margin="0,16,0,0"/>
-                </StackPanel>
-            </Border>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

@@ -27,10 +27,9 @@
             <Setter Property="BoxShadow" Value="0 2 6 0 #30000000"/>
         </Style>
         
-        <!-- Elevated Material Card with better contrast -->
+        <!-- Elevated Material Card with proper theme support -->
         <Style Selector="Border.material-card-elevated">
-            <!-- Fallback to a lighter surface color for better contrast -->
-            <Setter Property="Background" Value="#3A3A3A"/>
+            <Setter Property="Background" Value="{DynamicResource MaterialCardBackgroundBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Margin" Value="0,0,0,24"/>
             <Setter Property="Padding" Value="24"/>
@@ -43,20 +42,9 @@
             <Setter Property="BoxShadow" Value="0 4 8 0 #35000000"/>
         </Style>
         
-        <!-- Light theme card overrides for proper contrast -->
-        <Style Selector=":is(Application).theme-light Border.material-card-elevated">
-            <Setter Property="Background" Value="White"/>
-        </Style>
-        
-        <!-- Card text styling for proper contrast in both themes -->
+        <!-- Card text styling uses Material theme resources for proper contrast -->
         <Style Selector="Border.material-card TextBlock, Border.material-card-elevated TextBlock">
-            <!-- Default to white text for dark theme cards -->
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        
-        <!-- Light theme text override -->
-        <Style Selector=":is(Application).theme-light Border.material-card TextBlock, :is(Application).theme-light Border.material-card-elevated TextBlock">
-            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialBodyBrush}"/>
         </Style>
         
     </Application.Styles>

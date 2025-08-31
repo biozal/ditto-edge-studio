@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.Workspaces.ObserverListingView"
+             x:DataType="vm:ObserversViewModel">
+    
+    <Grid RowDefinitions="Auto,*">
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource MaterialSurfaceBrush}"
+                Padding="16,12"
+                BorderBrush="{DynamicResource MaterialDividerBrush}"
+                BorderThickness="0,0,0,1">
+            <TextBlock Text="{Binding ListingTitle}" 
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource MaterialBodyBrush}"/>
+        </Border>
+        
+        <!-- List -->
+        <ScrollViewer Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Items}"
+                          Margin="8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Classes="Flat"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,8"
+                                Margin="0,2"
+                                Command="{Binding $parent[ItemsControl].DataContext.SelectItemCommand}"
+                                CommandParameter="{Binding}">
+                            <TextBlock Text="{Binding}" 
+                                       Foreground="{DynamicResource MaterialBodyBrush}"/>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebSearch",
+      "Bash(mkdir:*)",
+      "Bash(for view in Favorites Index Observer Tools)",
+      "Bash(do echo \"Creating $viewListingView files...\")",
+      "Bash(done)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet run:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

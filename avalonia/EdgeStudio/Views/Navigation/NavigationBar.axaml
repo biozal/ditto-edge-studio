@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Models"
+             mc:Ignorable="d" d:DesignWidth="60" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.Navigation.NavigationBar"
+             x:DataType="vm:NavigationViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Button.NavButton">
+            <Setter Property="Width" Value="48"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Content="{TemplateBinding Content}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        
+        <Style Selector="Button.NavButton:pointerover">
+            <Setter Property="Background" Value="#1A3F51B5"/>
+        </Style>
+        
+        <Style Selector="Button.NavButton.Selected">
+            <Setter Property="Background" Value="#333F51B5"/>
+        </Style>
+        
+        <Style Selector="TextBlock.NavIcon">
+            <Setter Property="FontFamily" Value="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialBodyBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style Selector="Button.NavButton.Selected TextBlock.NavIcon">
+            <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource MaterialSurfaceBrush}"
+            BorderBrush="{DynamicResource MaterialDividerBrush}"
+            BorderThickness="0,0,1,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding NavigationItems}"
+                          Margin="0,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:NavigationItem">
+                        <Button Classes="NavButton"
+                                Classes.Selected="{Binding $parent[ItemsControl].DataContext.SelectedItem, 
+                                                   Converter={x:Static ObjectConverters.Equal}, 
+                                                   ConverterParameter={Binding}}"
+                                Command="{Binding $parent[ItemsControl].DataContext.SelectNavigationItemCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="{Binding Tooltip}">
+                            <TextBlock Classes="NavIcon"
+                                       Text="{Binding Icon}"/>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical" Spacing="4"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
+    </Border>
+</UserControl>

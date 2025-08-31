@@ -5,10 +5,12 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
+using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Data;
 using EdgeStudio.Data.Repositories;
 using EdgeStudio.Helpers;
 using EdgeStudio.Models;
+using EdgeStudio.Services;
 using EdgeStudio.ViewModels;
 using EdgeStudio.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,7 +61,9 @@ public partial class App : Application
             await InitializeDependencyInjectionAsync();
             
             // Create and show main window
-            var mainWindow = _serviceProvider!.GetRequiredService<MainWindow>();
+            var mainWindowViewModel = _serviceProvider!.GetRequiredService<MainWindowViewModel>();
+            var edgeStudioViewModel = _serviceProvider!.GetRequiredService<EdgeStudioViewModel>();
+            var mainWindow = new MainWindow(mainWindowViewModel, edgeStudioViewModel);
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
             
@@ -106,10 +110,11 @@ public partial class App : Application
             
             // Register services
             services.AddSingleton<IDittoManager>(dittoManager);
+            services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
+            services.AddSingleton<INavigationService, NavigationService>();
             services.AddTransient<IDatabaseRepository, DittoDatabaseRepository>();
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
-            services.AddTransient<MainWindow>();
             
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -137,10 +142,11 @@ public partial class App : Application
             // Don't initialize Ditto in development mode to avoid connection errors
             
             services.AddSingleton<IDittoManager>(dittoManager);
+            services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
+            services.AddSingleton<INavigationService, NavigationService>();
             services.AddTransient<IDatabaseRepository, DittoDatabaseRepository>();
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
-            services.AddTransient<MainWindow>();
             
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -162,7 +168,7 @@ public partial class App : Application
     /// <summary>
     /// Shows a critical error dialog when the application cannot continue
     /// </summary>
-    private static async Task ShowCriticalErrorDialog(string title, string message)
+    private static Task ShowCriticalErrorDialog(string title, string message)
     {
         try
         {
@@ -198,12 +204,15 @@ public partial class App : Application
             content.Children.Add(okButton);
             
             dialog.Content = content;
-            await dialog.ShowDialog(null as Window);
+            // Show dialog without parent window
+            dialog.Show();
+            return Task.CompletedTask;
         }
         catch
         {
             // If we can't even show an error dialog, there's nothing more we can do
             // The application will shut down
+            return Task.CompletedTask;
         }
     }
 }

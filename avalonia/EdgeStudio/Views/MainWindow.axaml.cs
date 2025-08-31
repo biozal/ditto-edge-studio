@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using EdgeStudio.Services;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views;
@@ -16,10 +17,10 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    public MainWindow(MainWindowViewModel viewModel) : this()
+    public MainWindow(MainWindowViewModel viewModel, EdgeStudioViewModel edgeStudioViewModel) : this()
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        _edgeStudioViewModel = new EdgeStudioViewModel();
+        _edgeStudioViewModel = edgeStudioViewModel ?? throw new ArgumentNullException(nameof(edgeStudioViewModel));
         
         // Set the DataContext to the main ViewModel
         DataContext = _viewModel;
