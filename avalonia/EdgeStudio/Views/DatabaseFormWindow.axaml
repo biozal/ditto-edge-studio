@@ -19,11 +19,12 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialBodyBrush}"/>
         </Style>
         <Style Selector="ToggleButton.ModeButton:checked">
             <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryForegroundBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialBodyBrush}"/>
         </Style>
         <Style Selector="ToggleButton.ModeButton:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}"/>
@@ -44,6 +45,7 @@
                        Text="Add Database Configuration"
                        FontSize="20"
                        FontWeight="Bold"
+                       Foreground="{DynamicResource MaterialBodyBrush}"
                        Margin="0,0,0,25"/>
             
             <!-- Form Fields -->
@@ -104,6 +106,7 @@
                                 assists:TextFieldAssist.Label="HTTP API URL"/>
                         <TextBlock Text="Optional"
                                   FontSize="12"
+                                  Foreground="{DynamicResource MaterialBodyBrush}"
                                   Opacity="0.7"
                                   Margin="0,4,0,0"/>
                     </StackPanel>
@@ -116,6 +119,7 @@
                                 assists:TextFieldAssist.Label="HTTP API Key"/>
                         <TextBlock Text="Optional"
                                   FontSize="12"
+                                  Foreground="{DynamicResource MaterialBodyBrush}"
                                   Opacity="0.7"
                                   Margin="0,4,0,0"/>
                     </StackPanel>

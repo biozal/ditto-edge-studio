@@ -374,6 +374,52 @@ dotnet publish EdgeStudio/EdgeStudio.csproj -c Release -o ./publish/framework-de
 
 **Violation of theme system guidelines is considered a critical error.**
 
+#### Recent Theme Fixes Applied:
+**Critical fixes that were required to maintain light/dark mode compatibility:**
+
+1. **DatabaseFormWindow Mode Buttons** (EdgeStudio/Views/DatabaseFormWindow.axaml:16-28):
+   - **Issue**: Text was unreadable in light mode due to improper foreground color usage
+   - **Fix**: Replaced `MaterialOnSurfaceBrush`/`MaterialOnPrimaryBrush` with `MaterialBodyBrush` 
+   - **Lesson**: `MaterialBodyBrush` provides consistent text contrast across both themes
+   - **Solution**: Removed custom ControlTemplate, used `MaterialBodyBrush` for both checked/unchecked states
+
+2. **EdgeStudioView Top Toolbar** (EdgeStudio/Views/EdgeStudioView.axaml:24-28):
+   - **Issue**: Toolbar background and Close button unreadable in light mode
+   - **Fix**: Changed from `MaterialPrimaryBrush` to `MaterialSurfaceBrush` background
+   - **Solution**: Simplified Close button to use default Material button styling
+
+3. **Navigation Bar Icons** (EdgeStudio/Views/Navigation/NavigationBar.axaml:23-34):
+   - **Issue**: Navigation buttons had unwanted borders in light mode
+   - **Fix**: Created custom ControlTemplate that properly inherits theme styling
+   - **Solution**: Used transparent backgrounds with proper hover states
+
+4. **Database Cards** (EdgeStudio/App.axaml:46-48, EdgeStudio/Views/DatabaseListingView.axaml):
+   - **Issue**: Hard-coded colors breaking light mode display
+   - **Fix**: Replaced `#3A3A3A` with `{DynamicResource MaterialCardBackgroundBrush}`
+   - **Solution**: Added `MaterialBodyBrush` foreground to all TextBlock elements
+
+#### **ABSOLUTE REQUIREMENTS - NO EXCEPTIONS:**
+- ⚠️ **NEVER BREAK LIGHT/DARK MODE COMPATIBILITY** - This is completely unacceptable
+- 🔍 **ALWAYS TEST BOTH THEMES** - Every UI change must work in light AND dark modes
+- 🚫 **ZERO HARDCODED COLORS** - Use Material theme resources exclusively
+- ✅ **FOLLOW EXISTING PATTERNS** - Examine how other working buttons/elements are styled
+- 📝 **USE MaterialBodyBrush FOR TEXT** - Provides automatic contrast adjustment
+
+#### Common Theme Resource Patterns:
+```xml
+<!-- Standard text foreground (auto-adjusts for theme) -->
+<TextBlock Foreground="{DynamicResource MaterialBodyBrush}"/>
+
+<!-- Button with proper theme integration -->
+<Button Classes="material-button" Content="Save"/>
+
+<!-- Primary accent for selected states -->
+<TextBlock Foreground="{DynamicResource MaterialPrimaryBrush}"/>
+
+<!-- Surface backgrounds for cards/panels -->
+<Border Background="{DynamicResource MaterialSurfaceBrush}"/>
+```
+
 ## Key Differences from WPF Version
 
 ### Framework Changes
