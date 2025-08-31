@@ -1,0 +1,149 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:EdgeStudio.ViewModels"
+        xmlns:assists="using:Material.Styles.Assists"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="650"
+        x:Class="EdgeStudio.Views.DatabaseFormWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Add Database Configuration"
+        Width="700" Height="650"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Window.Styles>
+        <Style Selector="ToggleButton.ModeButton">
+            <Setter Property="Background" Value="{DynamicResource MaterialSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource MaterialDividerBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="ToggleButton.ModeButton:checked">
+            <Setter Property="Background" Value="{DynamicResource MaterialPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MaterialPrimaryForegroundBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.ModeButton:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource MaterialPrimaryBrush}"/>
+        </Style>
+    </Window.Styles>
+
+    <Border Background="{DynamicResource MaterialSurfaceBrush}" Padding="30">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       x:Name="WindowTitle"
+                       Text="Add Database Configuration"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Margin="0,0,0,25"/>
+            
+            <!-- Form Fields -->
+            <ScrollViewer Grid.Row="1" 
+                          VerticalScrollBarVisibility="Auto"
+                          MaxHeight="450">
+                <StackPanel Spacing="25" Margin="0,0,20,0">
+                    <!-- Mode Selector -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <ToggleButton Grid.Column="0"
+                                    x:Name="OnlineToggle"
+                                    Content="Online Playground"
+                                    IsChecked="{Binding DatabaseFormModel.IsOnlineMode}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="15,10"
+                                    Classes="ModeButton"/>
+                        <ToggleButton Grid.Column="1"
+                                    x:Name="OfflineToggle"
+                                    Content="Offline"
+                                    IsChecked="{Binding DatabaseFormModel.IsOfflineMode}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="15,10"
+                                    Classes="ModeButton"/>
+                    </Grid>
+                    
+                    <!-- Name Field -->
+                    <TextBox x:Name="NameTextBox"
+                            Text="{Binding DatabaseFormModel.Name}"
+                            assists:TextFieldAssist.Label="Name"/>
+                    
+                    <!-- Database ID Field -->
+                    <TextBox x:Name="DatabaseIdTextBox"
+                            Text="{Binding DatabaseFormModel.DatabaseId}"
+                            FontFamily="Consolas"
+                            assists:TextFieldAssist.Label="DatabaseId"/>
+                    
+                    <!-- Auth Token - Only for Online Mode -->
+                    <TextBox x:Name="AuthTokenTextBox"
+                            Text="{Binding DatabaseFormModel.AuthToken}"
+                            FontFamily="Consolas"
+                            assists:TextFieldAssist.Label="Auth Token"
+                            IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
+                    
+                    <!-- Auth URL - Only for Online Mode -->
+                    <TextBox x:Name="AuthUrlTextBox"
+                            Text="{Binding DatabaseFormModel.AuthUrl}"
+                            FontFamily="Consolas"
+                            assists:TextFieldAssist.Label="Auth URL"
+                            IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
+                    
+                    <!-- HTTP API URL - Optional Field - Only for Online Mode -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}">
+                        <TextBox x:Name="HttpApiUrlTextBox"
+                                Text="{Binding DatabaseFormModel.HttpApiUrl}"
+                                FontFamily="Consolas"
+                                assists:TextFieldAssist.Label="HTTP API URL"/>
+                        <TextBlock Text="Optional"
+                                  FontSize="12"
+                                  Opacity="0.7"
+                                  Margin="0,4,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- HTTP API Key - Optional Field - Only for Online Mode -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}">
+                        <TextBox x:Name="HttpApiKeyTextBox"
+                                Text="{Binding DatabaseFormModel.HttpApiKey}"
+                                FontFamily="Consolas"
+                                assists:TextFieldAssist.Label="HTTP API Key"/>
+                        <TextBlock Text="Optional"
+                                  FontSize="12"
+                                  Opacity="0.7"
+                                  Margin="0,4,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- Allow Untrusted Certs - Only for Online Mode -->
+                    <CheckBox x:Name="AllowUntrustedCertsCheckBox"
+                             Content="Allow untrusted certificates"
+                             IsChecked="{Binding DatabaseFormModel.AllowUntrustedCerts}"
+                             IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"
+                             ToolTip.Tip="By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production."/>
+                </StackPanel>
+            </ScrollViewer>
+            
+            <!-- Buttons -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10"
+                        Margin="0,25,0,0">
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Padding="20,10"
+                        Click="Cancel_Click"/>
+                <Button x:Name="SaveButton"
+                        Content="Save"
+                        Padding="20,10"
+                        Command="{Binding SaveDatabaseCommand}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

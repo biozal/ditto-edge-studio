@@ -10,12 +10,14 @@ namespace EdgeStudioTests.ViewModels
     [TestClass]
     public class MainWindowViewModelTests
     {
+        private Mock<IDittoManager> _mockDittoManager = null!;
         private Mock<IDatabaseRepository> _mockDatabaseRepository = null!;
         private MainWindowViewModel _viewModel = null!;
 
         [TestInitialize]
         public void Setup()
         {
+            _mockDittoManager = new Mock<IDittoManager>();
             _mockDatabaseRepository = new Mock<IDatabaseRepository>();
             
             // Setup the async methods that are called during initialization
@@ -23,7 +25,7 @@ namespace EdgeStudioTests.ViewModels
                 .Returns(Task.CompletedTask);
             _mockDatabaseRepository.Setup(x => x.RegisterLocalObservers(It.IsAny<ObservableCollection<DittoDatabaseConfig>>(), It.IsAny<Action<string>>()));
             
-            _viewModel = new MainWindowViewModel(_mockDatabaseRepository.Object);
+            _viewModel = new MainWindowViewModel(_mockDittoManager.Object, _mockDatabaseRepository.Object);
         }
 
         [TestCleanup]
@@ -43,11 +45,19 @@ namespace EdgeStudioTests.ViewModels
         }
 
         [TestMethod]
+        public void Constructor_WithNullDittoManager_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            Assert.ThrowsException<ArgumentNullException>(() =>
+                new MainWindowViewModel(null!, _mockDatabaseRepository.Object));
+        }
+
+        [TestMethod]
         public void Constructor_WithNullDatabaseRepository_ThrowsArgumentNullException()
         {
             // Act & Assert
             Assert.ThrowsException<ArgumentNullException>(() =>
-                new MainWindowViewModel(null!));
+                new MainWindowViewModel(_mockDittoManager.Object, null!));
         }
 
         [TestMethod]
@@ -260,6 +270,98 @@ namespace EdgeStudioTests.ViewModels
 
         // Note: Cleanup test removed as RemoveLocalObservers method is not defined in IDatabaseRepository
 
+        [TestMethod]
+        public async Task SelectedDatabase_WhenSet_InitializesAsyncAndUpdatesStates()
+        {
+            // Arrange
+            var testConfig = CreateTestDatabaseConfig();
+
+            _mockDittoManager.Setup(x => x.InitializeDittoSelectedApp(testConfig))
+                .ReturnsAsync(true);
+
+            // Act
+            _viewModel.SelectedDatabase = testConfig;
+
+            // Wait a brief moment for async operation to start
+            await Task.Delay(10);
+
+            // Assert that initialization was called
+            _mockDittoManager.Verify(x => x.InitializeDittoSelectedApp(testConfig), Times.Once);
+            
+            // Initial state - loading should have been true briefly but may already be false
+            Assert.IsNull(_viewModel.DatabaseInitializationError);
+            Assert.AreEqual(testConfig, _viewModel.SelectedDatabase);
+            Assert.IsTrue(_viewModel.HasSelectedDatabase);
+        }
+
+        [TestMethod]
+        public async Task SelectedDatabase_WhenInitializationFails_SetsErrorAndClearsSelection()
+        {
+            // Arrange
+            var testConfig = CreateTestDatabaseConfig();
+
+            _mockDittoManager.Setup(x => x.InitializeDittoSelectedApp(testConfig))
+                .ReturnsAsync(false);
+
+            // Act
+            _viewModel.SelectedDatabase = testConfig;
+
+            // Wait for async operation to complete
+            await Task.Delay(50);
+
+            // Assert
+            _mockDittoManager.Verify(x => x.InitializeDittoSelectedApp(testConfig), Times.Once);
+            Assert.IsNotNull(_viewModel.DatabaseInitializationError);
+            Assert.IsTrue(_viewModel.DatabaseInitializationError.Contains("Could not initialize database"));
+            Assert.IsNull(_viewModel.SelectedDatabase);
+            Assert.IsFalse(_viewModel.HasSelectedDatabase);
+            Assert.IsFalse(_viewModel.IsInitializingDatabase);
+        }
+
+        [TestMethod]
+        public async Task SelectedDatabase_WhenInitializationThrows_SetsErrorAndClearsSelection()
+        {
+            // Arrange
+            var testConfig = CreateTestDatabaseConfig();
+
+            var expectedException = new InvalidOperationException("Database connection failed");
+            _mockDittoManager.Setup(x => x.InitializeDittoSelectedApp(testConfig))
+                .ThrowsAsync(expectedException);
+
+            // Act
+            _viewModel.SelectedDatabase = testConfig;
+
+            // Wait for async operation to complete
+            await Task.Delay(50);
+
+            // Assert
+            _mockDittoManager.Verify(x => x.InitializeDittoSelectedApp(testConfig), Times.Once);
+            Assert.IsNotNull(_viewModel.DatabaseInitializationError);
+            Assert.IsTrue(_viewModel.DatabaseInitializationError.Contains("Failed to initialize database"));
+            Assert.IsTrue(_viewModel.DatabaseInitializationError.Contains(expectedException.Message));
+            Assert.IsNull(_viewModel.SelectedDatabase);
+            Assert.IsFalse(_viewModel.HasSelectedDatabase);
+            Assert.IsFalse(_viewModel.IsInitializingDatabase);
+        }
+
+        [TestMethod]
+        public void SelectedDatabase_WhenSetToNull_ClearsErrorAndDoesNotInitialize()
+        {
+            // Arrange - first set an error state  
+            _viewModel.DatabaseInitializationError = "Previous error";
+            Assert.IsNotNull(_viewModel.DatabaseInitializationError);
+
+            // Act
+            _viewModel.SelectedDatabase = null;
+
+            // Assert
+            _mockDittoManager.Verify(x => x.InitializeDittoSelectedApp(It.IsAny<DittoDatabaseConfig>()), Times.Never);
+            Assert.IsNull(_viewModel.DatabaseInitializationError, $"Expected error to be cleared but was: {_viewModel.DatabaseInitializationError}");
+            Assert.IsNull(_viewModel.SelectedDatabase);
+            Assert.IsFalse(_viewModel.HasSelectedDatabase);
+            Assert.IsFalse(_viewModel.IsInitializingDatabase);
+        }
+
         private static DittoDatabaseConfig CreateTestDatabaseConfig()
         {
             return new DittoDatabaseConfig(
@@ -268,7 +370,6 @@ namespace EdgeStudioTests.ViewModels
                 DatabaseId: "test-db-id",
                 AuthToken: "test-token",
                 AuthUrl: "https://auth.test.example.com",
-                WebsocketUrl: "wss://ws.test.example.com",
                 HttpApiUrl: "https://api.test.example.com",
                 HttpApiKey: "test-api-key",
                 Mode: "online",

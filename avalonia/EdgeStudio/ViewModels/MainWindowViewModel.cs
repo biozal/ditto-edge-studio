@@ -1,9 +1,11 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System;
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EdgeStudio.Data;
 using EdgeStudio.Data.Repositories;
 using EdgeStudio.Models;
-using System.Collections.ObjectModel;
 
 namespace EdgeStudio.ViewModels
 {

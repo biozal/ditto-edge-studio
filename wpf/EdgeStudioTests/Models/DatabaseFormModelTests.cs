@@ -22,7 +22,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(string.Empty, _model.DatabaseId);
             Assert.AreEqual(string.Empty, _model.AuthToken);
             Assert.AreEqual(string.Empty, _model.AuthUrl);
-            Assert.AreEqual(string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiKey);
             Assert.AreEqual("online", _model.Mode);
@@ -41,7 +40,6 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
-            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
             _model.Mode = "offline";
@@ -54,7 +52,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual("db-123", _model.DatabaseId);
             Assert.AreEqual("token-abc", _model.AuthToken);
             Assert.AreEqual("https://auth.example.com", _model.AuthUrl);
-            Assert.AreEqual("wss://ws.example.com", _model.WebsocketUrl);
             Assert.AreEqual("https://api.example.com", _model.HttpApiUrl);
             Assert.AreEqual("api-key-xyz", _model.HttpApiKey);
             Assert.AreEqual("offline", _model.Mode);
@@ -73,7 +70,6 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
-            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
             _model.Mode = "offline";
@@ -89,7 +85,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(string.Empty, _model.DatabaseId);
             Assert.AreEqual(string.Empty, _model.AuthToken);
             Assert.AreEqual(string.Empty, _model.AuthUrl);
-            Assert.AreEqual(string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiUrl);
             Assert.AreEqual(string.Empty, _model.HttpApiKey);
             Assert.AreEqual("online", _model.Mode);
@@ -114,7 +109,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(config.DatabaseId, _model.DatabaseId);
             Assert.AreEqual(config.AuthToken, _model.AuthToken);
             Assert.AreEqual(config.AuthUrl, _model.AuthUrl);
-            Assert.AreEqual(config.WebsocketUrl ?? string.Empty, _model.WebsocketUrl);
             Assert.AreEqual(config.HttpApiUrl, _model.HttpApiUrl);
             Assert.AreEqual(config.HttpApiKey, _model.HttpApiKey);
             Assert.AreEqual(config.Mode, _model.Mode);
@@ -131,7 +125,6 @@ namespace EdgeStudioTests.Models
             _model.DatabaseId = "db-123";
             _model.AuthToken = "token-abc";
             _model.AuthUrl = "https://auth.example.com";
-            _model.WebsocketUrl = "wss://ws.example.com";
             _model.HttpApiUrl = "https://api.example.com";
             _model.HttpApiKey = "api-key-xyz";
             _model.Mode = "online";
@@ -146,7 +139,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(_model.DatabaseId, config.DatabaseId);
             Assert.AreEqual(_model.AuthToken, config.AuthToken);
             Assert.AreEqual(_model.AuthUrl, config.AuthUrl);
-            Assert.AreEqual(_model.WebsocketUrl, config.WebsocketUrl);
             Assert.AreEqual(_model.HttpApiUrl, config.HttpApiUrl);
             Assert.AreEqual(_model.HttpApiKey, config.HttpApiKey);
             Assert.AreEqual(_model.Mode, config.Mode);
@@ -205,7 +197,6 @@ namespace EdgeStudioTests.Models
             Assert.AreEqual(originalConfig.DatabaseId, recreatedConfig.DatabaseId);
             Assert.AreEqual(originalConfig.AuthToken, recreatedConfig.AuthToken);
             Assert.AreEqual(originalConfig.AuthUrl, recreatedConfig.AuthUrl);
-            Assert.AreEqual(originalConfig.WebsocketUrl ?? string.Empty, recreatedConfig.WebsocketUrl);
             Assert.AreEqual(originalConfig.HttpApiUrl, recreatedConfig.HttpApiUrl);
             Assert.AreEqual(originalConfig.HttpApiKey, recreatedConfig.HttpApiKey);
             Assert.AreEqual(originalConfig.Mode, recreatedConfig.Mode);
@@ -306,7 +297,6 @@ namespace EdgeStudioTests.Models
                 DatabaseId: "test-db-id",
                 AuthToken: "test-token",
                 AuthUrl: "https://auth.test.example.com",
-                WebsocketUrl: "wss://ws.test.example.com",
                 HttpApiUrl: "https://api.test.example.com",
                 HttpApiKey: "test-api-key",
                 Mode: "online",

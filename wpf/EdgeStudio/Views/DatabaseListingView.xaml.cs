@@ -1,32 +1,40 @@
 using EdgeStudio.ViewModels;
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 
-namespace EdgeStudio
+namespace EdgeStudio.Views
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    public partial class DatabaseListingView : UserControl
     {
-        private readonly MainWindowViewModel _viewModel;
+        private MainWindowViewModel? _viewModel;
         
-        public MainWindow(MainWindowViewModel viewModel)
+        public DatabaseListingView()
         {
             InitializeComponent();
-            _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            DataContextChanged += OnDataContextChanged;
+        }
+        
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // Unsubscribe from old view model
+            if (_viewModel != null)
+            {
+                _viewModel.ErrorOccurred -= OnErrorOccurred;
+                _viewModel.ShowAddDatabaseForm -= ShowAddDatabaseForm;
+                _viewModel.ShowEditDatabaseForm -= ShowEditDatabaseForm;
+                _viewModel.HideDatabaseForm -= HideDatabaseForm;
+            }
             
-            // Set the DataContext to the ViewModel
-            DataContext = _viewModel;
-            
-            // Subscribe to error messages from ViewModel
-            _viewModel.ErrorOccurred += OnErrorOccurred;
-            
-            // Subscribe to form dialog events
-            _viewModel.ShowAddDatabaseForm += ShowAddDatabaseForm;
-            _viewModel.ShowEditDatabaseForm += ShowEditDatabaseForm;
-            _viewModel.HideDatabaseForm += HideDatabaseForm;
+            // Subscribe to new view model
+            _viewModel = DataContext as MainWindowViewModel;
+            if (_viewModel != null)
+            {
+                _viewModel.ErrorOccurred += OnErrorOccurred;
+                _viewModel.ShowAddDatabaseForm += ShowAddDatabaseForm;
+                _viewModel.ShowEditDatabaseForm += ShowEditDatabaseForm;
+                _viewModel.HideDatabaseForm += HideDatabaseForm;
+            }
         }
         
         private void ShowSecureField_Click(object sender, RoutedEventArgs e)
@@ -72,7 +80,7 @@ namespace EdgeStudio
         private void CancelDatabaseForm_Click(object sender, RoutedEventArgs e)
         {
             DatabaseFormPopup.IsOpen = false;
-            _viewModel.CancelDatabaseForm();
+            _viewModel?.CancelDatabaseForm();
         }
         
         public void ShowAddDatabaseForm()
@@ -90,21 +98,6 @@ namespace EdgeStudio
         public void HideDatabaseForm()
         {
             DatabaseFormPopup.IsOpen = false;
-        }
-        
-        protected override void OnClosed(EventArgs e)
-        {
-            // Unsubscribe from error events
-            _viewModel.ErrorOccurred -= OnErrorOccurred;
-            
-            // Unsubscribe from form dialog events
-            _viewModel.ShowAddDatabaseForm -= ShowAddDatabaseForm;
-            _viewModel.ShowEditDatabaseForm -= ShowEditDatabaseForm;
-            _viewModel.HideDatabaseForm -= HideDatabaseForm;
-            
-            // Clean up the ViewModel when window is closed
-            _viewModel.Cleanup();
-            base.OnClosed(e);
         }
     }
 }

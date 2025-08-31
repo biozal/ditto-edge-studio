@@ -16,3 +16,8 @@ rust/designs
 /wpf/EdgeStudio/obj
 /wpf/EdgeStudioTests/obj
 /wpf/EdgeStudioTests/bin
+/avalonia/.vs
+/avalonia/EdgeStudio/bin
+/avalonia/EdgeStudio/obj
+/avalonia/EdgeStudioTests/bin
+/avalonia/EdgeStudioTests/obj

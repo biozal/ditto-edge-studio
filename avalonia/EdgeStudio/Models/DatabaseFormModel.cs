@@ -1,3 +1,4 @@
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace EdgeStudio.Models

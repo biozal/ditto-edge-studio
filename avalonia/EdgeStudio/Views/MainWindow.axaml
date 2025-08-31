@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EdgeStudio.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:EdgeStudio.Views"
+        xmlns:material="using:Material.Avalonia"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="EdgeStudio.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Ditto Edge Studio"
+        Width="1200" Height="800">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+        <!-- Database Listing View (shown when no database is selected) -->
+        <views:DatabaseListingView x:Name="DatabaseListingView" />
+        
+        <!-- Edge Studio View (shown when a database is selected) -->
+        <views:EdgeStudioView x:Name="EdgeStudioView" IsVisible="False" />
+        
+        <!-- Loading Spinner Overlay -->
+        <Border x:Name="LoadingOverlay" 
+                Background="#CC1E1E1E" 
+                IsVisible="False"
+                ZIndex="1000">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                <!-- Material Design Progress Ring -->
+                <ProgressBar IsIndeterminate="True" 
+                             Width="60" Height="60"
+                             Classes="circular"/>
+                
+                <!-- Loading Message -->
+                <TextBlock Text="Initializing Database..."
+                         FontSize="16"
+                         FontWeight="SemiBold" 
+                         Foreground="White"
+                         HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- Error Message Overlay -->
+        <Border x:Name="ErrorOverlay"
+                Background="#CC1E1E1E"
+                IsVisible="False" 
+                ZIndex="1001">
+            <Border Background="{DynamicResource MaterialPaperBrush}"
+                    CornerRadius="8"
+                    Padding="40"
+                    MaxWidth="400"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="20">
+                    <!-- Error Icon -->
+                    <TextBlock Text="⚠️" 
+                             FontSize="48"
+                             HorizontalAlignment="Center"/>
+                    
+                    <!-- Error Title -->
+                    <TextBlock Text="Database Initialization Failed"
+                             FontSize="20"
+                             FontWeight="Bold" 
+                             Foreground="{DynamicResource MaterialValidationErrorBrush}"
+                             HorizontalAlignment="Center"/>
+                    
+                    <!-- Error Message -->
+                    <TextBlock x:Name="ErrorMessageText"
+                             Text="{Binding DatabaseInitializationError}"
+                             FontSize="14"
+                             Foreground="{DynamicResource MaterialBodyBrush}"
+                             HorizontalAlignment="Center"
+                             TextAlignment="Center"
+                             TextWrapping="Wrap"/>
+                    
+                    <!-- Dismiss Button -->
+                    <Button Content="OK"
+                            Classes="Flat"
+                            HorizontalAlignment="Center"
+                            Click="DismissError_Click"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>

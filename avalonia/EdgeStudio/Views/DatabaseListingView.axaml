@@ -1,0 +1,158 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:material="using:Material.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="EdgeStudio.Views.DatabaseListingView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header with Title and Add Database Button -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource MaterialSurfaceBrush}" 
+                BorderBrush="{DynamicResource MaterialDividerBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="15,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0"
+                           Text="Database Configurations" 
+                           FontSize="20" 
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"/>
+                
+                <Button Grid.Column="1"
+                        Content="Add Database"
+                        Command="{Binding AddDatabaseCommand}"
+                        Padding="15,8"/>
+            </Grid>
+        </Border>
+        
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="15">
+            <!-- Database List -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding DatabaseConfigs}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Classes="material-card-elevated">
+                                <StackPanel Spacing="16">
+                                    <!-- Header Row -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <!-- Database Name - Clickable area -->
+                                        <Border Grid.Column="0" Background="Transparent" 
+                                                Cursor="Hand" Tapped="DatabaseCard_Tapped">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="20"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource MaterialOnSurfaceBrush}"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        
+                                        <!-- Action Buttons -->
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    Spacing="8">
+                                            <Button Content="Edit"
+                                                    Padding="16,8"
+                                                    Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).EditDatabaseCommand}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="Delete"
+                                                    Padding="16,8"
+                                                    Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).DeleteDatabaseCommand}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    
+                                    <!-- Credential Information - Clickable area -->
+                                    <Border Background="Transparent" Cursor="Hand" 
+                                            Tapped="DatabaseCard_Tapped">
+                                        <StackPanel Spacing="8">
+                                        <!-- Database ID -->
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Database ID"
+                                                       FontSize="14"
+                                                       FontWeight="Medium"
+                                                       Opacity="0.7"
+                                                       Width="120"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="***************"
+                                                       FontFamily="Consolas"
+                                                       FontSize="14"
+                                                       Opacity="0.8"/>
+                                        </Grid>
+                                        
+                                        <!-- Auth Token -->
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Auth Token"
+                                                       FontSize="14"
+                                                       FontWeight="Medium"
+                                                       Opacity="0.7"
+                                                       Width="120"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="***************"
+                                                       FontFamily="Consolas"
+                                                       FontSize="14"
+                                                       Opacity="0.8"/>
+                                        </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Empty State Message -->
+            <Grid IsVisible="{Binding HasDatabaseConfigs}">
+                <TextBlock Text="No database configurations registered.&#x0a;Click 'Add Database' to get started."
+                           FontSize="16"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"/>
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource MaterialSurfaceBrush}" Padding="24,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding DatabaseConfigs.Count, StringFormat='{}{0} database configurations'}"
+                           FontSize="12"
+                           Opacity="0.6"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Ready" 
+                               FontSize="12"
+                               Foreground="{DynamicResource MaterialPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
