@@ -3,21 +3,217 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Models"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Workspaces.SubscriptionDetailsView"
-             x:DataType="vm:SubscriptionViewModel">
+             x:DataType="vm:SubscriptionDetailsViewModel">
     
-    <Grid Background="{DynamicResource MaterialBackgroundBrush}">
-        <Border Background="{DynamicResource MaterialCardBackgroundBrush}"
-                CornerRadius="8"
-                Margin="24"
-                Padding="32">
-            <TextBlock Text="Subscription Details" 
-                       FontSize="24"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource MaterialBodyBrush}"/>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Header with VS Code styling to match SubscriptionListingView -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource VSCodeHeaderBackgroundBrush}"
+                Height="40"
+                BorderBrush="{DynamicResource MaterialDividerBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding DetailsTitle}" 
+                           FontSize="11"
+                           FontWeight="Normal"
+                           Foreground="{DynamicResource MaterialBodyBrush}"
+                           VerticalAlignment="Center"/>
+                
+                <!-- Last Updated Time -->
+                <StackPanel Grid.Column="1" 
+                            Orientation="Horizontal" 
+                            Spacing="4"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Last updated:" 
+                               FontSize="10"
+                               Foreground="{DynamicResource MaterialBodyBrush}"
+                               Opacity="0.7"/>
+                    <TextBlock Text="{Binding LastUpdatedText}" 
+                               FontSize="10"
+                               Foreground="{DynamicResource MaterialBodyBrush}"
+                               Opacity="0.7"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Loading Spinner -->
+            <Border IsVisible="{Binding IsLoading}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"
+                           Spacing="16">
+                    <ProgressBar IsIndeterminate="True" 
+                                Width="32"
+                                Height="32"/>
+                    <TextBlock Text="Loading peers..." 
+                              FontSize="12"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Peer Cards -->
+            <ScrollViewer IsVisible="{Binding HasPeers}"
+                         VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Peers}"
+                             Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:SyncStatusInfo}">
+                            <Border Classes="material-card-elevated"
+                                   Margin="0,0,0,8"
+                                   Padding="16">
+                                <Grid RowDefinitions="Auto,8,Auto,Auto">
+                                    <!-- Header with Peer Type and Connection Status -->
+                                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <!-- Peer Type (Cloud Server or Peer Device) -->
+                                            <TextBlock Text="{Binding PeerType}"
+                                                      FontSize="14"
+                                                      FontWeight="SemiBold"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"/>
+                                            
+                                            <!-- Peer ID -->
+                                            <TextBlock Text="{Binding Id}"
+                                                      FontSize="11"
+                                                      FontFamily="Consolas, Courier New, monospace"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"
+                                                      Opacity="0.7"
+                                                      TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        
+                                        <!-- Connection Status Indicator -->
+                                        <StackPanel Grid.Column="1" 
+                                                   Orientation="Horizontal" 
+                                                   Spacing="6"
+                                                   VerticalAlignment="Top">
+                                            <!-- Status Dot - Connected -->
+                                            <Ellipse Width="8" 
+                                                    Height="8"
+                                                    VerticalAlignment="Center"
+                                                    Fill="#4CAF50"
+                                                    IsVisible="{Binding IsConnected}"/>
+                                            <!-- Status Dot - Not Connected -->
+                                            <Ellipse Width="8" 
+                                                    Height="8"
+                                                    VerticalAlignment="Center"
+                                                    Fill="{DynamicResource MaterialBodyBrush}"
+                                                    Opacity="0.4"
+                                                    IsVisible="{Binding !IsConnected}"/>
+                                            
+                                            <!-- Status Text -->
+                                            <TextBlock Text="{Binding ConnectionStatus}"
+                                                      FontSize="11"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"
+                                                      Opacity="0.8"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    
+                                    <!-- Sync Information -->
+                                    <StackPanel Grid.Row="2" Spacing="4">
+                                        <!-- Synced commit info -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="check_circle" 
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"
+                                                      Foreground="{DynamicResource MaterialPrimaryBrush}"
+                                                      VerticalAlignment="Center"/>
+                                            <TextBlock FontSize="11"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"
+                                                      Opacity="0.8">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="Synced to local database commit: {0}">
+                                                        <Binding Path="Documents.SyncedUpToLocalCommitId"/>
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        
+                                        <!-- Last update time -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="schedule" 
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"
+                                                      Foreground="{DynamicResource MaterialPrimaryBrush}"
+                                                      VerticalAlignment="Center"/>
+                                            <TextBlock FontSize="11"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"
+                                                      Opacity="0.8">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="Last update: {0:M/d/yy, h:mm:ss tt}">
+                                                        <Binding Path="Documents.LastUpdateReceivedTime"/>
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Empty State -->
+            <Border IsVisible="{Binding ShowEmptyState}"
+                   Background="Transparent">
+                <StackPanel HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="No Peers Found" 
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="No connected peers at this time" 
+                              FontSize="12"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Error Snackbar -->
+        <Border Grid.Row="2"
+               IsVisible="{Binding ShowError}"
+               Background="{DynamicResource MaterialValidationErrorBrush}"
+               Padding="12,8"
+               Margin="8,0,8,8"
+               CornerRadius="4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                          Text="{Binding ErrorMessage}"
+                          FontSize="12"
+                          Foreground="White"
+                          TextWrapping="Wrap"
+                          VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                       Command="{Binding DismissErrorCommand}"
+                       Width="20"
+                       Height="20"
+                       Padding="0"
+                       Classes="material-flat-button"
+                       Margin="8,0,0,0">
+                    <TextBlock Text="close" 
+                              FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                              FontSize="14"
+                              Foreground="White"/>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

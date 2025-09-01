@@ -12,7 +12,10 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
       "Bash(dotnet run:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(cmd /c:*)",
+      "Bash(dir:*)",
+      "WebFetch(domain:docs.ditto.live)"
     ],
     "deny": [],
     "ask": []

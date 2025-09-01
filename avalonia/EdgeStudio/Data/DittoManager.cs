@@ -15,7 +15,7 @@ namespace EdgeStudio.Data
 
         public DittoDatabaseConfig? SelectedDatabaseConfig { get; set; } = null;
 
-        public void CloseSelectedApp()
+        public void CloseSelectedDatabase()
         {
             if (DittoSelectedApp != null)
             {
@@ -102,7 +102,7 @@ namespace EdgeStudio.Data
         public async Task<bool> InitializeDittoSelectedApp(DittoDatabaseConfig dittoDatabaseConfig) 
         {
             var isSuccess = false;
-            CloseSelectedApp();
+            CloseSelectedDatabase();
 
             this.SelectedDatabaseConfig = dittoDatabaseConfig;
             var dbName = $"{dittoDatabaseConfig.Name.Trim().ToLower()}-{dittoDatabaseConfig.DatabaseId}";
@@ -141,6 +141,9 @@ namespace EdgeStudio.Data
 
                 //disable strict mode to allow for more flexible queries
                 await this.DittoSelectedApp.Store.ExecuteAsync("ALTER SYSTEM SET DQL_STRICT_MODE = false");
+
+                //start sync 
+                this.DittoSelectedApp.Sync.Start();
                 isSuccess = true;
             }
             else

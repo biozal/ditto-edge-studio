@@ -10,7 +10,7 @@ namespace EdgeStudio.Data
         Ditto? DittoSelectedApp { get; set; }
         DittoDatabaseConfig? SelectedDatabaseConfig { get; set; }
         
-        void CloseSelectedApp();
+        void CloseSelectedDatabase();
         Ditto GetLocalDitto();
         Ditto GetSelectedAppDitto();
         Task InitializeDittoAsync(DittoDatabaseConfig databaseConfig);

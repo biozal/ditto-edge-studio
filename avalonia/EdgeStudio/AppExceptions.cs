@@ -13,4 +13,12 @@ namespace EdgeStudio
         {
         }
     }
+
+    public class DeserializeException
+    : Exception
+    {
+        public DeserializeException(string? message) : base(message)
+        {
+        }
+    }
 }

@@ -122,11 +122,16 @@ public partial class App : Application
             services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
             services.AddSingleton<ISubscriptionRepository, DittoSubscriptionRepository>();
             
+            // Register system service as lazy loaded
+            services.AddTransient<ISystemService, SystemService>();
+            services.AddTransient<Lazy<ISystemService>>();
+            
             // Register ViewModels - Both direct and lazy for DI resolution
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
             services.AddTransient<NavigationViewModel>();
             services.AddTransient<SubscriptionViewModel>();
+            services.AddTransient<SubscriptionDetailsViewModel>();
             services.AddTransient<CollectionsViewModel>();
             services.AddTransient<HistoryViewModel>();
             services.AddTransient<FavoritesViewModel>();
@@ -136,6 +141,7 @@ public partial class App : Application
             services.AddTransient<QueryViewModel>();
             services.AddTransient<Lazy<NavigationViewModel>>();
             services.AddTransient<Lazy<SubscriptionViewModel>>();
+            services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
             services.AddTransient<Lazy<CollectionsViewModel>>();
             services.AddTransient<Lazy<HistoryViewModel>>();
             services.AddTransient<Lazy<FavoritesViewModel>>();
@@ -178,11 +184,16 @@ public partial class App : Application
             services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
             services.AddSingleton<ISubscriptionRepository, DittoSubscriptionRepository>();
             
+            // Register system service as lazy loaded
+            services.AddTransient<ISystemService, SystemService>();
+            services.AddTransient<Lazy<ISystemService>>();
+            
             // Register ViewModels - Both direct and lazy for DI resolution
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
             services.AddTransient<NavigationViewModel>();
             services.AddTransient<SubscriptionViewModel>();
+            services.AddTransient<SubscriptionDetailsViewModel>();
             services.AddTransient<CollectionsViewModel>();
             services.AddTransient<HistoryViewModel>();
             services.AddTransient<FavoritesViewModel>();
@@ -192,6 +203,7 @@ public partial class App : Application
             services.AddTransient<QueryViewModel>();
             services.AddTransient<Lazy<NavigationViewModel>>();
             services.AddTransient<Lazy<SubscriptionViewModel>>();
+            services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
             services.AddTransient<Lazy<CollectionsViewModel>>();
             services.AddTransient<Lazy<HistoryViewModel>>();
             services.AddTransient<Lazy<FavoritesViewModel>>();

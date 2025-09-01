@@ -12,6 +12,7 @@
         <!-- Header with VS Code styling -->
         <Border Grid.Row="0" 
                 Background="{DynamicResource VSCodeHeaderBackgroundBrush}"
+                Height="40"
                 Padding="12,8"
                 BorderBrush="{DynamicResource MaterialDividerBrush}"
                 BorderThickness="0,0,0,1">

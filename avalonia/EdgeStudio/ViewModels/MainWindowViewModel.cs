@@ -13,11 +13,16 @@ namespace EdgeStudio.ViewModels
     {
         private readonly IDatabaseRepository _databaseRepository;
         private readonly IDittoManager _dittoManager;
+        private readonly ISystemService _systemService;
 
-        public MainWindowViewModel(IDittoManager dittoManager, IDatabaseRepository databaseRepository)
+        public MainWindowViewModel(
+            IDittoManager dittoManager, 
+            IDatabaseRepository databaseRepository, 
+            ISystemService systemService)
         {
             _databaseRepository = databaseRepository ?? throw new ArgumentNullException(nameof(databaseRepository));
             _dittoManager = dittoManager ?? throw new ArgumentNullException(nameof(dittoManager));
+            _systemService = systemService ?? throw new ArgumentNullException(nameof(systemService));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
             DatabaseFormModel = new Models.DatabaseFormModel();
@@ -66,7 +71,8 @@ namespace EdgeStudio.ViewModels
                     else
                     {
                         // Close the currently selected database when setting to null
-                        _dittoManager.CloseSelectedApp();
+                        _systemService.CloseSelectedDatabase();
+                        _dittoManager.CloseSelectedDatabase();
                     }
                 }
             }

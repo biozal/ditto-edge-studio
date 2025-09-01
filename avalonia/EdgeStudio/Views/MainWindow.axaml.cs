@@ -29,8 +29,7 @@ public partial class MainWindow : Window
         // Set the DataContext to the main ViewModel AFTER child contexts are set
         DataContext = _viewModel;
         
-        // Initialize EdgeStudioViewModel with current database
-        _edgeStudioViewModel.SelectedDatabase = _viewModel.SelectedDatabase;
+        // Don't set EdgeStudioViewModel.SelectedDatabase here - it will be set after initialization completes
         
         // Subscribe to database selection changes
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -43,22 +42,21 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainWindowViewModel.SelectedDatabase))
         {
-            // Always sync the SelectedDatabase to EdgeStudioViewModel first
-            if (_edgeStudioViewModel != null && _viewModel != null)
-            {
-                _edgeStudioViewModel.SelectedDatabase = _viewModel.SelectedDatabase;
-            }
-            
             if (_viewModel!.HasSelectedDatabase)
             {
                 // Database selection initiated - async initialization will handle the rest
                 // Keep showing DatabaseListingView until initialization completes
+                // DO NOT set EdgeStudioViewModel.SelectedDatabase yet - wait for initialization to complete
                 DatabaseListingView.IsVisible = true;
                 EdgeStudioView.IsVisible = false;
             }
             else
             {
-                // No database selected - show database listing
+                // No database selected - clear EdgeStudioViewModel and show database listing
+                if (_edgeStudioViewModel != null)
+                {
+                    _edgeStudioViewModel.SelectedDatabase = null;
+                }
                 DatabaseListingView.IsVisible = true;
                 EdgeStudioView.IsVisible = false;
             }
@@ -73,6 +71,12 @@ public partial class MainWindow : Window
                 _viewModel.HasSelectedDatabase && 
                 string.IsNullOrEmpty(_viewModel.DatabaseInitializationError))
             {
+                // NOW it's safe to set the EdgeStudioViewModel database - initialization is complete
+                if (_edgeStudioViewModel != null)
+                {
+                    _edgeStudioViewModel.SelectedDatabase = _viewModel.SelectedDatabase;
+                }
+                
                 DatabaseListingView.IsVisible = false;
                 EdgeStudioView.IsVisible = true;
             }

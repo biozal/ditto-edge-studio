@@ -16,6 +16,7 @@ namespace EdgeStudio.ViewModels
         private readonly INavigationService _navigationService;
         private readonly Lazy<NavigationViewModel> _navigationViewModelLazy;
         private readonly Lazy<SubscriptionViewModel> _subscriptionViewModelLazy;
+        private readonly Lazy<SubscriptionDetailsViewModel> _subscriptionDetailsViewModelLazy;
         private readonly Lazy<CollectionsViewModel> _collectionsViewModelLazy;
         private readonly Lazy<HistoryViewModel> _historyViewModelLazy;
         private readonly Lazy<FavoritesViewModel> _favoritesViewModelLazy;
@@ -35,6 +36,7 @@ namespace EdgeStudio.ViewModels
             INavigationService navigationService,
             Lazy<NavigationViewModel> navigationViewModelLazy,
             Lazy<SubscriptionViewModel> subscriptionViewModelLazy,
+            Lazy<SubscriptionDetailsViewModel> subscriptionDetailsViewModelLazy,
             Lazy<CollectionsViewModel> collectionsViewModelLazy,
             Lazy<HistoryViewModel> historyViewModelLazy,
             Lazy<FavoritesViewModel> favoritesViewModelLazy,
@@ -48,6 +50,7 @@ namespace EdgeStudio.ViewModels
             // Store lazy ViewModels - they will only be instantiated when .Value is accessed
             _navigationViewModelLazy = navigationViewModelLazy;
             _subscriptionViewModelLazy = subscriptionViewModelLazy;
+            _subscriptionDetailsViewModelLazy = subscriptionDetailsViewModelLazy;
             _collectionsViewModelLazy = collectionsViewModelLazy;
             _historyViewModelLazy = historyViewModelLazy;
             _favoritesViewModelLazy = favoritesViewModelLazy;
@@ -66,6 +69,7 @@ namespace EdgeStudio.ViewModels
 
         public NavigationViewModel NavigationViewModel => _navigationViewModelLazy.Value;
         public SubscriptionViewModel SubscriptionViewModel => _subscriptionViewModelLazy.Value;
+        public SubscriptionDetailsViewModel SubscriptionDetailsViewModel => _subscriptionDetailsViewModelLazy.Value;
         public CollectionsViewModel CollectionsViewModel => _collectionsViewModelLazy.Value;
         public HistoryViewModel HistoryViewModel => _historyViewModelLazy.Value;
         public FavoritesViewModel FavoritesViewModel => _favoritesViewModelLazy.Value;
@@ -83,6 +87,8 @@ namespace EdgeStudio.ViewModels
                 {
                     _selectedDatabase = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(DatabaseName));
+                    OnPropertyChanged(nameof(DatabaseId));
                     
                     // When database is selected, refresh the current views to instantiate ViewModels
                     if (_selectedDatabase != null)
@@ -99,6 +105,16 @@ namespace EdgeStudio.ViewModels
                 }
             }
         }
+        
+        /// <summary>
+        /// Gets the selected database name with null safety
+        /// </summary>
+        public string DatabaseName => _selectedDatabase?.Name ?? "Edge Studio Workspace";
+        
+        /// <summary>
+        /// Gets the selected database ID with null safety
+        /// </summary>
+        public string DatabaseId => _selectedDatabase?.DatabaseId ?? "Not connected";
         
         public object? CurrentListingViewModel
         {
@@ -144,7 +160,11 @@ namespace EdgeStudio.ViewModels
             switch (_navigationService.CurrentNavigationType)
             {
                 case NavigationItemType.Subscriptions:
-                    CurrentDetailViewModel = message.SelectedItem != null ? SubscriptionViewModel : null;
+                    CurrentDetailViewModel = message.SelectedItem != null ? SubscriptionDetailsViewModel : null;
+                    if (message.SelectedItem != null)
+                    {
+                        SubscriptionDetailsViewModel.Initialize();
+                    }
                     break;
                 case NavigationItemType.Collections:
                 case NavigationItemType.History:
@@ -175,31 +195,40 @@ namespace EdgeStudio.ViewModels
             {
                 case NavigationItemType.Subscriptions:
                     CurrentListingViewModel = SubscriptionViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the SubscriptionDetailsView (Peers view)
+                    CurrentDetailViewModel = SubscriptionDetailsViewModel;
+                    // Initialize the details view model to start observing
+                    SubscriptionDetailsViewModel.Initialize();
                     break;
                 case NavigationItemType.Collections:
                     CurrentListingViewModel = CollectionsViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the QueryView for Collections
+                    CurrentDetailViewModel = QueryViewModel;
                     break;
                 case NavigationItemType.History:
                     CurrentListingViewModel = HistoryViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the QueryView for History
+                    CurrentDetailViewModel = QueryViewModel;
                     break;
                 case NavigationItemType.Favorites:
                     CurrentListingViewModel = FavoritesViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the QueryView for Favorites
+                    CurrentDetailViewModel = QueryViewModel;
                     break;
                 case NavigationItemType.Indexes:
                     CurrentListingViewModel = IndexViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the QueryView for Indexes
+                    CurrentDetailViewModel = QueryViewModel;
                     break;
                 case NavigationItemType.Observers:
                     CurrentListingViewModel = ObserversViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the ObserverDetailView
+                    CurrentDetailViewModel = ObserversViewModel;
                     break;
                 case NavigationItemType.Tools:
                     CurrentListingViewModel = ToolsViewModel;
-                    CurrentDetailViewModel = null;
+                    // Automatically show the ToolsDetailView
+                    CurrentDetailViewModel = ToolsViewModel;
                     break;
             }
         }
