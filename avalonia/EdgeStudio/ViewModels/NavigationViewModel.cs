@@ -21,8 +21,8 @@ public partial class NavigationViewModel : ObservableObject
         _navigationService = navigationService;
         NavigationItems = new ObservableCollection<NavigationItem>(NavigationItem.AllItems);
         
-        // Set initial selection
-        SelectedItem = NavigationItems.FirstOrDefault(x => x.Type == NavigationItemType.Collections);
+        // Set initial selection to Subscriptions
+        SelectedItem = NavigationItems.FirstOrDefault(x => x.Type == NavigationItemType.Subscriptions);
     }
     
     [RelayCommand]

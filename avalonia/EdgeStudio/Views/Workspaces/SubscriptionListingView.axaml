@@ -3,43 +3,173 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Models"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Workspaces.SubscriptionListingView"
              x:DataType="vm:SubscriptionViewModel">
     
-    <Grid RowDefinitions="Auto,*">
-        <!-- Header -->
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Header with VS Code styling -->
         <Border Grid.Row="0" 
-                Background="{DynamicResource MaterialSurfaceBrush}"
-                Padding="16,12"
+                Background="{DynamicResource VSCodeHeaderBackgroundBrush}"
+                Padding="12,8"
                 BorderBrush="{DynamicResource MaterialDividerBrush}"
                 BorderThickness="0,0,0,1">
-            <TextBlock Text="{Binding ListingTitle}" 
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource MaterialBodyBrush}"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding ListingTitle}" 
+                           FontSize="11"
+                           FontWeight="Normal"
+                           Foreground="{DynamicResource MaterialBodyBrush}"
+                           VerticalAlignment="Center"/>
+                <!-- Add Button -->
+                <Button Grid.Column="1"
+                        Command="{Binding AddSubscriptionCommand}"
+                        Width="24"
+                        Height="24"
+                        Padding="0"
+                        Classes="material-flat-button"
+                        ToolTip.Tip="Add Subscription">
+                    <TextBlock Text="add" 
+                               FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                               FontSize="16"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MaterialBodyBrush}"/>
+                </Button>
+            </Grid>
         </Border>
         
-        <!-- List -->
-        <ScrollViewer Grid.Row="1" 
-                      VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Items}"
-                          Margin="8">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Classes="Flat"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Padding="12,8"
-                                Margin="0,2"
-                                Command="{Binding $parent[ItemsControl].DataContext.SelectItemCommand}"
-                                CommandParameter="{Binding}">
-                            <TextBlock Text="{Binding}" 
-                                       Foreground="{DynamicResource MaterialBodyBrush}"/>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Loading Spinner -->
+            <Border IsVisible="{Binding IsLoading}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"
+                           Spacing="16">
+                    <ProgressBar IsIndeterminate="True" 
+                                Width="32"
+                                Height="32"/>
+                    <TextBlock Text="Loading subscriptions..." 
+                              FontSize="12"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Subscription Cards -->
+            <ScrollViewer IsVisible="{Binding HasItems}"
+                         VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Items}"
+                             Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:DittoDatabaseSubscription}">
+                            <Border Classes="material-card-elevated"
+                                   Margin="0,0,0,8">
+                                <StackPanel Spacing="12">
+                                    <!-- Header with Name and Actions -->
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                  Text="{Binding Name}"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="{DynamicResource MaterialBodyBrush}"
+                                                  VerticalAlignment="Center"/>
+                                        
+                                        <!-- Edit Button -->
+                                        <Button Grid.Column="1"
+                                               Command="{Binding $parent[ItemsControl].DataContext.EditSubscriptionCommand}"
+                                               CommandParameter="{Binding}"
+                                               Width="24"
+                                               Height="24"
+                                               Margin="0,0,4,0"
+                                               Padding="0"
+                                               Classes="material-flat-button"
+                                               ToolTip.Tip="Edit Subscription">
+                                            <TextBlock Text="edit" 
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"
+                                                      Foreground="{DynamicResource MaterialBodyBrush}"/>
+                                        </Button>
+                                        
+                                        <!-- Delete Button -->
+                                        <Button Grid.Column="2"
+                                               Command="{Binding $parent[ItemsControl].DataContext.DeleteSubscriptionCommand}"
+                                               CommandParameter="{Binding}"
+                                               Width="24"
+                                               Height="24"
+                                               Padding="0"
+                                               Classes="material-flat-button"
+                                               ToolTip.Tip="Delete Subscription">
+                                            <TextBlock Text="delete" 
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"
+                                                      Foreground="{DynamicResource MaterialValidationErrorBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                    
+                                    <!-- Query Text (Word Wrapped) -->
+                                    <TextBlock Text="{Binding Query}"
+                                              FontSize="12"
+                                              Foreground="{DynamicResource MaterialBodyBrush}"
+                                              Opacity="0.8"
+                                              TextWrapping="Wrap"
+                                              FontFamily="Consolas"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Empty State -->
+            <Border IsVisible="{Binding ShowEmptyState}"
+                   Background="Transparent">
+                <StackPanel HorizontalAlignment="Center" 
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="No Subscriptions Found" 
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="Click the + icon to add a new Subscription" 
+                              FontSize="12"
+                              Foreground="{DynamicResource MaterialBodyBrush}"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Error Snackbar -->
+        <Border Grid.Row="2"
+               IsVisible="{Binding ShowError}"
+               Background="{DynamicResource MaterialValidationErrorBrush}"
+               Padding="12,8"
+               Margin="8,0,8,8"
+               CornerRadius="4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                          Text="{Binding ErrorMessage}"
+                          FontSize="12"
+                          Foreground="White"
+                          TextWrapping="Wrap"
+                          VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                       Command="{Binding DismissErrorCommand}"
+                       Width="20"
+                       Height="20"
+                       Padding="0"
+                       Classes="material-flat-button"
+                       Margin="8,0,0,0">
+                    <TextBlock Text="close" 
+                              FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                              FontSize="14"
+                              Foreground="White"/>
+                </Button>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

@@ -12,7 +12,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
     <EmbeddedResource Include=".env" />
     <AvaloniaResource Include="Assets\Fonts\MaterialSymbolsOutlined.ttf" />

@@ -24,6 +24,11 @@ public partial class App : Application
 {
     private IServiceProvider? _serviceProvider;
     private LoadingWindow? _loadingWindow;
+    
+    /// <summary>
+    /// Gets the current service provider for dependency injection
+    /// </summary>
+    public static IServiceProvider? ServiceProvider => (Current as App)?._serviceProvider;
 
     public override void Initialize()
     {
@@ -108,13 +113,36 @@ public partial class App : Application
             var dittoManager = new DittoManager();
             await dittoManager.InitializeDittoAsync(databaseConfig);
             
-            // Register services
+            // Register services - Singleton for app-wide services
             services.AddSingleton<IDittoManager>(dittoManager);
             services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
             services.AddSingleton<INavigationService, NavigationService>();
-            services.AddTransient<IDatabaseRepository, DittoDatabaseRepository>();
+            
+            // Register repositories - Singleton for shared state
+            services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
+            services.AddSingleton<ISubscriptionRepository, DittoSubscriptionRepository>();
+            
+            // Register ViewModels - Both direct and lazy for DI resolution
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
+            services.AddTransient<NavigationViewModel>();
+            services.AddTransient<SubscriptionViewModel>();
+            services.AddTransient<CollectionsViewModel>();
+            services.AddTransient<HistoryViewModel>();
+            services.AddTransient<FavoritesViewModel>();
+            services.AddTransient<IndexViewModel>();
+            services.AddTransient<ObserversViewModel>();
+            services.AddTransient<ToolsViewModel>();
+            services.AddTransient<QueryViewModel>();
+            services.AddTransient<Lazy<NavigationViewModel>>();
+            services.AddTransient<Lazy<SubscriptionViewModel>>();
+            services.AddTransient<Lazy<CollectionsViewModel>>();
+            services.AddTransient<Lazy<HistoryViewModel>>();
+            services.AddTransient<Lazy<FavoritesViewModel>>();
+            services.AddTransient<Lazy<IndexViewModel>>();
+            services.AddTransient<Lazy<ObserversViewModel>>();
+            services.AddTransient<Lazy<ToolsViewModel>>();
+            services.AddTransient<Lazy<QueryViewModel>>();
             
             _serviceProvider = services.BuildServiceProvider();
         }
@@ -141,18 +169,42 @@ public partial class App : Application
             var dittoManager = new DittoManager();
             // Don't initialize Ditto in development mode to avoid connection errors
             
+            // Register services - Singleton for app-wide services
             services.AddSingleton<IDittoManager>(dittoManager);
             services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
             services.AddSingleton<INavigationService, NavigationService>();
-            services.AddTransient<IDatabaseRepository, DittoDatabaseRepository>();
+            
+            // Register repositories - Singleton for shared state
+            services.AddSingleton<IDatabaseRepository, DittoDatabaseRepository>();
+            services.AddSingleton<ISubscriptionRepository, DittoSubscriptionRepository>();
+            
+            // Register ViewModels - Both direct and lazy for DI resolution
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<EdgeStudioViewModel>();
+            services.AddTransient<NavigationViewModel>();
+            services.AddTransient<SubscriptionViewModel>();
+            services.AddTransient<CollectionsViewModel>();
+            services.AddTransient<HistoryViewModel>();
+            services.AddTransient<FavoritesViewModel>();
+            services.AddTransient<IndexViewModel>();
+            services.AddTransient<ObserversViewModel>();
+            services.AddTransient<ToolsViewModel>();
+            services.AddTransient<QueryViewModel>();
+            services.AddTransient<Lazy<NavigationViewModel>>();
+            services.AddTransient<Lazy<SubscriptionViewModel>>();
+            services.AddTransient<Lazy<CollectionsViewModel>>();
+            services.AddTransient<Lazy<HistoryViewModel>>();
+            services.AddTransient<Lazy<FavoritesViewModel>>();
+            services.AddTransient<Lazy<IndexViewModel>>();
+            services.AddTransient<Lazy<ObserversViewModel>>();
+            services.AddTransient<Lazy<ToolsViewModel>>();
+            services.AddTransient<Lazy<QueryViewModel>>();
             
             _serviceProvider = services.BuildServiceProvider();
         }
     }
 
-    private void DisableAvaloniaDataAnnotationValidation()
+    private static void DisableAvaloniaDataAnnotationValidation()
     {
         // Get an array of plugins to remove
         var dataValidationPluginsToRemove =

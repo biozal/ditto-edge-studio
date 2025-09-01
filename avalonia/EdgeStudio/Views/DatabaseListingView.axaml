@@ -13,7 +13,7 @@
     </Design.DataContext>
 
 
-    <Grid>
+    <Grid Background="{DynamicResource VSCodeMainBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -22,7 +22,7 @@
         
         <!-- Header with Title and Add Database Button -->
         <Border Grid.Row="0" 
-                Background="{DynamicResource MaterialSurfaceBrush}" 
+                Background="{DynamicResource VSCodeHeaderBackgroundBrush}" 
                 BorderBrush="{DynamicResource MaterialDividerBrush}"
                 BorderThickness="0,0,0,1">
             <Grid Margin="15,10">
@@ -145,7 +145,7 @@
         </Grid>
 
         <!-- Status Bar -->
-        <Border Grid.Row="2" Background="{DynamicResource MaterialSurfaceBrush}" Padding="24,8">
+        <Border Grid.Row="2" Background="{DynamicResource VSCodeStatusBarBackgroundBrush}" Padding="24,8">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding DatabaseConfigs.Count, StringFormat='{}{0} database configurations'}"
@@ -159,6 +159,35 @@
                                Foreground="{DynamicResource MaterialPrimaryBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Error Snackbar for Database Initialization -->
+        <Border Grid.Row="2"
+               IsVisible="{Binding ShowDatabaseError}"
+               Background="{DynamicResource MaterialValidationErrorBrush}"
+               Padding="12,8"
+               Margin="8,0,8,8"
+               CornerRadius="4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                          Text="{Binding DatabaseInitializationError}"
+                          FontSize="12"
+                          Foreground="White"
+                          TextWrapping="Wrap"
+                          VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                       Command="{Binding DismissDatabaseErrorCommand}"
+                       Width="20"
+                       Height="20"
+                       Padding="0"
+                       Classes="material-flat-button"
+                       Margin="8,0,0,0">
+                    <TextBlock Text="close" 
+                              FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                              FontSize="14"
+                              Foreground="White"/>
+                </Button>
             </Grid>
         </Border>
     </Grid>

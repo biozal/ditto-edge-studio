@@ -14,6 +14,16 @@ namespace EdgeStudio.ViewModels
     public partial class EdgeStudioViewModel : ObservableObject
     {
         private readonly INavigationService _navigationService;
+        private readonly Lazy<NavigationViewModel> _navigationViewModelLazy;
+        private readonly Lazy<SubscriptionViewModel> _subscriptionViewModelLazy;
+        private readonly Lazy<CollectionsViewModel> _collectionsViewModelLazy;
+        private readonly Lazy<HistoryViewModel> _historyViewModelLazy;
+        private readonly Lazy<FavoritesViewModel> _favoritesViewModelLazy;
+        private readonly Lazy<IndexViewModel> _indexViewModelLazy;
+        private readonly Lazy<ObserversViewModel> _observersViewModelLazy;
+        private readonly Lazy<ToolsViewModel> _toolsViewModelLazy;
+        private readonly Lazy<QueryViewModel> _queryViewModelLazy;
+        
         private DittoDatabaseConfig? _selectedDatabase;
         private RelayCommand? _closeDatabaseCommand;
         private object? _currentListingViewModel;
@@ -21,38 +31,48 @@ namespace EdgeStudio.ViewModels
 
         public event EventHandler? CloseDatabaseRequested;
 
-        public EdgeStudioViewModel(INavigationService navigationService)
+        public EdgeStudioViewModel(
+            INavigationService navigationService,
+            Lazy<NavigationViewModel> navigationViewModelLazy,
+            Lazy<SubscriptionViewModel> subscriptionViewModelLazy,
+            Lazy<CollectionsViewModel> collectionsViewModelLazy,
+            Lazy<HistoryViewModel> historyViewModelLazy,
+            Lazy<FavoritesViewModel> favoritesViewModelLazy,
+            Lazy<IndexViewModel> indexViewModelLazy,
+            Lazy<ObserversViewModel> observersViewModelLazy,
+            Lazy<ToolsViewModel> toolsViewModelLazy,
+            Lazy<QueryViewModel> queryViewModelLazy)
         {
             _navigationService = navigationService;
             
-            // Initialize ViewModels
-            NavigationViewModel = new NavigationViewModel(_navigationService);
-            SubscriptionViewModel = new SubscriptionViewModel();
-            CollectionsViewModel = new CollectionsViewModel();
-            HistoryViewModel = new HistoryViewModel();
-            FavoritesViewModel = new FavoritesViewModel();
-            IndexViewModel = new IndexViewModel();
-            ObserversViewModel = new ObserversViewModel();
-            ToolsViewModel = new ToolsViewModel();
-            QueryViewModel = new QueryViewModel();
+            // Store lazy ViewModels - they will only be instantiated when .Value is accessed
+            _navigationViewModelLazy = navigationViewModelLazy;
+            _subscriptionViewModelLazy = subscriptionViewModelLazy;
+            _collectionsViewModelLazy = collectionsViewModelLazy;
+            _historyViewModelLazy = historyViewModelLazy;
+            _favoritesViewModelLazy = favoritesViewModelLazy;
+            _indexViewModelLazy = indexViewModelLazy;
+            _observersViewModelLazy = observersViewModelLazy;
+            _toolsViewModelLazy = toolsViewModelLazy;
+            _queryViewModelLazy = queryViewModelLazy;
             
             // Register for navigation changes
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, OnNavigationChanged);
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
             
-            // Set initial view
-            UpdateCurrentViews(NavigationItemType.Collections);
+            // Don't call UpdateCurrentViews in constructor - this would instantiate ViewModels prematurely
+            // Views will be set when a database is actually selected
         }
 
-        public NavigationViewModel NavigationViewModel { get; }
-        public SubscriptionViewModel SubscriptionViewModel { get; }
-        public CollectionsViewModel CollectionsViewModel { get; }
-        public HistoryViewModel HistoryViewModel { get; }
-        public FavoritesViewModel FavoritesViewModel { get; }
-        public IndexViewModel IndexViewModel { get; }
-        public ObserversViewModel ObserversViewModel { get; }
-        public ToolsViewModel ToolsViewModel { get; }
-        public QueryViewModel QueryViewModel { get; }
+        public NavigationViewModel NavigationViewModel => _navigationViewModelLazy.Value;
+        public SubscriptionViewModel SubscriptionViewModel => _subscriptionViewModelLazy.Value;
+        public CollectionsViewModel CollectionsViewModel => _collectionsViewModelLazy.Value;
+        public HistoryViewModel HistoryViewModel => _historyViewModelLazy.Value;
+        public FavoritesViewModel FavoritesViewModel => _favoritesViewModelLazy.Value;
+        public IndexViewModel IndexViewModel => _indexViewModelLazy.Value;
+        public ObserversViewModel ObserversViewModel => _observersViewModelLazy.Value;
+        public ToolsViewModel ToolsViewModel => _toolsViewModelLazy.Value;
+        public QueryViewModel QueryViewModel => _queryViewModelLazy.Value;
 
         public DittoDatabaseConfig? SelectedDatabase
         {
@@ -63,6 +83,19 @@ namespace EdgeStudio.ViewModels
                 {
                     _selectedDatabase = value;
                     OnPropertyChanged();
+                    
+                    // When database is selected, refresh the current views to instantiate ViewModels
+                    if (_selectedDatabase != null)
+                    {
+                        // Default to Subscriptions view when database is first selected
+                        UpdateCurrentViews(NavigationItemType.Subscriptions);
+                    }
+                    else
+                    {
+                        // Clear views when no database selected
+                        CurrentListingViewModel = null;
+                        CurrentDetailViewModel = null;
+                    }
                 }
             }
         }
@@ -130,6 +163,14 @@ namespace EdgeStudio.ViewModels
         
         private void UpdateCurrentViews(NavigationItemType navigationType)
         {
+            // Only instantiate ViewModels when a database is actually selected
+            if (_selectedDatabase == null)
+            {
+                CurrentListingViewModel = null;
+                CurrentDetailViewModel = null;
+                return;
+            }
+            
             switch (navigationType)
             {
                 case NavigationItemType.Subscriptions:

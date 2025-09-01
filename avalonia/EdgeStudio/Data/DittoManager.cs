@@ -34,6 +34,15 @@ namespace EdgeStudio.Data
             return DittoLocal;
         }
 
+        public Ditto GetSelectedAppDitto()
+        {
+            if (DittoSelectedApp is null)
+            {
+                throw new InvalidOperationException("DittoManager is not properly initialized.");
+            }
+            return DittoSelectedApp;
+        }
+
         public async Task InitializeDittoAsync(DittoDatabaseConfig databaseConfig)
         {
             if (!_isStoreInitialized)
@@ -73,6 +82,9 @@ namespace EdgeStudio.Data
 
                     //disable strict mode to allow for more flexible queries
                     await DittoLocal.Store.ExecuteAsync("ALTER SYSTEM SET DQL_STRICT_MODE = false");
+
+                    //create indexes
+                    await DittoLocal.Store.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_dittoSubscriptions_selectedApp_id ON dittosubscriptions(selectedApp_id)");
 
                 }
                 else
@@ -114,7 +126,8 @@ namespace EdgeStudio.Data
                 {
                     try
                     {
-                        await ditto.Auth.LoginAsync(dittoDatabaseConfig.AuthToken, "server");
+                        await ditto.Auth.LoginAsync(dittoDatabaseConfig.AuthToken, 
+                            DittoAuthenticationProvider.Development);
                         _isStoreInitialized = true;
                     }
                     catch (Exception error)

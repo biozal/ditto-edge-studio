@@ -29,7 +29,7 @@
         
         <!-- Elevated Material Card with proper theme support -->
         <Style Selector="Border.material-card-elevated">
-            <Setter Property="Background" Value="{DynamicResource MaterialCardBackgroundBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource VSCodeCardBackgroundBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Margin" Value="0,0,0,24"/>
             <Setter Property="Padding" Value="24"/>
@@ -50,6 +50,26 @@
     </Application.Styles>
     
     <Application.Resources>
-        <!-- Ensure proper theme detection -->
+        <!-- Custom VS Code-like colors for dark mode -->
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <!-- VS Code Dark Mode Colors -->
+                    <SolidColorBrush x:Key="VSCodeMainBackgroundBrush" Color="#181818"/>
+                    <SolidColorBrush x:Key="VSCodeHeaderBackgroundBrush" Color="#1F1F1F"/>
+                    <SolidColorBrush x:Key="VSCodeDetailBackgroundBrush" Color="#1F1F1F"/>
+                    <SolidColorBrush x:Key="VSCodeStatusBarBackgroundBrush" Color="#181818"/>
+                    <SolidColorBrush x:Key="VSCodeCardBackgroundBrush" Color="#1F1F1F"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <!-- Light Mode - Use Material theme colors as fallback -->
+                    <StaticResource x:Key="VSCodeMainBackgroundBrush" ResourceKey="MaterialBackgroundBrush"/>
+                    <StaticResource x:Key="VSCodeHeaderBackgroundBrush" ResourceKey="MaterialSurfaceBrush"/>
+                    <StaticResource x:Key="VSCodeDetailBackgroundBrush" ResourceKey="MaterialBackgroundBrush"/>
+                    <StaticResource x:Key="VSCodeStatusBarBackgroundBrush" ResourceKey="MaterialPrimaryBrush"/>
+                    <StaticResource x:Key="VSCodeCardBackgroundBrush" ResourceKey="MaterialCardBackgroundBrush"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

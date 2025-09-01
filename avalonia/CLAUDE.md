@@ -72,6 +72,16 @@ dotnet publish EdgeStudio/EdgeStudio.csproj -c Release -r linux-x64 --self-conta
 
 ## Architecture
 
+### Dependency Injection Requirements
+**IMPORTANT**: All ViewModels, Services, and Repositories MUST be:
+1. **Registered in the DI container** (App.axaml.cs)
+2. **Resolved through dependency injection** - never instantiated directly with `new`
+3. **Lazy loaded** as needed for performance
+4. **Properly scoped**:
+   - Singleton for app-wide services (DittoManager, Repositories)
+   - Transient for ViewModels that need fresh instances
+   - Scoped where appropriate for request-based services
+
 ### Project Structure
 Located in the `avalonia/` directory:
 

@@ -37,6 +37,9 @@ namespace EdgeStudio.ViewModels
 
         [ObservableProperty]
         private string? databaseInitializationError;
+        
+        [ObservableProperty]
+        private bool showDatabaseError;
 
         [ObservableProperty]
         private DittoDatabaseConfig? selectedDatabaseConfig;
@@ -49,7 +52,7 @@ namespace EdgeStudio.ViewModels
             set
             {
                 // Always clear errors when selection changes, regardless of whether value actually changed
-                DatabaseInitializationError = null;
+                HideDatabaseError();
                 
                 if (SetProperty(ref _selectedDatabase, value))
                 {
@@ -219,7 +222,7 @@ namespace EdgeStudio.ViewModels
                 
                 if (!success)
                 {
-                    DatabaseInitializationError = "Could not initialize database. Please check your configuration and try again.";
+                    ShowDatabaseErrorMessage("Could not initialize database. Please check your configuration and try again.");
                     // Clear selection to stay on database listing view
                     _selectedDatabase = null;
                     OnPropertyChanged(nameof(SelectedDatabase));
@@ -228,7 +231,7 @@ namespace EdgeStudio.ViewModels
             }
             catch (Exception ex)
             {
-                DatabaseInitializationError = $"Failed to initialize database: {ex.Message}";
+                ShowDatabaseErrorMessage($"Failed to initialize database: {ex.Message}");
                 // Clear selection to stay on database listing view  
                 _selectedDatabase = null;
                 OnPropertyChanged(nameof(SelectedDatabase));
@@ -238,6 +241,24 @@ namespace EdgeStudio.ViewModels
             {
                 IsInitializingDatabase = false;
             }
+        }
+
+        private void ShowDatabaseErrorMessage(string message)
+        {
+            DatabaseInitializationError = message;
+            ShowDatabaseError = true;
+        }
+        
+        private void HideDatabaseError()
+        {
+            ShowDatabaseError = false;
+            DatabaseInitializationError = null;
+        }
+        
+        [RelayCommand]
+        private void DismissDatabaseError()
+        {
+            HideDatabaseError();
         }
 
         public void Cleanup()

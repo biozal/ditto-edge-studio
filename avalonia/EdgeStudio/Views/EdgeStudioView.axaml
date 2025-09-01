@@ -18,45 +18,63 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Top Bar -->
         <Border Grid.Row="0" 
-                Background="{DynamicResource MaterialSurfaceBrush}" 
+                Background="{DynamicResource VSCodeHeaderBackgroundBrush}" 
                 BorderBrush="{DynamicResource MaterialDividerBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="24,16">
+                Padding="16,8">
             <Grid ColumnDefinitions="*,Auto">
                 <!-- Database Info -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
                     <!-- Database Icon -->
                     <TextBlock Text="database" 
                                FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                               FontSize="24" 
+                               FontSize="20" 
                                Foreground="{DynamicResource MaterialPrimaryBrush}"
                                VerticalAlignment="Center"/>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding SelectedDatabase.Name, FallbackValue='Edge Studio Workspace'}" 
-                                   FontSize="18" 
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource MaterialBodyBrush}"/>
-                        <TextBlock Text="{Binding SelectedDatabase.DatabaseId, FallbackValue='Database workspace'}" 
-                                   FontSize="12"
-                                   Foreground="{DynamicResource MaterialBodyBrush}"
-                                   Opacity="0.7"/>
-                    </StackPanel>
+                    <TextBlock Text="{Binding SelectedDatabase.Name, FallbackValue='Edge Studio Workspace'}" 
+                               FontSize="14" 
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MaterialBodyBrush}"
+                               VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Close Button -->
+                <!-- Close Button - Circular with Material Icon -->
                 <Button Grid.Column="1" 
-                        Content="✕ Close"
-                        Padding="15,8"
-                        Click="CloseButton_Click"/>
+                        Click="CloseButton_Click"
+                        Width="32"
+                        Height="32"
+                        CornerRadius="16"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Classes="material-flat-button">
+                    <Button.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Background" Value="{DynamicResource MaterialValidationErrorBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource MaterialOnErrorBrush}"/>
+                        </Style>
+                        <Style Selector="Button:pointerover">
+                            <Setter Property="Opacity" Value="0.8"/>
+                        </Style>
+                        <Style Selector="Button:pressed">
+                            <Setter Property="Opacity" Value="0.6"/>
+                        </Style>
+                    </Button.Styles>
+                    <TextBlock Text="close" 
+                               FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                               FontSize="18"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Button>
             </Grid>
         </Border>
 
         <!-- Main Content Area - VSCode-like Three Column Layout -->
-        <Grid Grid.Row="1" Background="{DynamicResource MaterialBackgroundBrush}">
+        <Grid Grid.Row="1" Background="{DynamicResource VSCodeMainBackgroundBrush}">
             <Grid.ColumnDefinitions>
                 <!-- Navigation Bar -->
                 <ColumnDefinition Width="48" MinWidth="48" MaxWidth="60"/>
@@ -82,36 +100,30 @@
             <!-- Listing Panel -->
             <ContentControl Grid.Column="2" 
                             Content="{Binding CurrentListingViewModel}">
-                <ContentControl.ContentTemplate>
-                    <DataTemplate>
-                        <ContentControl Content="{Binding}">
-                            <ContentControl.Resources>
-                                <!-- Data Templates for each listing type -->
-                                <DataTemplate x:Key="{x:Type vm:SubscriptionViewModel}">
-                                    <workspaces:SubscriptionListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:CollectionsViewModel}">
-                                    <workspaces:CollectionsListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:HistoryViewModel}">
-                                    <workspaces:HistoryListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:FavoritesViewModel}">
-                                    <workspaces:FavoritesListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:IndexViewModel}">
-                                    <workspaces:IndexListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:ObserversViewModel}">
-                                    <workspaces:ObserverListingView/>
-                                </DataTemplate>
-                                <DataTemplate x:Key="{x:Type vm:ToolsViewModel}">
-                                    <workspaces:ToolsListingView/>
-                                </DataTemplate>
-                            </ContentControl.Resources>
-                        </ContentControl>
+                <ContentControl.DataTemplates>
+                    <!-- Data Templates for each listing type -->
+                    <DataTemplate DataType="{x:Type vm:SubscriptionViewModel}">
+                        <workspaces:SubscriptionListingView/>
                     </DataTemplate>
-                </ContentControl.ContentTemplate>
+                    <DataTemplate DataType="{x:Type vm:CollectionsViewModel}">
+                        <workspaces:CollectionsListingView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:HistoryViewModel}">
+                        <workspaces:HistoryListingView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:FavoritesViewModel}">
+                        <workspaces:FavoritesListingView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:IndexViewModel}">
+                        <workspaces:IndexListingView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:ObserversViewModel}">
+                        <workspaces:ObserverListingView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:ToolsViewModel}">
+                        <workspaces:ToolsListingView/>
+                    </DataTemplate>
+                </ContentControl.DataTemplates>
             </ContentControl>
             
             <!-- Second Splitter -->
@@ -123,31 +135,25 @@
             <Grid Grid.Column="4">
                 <!-- Show detail view when item is selected, otherwise show welcome -->
                 <ContentControl Content="{Binding CurrentDetailViewModel}">
-                    <ContentControl.ContentTemplate>
-                        <DataTemplate>
-                            <ContentControl Content="{Binding}">
-                                <ContentControl.Resources>
-                                    <!-- Data Templates for each detail type -->
-                                    <DataTemplate x:Key="{x:Type vm:SubscriptionViewModel}">
-                                        <workspaces:SubscriptionDetailsView/>
-                                    </DataTemplate>
-                                    <DataTemplate x:Key="{x:Type vm:QueryViewModel}">
-                                        <workspaces:QueryView/>
-                                    </DataTemplate>
-                                    <DataTemplate x:Key="{x:Type vm:ObserversViewModel}">
-                                        <workspaces:ObserverDetailView/>
-                                    </DataTemplate>
-                                    <DataTemplate x:Key="{x:Type vm:ToolsViewModel}">
-                                        <workspaces:ToolsDetailView/>
-                                    </DataTemplate>
-                                </ContentControl.Resources>
-                            </ContentControl>
+                    <ContentControl.DataTemplates>
+                        <!-- Data Templates for each detail type -->
+                        <DataTemplate DataType="{x:Type vm:SubscriptionViewModel}">
+                            <workspaces:SubscriptionDetailsView/>
                         </DataTemplate>
-                    </ContentControl.ContentTemplate>
+                        <DataTemplate DataType="{x:Type vm:QueryViewModel}">
+                            <workspaces:QueryView/>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:ObserversViewModel}">
+                            <workspaces:ObserverDetailView/>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:ToolsViewModel}">
+                            <workspaces:ToolsDetailView/>
+                        </DataTemplate>
+                    </ContentControl.DataTemplates>
                 </ContentControl>
                 
                 <!-- Welcome message when no detail view is selected -->
-                <Border Background="{DynamicResource MaterialCardBackgroundBrush}"
+                <Border Background="{DynamicResource VSCodeDetailBackgroundBrush}"
                         CornerRadius="8"
                         Margin="24"
                         Padding="32"
@@ -162,5 +168,41 @@
                 </Border>
             </Grid>
         </Grid>
+        
+        <!-- VS Code Style Status Bar with Divider -->
+        <DockPanel Grid.Row="2">
+            <!-- Divider Line at Top -->
+            <Border DockPanel.Dock="Top" 
+                    Height="1"
+                    Background="{DynamicResource MaterialDividerBrush}"/>
+            
+            <!-- Status Bar Content -->
+            <Border Height="22"
+                    Background="{DynamicResource VSCodeStatusBarBackgroundBrush}">
+            
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,0">
+                <!-- Left side - Database ID -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Database ID:" 
+                               FontSize="11"
+                               Foreground="{DynamicResource MaterialBodyBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding SelectedDatabase.DatabaseId, FallbackValue='Not connected'}" 
+                               FontSize="11"
+                               Foreground="{DynamicResource MaterialBodyBrush}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <!-- Center - Empty for now, future content -->
+                <Panel Grid.Column="1"/>
+                
+                <!-- Right side - Future status items -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                    <!-- Placeholder for future status items like connection status, sync status, etc. -->
+                </StackPanel>
+            </Grid>
+            </Border>
+        </DockPanel>
     </Grid>
 </UserControl>

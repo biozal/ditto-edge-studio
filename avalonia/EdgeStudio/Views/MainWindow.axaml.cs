@@ -22,12 +22,12 @@ public partial class MainWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _edgeStudioViewModel = edgeStudioViewModel ?? throw new ArgumentNullException(nameof(edgeStudioViewModel));
         
-        // Set the DataContext to the main ViewModel
-        DataContext = _viewModel;
-        
-        // Set DataContext for child views
+        // Set DataContext for child views BEFORE setting main DataContext
         DatabaseListingView.DataContext = _viewModel;
         EdgeStudioView.DataContext = _edgeStudioViewModel;
+        
+        // Set the DataContext to the main ViewModel AFTER child contexts are set
+        DataContext = _viewModel;
         
         // Initialize EdgeStudioViewModel with current database
         _edgeStudioViewModel.SelectedDatabase = _viewModel.SelectedDatabase;

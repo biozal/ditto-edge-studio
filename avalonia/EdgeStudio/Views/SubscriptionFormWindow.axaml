@@ -1,0 +1,97 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:EdgeStudio.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
+        x:Class="EdgeStudio.Views.SubscriptionFormWindow"
+        x:DataType="vm:SubscriptionViewModel"
+        Title="Add Subscription"
+        Width="500" Height="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Border Background="{DynamicResource VSCodeMainBackgroundBrush}" Padding="30">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       x:Name="WindowTitle"
+                       Text="Add Subscription"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource MaterialBodyBrush}"
+                       Margin="0,0,0,20"/>
+            
+            <!-- Form Content -->
+            <ScrollViewer Grid.Row="1" 
+                         VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="20">
+                    
+                    <!-- Subscription Name -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Subscription Name*"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MaterialBodyBrush}"/>
+                        <TextBox Text="{Binding SubscriptionFormModel.Name}"
+                                 Watermark="Enter subscription name..."
+                                 FontSize="14"
+                                 Padding="12,8"/>
+                    </StackPanel>
+                    
+                    <!-- DQL Query -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="DQL Query*"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MaterialBodyBrush}"/>
+                        <TextBox Text="{Binding SubscriptionFormModel.Query}"
+                                 Watermark="Enter DQL query..."
+                                 FontSize="12"
+                                 FontFamily="Consolas"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MinHeight="120"
+                                 MaxHeight="200"
+                                 Padding="12,8"
+                                 VerticalContentAlignment="Top"/>
+                        <TextBlock Text="Example: SELECT * FROM tasks WHERE completed = false"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource MaterialBodyBrush}"
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                </StackPanel>
+            </ScrollViewer>
+            
+            <!-- Buttons -->
+            <StackPanel Grid.Row="2"
+                       Orientation="Horizontal"
+                       HorizontalAlignment="Right"
+                       Spacing="12"
+                       Margin="0,20,0,0">
+                
+                <Button Content="Cancel"
+                        Command="{Binding CancelSubscriptionFormCommand}"
+                        Padding="20,8"
+                        Classes="material-flat-button"
+                        Foreground="{DynamicResource MaterialBodyBrush}"/>
+                
+                <Button Content="Save"
+                        Command="{Binding SaveSubscriptionCommand}"
+                        Padding="20,8"
+                        Classes="material-button"
+                        Background="{DynamicResource MaterialPrimaryBrush}"
+                        Foreground="{DynamicResource MaterialOnPrimaryBrush}"/>
+                
+            </StackPanel>
+            
+        </Grid>
+    </Border>
+</Window>
