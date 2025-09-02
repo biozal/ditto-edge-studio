@@ -66,7 +66,7 @@ kmp/
 ├── composeApp/       # Main application module
 │   ├── src/
 │   │   ├── commonMain/    # Common code for all platforms
-│   │   │   ├── kotlin/com/ditto/edgestudio/kmp/dittoedgestudio/
+│   │   │   ├── kotlin/com/edgestudio/
 │   │   │   │   ├── ui/
 │   │   │   │   │   ├── theme/         # Material 3 theme system
 │   │   │   │   │   │   ├── Theme.kt   # Light/Dark color schemes
@@ -222,7 +222,7 @@ This ensures:
 ### Running the Application
 For the desktop JVM version:
 ```bash
-./gradlew jvmRun -DmainClass=com.ditto.edgestudio.kmp.dittoedgestudio.MainKt
+./gradlew jvmRun -DmainClass=com.edgestudio.MainKt
 ```
 
 **Note**: The explicit `-DmainClass` parameter is required for proper execution.

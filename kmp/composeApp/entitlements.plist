@@ -31,9 +31,9 @@
 	<true/>
 	
 	<!-- Application Identifier - Replace TEAMID with your Apple Developer Team ID -->
-	<!-- Replace com.ditto.edgestudio.kmp.dittoedgestudio with your actual bundle ID if different -->
+	<!-- Replace com.edgestudio with your actual bundle ID if different -->
 	<key>com.apple.application-identifier</key>
-	<string>E3FRN9JNGJ.com.ditto.edgestudio.kmp</string>
+	<string>E3FRN9JNGJ.com.edgestudio</string>
 	<key>com.apple.developer.team-identifier</key>
 	<string>E3FRN9JNGJ</string>
 </dict>

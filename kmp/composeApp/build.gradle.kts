@@ -66,6 +66,8 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            // Ditto SDK
+            implementation(libs.ditto)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -73,16 +75,18 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            // Ditto platform binaries for desktop
+            implementation(libs.ditto.binaries)
         }
     }
 }
 
 android {
-    namespace = "com.ditto.edgestudio.kmp.dittoedgestudio"
+    namespace = "com.edgestudio"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.ditto.edgestudio.kmp.dittoedgestudio"
+        applicationId = "com.edgestudio"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -110,11 +114,22 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.ditto.edgestudio.kmp.dittoedgestudio.MainKt"
+        mainClass = "com.edgestudio.MainKt"
         
-        // JVM arguments to set macOS application name
+        // JVM arguments for performance and macOS optimization
         jvmArgs += listOf(
-            "-Dapple.awt.application.name=Ditto Edge Studio"
+            "-Dapple.awt.application.name=Ditto Edge Studio",
+            // Performance optimizations for macOS
+            "-Dskiko.fps.enabled=true",
+            "-Dskiko.vsync.enabled=true",
+            "-Dskiko.renderApi=METAL",
+            // JVM performance tuning
+            "-XX:+UseG1GC",
+            "-XX:+UseStringDeduplication",
+            "-Xmx2g",
+            // Reduce resize lag
+            "-Dawt.useSystemAAFontSettings=lcd",
+            "-Dswing.aatext=true"
         )
 
         nativeDistributions {
@@ -123,7 +138,7 @@ compose.desktop {
             packageVersion = "1.0.0"
             
             macOS {
-                bundleID = "com.ditto.edgestudio.kmp.dittoedgestudio"
+                bundleID = "com.edgestudio"
                 
                 // Entitlements configuration for macOS permissions
                 entitlementsFile.set(project.file("entitlements.plist"))
