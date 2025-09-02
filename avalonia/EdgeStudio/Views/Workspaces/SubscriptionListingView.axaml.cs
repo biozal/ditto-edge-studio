@@ -1,10 +1,14 @@
 using System;
 using Avalonia.Controls;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Messages;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views.Workspaces;
 
-public partial class SubscriptionListingView : UserControl
+public partial class SubscriptionListingView : UserControl,
+    IRecipient<ShowAddSubscriptionFormMessage>,
+    IRecipient<HideSubscriptionFormMessage>
 {
     private SubscriptionViewModel? _viewModel;
 
@@ -12,30 +16,34 @@ public partial class SubscriptionListingView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        
+        // Register for messaging
+        WeakReferenceMessenger.Default.Register<ShowAddSubscriptionFormMessage>(this);
+        WeakReferenceMessenger.Default.Register<HideSubscriptionFormMessage>(this);
     }
     
     private async void OnDataContextChanged(object? sender, EventArgs e)
     {
-        // Unsubscribe from old view model
-        if (_viewModel != null)
-        {
-            _viewModel.ShowAddSubscriptionForm -= ShowAddSubscriptionForm;
-            _viewModel.HideSubscriptionForm -= HideSubscriptionForm;
-        }
-        
-        // Subscribe to new view model
+        // Update view model reference
         _viewModel = DataContext as SubscriptionViewModel;
         if (_viewModel != null)
         {
-            _viewModel.ShowAddSubscriptionForm += ShowAddSubscriptionForm;
-            _viewModel.HideSubscriptionForm += HideSubscriptionForm;
-            
             // Load subscriptions when view model is set (this happens when view becomes visible)
             await _viewModel.LoadAsync();
         }
     }
     
-    public async void ShowAddSubscriptionForm()
+    public void Receive(ShowAddSubscriptionFormMessage message)
+    {
+        ShowAddSubscriptionForm();
+    }
+    
+    public void Receive(HideSubscriptionFormMessage message)
+    {
+        HideSubscriptionForm();
+    }
+    
+    private async void ShowAddSubscriptionForm()
     {
         if (_viewModel == null) return;
         
@@ -55,9 +63,18 @@ public partial class SubscriptionListingView : UserControl
         }
     }
     
-    public void HideSubscriptionForm()
+    private void HideSubscriptionForm()
     {
         // The form window handles its own closing via the HideSubscriptionForm event
         // This method exists to match the pattern and could be used for cleanup if needed
+    }
+    
+    protected override void OnDetachedFromLogicalTree(Avalonia.LogicalTree.LogicalTreeAttachmentEventArgs e)
+    {
+        // Unregister from messaging when detached
+        WeakReferenceMessenger.Default.Unregister<ShowAddSubscriptionFormMessage>(this);
+        WeakReferenceMessenger.Default.Unregister<HideSubscriptionFormMessage>(this);
+        
+        base.OnDetachedFromLogicalTree(e);
     }
 }

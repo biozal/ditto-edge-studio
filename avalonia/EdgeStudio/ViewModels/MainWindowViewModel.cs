@@ -3,8 +3,10 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Data;
 using EdgeStudio.Data.Repositories;
+using EdgeStudio.Messages;
 using EdgeStudio.Models;
 
 namespace EdgeStudio.ViewModels
@@ -95,17 +97,7 @@ namespace EdgeStudio.ViewModels
         /// </summary>
         public bool HasDatabaseConfigs => DatabaseConfigs.Count == 0;
         
-        /// <summary>
-        /// Event raised when an error occurs
-        /// </summary>
-        public event EventHandler<string>? ErrorOccurred;
-        
-        /// <summary>
-        /// Event raised when UI needs to show/hide forms
-        /// </summary>
-        public event Action? ShowAddDatabaseForm;
-        public event Action? ShowEditDatabaseForm;
-        public event Action? HideDatabaseForm;
+        // Events converted to WeakReferenceMessenger pattern for better memory management
 
 
         [RelayCommand]
@@ -122,7 +114,7 @@ namespace EdgeStudio.ViewModels
         private void AddDatabase()
         {
             DatabaseFormModel.Reset();
-            ShowAddDatabaseForm?.Invoke();
+            WeakReferenceMessenger.Default.Send(new ShowAddDatabaseFormMessage());
         }
         
         [RelayCommand]
@@ -134,7 +126,7 @@ namespace EdgeStudio.ViewModels
             }
             
             DatabaseFormModel.LoadFromConfig(config);
-            ShowEditDatabaseForm?.Invoke();
+            WeakReferenceMessenger.Default.Send(new ShowEditDatabaseFormMessage());
         }
         
         [RelayCommand]
@@ -144,7 +136,7 @@ namespace EdgeStudio.ViewModels
             {
                 if (config == null)
                 {
-                    ErrorOccurred?.Invoke(this, "Cannot delete: database configuration is null.");
+                    WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage("Cannot delete: database configuration is null."));
                     return;
                 }
                 
@@ -152,7 +144,7 @@ namespace EdgeStudio.ViewModels
             }
             catch (Exception ex)
             {
-                ErrorOccurred?.Invoke(this, $"Failed to delete database configuration: {ex.Message}");
+                WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage($"Failed to delete database configuration: {ex.Message}"));
             }
         }
         
@@ -167,7 +159,7 @@ namespace EdgeStudio.ViewModels
                     string.IsNullOrWhiteSpace(DatabaseFormModel.AuthToken) ||
                     string.IsNullOrWhiteSpace(DatabaseFormModel.AuthUrl))
                 {
-                    ErrorOccurred?.Invoke(this, "Please fill in all required fields (marked with *).");
+                    WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage("Please fill in all required fields (marked with *)."));
                     return;
                 }
 
@@ -182,11 +174,11 @@ namespace EdgeStudio.ViewModels
                     await _databaseRepository.AddDittoDatabaseConfig(config);
                 }
                 
-                HideDatabaseForm?.Invoke();
+                WeakReferenceMessenger.Default.Send(new HideDatabaseFormMessage());
             }
             catch (Exception ex)
             {
-                ErrorOccurred?.Invoke(this, $"Failed to save database configuration: {ex.Message}");
+                WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage($"Failed to save database configuration: {ex.Message}"));
             }
         }
         
@@ -206,12 +198,12 @@ namespace EdgeStudio.ViewModels
                 _databaseRepository.RegisterLocalObservers(DatabaseConfigs, (errorMessage) =>
                 {
                     // Handle errors from the observer by raising the ErrorOccurred event
-                    ErrorOccurred?.Invoke(this, errorMessage);
+                    WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage(errorMessage));
                 });
             }
             catch (Exception ex)
             {
-                ErrorOccurred?.Invoke(this, $"Failed to initialize database subscriptions: {ex.Message}");
+                WeakReferenceMessenger.Default.Send(new ErrorOccurredMessage($"Failed to initialize database subscriptions: {ex.Message}"));
             }
         }
 

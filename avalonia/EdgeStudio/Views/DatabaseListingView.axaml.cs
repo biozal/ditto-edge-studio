@@ -2,12 +2,18 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Messages;
 using EdgeStudio.Models;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views
 {
-    public partial class DatabaseListingView : UserControl
+    public partial class DatabaseListingView : UserControl, 
+        IRecipient<ErrorOccurredMessage>,
+        IRecipient<ShowAddDatabaseFormMessage>, 
+        IRecipient<ShowEditDatabaseFormMessage>,
+        IRecipient<HideDatabaseFormMessage>
     {
         private MainWindowViewModel? _viewModel;
         
@@ -15,35 +21,40 @@ namespace EdgeStudio.Views
         {
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
+            
+            // Register for messaging
+            WeakReferenceMessenger.Default.Register<ErrorOccurredMessage>(this);
+            WeakReferenceMessenger.Default.Register<ShowAddDatabaseFormMessage>(this);
+            WeakReferenceMessenger.Default.Register<ShowEditDatabaseFormMessage>(this);
+            WeakReferenceMessenger.Default.Register<HideDatabaseFormMessage>(this);
         }
         
         private void OnDataContextChanged(object? sender, EventArgs e)
         {
-            // Unsubscribe from old view model
-            if (_viewModel != null)
-            {
-                _viewModel.ErrorOccurred -= OnErrorOccurred;
-                _viewModel.ShowAddDatabaseForm -= ShowAddDatabaseForm;
-                _viewModel.ShowEditDatabaseForm -= ShowEditDatabaseForm;
-                _viewModel.HideDatabaseForm -= HideDatabaseForm;
-            }
-            
-            // Subscribe to new view model
+            // Update view model reference
             _viewModel = DataContext as MainWindowViewModel;
-            if (_viewModel != null)
-            {
-                _viewModel.ErrorOccurred += OnErrorOccurred;
-                _viewModel.ShowAddDatabaseForm += ShowAddDatabaseForm;
-                _viewModel.ShowEditDatabaseForm += ShowEditDatabaseForm;
-                _viewModel.HideDatabaseForm += HideDatabaseForm;
-            }
         }
         
-        private void OnErrorOccurred(object? sender, string errorMessage)
+        public void Receive(ErrorOccurredMessage message)
         {
             // For now, show a simple message box for errors
             // TODO: Replace with Material.Avalonia Snackbar when implementing full Material Design
-            ShowErrorMessage("Error", errorMessage);
+            ShowErrorMessage("Error", message.ErrorMessage);
+        }
+        
+        public void Receive(ShowAddDatabaseFormMessage message)
+        {
+            ShowAddDatabaseForm();
+        }
+        
+        public void Receive(ShowEditDatabaseFormMessage message)
+        {
+            ShowEditDatabaseForm();
+        }
+        
+        public void Receive(HideDatabaseFormMessage message)
+        {
+            HideDatabaseForm();
         }
         
         private async void ShowErrorMessage(string title, string message)
@@ -88,7 +99,7 @@ namespace EdgeStudio.Views
             }
         }
         
-        public async void ShowAddDatabaseForm()
+        private async void ShowAddDatabaseForm()
         {
             var window = new DatabaseFormWindow();
             window.SetTitle("Add Database Configuration");
@@ -102,7 +113,7 @@ namespace EdgeStudio.Views
             }
         }
         
-        public async void ShowEditDatabaseForm()
+        private async void ShowEditDatabaseForm()
         {
             var window = new DatabaseFormWindow();
             window.SetTitle("Edit Database Configuration");
@@ -116,7 +127,7 @@ namespace EdgeStudio.Views
             }
         }
         
-        public void HideDatabaseForm()
+        private void HideDatabaseForm()
         {
             // Not needed anymore since we're using modal windows that close themselves
         }
@@ -127,6 +138,17 @@ namespace EdgeStudio.Views
             {
                 _viewModel?.SelectDatabaseCommand.Execute(config);
             }
+        }
+        
+        protected override void OnDetachedFromLogicalTree(Avalonia.LogicalTree.LogicalTreeAttachmentEventArgs e)
+        {
+            // Unregister from messaging when detached
+            WeakReferenceMessenger.Default.Unregister<ErrorOccurredMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<ShowAddDatabaseFormMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<ShowEditDatabaseFormMessage>(this);
+            WeakReferenceMessenger.Default.Unregister<HideDatabaseFormMessage>(this);
+            
+            base.OnDetachedFromLogicalTree(e);
         }
     }
 }

@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Messages;
 using EdgeStudio.Models;
-using System;
 
 namespace EdgeStudio.Services;
 
@@ -17,13 +16,12 @@ public class NavigationService : INavigationService
             if (_currentNavigationType != value)
             {
                 _currentNavigationType = value;
-                NavigationChanged?.Invoke(this, value);
                 WeakReferenceMessenger.Default.Send(new NavigationChangedMessage(value));
             }
         }
     }
     
-    public event EventHandler<NavigationItemType>? NavigationChanged;
+    // Event converted to WeakReferenceMessenger pattern for better memory management
     
     public void NavigateTo(NavigationItemType navigationType)
     {

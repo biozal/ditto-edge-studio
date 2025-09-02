@@ -5,7 +5,8 @@
              xmlns:vm="using:EdgeStudio.ViewModels"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Workspaces.ObserverDetailView"
-             x:DataType="vm:ObserversViewModel">
+             x:DataType="vm:ObserversViewModel"
+             x:CompileBindings="True">
     
     <Grid Background="{DynamicResource MaterialBackgroundBrush}">
         <Border Background="{DynamicResource MaterialCardBackgroundBrush}"

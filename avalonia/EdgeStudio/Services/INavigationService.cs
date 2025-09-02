@@ -1,5 +1,4 @@
 using EdgeStudio.Models;
-using System;
 
 namespace EdgeStudio.Services;
 
@@ -9,5 +8,5 @@ public interface INavigationService
     
     void NavigateTo(NavigationItemType navigationType);
     
-    event EventHandler<NavigationItemType>? NavigationChanged;
+    // Event converted to WeakReferenceMessenger pattern for better memory management
 }

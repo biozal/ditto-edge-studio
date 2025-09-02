@@ -8,7 +8,8 @@
              xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
              x:Class="EdgeStudio.Views.EdgeStudioView"
-             x:DataType="vm:EdgeStudioViewModel">
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
 
     <Design.DataContext>
         <vm:EdgeStudioViewModel/>
@@ -45,7 +46,7 @@
 
                 <!-- Close Button - Circular with Material Icon -->
                 <Button Grid.Column="1" 
-                        Click="CloseButton_Click"
+                        Command="{Binding CloseDatabaseCommand}"
                         Width="18"
                         Height="18"
                         CornerRadius="9"

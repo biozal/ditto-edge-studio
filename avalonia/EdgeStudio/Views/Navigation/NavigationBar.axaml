@@ -6,7 +6,8 @@
              xmlns:models="using:EdgeStudio.Models"
              mc:Ignorable="d" d:DesignWidth="60" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Navigation.NavigationBar"
-             x:DataType="vm:NavigationViewModel">
+             x:DataType="vm:NavigationViewModel"
+             x:CompileBindings="True">
 
     <UserControl.Styles>
         <Style Selector="Button.NavButton">
@@ -63,11 +64,9 @@
             <ItemsControl ItemsSource="{Binding NavigationItems}"
                           Margin="0,8">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:NavigationItem">
+                    <DataTemplate x:DataType="models:NavigationItemViewModel">
                         <Button Classes="NavButton"
-                                Classes.Selected="{Binding $parent[ItemsControl].DataContext.SelectedItem, 
-                                                   Converter={x:Static ObjectConverters.Equal}, 
-                                                   ConverterParameter={Binding}}"
+                                Classes.Selected="{Binding IsSelected}"
                                 Command="{Binding $parent[ItemsControl].DataContext.SelectNavigationItemCommand}"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="{Binding Tooltip}">

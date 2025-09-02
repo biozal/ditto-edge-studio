@@ -7,6 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="650"
         x:Class="EdgeStudio.Views.DatabaseFormWindow"
         x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
         Title="Add Database Configuration"
         Width="700" Height="650"
         WindowStartupLocation="CenterOwner"

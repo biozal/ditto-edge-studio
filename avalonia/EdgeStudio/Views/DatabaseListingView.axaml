@@ -6,7 +6,8 @@
              xmlns:material="using:Material.Avalonia"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
              x:Class="EdgeStudio.Views.DatabaseListingView"
-             x:DataType="vm:MainWindowViewModel">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>

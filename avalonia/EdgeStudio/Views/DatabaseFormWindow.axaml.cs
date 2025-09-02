@@ -1,11 +1,13 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Messages;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views
 {
-    public partial class DatabaseFormWindow : Window
+    public partial class DatabaseFormWindow : Window, IRecipient<HideDatabaseFormMessage>
     {
         private MainWindowViewModel? _viewModel;
         
@@ -14,6 +16,9 @@ namespace EdgeStudio.Views
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
             Closed += OnWindowClosed;
+            
+            // Register for messaging
+            WeakReferenceMessenger.Default.Register<HideDatabaseFormMessage>(this);
             
             // Handle mode selection toggle buttons
             OnlineToggle.Click += (s, e) => {
@@ -43,21 +48,11 @@ namespace EdgeStudio.Views
         
         private void OnDataContextChanged(object? sender, EventArgs e)
         {
-            // Unsubscribe from old view model
-            if (_viewModel != null)
-            {
-                _viewModel.HideDatabaseForm -= OnHideDatabaseForm;
-            }
-            
-            // Subscribe to new view model
+            // Update view model reference
             _viewModel = DataContext as MainWindowViewModel;
-            if (_viewModel != null)
-            {
-                _viewModel.HideDatabaseForm += OnHideDatabaseForm;
-            }
         }
         
-        private void OnHideDatabaseForm()
+        public void Receive(HideDatabaseFormMessage message)
         {
             // Check if the window is still open before trying to close it
             if (IsActive || IsVisible)
@@ -68,11 +63,8 @@ namespace EdgeStudio.Views
         
         private void OnWindowClosed(object? sender, EventArgs e)
         {
-            // Cleanup event subscriptions when window is closed
-            if (_viewModel != null)
-            {
-                _viewModel.HideDatabaseForm -= OnHideDatabaseForm;
-            }
+            // Unregister from messaging when window is closed
+            WeakReferenceMessenger.Default.Unregister<HideDatabaseFormMessage>(this);
         }
         
         private void Cancel_Click(object? sender, RoutedEventArgs e)

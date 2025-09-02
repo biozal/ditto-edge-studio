@@ -15,7 +15,10 @@
       "Bash(timeout:*)",
       "Bash(cmd /c:*)",
       "Bash(dir:*)",
-      "WebFetch(domain:docs.ditto.live)"
+      "WebFetch(domain:docs.ditto.live)",
+      "WebFetch(domain:docs.avaloniaui.net)",
+      "Bash(find:*)",
+      "Bash(dotnet clean:*)"
     ],
     "deny": [],
     "ask": []

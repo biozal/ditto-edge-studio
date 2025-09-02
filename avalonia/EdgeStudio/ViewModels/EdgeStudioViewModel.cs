@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +12,7 @@ using EdgeStudio.Services;
 
 namespace EdgeStudio.ViewModels
 {
-    public partial class EdgeStudioViewModel : ObservableObject
+    public partial class EdgeStudioViewModel : ObservableObject, IDisposable
     {
         private readonly INavigationService _navigationService;
         private readonly Lazy<NavigationViewModel> _navigationViewModelLazy;
@@ -26,11 +27,8 @@ namespace EdgeStudio.ViewModels
         private readonly Lazy<QueryViewModel> _queryViewModelLazy;
         
         private DittoDatabaseConfig? _selectedDatabase;
-        private RelayCommand? _closeDatabaseCommand;
         private object? _currentListingViewModel;
         private object? _currentDetailViewModel;
-
-        public event EventHandler? CloseDatabaseRequested;
 
         public EdgeStudioViewModel(
             INavigationService navigationService,
@@ -90,11 +88,21 @@ namespace EdgeStudio.ViewModels
                     OnPropertyChanged(nameof(DatabaseName));
                     OnPropertyChanged(nameof(DatabaseId));
                     
-                    // When database is selected, refresh the current views to instantiate ViewModels
+                    // When database is selected, initialize ViewModels asynchronously for better performance
                     if (_selectedDatabase != null)
                     {
-                        // Default to Subscriptions view when database is first selected
-                        UpdateCurrentViews(NavigationItemType.Subscriptions);
+                        // Initialize ViewModels on background thread, then set default view
+                        _ = Task.Run(async () =>
+                        {
+                            await InitializeViewModelsAsync();
+                            
+                            // Switch back to UI thread to update views
+                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            {
+                                // Default to Subscriptions view when database is first selected
+                                UpdateCurrentViews(NavigationItemType.Subscriptions);
+                            });
+                        });
                     }
                     else
                     {
@@ -142,11 +150,11 @@ namespace EdgeStudio.ViewModels
             }
         }
 
-        public ICommand CloseDatabaseCommand => _closeDatabaseCommand ??= new RelayCommand(() => ExecuteCloseDatabase(null));
-
-        private void ExecuteCloseDatabase(object? parameter)
+        [RelayCommand]
+        private void CloseDatabase()
         {
-            CloseDatabaseRequested?.Invoke(this, EventArgs.Empty);
+            // Send message instead of raising event to avoid memory leaks
+            WeakReferenceMessenger.Default.Send(new CloseDatabaseRequestedMessage());
         }
         
         private void OnNavigationChanged(object recipient, NavigationChangedMessage message)
@@ -181,9 +189,27 @@ namespace EdgeStudio.ViewModels
             }
         }
         
+        private async Task InitializeViewModelsAsync()
+        {
+            // Pre-initialize all ViewModels on a background thread to avoid UI delays
+            await Task.Run(() => 
+            {
+                // Access all lazy ViewModels to force initialization off the UI thread
+                _ = SubscriptionViewModel;
+                _ = SubscriptionDetailsViewModel;
+                _ = CollectionsViewModel;
+                _ = HistoryViewModel;
+                _ = FavoritesViewModel;
+                _ = IndexViewModel;
+                _ = ObserversViewModel;
+                _ = ToolsViewModel;
+                _ = QueryViewModel;
+            });
+        }
+        
         private void UpdateCurrentViews(NavigationItemType navigationType)
         {
-            // Only instantiate ViewModels when a database is actually selected
+            // Only show views when a database is actually selected
             if (_selectedDatabase == null)
             {
                 CurrentListingViewModel = null;
@@ -191,6 +217,7 @@ namespace EdgeStudio.ViewModels
                 return;
             }
             
+            // ViewModels should already be initialized, so this should be fast
             switch (navigationType)
             {
                 case NavigationItemType.Subscriptions:
@@ -232,5 +259,26 @@ namespace EdgeStudio.ViewModels
                     break;
             }
         }
+        
+        #region IDisposable
+        private bool _disposed = false;
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+        
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                // Unregister from messaging
+                WeakReferenceMessenger.Default.UnregisterAll(this);
+                
+                _disposed = true;
+            }
+        }
+        #endregion
     }
 }

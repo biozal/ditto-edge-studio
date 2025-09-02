@@ -2,12 +2,15 @@ using System;
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Messages;
 using EdgeStudio.Services;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, 
+    IRecipient<CloseDatabaseRequestedMessage>
 {
     private MainWindowViewModel? _viewModel;
     private EdgeStudioViewModel? _edgeStudioViewModel;
@@ -34,8 +37,8 @@ public partial class MainWindow : Window
         // Subscribe to database selection changes
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         
-        // Subscribe to close database event from EdgeStudioView
-        EdgeStudioView.CloseRequested += OnCloseDatabaseRequested;
+        // Subscribe to close database message
+        WeakReferenceMessenger.Default.Register<CloseDatabaseRequestedMessage>(this);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -88,7 +91,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnCloseDatabaseRequested(object? sender, EventArgs e)
+    public void Receive(CloseDatabaseRequestedMessage message)
     {
         if (_viewModel != null)
         {
@@ -107,16 +110,14 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        // Unsubscribe from events
+        // Unsubscribe from events and messages
         if (_viewModel != null)
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         }
         
-        if (EdgeStudioView != null)
-        {
-            EdgeStudioView.CloseRequested -= OnCloseDatabaseRequested;
-        }
+        // Unregister from messaging
+        WeakReferenceMessenger.Default.Unregister<CloseDatabaseRequestedMessage>(this);
         
         // Clean up the ViewModel when window is closed
         _viewModel?.Cleanup();

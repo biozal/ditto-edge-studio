@@ -5,7 +5,8 @@
              xmlns:vm="using:EdgeStudio.ViewModels"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Workspaces.ObserverListingView"
-             x:DataType="vm:ObserversViewModel">
+             x:DataType="vm:ObserversViewModel"
+             x:CompileBindings="True">
     
     <Grid RowDefinitions="Auto,*">
         <!-- Header -->

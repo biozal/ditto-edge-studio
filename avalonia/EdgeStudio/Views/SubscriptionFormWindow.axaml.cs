@@ -1,11 +1,13 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Messages;
 using EdgeStudio.ViewModels;
 
 namespace EdgeStudio.Views
 {
-    public partial class SubscriptionFormWindow : Window
+    public partial class SubscriptionFormWindow : Window, IRecipient<HideSubscriptionFormMessage>
     {
         private SubscriptionViewModel? _viewModel;
         
@@ -14,6 +16,9 @@ namespace EdgeStudio.Views
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
             Closed += OnWindowClosed;
+            
+            // Register for messaging
+            WeakReferenceMessenger.Default.Register<HideSubscriptionFormMessage>(this);
         }
         
         public void SetTitle(string title)
@@ -24,21 +29,11 @@ namespace EdgeStudio.Views
         
         private void OnDataContextChanged(object? sender, EventArgs e)
         {
-            // Unsubscribe from old view model
-            if (_viewModel != null)
-            {
-                _viewModel.HideSubscriptionForm -= OnHideSubscriptionForm;
-            }
-            
-            // Subscribe to new view model
+            // Update view model reference
             _viewModel = DataContext as SubscriptionViewModel;
-            if (_viewModel != null)
-            {
-                _viewModel.HideSubscriptionForm += OnHideSubscriptionForm;
-            }
         }
         
-        private void OnHideSubscriptionForm()
+        public void Receive(HideSubscriptionFormMessage message)
         {
             // Check if the window is still open before trying to close it
             if (IsActive || IsVisible)
@@ -49,11 +44,8 @@ namespace EdgeStudio.Views
         
         private void OnWindowClosed(object? sender, EventArgs e)
         {
-            // Cleanup event subscriptions when window is closed
-            if (_viewModel != null)
-            {
-                _viewModel.HideSubscriptionForm -= OnHideSubscriptionForm;
-            }
+            // Unregister from messaging when window is closed
+            WeakReferenceMessenger.Default.Unregister<HideSubscriptionFormMessage>(this);
         }
     }
 }

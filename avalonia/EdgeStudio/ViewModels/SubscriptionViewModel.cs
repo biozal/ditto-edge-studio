@@ -42,11 +42,7 @@ public partial class SubscriptionViewModel : ObservableObject
     public bool HasItems => Items.Count > 0;
     public bool ShowEmptyState => !IsLoading && !HasItems;
     
-    /// <summary>
-    /// Events for form dialog management
-    /// </summary>
-    public event System.Action? ShowAddSubscriptionForm;
-    public event System.Action? HideSubscriptionForm;
+    // Events converted to WeakReferenceMessenger pattern for better memory management
     
     public SubscriptionViewModel(ISubscriptionRepository subscriptionRepository)
     {
@@ -103,7 +99,7 @@ public partial class SubscriptionViewModel : ObservableObject
     private void AddSubscription()
     {
         SubscriptionFormModel.Reset();
-        ShowAddSubscriptionForm?.Invoke();
+        WeakReferenceMessenger.Default.Send(new ShowAddSubscriptionFormMessage());
     }
     
     [RelayCommand]
@@ -174,7 +170,7 @@ public partial class SubscriptionViewModel : ObservableObject
             await _subscriptionRepository.SaveDittoSubscription(subscription);
             
             Items.Add(subscription);
-            HideSubscriptionForm?.Invoke();
+            WeakReferenceMessenger.Default.Send(new HideSubscriptionFormMessage());
             
             OnPropertyChanged(nameof(HasItems));
             OnPropertyChanged(nameof(ShowEmptyState));
@@ -192,6 +188,6 @@ public partial class SubscriptionViewModel : ObservableObject
     [RelayCommand]
     private void CancelSubscriptionForm()
     {
-        HideSubscriptionForm?.Invoke();
+        WeakReferenceMessenger.Default.Send(new HideSubscriptionFormMessage());
     }
 }
