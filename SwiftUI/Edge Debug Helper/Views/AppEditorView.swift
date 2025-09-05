@@ -142,7 +142,6 @@ struct AppEditorView: View {
                         viewModel.appId.isEmpty ||
                         viewModel.name.isEmpty ||
                         viewModel.authToken.isEmpty
-                        // || UUID(uuidString: viewModel.appId.trimmingCharacters(in: .whitespacesAndNewlines)) == nil
                     )
                 }
             }
