@@ -182,9 +182,6 @@ actor DittoManager {
             }
             
             // Validate that appId is a valid UUID
-            // guard UUID(uuidString: appConfig.appId) != nil else {
-            //     throw AppError.error(message: "Invalid App ID format. The App ID must be a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
-            // }
             
             //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
             // Pre-validate based on identity type to avoid NSException
