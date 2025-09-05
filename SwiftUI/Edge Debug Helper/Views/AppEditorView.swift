@@ -30,39 +30,73 @@ struct AppEditorView: View {
                 }
 
                 Section("Authorization Information") {
-                    TextField("AppID", text: $viewModel.appId)
-                    TextField("Playground Token", text: $viewModel.authToken)
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("App ID", text: $viewModel.appId)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            // Auto-trim whitespace when pasting content (common when copying UUIDs from docs)
+                            .onPasteCommand(of: [.plainText]) { providers in
+                                for provider in providers {
+                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                        if let string = string as? String {
+                                            DispatchQueue.main.async {
+                                                viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        if !viewModel.appId.isEmpty && UUID(uuidString: viewModel.appId.trimmingCharacters(in: .whitespacesAndNewlines)) == nil {
+                            Text("App ID must be a valid UUID format (36 characters)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        } else {
+                            Text("Enter a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.bottom, 5)
+                    
+                    TextField("Playground Token", text: $viewModel.authToken, axis: .vertical)
+                        .lineLimit(1...3)
+                        .textFieldStyle(.roundedBorder)
+                        // Auto-trim whitespace when pasting token content
+                        .onPasteCommand(of: [.plainText]) { providers in
+                            for provider in providers {
+                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                    if let string = string as? String {
+                                        DispatchQueue.main.async {
+                                            viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .padding(.bottom, 10)
                 }
 
                 if (viewModel.mode == "online") {
                     Section("Ditto Server (BigPeer) Information") {
-                        TextField("Auth URL", text: $viewModel.authUrl)
-                        TextField("Websocket URL", text: $viewModel.websocketUrl)
+                        TextField("Auth URL", text: $viewModel.authUrl, axis: .vertical)
+                            .lineLimit(1...2)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        TextField("Websocket URL", text: $viewModel.websocketUrl, axis: .vertical)
+                            .lineLimit(1...2)
+                            .textFieldStyle(.roundedBorder)
                             .padding(.bottom, 10)
                     }
                     Section("Ditto Server - HTTP API - Optional") {
                         VStack(alignment: .leading) {
-                            TextEditor(text: $viewModel.httpApiUrl)
-                                .frame(minHeight: 40)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.secondary.opacity(0.5))
-                                )
-                            Text("HTTP API URL")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            TextField("HTTP API URL", text: $viewModel.httpApiUrl, axis: .vertical)
+                                .lineLimit(1...3)
+                                .textFieldStyle(.roundedBorder)
                                 .padding(.bottom, 8)
                             
-                            TextEditor(text: $viewModel.httpApiKey)
-                                .frame(minHeight: 40)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.secondary.opacity(0.5))
-                                )
-                            Text("HTTP API Key")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            TextField("HTTP API Key", text: $viewModel.httpApiKey, axis: .vertical)
+                                .lineLimit(1...3)
+                                .textFieldStyle(.roundedBorder)
                                 .padding(.bottom, 10)
                             
                             Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
@@ -108,6 +142,7 @@ struct AppEditorView: View {
                         viewModel.appId.isEmpty ||
                         viewModel.name.isEmpty ||
                         viewModel.authToken.isEmpty
+                        // || UUID(uuidString: viewModel.appId.trimmingCharacters(in: .whitespacesAndNewlines)) == nil
                     )
                 }
             }
@@ -157,10 +192,18 @@ extension AppEditorView {
         
         func save(appState: AppState) async throws {
             do {
+                // Trim whitespace from appId
+                let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                // Validate that appId is a valid UUID before saving
+                guard UUID(uuidString: trimmedAppId) != nil else {
+                    throw AppError.error(message: "Invalid App ID format. The App ID must be a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
+                }
+                
                 let appConfig = DittoAppConfig(_id,
                                                name: name,
-                                               appId: appId,
-                                               authToken: authToken,
+                                               appId: trimmedAppId,
+                                               authToken: authToken.trimmingCharacters(in: .whitespacesAndNewlines),
                                                authUrl: authUrl,
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,
@@ -174,6 +217,7 @@ extension AppEditorView {
                 }
             } catch {
                 appState.setError(error)
+                throw error
             }
         }
     }

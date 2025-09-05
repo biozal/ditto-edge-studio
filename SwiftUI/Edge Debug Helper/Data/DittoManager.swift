@@ -74,19 +74,52 @@ actor DittoManager {
                     )
                     throw error
                 }
+                
+                // Pre-validate based on identity type to avoid NSException
+                switch appState.appConfig.mode {
+                case "online":
+                    // For online playground, validate UUID format
+                    guard UUID(uuidString: appState.appConfig.appId) != nil else {
+                        throw AppError.error(message: "dittoConfig.plist error - Invalid App ID for Online Playground. The App ID must be a valid UUID format (36 characters).\n\nProvided App ID: '\(appState.appConfig.appId)'")
+                    }
+                    // Validate token is not empty
+                    guard !appState.appConfig.authToken.isEmpty else {
+                        throw AppError.error(message: "dittoConfig.plist error - Invalid auth token for Online Playground. Token cannot be empty.")
+                    }
+                case "offline":
+                    // For offline mode, different validation rules would apply
+                    // Currently not implemented but structure is here for future use
+                    break
+                default:
+                    throw AppError.error(message: "dittoConfig.plist error - Unknown identity mode: \(appState.appConfig.mode)")
+                }
 
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-                dittoLocal = Ditto(
-                    identity: .onlinePlayground(
-                        appID: appState.appConfig.appId,
-                        token: appState.appConfig.authToken,
-                        enableDittoCloudSync: false,
-                        customAuthURL: URL(
-                            string: appState.appConfig.authUrl
-                        )
-                    ),
-                    persistenceDirectory: localDirectoryPath
-                )
+                do {
+                    dittoLocal = try Ditto(
+                        identity: .onlinePlayground(
+                            appID: appState.appConfig.appId,
+                            token: appState.appConfig.authToken,
+                            enableDittoCloudSync: false,
+                            customAuthURL: URL(
+                                string: appState.appConfig.authUrl
+                            )
+                        ),
+                        persistenceDirectory: localDirectoryPath
+                    )
+                } catch {
+                    // Catch Ditto initialization errors and provide a more user-friendly message
+                    let errorMessage = error.localizedDescription
+                    if errorMessage.contains("UUID") || errorMessage.contains("App ID") || errorMessage.contains("not a valid UUID") {
+                        throw AppError.error(message: "dittoConfig.plist error - Invalid App ID. The App ID must be a valid UUID format.\n\nOriginal error: \(errorMessage)")
+                    } else if errorMessage.contains("token") || errorMessage.contains("auth") {
+                        throw AppError.error(message: "dittoConfig.plist error - Authentication failed. Please check your auth token.\n\nOriginal error: \(errorMessage)")
+                    } else if errorMessage.contains("identity") || errorMessage.contains("internal failure") {
+                        throw AppError.error(message: "dittoConfig.plist error - Failed to create identity. Please verify your app credentials.\n\nOriginal error: \(errorMessage)")
+                    } else {
+                        throw AppError.error(message: "Failed to initialize local Ditto.\n\nOriginal error: \(errorMessage)")
+                    }
+                }
 
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
@@ -148,17 +181,55 @@ actor DittoManager {
                 throw AppError.error(message: "Invalid app configuration - missing appId or token")
             }
             
+            // Validate that appId is a valid UUID
+            // guard UUID(uuidString: appConfig.appId) != nil else {
+            //     throw AppError.error(message: "Invalid App ID format. The App ID must be a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
+            // }
+            
             //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-            dittoSelectedApp = Ditto(
-                identity: .onlinePlayground(
-                    appID: appConfig.appId,
-                    token: appConfig.authToken,
-                    enableDittoCloudSync: false,
-                    customAuthURL: URL(
-                        string: appConfig.authUrl
-                    )
-                ),
-                persistenceDirectory: localDirectoryPath)
+            // Pre-validate based on identity type to avoid NSException
+            switch appConfig.mode {
+            case "online":
+                // For online playground, validate UUID format
+                guard UUID(uuidString: appConfig.appId) != nil else {
+                    throw AppError.error(message: "Invalid App ID for Online Playground. The App ID must be a valid UUID format (36 characters).\n\nProvided App ID: '\(appConfig.appId)'")
+                }
+                // Validate token is not empty
+                guard !appConfig.authToken.isEmpty else {
+                    throw AppError.error(message: "Invalid auth token for Online Playground. Token cannot be empty.")
+                }
+            case "offline":
+                // For offline mode, different validation rules would apply
+                // Currently not implemented but structure is here for future use
+                break
+            default:
+                throw AppError.error(message: "Unknown identity mode: \(appConfig.mode)")
+            }
+            
+            do {
+                dittoSelectedApp = try Ditto(
+                    identity: .onlinePlayground(
+                        appID: appConfig.appId,
+                        token: appConfig.authToken,
+                        enableDittoCloudSync: false,
+                        customAuthURL: URL(
+                            string: appConfig.authUrl
+                        )
+                    ),
+                    persistenceDirectory: localDirectoryPath)
+            } catch {
+                // Catch Ditto initialization errors and provide a more user-friendly message
+                let errorMessage = error.localizedDescription
+                if errorMessage.contains("UUID") || errorMessage.contains("App ID") || errorMessage.contains("not a valid UUID") {
+                    throw AppError.error(message: "Invalid App ID. The App ID must be a valid UUID format.\n\nOriginal error: \(errorMessage)")
+                } else if errorMessage.contains("token") || errorMessage.contains("auth") {
+                    throw AppError.error(message: "Authentication failed. Please check your auth token and try again.\n\nOriginal error: \(errorMessage)")
+                } else if errorMessage.contains("identity") || errorMessage.contains("internal failure") {
+                    throw AppError.error(message: "Failed to create identity. Please verify your app credentials are correct.\n\nOriginal error: \(errorMessage)")
+                } else {
+                    throw AppError.error(message: "Failed to initialize Ditto.\n\nOriginal error: \(errorMessage)")
+                }
+            }
             
             guard let ditto = dittoSelectedApp else {
                 throw AppError.error(message: "Failed to create Ditto instance")
