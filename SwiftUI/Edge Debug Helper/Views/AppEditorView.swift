@@ -30,33 +30,22 @@ struct AppEditorView: View {
                 }
 
                 Section("Authorization Information") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        TextField("App ID", text: $viewModel.appId)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            // Auto-trim whitespace when pasting content (common when copying UUIDs from docs)
-                            .onPasteCommand(of: [.plainText]) { providers in
-                                for provider in providers {
-                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                        if let string = string as? String {
-                                            DispatchQueue.main.async {
-                                                viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                            }
+                    TextField("App ID", text: $viewModel.appId)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        // Auto-trim whitespace when pasting content
+                        .onPasteCommand(of: [.plainText]) { providers in
+                            for provider in providers {
+                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                    if let string = string as? String {
+                                        DispatchQueue.main.async {
+                                            viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
                                         }
                                     }
                                 }
                             }
-                        if !viewModel.appId.isEmpty && UUID(uuidString: viewModel.appId.trimmingCharacters(in: .whitespacesAndNewlines)) == nil {
-                            Text("App ID must be a valid UUID format (36 characters)")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        } else {
-                            Text("Enter a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                         }
-                    }
-                    .padding(.bottom, 5)
+                        .padding(.bottom, 5)
                     
                     TextField("Playground Token", text: $viewModel.authToken, axis: .vertical)
                         .lineLimit(1...3)
@@ -193,11 +182,6 @@ extension AppEditorView {
             do {
                 // Trim whitespace from appId
                 let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                // Validate that appId is a valid UUID before saving
-                guard UUID(uuidString: trimmedAppId) != nil else {
-                    throw AppError.error(message: "Invalid App ID format. The App ID must be a valid UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)")
-                }
                 
                 let appConfig = DittoAppConfig(_id,
                                                name: name,
