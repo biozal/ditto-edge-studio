@@ -60,7 +60,7 @@ actor DittoManager {
                     for: .applicationSupportDirectory,
                     in: .userDomainMask
                 )[0]
-                .appendingPathComponent("ditto_local_config")
+                .appendingPathComponent("ditto_appconfig")
 
                 // Ensure directory exists
                 if !FileManager.default.fileExists(
