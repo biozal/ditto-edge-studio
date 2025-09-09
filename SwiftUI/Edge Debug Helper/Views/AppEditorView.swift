@@ -26,6 +26,7 @@ struct AppEditorView: View {
                                     .pickerStyle(.segmented)
                 Section("Basic Information") {
                     TextField("Name", text: $viewModel.name)
+                        .lineLimit(1)
                         .padding(.bottom, 10)
                 }
 
@@ -33,6 +34,7 @@ struct AppEditorView: View {
                     TextField("App ID", text: $viewModel.appId)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
+                        .lineLimit(1)
                         // Auto-trim whitespace when pasting content
                         .onPasteCommand(of: [.plainText]) { providers in
                             for provider in providers {
@@ -47,9 +49,9 @@ struct AppEditorView: View {
                         }
                         .padding(.bottom, 5)
                     
-                    TextField("Playground Token", text: $viewModel.authToken, axis: .vertical)
-                        .lineLimit(1...3)
+                    TextField("Playground Token", text: $viewModel.authToken)
                         .textFieldStyle(.roundedBorder)
+                        .lineLimit(1)
                         // Auto-trim whitespace when pasting token content
                         .onPasteCommand(of: [.plainText]) { providers in
                             for provider in providers {
@@ -67,25 +69,25 @@ struct AppEditorView: View {
 
                 if (viewModel.mode == "online") {
                     Section("Ditto Server (BigPeer) Information") {
-                        TextField("Auth URL", text: $viewModel.authUrl, axis: .vertical)
-                            .lineLimit(1...2)
+                        TextField("Auth URL", text: $viewModel.authUrl)
                             .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
                         
-                        TextField("Websocket URL", text: $viewModel.websocketUrl, axis: .vertical)
-                            .lineLimit(1...2)
+                        TextField("Websocket URL", text: $viewModel.websocketUrl)
                             .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
                             .padding(.bottom, 10)
                     }
                     Section("Ditto Server - HTTP API - Optional") {
                         VStack(alignment: .leading) {
-                            TextField("HTTP API URL", text: $viewModel.httpApiUrl, axis: .vertical)
-                                .lineLimit(1...3)
+                            TextField("HTTP API URL", text: $viewModel.httpApiUrl)
                                 .textFieldStyle(.roundedBorder)
+                                .lineLimit(1)
                                 .padding(.bottom, 8)
                             
-                            TextField("HTTP API Key", text: $viewModel.httpApiKey, axis: .vertical)
-                                .lineLimit(1...3)
+                            TextField("HTTP API Key", text: $viewModel.httpApiKey)
                                 .textFieldStyle(.roundedBorder)
+                                .lineLimit(1)
                                 .padding(.bottom, 10)
                             
                             Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
@@ -119,11 +121,7 @@ struct AppEditorView: View {
                 ToolbarItem(placement: .confirmationAction){
                     Button ("Save"){
                         Task {
-                            do {
-                                try await viewModel.save(appState: appState)
-                            } catch {
-                                //the view model handles this
-                            }
+                            await viewModel.save(appState: appState)
                             isPresented = false
                         }
                     }
@@ -178,7 +176,7 @@ extension AppEditorView {
             }
         }
         
-        func save(appState: AppState) async throws {
+        func save(appState: AppState) async {
             do {
                 // Trim whitespace from appId
                 let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -200,7 +198,6 @@ extension AppEditorView {
                 }
             } catch {
                 appState.setError(error)
-                throw error
             }
         }
     }
