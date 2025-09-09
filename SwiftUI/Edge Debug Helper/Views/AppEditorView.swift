@@ -26,43 +26,68 @@ struct AppEditorView: View {
                                     .pickerStyle(.segmented)
                 Section("Basic Information") {
                     TextField("Name", text: $viewModel.name)
+                        .lineLimit(1)
                         .padding(.bottom, 10)
                 }
 
                 Section("Authorization Information") {
-                    TextField("AppID", text: $viewModel.appId)
+                    TextField("App ID", text: $viewModel.appId)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(1)
+                        // Auto-trim whitespace when pasting content
+                        .onPasteCommand(of: [.plainText]) { providers in
+                            for provider in providers {
+                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                    if let string = string as? String {
+                                        DispatchQueue.main.async {
+                                            viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.bottom, 5)
+                    
                     TextField("Playground Token", text: $viewModel.authToken)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1)
+                        // Auto-trim whitespace when pasting token content
+                        .onPasteCommand(of: [.plainText]) { providers in
+                            for provider in providers {
+                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                    if let string = string as? String {
+                                        DispatchQueue.main.async {
+                                            viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .padding(.bottom, 10)
                 }
 
                 if (viewModel.mode == "online") {
                     Section("Ditto Server (BigPeer) Information") {
                         TextField("Auth URL", text: $viewModel.authUrl)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
+                        
                         TextField("Websocket URL", text: $viewModel.websocketUrl)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
                             .padding(.bottom, 10)
                     }
                     Section("Ditto Server - HTTP API - Optional") {
                         VStack(alignment: .leading) {
-                            TextEditor(text: $viewModel.httpApiUrl)
-                                .frame(minHeight: 40)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.secondary.opacity(0.5))
-                                )
-                            Text("HTTP API URL")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            TextField("HTTP API URL", text: $viewModel.httpApiUrl)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(1)
                                 .padding(.bottom, 8)
                             
-                            TextEditor(text: $viewModel.httpApiKey)
-                                .frame(minHeight: 40)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.secondary.opacity(0.5))
-                                )
-                            Text("HTTP API Key")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            TextField("HTTP API Key", text: $viewModel.httpApiKey)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(1)
                                 .padding(.bottom, 10)
                             
                             Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
@@ -96,11 +121,7 @@ struct AppEditorView: View {
                 ToolbarItem(placement: .confirmationAction){
                     Button ("Save"){
                         Task {
-                            do {
-                                try await viewModel.save(appState: appState)
-                            } catch {
-                                //the view model handles this
-                            }
+                            await viewModel.save(appState: appState)
                             isPresented = false
                         }
                     }
@@ -155,12 +176,15 @@ extension AppEditorView {
             }
         }
         
-        func save(appState: AppState) async throws {
+        func save(appState: AppState) async {
             do {
+                // Trim whitespace from appId
+                let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
+                
                 let appConfig = DittoAppConfig(_id,
                                                name: name,
-                                               appId: appId,
-                                               authToken: authToken,
+                                               appId: trimmedAppId,
+                                               authToken: authToken.trimmingCharacters(in: .whitespacesAndNewlines),
                                                authUrl: authUrl,
                                                websocketUrl: websocketUrl,
                                                httpApiUrl: httpApiUrl,

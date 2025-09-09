@@ -1,6 +1,7 @@
 import DittoSwift
 import Foundation
 
+
 // MARK: - DittoService
 actor DittoManager {
     var isStoreInitialized: Bool = false
@@ -17,6 +18,7 @@ actor DittoManager {
     // MARK: - Cached URLSession for untrusted certificates
     private static var cachedUntrustedSession: URLSession?
     private static let untrustedSessionLock = NSLock()
+    
     
     private init() {}
 
@@ -41,6 +43,11 @@ actor DittoManager {
     func initializeStore(appState: AppState) async throws {
         do {
             if !isStoreInitialized {
+                // Clean up any existing local instance first
+                if let existingDitto = dittoLocal {
+                    try? existingDitto.sync.stop()
+                    dittoLocal = nil
+                }
                 // setup logging
                 DittoLogger.isEnabled = true
                 DittoLogger.minimumLogLevel = .debug
@@ -74,19 +81,33 @@ actor DittoManager {
                     )
                     throw error
                 }
-
+                
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-                dittoLocal = Ditto(
-                    identity: .onlinePlayground(
-                        appID: appState.appConfig.appId,
-                        token: appState.appConfig.authToken,
-                        enableDittoCloudSync: false,
-                        customAuthURL: URL(
-                            string: appState.appConfig.authUrl
-                        )
-                    ),
-                    persistenceDirectory: localDirectoryPath
-                )
+                // Use Objective-C exception handler to catch NSException from Ditto initialization
+                var dittoInstance: Ditto?
+                
+                let error = ExceptionCatcher.perform {
+                    dittoInstance = Ditto(
+                        identity: .onlinePlayground(
+                            appID: appState.appConfig.appId,
+                            token: appState.appConfig.authToken,
+                            enableDittoCloudSync: false,
+                            customAuthURL: URL(string: appState.appConfig.authUrl)
+                        ),
+                        persistenceDirectory: localDirectoryPath
+                    )
+                }
+                
+                if let error = error {
+                    let errorMessage = error.localizedDescription
+                    throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
+                }
+                
+                guard let ditto = dittoInstance else {
+                    throw AppError.error(message: "Failed to create Ditto instance")
+                }
+                
+                dittoLocal = ditto
 
                 dittoLocal?.updateTransportConfig(block: { config in
                     config.connect.webSocketURLs.insert(
@@ -132,7 +153,8 @@ actor DittoManager {
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0]
-                .appendingPathComponent(dbname + "-")
+                .appendingPathComponent("ditto_apps")
+                .appendingPathComponent("\(dbname)-\(appConfig.appId)")
             
             // Ensure directory exists
             if !FileManager.default.fileExists(atPath: localDirectoryPath.path)
@@ -149,16 +171,31 @@ actor DittoManager {
             }
             
             //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-            dittoSelectedApp = Ditto(
-                identity: .onlinePlayground(
-                    appID: appConfig.appId,
-                    token: appConfig.authToken,
-                    enableDittoCloudSync: false,
-                    customAuthURL: URL(
-                        string: appConfig.authUrl
-                    )
-                ),
-                persistenceDirectory: localDirectoryPath)
+            // Use Objective-C exception handler to catch NSException from Ditto initialization
+            var dittoInstance: Ditto?
+            
+            let error = ExceptionCatcher.perform {
+                dittoInstance = Ditto(
+                    identity: .onlinePlayground(
+                        appID: appConfig.appId,
+                        token: appConfig.authToken,
+                        enableDittoCloudSync: false,
+                        customAuthURL: URL(string: appConfig.authUrl)
+                    ),
+                    persistenceDirectory: localDirectoryPath
+                )
+            }
+            
+            if let error = error {
+                let errorMessage = error.localizedDescription
+                throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
+            }
+            
+            guard let ditto = dittoInstance else {
+                throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            
+            dittoSelectedApp = ditto
             
             guard let ditto = dittoSelectedApp else {
                 throw AppError.error(message: "Failed to create Ditto instance")

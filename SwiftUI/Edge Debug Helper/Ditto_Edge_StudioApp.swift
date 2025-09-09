@@ -39,7 +39,7 @@ struct Ditto_Edge_StudioApp: App {
                 }
                 .environmentObject(appState)
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
                 .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
                 .commands {
                     CommandGroup(replacing: .newItem) {
