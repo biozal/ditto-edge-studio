@@ -68,7 +68,7 @@ namespace EdgeStudio.Data
                     {
                         try
                         {
-                            await ditto.Auth.LoginAsync(databaseConfig.AuthToken, "server");
+                            await ditto.Auth.LoginAsync(databaseConfig.AuthToken, DittoAuthenticationProvider.Development);
                             _isStoreInitialized = true;
                         }
                         catch (Exception error)
