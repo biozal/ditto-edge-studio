@@ -15,6 +15,7 @@
     <AvaloniaResource Include="Assets\**" />
     <EmbeddedResource Include=".env" />
     <AvaloniaResource Include="Assets\Fonts\MaterialSymbolsOutlined.ttf" />
+    <EmbeddedResource Include=".env.sample" />
   </ItemGroup>
 
   <ItemGroup>
