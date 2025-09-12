@@ -25,3 +25,9 @@ rust/designs
 /avalonia/.claude
 /avalonia/.claude
 /avalonia/.claude
+avalonia/.idea
+kmp/.gradle
+kmp/.idea
+kmp/.kotlin
+kmp/build
+kmp/composeApp/build
