@@ -7,6 +7,32 @@
 
 import SwiftUI
 
+// View modifier to handle paste trimming
+struct PasteTrimModifier: ViewModifier {
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        content
+            .onPasteCommand(of: [.plainText]) { providers in
+                for provider in providers {
+                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                        if let string = string as? String {
+                            DispatchQueue.main.async {
+                                text = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func trimOnPaste(_ text: Binding<String>) -> some View {
+        modifier(PasteTrimModifier(text: text))
+    }
+}
+
 struct AppEditorView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
@@ -36,71 +62,27 @@ struct AppEditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .lineLimit(1)
-                        // Auto-trim whitespace when pasting content
-                        .onPasteCommand(of: [.plainText]) { providers in
-                            for provider in providers {
-                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                    if let string = string as? String {
-                                        DispatchQueue.main.async {
-                                            viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        .trimOnPaste($viewModel.appId)
                         .padding(.bottom, 5)
                     
                     if (viewModel.mode == .onlinePlayground) {
                         TextField("Playground Token", text: $viewModel.authToken)
                             .textFieldStyle(.roundedBorder)
                             .lineLimit(1)
-                            // Auto-trim whitespace when pasting token content
-                            .onPasteCommand(of: [.plainText]) { providers in
-                                for provider in providers {
-                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                        if let string = string as? String {
-                                            DispatchQueue.main.async {
-                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            .trimOnPaste($viewModel.authToken)
                             .padding(.bottom, 10)
                     } else if (viewModel.mode == .offlinePlayground) {
                         TextField("Playground Token", text: $viewModel.authToken)
                             .textFieldStyle(.roundedBorder)
                             .lineLimit(1)
-                            // Auto-trim whitespace when pasting token content
-                            .onPasteCommand(of: [.plainText]) { providers in
-                                for provider in providers {
-                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                        if let string = string as? String {
-                                            DispatchQueue.main.async {
-                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            .trimOnPaste($viewModel.authToken)
                             .padding(.bottom, 10)
                     } else {
                         // Shared key mode - use authToken field for offline license token
                         TextField("Offline License Token", text: $viewModel.authToken)
                             .textFieldStyle(.roundedBorder)
                             .lineLimit(1)
-                            // Auto-trim whitespace when pasting token content
-                            .onPasteCommand(of: [.plainText]) { providers in
-                                for provider in providers {
-                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                        if let string = string as? String {
-                                            DispatchQueue.main.async {
-                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            .trimOnPaste($viewModel.authToken)
                             .padding(.bottom, 5)
                         
                         Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")

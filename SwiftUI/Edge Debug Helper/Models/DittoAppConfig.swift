@@ -64,24 +64,7 @@ class DittoAppConfig: Decodable {
         websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
         httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
         httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
-        // Handle both legacy string values and new enum values
-        if let modeEnum = try? container.decode(AuthMode.self, forKey: .mode) {
-            mode = modeEnum
-        } else if let modeString = try? container.decode(String.self, forKey: .mode) {
-            // Map legacy string values to enum cases
-            switch modeString {
-            case "online", "onlineplayground":
-                mode = .onlinePlayground
-            case "offline", "sharedkey":
-                mode = .sharedKey
-            case "offlineplayground":
-                mode = .offlinePlayground
-            default:
-                mode = .onlinePlayground
-            }
-        } else {
-            mode = .onlinePlayground
-        }
+        mode = try container.decode(AuthMode.self, forKey: .mode)
         allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
         secretKey = try container.decodeIfPresent(String.self, forKey: .secretKey) ?? ""
     }

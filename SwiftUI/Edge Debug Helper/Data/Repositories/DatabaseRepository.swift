@@ -39,7 +39,7 @@ actor DatabaseRepository {
                     "websocketUrl": appConfig.websocketUrl,
                     "httpApiUrl": appConfig.httpApiUrl,
                     "httpApiKey": appConfig.httpApiKey,
-                    "mode": appConfig.mode,
+                    "mode": appConfig.mode.rawValue,
                     "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                     "secretKey": appConfig.secretKey,
                 ]
@@ -79,14 +79,13 @@ actor DatabaseRepository {
         ) { [weak self] results in
             Task { [weak self] in
                 guard let self else { return }
-                
-                let decoder = JSONDecoder()
+
                 // Create new DittoAppConfig instances
                 // This work is now done within the actor's context (background)
                 let configs = results.items.compactMap { item in
                     do {
-                        return try decoder.decode(
-                            DittoAppConfig.self,
+                        // Use loader to handle both current and legacy formats
+                        return try DittoAppConfigLoader.loadConfig(
                             from: item.jsonData()
                         )
                     } catch {

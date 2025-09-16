@@ -103,8 +103,8 @@ actor DittoManager {
                     throw AppError.error(message: "Failed to create Ditto instance")
                 }
                 
-                // For shared key mode, set the offline license token (using authToken field)
-                if appState.appConfig.mode == .sharedKey && !appState.appConfig.authToken.isEmpty {
+                // For shared key and offline playground modes, set the offline license token (using authToken field)
+                if (appState.appConfig.mode == .sharedKey || appState.appConfig.mode == .offlinePlayground) && !appState.appConfig.authToken.isEmpty {
                     print("Setting offline license token: `\(appState.appConfig.authToken)`")
                     try ditto.setOfflineOnlyLicenseToken(appState.appConfig.authToken)
                     print("Successfully set offline license token")
@@ -194,8 +194,8 @@ actor DittoManager {
                 throw AppError.error(message: "Failed to create Ditto instance")
             }
             
-            // For shared key mode, set the offline license token (using authToken field)
-            if appConfig.mode == .sharedKey && !appConfig.authToken.isEmpty {
+            // For shared key and offline playground modes, set the offline license token (using authToken field)
+            if (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground) && !appConfig.authToken.isEmpty {
                 try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
             
@@ -300,17 +300,11 @@ actor DittoManager {
             }
             
         case .offlinePlayground:
-            // Use online playground identity but simplified (authToken is the playground token here)
+            // Use offline playground identity
             print("Creating offline playground identity:")
             print("App ID: `\(appConfig.appId)`")
-            print("Playground Token: `\(appConfig.authToken)`")
-            
-            return .onlinePlayground(
-                appID: appConfig.appId,
-                token: appConfig.authToken,
-                enableDittoCloudSync: false,
-                customAuthURL: nil
-            )
+
+            return .offlinePlayground(appID: appConfig.appId)
             
         case .onlinePlayground:
             // Use online playground identity (authToken is the playground token here)
