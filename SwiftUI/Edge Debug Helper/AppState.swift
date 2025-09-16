@@ -49,7 +49,7 @@ class AppState: ObservableObject {
             websocketUrl: websocketUrl,
             httpApiUrl: httpApiUrl,
             httpApiKey: httpApiKey,
-            mode: "online",
+            mode: .onlinePlayground,
             allowUntrustedCerts: false
         )
     }

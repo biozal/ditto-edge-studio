@@ -39,8 +39,9 @@ actor DatabaseRepository {
                     "websocketUrl": appConfig.websocketUrl,
                     "httpApiUrl": appConfig.httpApiUrl,
                     "httpApiKey": appConfig.httpApiKey,
-                    "mode": appConfig.mode,
+                    "mode": appConfig.mode.rawValue,
                     "allowUntrustedCerts": appConfig.allowUntrustedCerts,
+                    "secretKey": appConfig.secretKey,
                 ]
             ]
             try await ditto.store.execute(
@@ -78,14 +79,13 @@ actor DatabaseRepository {
         ) { [weak self] results in
             Task { [weak self] in
                 guard let self else { return }
-                
-                let decoder = JSONDecoder()
+
                 // Create new DittoAppConfig instances
                 // This work is now done within the actor's context (background)
                 let configs = results.items.compactMap { item in
                     do {
-                        return try decoder.decode(
-                            DittoAppConfig.self,
+                        // Use loader to handle both current and legacy formats
+                        return try DittoAppConfigLoader.loadConfig(
                             from: item.jsonData()
                         )
                     } catch {
@@ -162,7 +162,7 @@ actor DatabaseRepository {
         
         do {
             let query =
-            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts WHERE _id = :_id"
+            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, secretKey = :secretKey WHERE _id = :_id"
             let arguments: [String: Any] = [
                 "_id": appConfig._id,
                 "name": appConfig.name,
@@ -172,8 +172,9 @@ actor DatabaseRepository {
                 "websocketUrl": appConfig.websocketUrl,
                 "httpApiUrl": appConfig.httpApiUrl,
                 "httpApiKey": appConfig.httpApiKey,
-                "mode": appConfig.mode,
+                "mode": appConfig.mode.rawValue,
                 "allowUntrustedCerts": appConfig.allowUntrustedCerts,
+                "secretKey": appConfig.secretKey,
             ]
             try await ditto.store.execute(
                 query: query,
