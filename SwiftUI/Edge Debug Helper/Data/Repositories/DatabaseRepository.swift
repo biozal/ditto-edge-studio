@@ -41,6 +41,7 @@ actor DatabaseRepository {
                     "httpApiKey": appConfig.httpApiKey,
                     "mode": appConfig.mode,
                     "allowUntrustedCerts": appConfig.allowUntrustedCerts,
+                    "secretKey": appConfig.secretKey,
                 ]
             ]
             try await ditto.store.execute(
@@ -162,7 +163,7 @@ actor DatabaseRepository {
         
         do {
             let query =
-            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts WHERE _id = :_id"
+            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, secretKey = :secretKey WHERE _id = :_id"
             let arguments: [String: Any] = [
                 "_id": appConfig._id,
                 "name": appConfig.name,
@@ -174,6 +175,7 @@ actor DatabaseRepository {
                 "httpApiKey": appConfig.httpApiKey,
                 "mode": appConfig.mode,
                 "allowUntrustedCerts": appConfig.allowUntrustedCerts,
+                "secretKey": appConfig.secretKey,
             ]
             try await ditto.store.execute(
                 query: query,

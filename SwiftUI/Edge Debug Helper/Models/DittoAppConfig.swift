@@ -10,8 +10,9 @@ class DittoAppConfig: Decodable {
     var websocketUrl: String
     var httpApiUrl: String
     var httpApiKey: String
-    var mode: String
+    var mode: AuthMode
     var allowUntrustedCerts: Bool
+    var secretKey: String
 
     init(
         _ _id: String,
@@ -22,8 +23,9 @@ class DittoAppConfig: Decodable {
         websocketUrl: String,
         httpApiUrl: String,
         httpApiKey: String,
-        mode: String = "online",
-        allowUntrustedCerts: Bool = false
+        mode: AuthMode = .onlinePlayground,
+        allowUntrustedCerts: Bool = false,
+        secretKey: String = ""
     ) {
 
         self._id = _id
@@ -36,6 +38,7 @@ class DittoAppConfig: Decodable {
         self.httpApiKey = httpApiKey
         self.mode = mode
         self.allowUntrustedCerts = allowUntrustedCerts
+        self.secretKey = secretKey
     }
     enum CodingKeys: String, CodingKey {
         case _id
@@ -48,6 +51,7 @@ class DittoAppConfig: Decodable {
         case httpApiKey
         case mode
         case allowUntrustedCerts
+        case secretKey
     }
 
     required init(from decoder: Decoder) throws {
@@ -60,8 +64,26 @@ class DittoAppConfig: Decodable {
         websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
         httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
         httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
-        mode = try container.decode(String.self, forKey: .mode)
+        // Handle both legacy string values and new enum values
+        if let modeEnum = try? container.decode(AuthMode.self, forKey: .mode) {
+            mode = modeEnum
+        } else if let modeString = try? container.decode(String.self, forKey: .mode) {
+            // Map legacy string values to enum cases
+            switch modeString {
+            case "online", "onlineplayground":
+                mode = .onlinePlayground
+            case "offline", "sharedkey":
+                mode = .sharedKey
+            case "offlineplayground":
+                mode = .offlinePlayground
+            default:
+                mode = .onlinePlayground
+            }
+        } else {
+            mode = .onlinePlayground
+        }
         allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
+        secretKey = try container.decodeIfPresent(String.self, forKey: .secretKey) ?? ""
     }
 }
 
@@ -76,8 +98,9 @@ extension DittoAppConfig {
             websocketUrl: "",
             httpApiUrl: "",
             httpApiKey: "",
-            mode: "online",
-            allowUntrustedCerts: false
+            mode: .onlinePlayground,
+            allowUntrustedCerts: false,
+            secretKey: ""
         )
     }
 }

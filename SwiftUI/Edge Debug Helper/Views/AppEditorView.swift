@@ -20,8 +20,9 @@ struct AppEditorView: View {
         NavigationStack {
             Form {
                 Picker("Mode", selection: $viewModel.mode) {
-                                        Text("Online Playground").tag("online")
-                                        Text("Offline").tag("offline")
+                                        ForEach(AuthMode.allCases, id: \.self) { mode in
+                                            Text(mode.displayName).tag(mode)
+                                        }
                                     }
                                     .pickerStyle(.segmented)
                 Section("Basic Information") {
@@ -49,25 +50,79 @@ struct AppEditorView: View {
                         }
                         .padding(.bottom, 5)
                     
-                    TextField("Playground Token", text: $viewModel.authToken)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1)
-                        // Auto-trim whitespace when pasting token content
-                        .onPasteCommand(of: [.plainText]) { providers in
-                            for provider in providers {
-                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                    if let string = string as? String {
-                                        DispatchQueue.main.async {
-                                            viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if (viewModel.mode == .onlinePlayground) {
+                        TextField("Playground Token", text: $viewModel.authToken)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
+                            // Auto-trim whitespace when pasting token content
+                            .onPasteCommand(of: [.plainText]) { providers in
+                                for provider in providers {
+                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                        if let string = string as? String {
+                                            DispatchQueue.main.async {
+                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        .padding(.bottom, 10)
+                            .padding(.bottom, 10)
+                    } else if (viewModel.mode == .offlinePlayground) {
+                        TextField("Playground Token", text: $viewModel.authToken)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
+                            // Auto-trim whitespace when pasting token content
+                            .onPasteCommand(of: [.plainText]) { providers in
+                                for provider in providers {
+                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                        if let string = string as? String {
+                                            DispatchQueue.main.async {
+                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 10)
+                    } else {
+                        // Shared key mode - use authToken field for offline license token
+                        TextField("Offline License Token", text: $viewModel.authToken)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
+                            // Auto-trim whitespace when pasting token content
+                            .onPasteCommand(of: [.plainText]) { providers in
+                                for provider in providers {
+                                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                                        if let string = string as? String {
+                                            DispatchQueue.main.async {
+                                                viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 5)
+                        
+                        Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 10)
+                    }
                 }
 
-                if (viewModel.mode == "online") {
+                if (viewModel.mode == .sharedKey) {
+                    Section("Optional Secret Key") {
+                        TextField("Secret Key (Optional)", text: $viewModel.secretKey)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1)
+                            .padding(.bottom, 5)
+                        
+                        Text("Optional secret key for shared key identity encryption. Leave empty if not required.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 10)
+                    }
+                } else if (viewModel.mode == .onlinePlayground) {
                     Section("Ditto Server (BigPeer) Information") {
                         TextField("Auth URL", text: $viewModel.authUrl)
                             .textFieldStyle(.roundedBorder)
@@ -151,8 +206,9 @@ extension AppEditorView {
         var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
-        var mode: String
+        var mode: AuthMode
         var allowUntrustedCerts: Bool
+        var secretKey: String
         
         let isNewItem: Bool
         private let databaseRepository = DatabaseRepository.shared
@@ -168,6 +224,7 @@ extension AppEditorView {
             httpApiKey = appConfig.httpApiKey
             mode = appConfig.mode
             allowUntrustedCerts = appConfig.allowUntrustedCerts
+            secretKey = appConfig.secretKey
             
             if (appConfig.appId == "") {
                 isNewItem = true
@@ -190,7 +247,8 @@ extension AppEditorView {
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
                                                mode: mode,
-                                               allowUntrustedCerts: allowUntrustedCerts)
+                                               allowUntrustedCerts: allowUntrustedCerts,
+                                               secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines))
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {
