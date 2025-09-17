@@ -53,26 +53,22 @@ struct MainStudioView: View {
                     Spacer()
                 }
                 switch viewModel.selectedMenuItem.name {
-                case "Collections":
-                    collectionsSidebarView()
-                case "History":
-                    historySidebarView()
+                case "Store Explorer":
+                    storeExplorerSidebarView()
+                case "Query":
+                    querySidebarView()
                 case "Favorites":
                     favoritesSidebarView()
-                case "Observer":
-                    observeSidebarView()
                 case "Ditto Tools":
                     dittoToolsSidebarView()
-                case "MongoDb":
-                    mongoDbSidebarView()
                 default:
-                    subscriptionSidebarView()
+                    storeExplorerSidebarView()
                 }
                 Spacer()
 
                 //Bottom Toolbar in Sidebar
-                HStack {
-                    Menu {
+                    HStack {
+                        Menu {
                         Button(
                             "Add Subscription",
                             systemImage: "arrow.trianglehead.2.clockwise"
@@ -91,7 +87,7 @@ struct MainStudioView: View {
                             .padding(4)
                     }
                     Spacer()
-                    if viewModel.selectedMenuItem.name == "History" {
+                    if viewModel.selectedMenuItem.name == "Query" {
                         Button {
                             Task {
                                 try await HistoryRepository.shared
@@ -100,10 +96,6 @@ struct MainStudioView: View {
                         } label: {
                             Label("Clear History", systemImage: "trash")
                                 .labelStyle(.iconOnly)
-                        }
-                    } else if viewModel.selectedMenuItem.name == "Collections" {
-                        Button("Import") {
-                            showingImportView = true
                         }
                     }
                 }
@@ -116,7 +108,11 @@ struct MainStudioView: View {
 
         } detail: {
             switch viewModel.selectedMenuItem.name {
-            case "Collections", "History", "Favorites":
+            case "Store Explorer":
+                storeExplorerTabView()
+            case "Query":
+                queryTabView()
+            case "Favorites":
                 queryDetailView()
             case "Observer":
                 observeDetailView()
@@ -125,7 +121,7 @@ struct MainStudioView: View {
             case "MongoDb":
                 mongoDBDetailView()
             default:
-                syncDetailView()
+                queryDetailView()
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
@@ -289,9 +285,30 @@ extension MainStudioView {
         }
     }
 
-    func historySidebarView() -> some View {
+    func querySidebarView() -> some View {
         return VStack(alignment: .leading) {
-            headerView(title: "History")
+            headerView(title: "Query History")
+
+            // New Query button
+            Button(action: {
+                viewModel.openQueryTab("")  // Open empty query
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                    Text("New Query")
+                        .font(.system(size: 13))
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.1))
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
             if viewModel.isLoading {
                 Spacer()
                 AnyView(
@@ -321,7 +338,8 @@ extension MainStudioView {
                             .font(.system(.body, design: .monospaced))
                     }
                     .onTapGesture {
-                        viewModel.selectedQuery = query.query
+                        // Open query in a new tab
+                        viewModel.openQueryTab(query.query)
                     }
                     #if os(macOS)
                         .contextMenu {
@@ -554,6 +572,58 @@ extension MainStudioView {
         }
     }
 
+    func storeExplorerSidebarView() -> some View {
+        return VStack(alignment: .leading) {
+            StoreExplorerContextMenuView(
+                subscriptions: $viewModel.subscriptions,
+                observers: $viewModel.observerables,
+                collections: Binding(
+                    get: { viewModel.collections.map { DittoCollectionModel(name: $0, documentCount: 0) } },
+                    set: { _ in }
+                ),
+                selectedItem: $viewModel.selectedItem,
+                onSelectNetwork: {
+                    viewModel.selectedItem = .network
+                    viewModel.openTab(for: .network)
+                },
+                onSelectSubscription: { subscription in
+                    let selectedItem = SelectedItem.subscription(subscription.id)
+                    viewModel.selectedItem = selectedItem
+                    viewModel.openTab(for: selectedItem)
+                    viewModel.selectedQuery = subscription.query
+                    Task {
+                        await executeQuery()
+                    }
+                },
+                onEditSubscription: viewModel.showSubscriptionEditor,
+                onDeleteSubscription: viewModel.deleteSubscription,
+                onEditObserver: viewModel.showObservableEditor,
+                onDeleteObserver: viewModel.deleteObservable,
+                onStartObserver: viewModel.registerStoreObserver,
+                onStopObserver: viewModel.removeStoreObserver,
+                onSelectObserver: { observable in
+                    let selectedItem = SelectedItem.observer(observable.id)
+                    viewModel.selectedItem = selectedItem
+                    viewModel.openTab(for: selectedItem)
+                    viewModel.selectedObservable = observable
+                    Task {
+                        await viewModel.loadObservedEvents()
+                    }
+                },
+                onSelectCollection: { collection in
+                    let selectedItem = SelectedItem.collection(collection.name)
+                    viewModel.selectedItem = selectedItem
+                    viewModel.openTab(for: selectedItem)
+                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    Task {
+                        await executeQuery()
+                    }
+                },
+                appState: appState
+            )
+        }
+    }
+
     func dittoToolsSidebarView() -> some View {
         return VStack(alignment: .leading) {
             headerView(title: "Ditto Tools")
@@ -568,38 +638,6 @@ extension MainStudioView {
         }
     }
 
-    func mongoDbSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "MongoDB Collections")
-            if viewModel.isLoading {
-                AnyView(
-                    ProgressView("Loading Collections...")
-                        .progressViewStyle(.circular)
-                )
-            } else if viewModel.subscriptions.isEmpty {
-                AnyView(
-                    ContentUnavailableView(
-                        "No Collections Found",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No collections returned from the MongoDB API. Check your MongoDB connection string in your app configuration and try again."
-                        )
-                    )
-                )
-            } else {
-                List(viewModel.mongoCollections, id: \.self) { collection in
-                    Text(collection)
-                        .onTapGesture {
-
-                        }
-                    Divider()
-                }
-            }
-            Spacer()
-        }
-    }
-    
     private func observerCard(observer: DittoObservable) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
@@ -641,6 +679,82 @@ extension MainStudioView {
 }
 //MARK: Detail Views
 extension MainStudioView {
+    func storeExplorerTabView() -> some View {
+        TabContainer(
+            openTabs: $viewModel.openTabs,
+            activeTabId: $viewModel.activeTabId,
+            onCloseTab: { tab in
+                viewModel.closeTab(tab)
+            },
+            onSelectTab: { tab in
+                viewModel.selectTab(tab)
+            },
+            contentForTab: { tab in
+                AnyView(
+                    ViewContainer(
+                        context: viewModel.viewContext(for: tab.content),
+                        viewModel: viewModel,
+                        appState: appState
+                    )
+                )
+            },
+            defaultContent: {
+                AnyView(
+                    ViewContainer(
+                        context: .empty,
+                        viewModel: viewModel,
+                        appState: appState
+                    )
+                )
+            }
+        )
+    }
+
+    func queryTabView() -> some View {
+        TabContainer(
+            openTabs: $viewModel.openTabs,
+            activeTabId: $viewModel.activeTabId,
+            onCloseTab: { tab in
+                viewModel.closeTab(tab)
+            },
+            onSelectTab: { tab in
+                viewModel.selectTab(tab)
+            },
+            contentForTab: { tab in
+                AnyView(
+                    ViewContainer(
+                        context: viewModel.viewContext(for: tab.content),
+                        viewModel: viewModel,
+                        appState: appState
+                    )
+                )
+            },
+            defaultContent: {
+                AnyView(
+                    VStack {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+
+                            Text("Query Editor")
+                                .font(.title2)
+                                .bold()
+
+                            Text("Select a query from history or create a new query tab")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                )
+            }
+        )
+    }
+
 
     func syncDetailView() -> some View {
         return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
@@ -999,6 +1113,7 @@ extension MainStudioView {
         var selectedObservable: DittoObservable?
         var selectedEventId: String?
         var selectedDataTool: String?
+        var selectedItem: SelectedItem = .none
         
         // Sync status properties
         var syncStatusItems: [SyncStatusInfo] = []
@@ -1032,22 +1147,24 @@ extension MainStudioView {
         var selectedMenuItem: MenuItem
         var mainMenuItems: [MenuItem] = []
 
+        //Tab Management (shared between Store Explorer and Query tool)
+        var openTabs: [TabItem] = []
+        var activeTabId: UUID?
+
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
-            let subscriptionItem = MenuItem(
+            let storeExplorerItem = MenuItem(
                 id: 1,
-                name: "Subscriptions",
-                icon: "arrow.trianglehead.2.clockwise"
+                name: "Store Explorer",
+                icon: "cylinder.split.1x2"
             )
 
-            self.selectedMenuItem = subscriptionItem
+            self.selectedMenuItem = storeExplorerItem
             self.mainMenuItems = [
-                subscriptionItem,
-                MenuItem(id: 2, name: "Collections", icon: "square.stack.fill"),
-                MenuItem(id: 3, name: "History", icon: "clock"),
-                MenuItem(id: 4, name: "Favorites", icon: "star"),
-                MenuItem(id: 5, name: "Observer", icon: "eye"),
-                MenuItem(id: 6, name: "Ditto Tools", icon: "gearshape"),
+                storeExplorerItem,
+                MenuItem(id: 2, name: "Query", icon: "doc.text"),
+                MenuItem(id: 3, name: "Favorites", icon: "star"),
+                MenuItem(id: 4, name: "Ditto Tools", icon: "gearshape"),
             ]
 
             //query section
@@ -1419,6 +1536,148 @@ extension MainStudioView {
             editorSubscription = subscription
             actionSheetMode = .subscription
         }
+
+        // MARK: - Tab Management
+        func openTab(for selectedItem: SelectedItem) {
+            let (title, systemImage) = tabInfo(for: selectedItem)
+
+            // Check if tab already exists
+            if let existingTab = openTabs.first(where: { $0.content == selectedItem }) {
+                activeTabId = existingTab.id
+                return
+            }
+
+            let newTab = TabItem(title: title, content: selectedItem, systemImage: systemImage)
+            openTabs.append(newTab)
+            activeTabId = newTab.id
+        }
+
+        func closeTab(_ tab: TabItem) {
+            print("DEBUG: closeTab called for tab: \(tab.title) with id: \(tab.id)")
+            print("DEBUG: Current open tabs count: \(openTabs.count)")
+            print("DEBUG: Current active tab id: \(String(describing: activeTabId))")
+
+            // Find the index of the tab being closed
+            guard let closingIndex = openTabs.firstIndex(where: { $0.id == tab.id }) else {
+                print("DEBUG: Tab not found in openTabs array!")
+                return // Tab not found
+            }
+
+            print("DEBUG: Tab found at index: \(closingIndex)")
+
+            var newActiveTab: TabItem? = nil
+
+            // If closed tab was active, determine which tab to select next
+            if activeTabId == tab.id {
+                print("DEBUG: Closing the active tab, need to select a new one")
+                // Try to select the next tab (same index after removal)
+                if closingIndex < openTabs.count - 1 {
+                    newActiveTab = openTabs[closingIndex + 1]
+                    print("DEBUG: Will select next tab: \(newActiveTab?.title ?? "nil")")
+                }
+                // If no next tab, try the previous tab
+                else if closingIndex > 0 {
+                    newActiveTab = openTabs[closingIndex - 1]
+                    print("DEBUG: Will select previous tab: \(newActiveTab?.title ?? "nil")")
+                }
+                // If no other tabs, newActiveTab remains nil
+                else {
+                    print("DEBUG: No other tabs available")
+                }
+            } else {
+                print("DEBUG: Closing non-active tab")
+            }
+
+            // Remove the tab
+            let countBefore = openTabs.count
+            openTabs.removeAll { $0.id == tab.id }
+            let countAfter = openTabs.count
+            print("DEBUG: Removed tab. Count before: \(countBefore), after: \(countAfter)")
+
+            // Update active tab and selected item
+            if let newTab = newActiveTab {
+                activeTabId = newTab.id
+                selectedItem = newTab.content
+                print("DEBUG: Set new active tab: \(newTab.title)")
+            } else if activeTabId == tab.id {
+                // Only reset if the closed tab was active and no replacement found
+                activeTabId = nil
+                selectedItem = .none
+                print("DEBUG: Reset to no active tab")
+            }
+
+            print("DEBUG: closeTab completed. Final tab count: \(openTabs.count)")
+        }
+
+        func selectTab(_ tab: TabItem) {
+            activeTabId = tab.id
+            selectedItem = tab.content
+        }
+
+        func openQueryTab(_ query: String) {
+            // Generate a unique ID for this query tab
+            let queryId = UUID().uuidString
+
+            // Use a special query case instead of subscription
+            let queryItem = SelectedItem.query(queryId)
+
+            // Open the tab
+            let newTab = TabItem(
+                title: "Query",
+                content: queryItem,
+                systemImage: "doc.text"
+            )
+            openTabs.append(newTab)
+            activeTabId = newTab.id
+            self.selectedItem = queryItem
+
+            // Set the query text
+            selectedQuery = query
+        }
+
+        func viewContext(for selectedItem: SelectedItem) -> ViewContext {
+            switch selectedItem {
+            case .network:
+                return .home
+            case .subscription(let id):
+                let subscription = subscriptions.first(where: { $0.id == id })
+                return .query(subscription: subscription)
+            case .observer(let id):
+                if let observer = observerables.first(where: { $0.id == id }) {
+                    return .observer(observable: observer)
+                }
+                return .empty
+            case .collection(let name):
+                return .collection(name: name)
+            case .query(_):
+                return .query(subscription: nil)
+            case .none:
+                return .empty
+            }
+        }
+
+        private func tabInfo(for selectedItem: SelectedItem) -> (title: String, systemImage: String) {
+            switch selectedItem {
+            case .network:
+                return ("Home", "house")
+            case .subscription(let id):
+                if let subscription = subscriptions.first(where: { $0.id == id }) {
+                    return (subscription.name.isEmpty ? "Subscription" : subscription.name, "arrow.trianglehead.2.clockwise")
+                }
+                return ("Subscription", "arrow.trianglehead.2.clockwise")
+            case .observer(let id):
+                if let observer = observerables.first(where: { $0.id == id }) {
+                    return (observer.name.isEmpty ? "Observer" : observer.name, "eye")
+                }
+                return ("Observer", "eye")
+            case .collection(let name):
+                return (name, "square.stack.fill")
+            case .query(_):
+                return ("Query", "doc.text")
+            case .none:
+                return ("Store Explorer", "cylinder.split.1x2")
+            }
+        }
     }
 }
 
@@ -1435,5 +1694,47 @@ struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
     var icon: String
+}
+
+enum SelectedItem: Equatable, Hashable {
+    case subscription(String)  // subscription ID
+    case observer(String)      // observer ID
+    case collection(String)    // collection name
+    case query(String)         // query ID
+    case network              // network view
+    case none
+
+    var id: String {
+        switch self {
+        case .subscription(let id):
+            return "subscription_\(id)"
+        case .observer(let id):
+            return "observer_\(id)"
+        case .collection(let name):
+            return "collection_\(name)"
+        case .query(let id):
+            return "query_\(id)"
+        case .network:
+            return "network"
+        case .none:
+            return "none"
+        }
+    }
+}
+
+// MARK: - Tab System
+struct TabItem: Identifiable, Equatable, Hashable {
+    let id = UUID()
+    let title: String
+    let content: SelectedItem
+    let systemImage: String
+
+    static func == (lhs: TabItem, rhs: TabItem) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 

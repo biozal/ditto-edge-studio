@@ -172,7 +172,7 @@ actor DatabaseRepository {
                 "websocketUrl": appConfig.websocketUrl,
                 "httpApiUrl": appConfig.httpApiUrl,
                 "httpApiKey": appConfig.httpApiKey,
-                "mode": appConfig.mode,
+                "mode": appConfig.mode.rawValue,
                 "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                 "secretKey": appConfig.secretKey,
             ]
