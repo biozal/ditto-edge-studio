@@ -64,81 +64,11 @@ struct AppEditorView: View {
                         .lineLimit(1)
                         .trimOnPaste($viewModel.appId)
                         .padding(.bottom, 5)
-                    
-                    if (viewModel.mode == .onlinePlayground) {
-                        TextField("Playground Token", text: $viewModel.authToken)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .trimOnPaste($viewModel.authToken)
-                            .padding(.bottom, 10)
-                    } else if (viewModel.mode == .offlinePlayground) {
-                        TextField("Playground Token", text: $viewModel.authToken)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .trimOnPaste($viewModel.authToken)
-                            .padding(.bottom, 10)
-                    } else {
-                        // Shared key mode - use authToken field for offline license token
-                        TextField("Offline License Token", text: $viewModel.authToken)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .trimOnPaste($viewModel.authToken)
-                            .padding(.bottom, 5)
-                        
-                        Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.bottom, 10)
-                    }
+
+                    authTokenField(for: viewModel.mode)
                 }
 
-                if (viewModel.mode == .sharedKey) {
-                    Section("Optional Secret Key") {
-                        TextField("Secret Key (Optional)", text: $viewModel.secretKey)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .padding(.bottom, 5)
-                        
-                        Text("Optional secret key for shared key identity encryption. Leave empty if not required.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.bottom, 10)
-                    }
-                } else if (viewModel.mode == .onlinePlayground) {
-                    Section("Ditto Server (BigPeer) Information") {
-                        TextField("Auth URL", text: $viewModel.authUrl)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                        
-                        TextField("Websocket URL", text: $viewModel.websocketUrl)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .padding(.bottom, 10)
-                    }
-                    Section("Ditto Server - HTTP API - Optional") {
-                        VStack(alignment: .leading) {
-                            TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(1)
-                                .padding(.bottom, 8)
-                            
-                            TextField("HTTP API Key", text: $viewModel.httpApiKey)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(1)
-                                .padding(.bottom, 10)
-                            
-                            Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
-                                .padding(.bottom, 5)
-                            
-                            Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.bottom, 10)
-                        }
-                    }
-                }
+                modeSpecificSections(for: viewModel.mode)
             }
 #if os(macOS)
             .padding()
@@ -168,6 +98,100 @@ struct AppEditorView: View {
                         viewModel.authToken.isEmpty
                     )
                 }
+            }
+        }
+    }
+
+    // MARK: - View Builders
+
+    @ViewBuilder
+    private func authTokenField(for mode: AuthMode) -> some View {
+        switch mode {
+        case .onlinePlayground, .offlinePlayground:
+            TextField("Playground Token", text: $viewModel.authToken)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .trimOnPaste($viewModel.authToken)
+                .padding(.bottom, 10)
+        case .sharedKey:
+            TextField("Offline License Token", text: $viewModel.authToken)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .trimOnPaste($viewModel.authToken)
+                .padding(.bottom, 5)
+
+            Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func modeSpecificSections(for mode: AuthMode) -> some View {
+        switch mode {
+        case .sharedKey:
+            secretKeySection()
+        case .onlinePlayground:
+            serverInformationSection()
+            httpApiSection()
+        case .offlinePlayground:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func secretKeySection() -> some View {
+        Section("Optional Secret Key") {
+            TextField("Secret Key (Optional)", text: $viewModel.secretKey)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .padding(.bottom, 5)
+
+            Text("Optional secret key for shared key identity encryption. Leave empty if not required.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func serverInformationSection() -> some View {
+        Section("Ditto Server (BigPeer) Information") {
+            TextField("Auth URL", text: $viewModel.authUrl)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+
+            TextField("Websocket URL", text: $viewModel.websocketUrl)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func httpApiSection() -> some View {
+        Section("Ditto Server - HTTP API - Optional") {
+            VStack(alignment: .leading) {
+                TextField("HTTP API URL", text: $viewModel.httpApiUrl)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1)
+                    .padding(.bottom, 8)
+
+                TextField("HTTP API Key", text: $viewModel.httpApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1)
+                    .padding(.bottom, 10)
+
+                Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
+                    .padding(.bottom, 5)
+
+                Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 10)
             }
         }
     }
