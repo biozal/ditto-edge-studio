@@ -104,7 +104,7 @@ actor DittoManager {
                 }
                 
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
-                if (appState.appConfig.mode == .sharedKey || appState.appConfig.mode == .offlinePlayground) && !appState.appConfig.authToken.isEmpty {
+                if shouldSetOfflineLicenseToken(for: appState.appConfig) {
                     print("Setting offline license token: `\(appState.appConfig.authToken)`")
                     try ditto.setOfflineOnlyLicenseToken(appState.appConfig.authToken)
                     print("Successfully set offline license token")
@@ -195,7 +195,7 @@ actor DittoManager {
             }
             
             // For shared key and offline playground modes, set the offline license token (using authToken field)
-            if (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground) && !appConfig.authToken.isEmpty {
+            if shouldSetOfflineLicenseToken(for: appConfig) {
                 try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
             
@@ -276,6 +276,12 @@ actor DittoManager {
         dittoSelectedAppConfig = nil
     }
     
+    /// Determines if offline license token should be set for the given app configuration
+    private func shouldSetOfflineLicenseToken(for appConfig: DittoAppConfig) -> Bool {
+        return (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground)
+            && !appConfig.authToken.isEmpty
+    }
+
     /// Creates the appropriate Ditto identity based on app configuration
     private func createIdentity(from appConfig: DittoAppConfig) -> DittoIdentity {
         switch appConfig.mode {
