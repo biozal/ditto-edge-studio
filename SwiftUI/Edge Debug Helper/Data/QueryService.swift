@@ -30,13 +30,16 @@ actor QueryService {
                 return ["No results found"]
             }
         } else {
-            let resultJsonStrings = results.items.compactMap {
-                item -> String? in
+            print("[QueryService] Query returned \(results.items.count) items")
+            let resultJsonStrings = results.items.enumerated().compactMap { index, item -> String? in
                 // Convert [String: Any?] to [String: Any] by removing nil values
                 let cleanedValue = item.value.compactMapValues {
                     $0
                 }
-                
+
+                print("[QueryService] Item[\(index)] keys: \(cleanedValue.keys.sorted())")
+                print("[QueryService] Item[\(index)] full value: \(cleanedValue)")
+
                 do {
                     let data = try JSONSerialization.data(
                         withJSONObject: cleanedValue,
@@ -47,11 +50,17 @@ actor QueryService {
                             .withoutEscapingSlashes,
                         ]
                     )
-                    return String(data: data, encoding: .utf8)
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        print("[QueryService] Item[\(index)] JSON length: \(jsonString.count) chars")
+                        return jsonString
+                    }
+                    return nil
                 } catch {
+                    print("[QueryService] ERROR Item[\(index)] JSON serialization error: \(error)")
                     return nil
                 }
             }
+            print("[QueryService] Returning \(resultJsonStrings.count) JSON strings")
             return resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
         }
     }
@@ -130,5 +139,25 @@ actor QueryService {
             return [jsonString]
         }
         return ["No results found"]
+    }
+
+    // MARK: Delete Document
+    func deleteDocument(documentId: String, collection: String) async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
+        }
+
+        print("[QueryService] Deleting document with ID: \(documentId) from collection: \(collection)")
+
+        let query = "DELETE FROM \(collection) WHERE _id = '\(documentId)'"
+        print("[QueryService] Executing delete query: \(query)")
+
+        let results = try await ditto.store.execute(query: query)
+
+        if !results.mutatedDocumentIDs().isEmpty {
+            print("[QueryService] Successfully deleted document. Mutated IDs: \(results.mutatedDocumentIDs())")
+        } else {
+            print("[QueryService] WARNING: Delete query executed but no documents were mutated")
+        }
     }
 }

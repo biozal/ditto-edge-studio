@@ -31,7 +31,7 @@ struct SyncStatusInfo: Identifiable, Equatable {
             }
         } catch {
             print("SyncStatusInfo DECODING ERROR:", error.localizedDescription)
-            print("📊 Raw data: \(String(data: data, encoding: .utf8) ?? "Unable to convert to string")")
+            print("Raw data: \(String(data: data, encoding: .utf8) ?? "Unable to convert to string")")
             return nil
         }
     }

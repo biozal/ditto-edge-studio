@@ -10,6 +10,11 @@ import SwiftUI
 
 struct ResultJsonViewer: View {
     @Binding var resultText: [String]
+    let viewMode: QueryResultViewMode
+    let attachmentFields: [String]
+    var collectionName: String?
+    var onDelete: ((String, String) -> Void)?
+    var hasExecutedQuery: Bool = false
 
     @State private var currentPage = 1
     @State private var pageSize = 10
@@ -30,13 +35,22 @@ struct ResultJsonViewer: View {
         resultText.count
     }
 
-    init(resultText: Binding<[String]>) {
+    init(resultText: Binding<[String]>, viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = [], collectionName: String? = nil, onDelete: ((String, String) -> Void)? = nil, hasExecutedQuery: Bool = false) {
         self._resultText = resultText
+        self.viewMode = viewMode
+        self.attachmentFields = attachmentFields
+        self.collectionName = collectionName
+        self.onDelete = onDelete
+        self.hasExecutedQuery = hasExecutedQuery
     }
 
     // Convenience initializer for static arrays
-    init(resultText: [String]) {
+    init(resultText: [String], viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = []) {
         self._resultText = .constant(resultText)
+        self.viewMode = viewMode
+        self.attachmentFields = attachmentFields
+        self.collectionName = nil
+        self.onDelete = nil
     }
     
     private var pageCount: Int {
@@ -51,8 +65,29 @@ struct ResultJsonViewer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ResultsList(items: pagedItems)
-            Spacer()
+            // Main content area based on view mode
+            GeometryReader { geometry in
+                ScrollView([.horizontal, .vertical]) {
+                    Group {
+                        switch viewMode {
+                        case .table:
+                            ResultTableView(
+                                items: pagedItems,
+                                attachmentFields: attachmentFields,
+                                onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
+                                    onDelete?(docId, collectionName!)
+                                } : nil,
+                                hasExecutedQuery: hasExecutedQuery
+                            )
+                        case .raw:
+                            ResultsList(items: pagedItems, hasExecutedQuery: hasExecutedQuery)
+                        }
+                    }
+                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                }
+            }
+
+            // Footer with pagination and export
             HStack {
                 Spacer()
                 PaginationControls(
@@ -99,6 +134,7 @@ struct ResultJsonViewer: View {
             .padding(.bottom, 10)
             .padding(.trailing, 20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onChange(of: pageSize) { _, _ in
             currentPage = max(1, min(currentPage, pageCount))
         }
@@ -134,16 +170,34 @@ struct ResultsHeader: View {
 // Separate component for the list
 struct ResultsList: View {
     let items: [String]
+    var hasExecutedQuery: Bool = false
+
+    private var jsonArrayText: String {
+        if items.isEmpty {
+            return ""
+        }
+
+        // Format as a JSON array with proper indentation
+        let formattedItems = items.map { item in
+            // Add 2-space indentation to each line of the item
+            item.split(separator: "\n")
+                .map { "  \($0)" }
+                .joined(separator: "\n")
+        }
+
+        return "[\n" + formattedItems.joined(separator: ",\n") + "\n]"
+    }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(items.indices, id: \.self) { index in
-                    ResultItem(jsonString: items[index])
-                        .padding(.horizontal)
-                }
-            }
-            .padding(.vertical)
+        if items.isEmpty {
+            Text(hasExecutedQuery ? "No data to display" : "Run a query for data")
+                .foregroundColor(.secondary)
+                .padding()
+        } else {
+            Text(jsonArrayText)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .padding()
         }
     }
 }

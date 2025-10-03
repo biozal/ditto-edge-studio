@@ -899,7 +899,8 @@ extension MainStudioView {
 
                     //bottom half
                     QueryResultsView(
-                        jsonResults: $viewModel.jsonResults
+                        jsonResults: $viewModel.jsonResults,
+                        hasExecutedQuery: viewModel.hasExecutedQuery
                     )
                 }
             #else
@@ -916,7 +917,8 @@ extension MainStudioView {
 
                     //bottom half
                     QueryResultsView(
-                        jsonResults: $viewModel.jsonResults
+                        jsonResults: $viewModel.jsonResults,
+                        hasExecutedQuery: viewModel.hasExecutedQuery
                     )
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -1142,6 +1144,7 @@ extension MainStudioView {
 
         //results view
         var jsonResults: [String]
+        var hasExecutedQuery: Bool = false
 
         //MainMenu Toolbar
         var selectedMenuItem: MenuItem
@@ -1389,6 +1392,7 @@ extension MainStudioView {
                     jsonResults = try await QueryService.shared
                         .executeSelectedAppQueryHttp(query: selectedQuery)
                 }
+                hasExecutedQuery = true
                 // Add query to history
                 await addQueryToHistory(appState: appState)
             } catch {

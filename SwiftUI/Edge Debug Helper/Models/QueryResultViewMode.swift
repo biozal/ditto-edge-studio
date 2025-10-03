@@ -1,0 +1,22 @@
+//
+//  QueryResultViewMode.swift
+//  Edge Studio
+//
+//  Created by Claude Code on 10/2/25.
+//
+
+import Foundation
+
+enum QueryResultViewMode: String, CaseIterable, Identifiable {
+    case table = "Table"
+    case raw = "Raw"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .table: return "tablecells"
+        case .raw: return "doc.text"
+        }
+    }
+}

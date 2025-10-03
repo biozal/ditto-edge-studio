@@ -90,7 +90,8 @@ struct ViewContainer: View {
 
                 // Results at the bottom
                 QueryResultsView(
-                    jsonResults: $viewModel.jsonResults
+                    jsonResults: $viewModel.jsonResults,
+                    queryText: viewModel.selectedQuery
                 )
             }
             .onAppear {
@@ -126,7 +127,8 @@ struct ViewContainer: View {
 
                 // Results at the bottom
                 QueryResultsView(
-                    jsonResults: $viewModel.jsonResults
+                    jsonResults: $viewModel.jsonResults,
+                    queryText: viewModel.selectedQuery
                 )
             }
             .onAppear {
