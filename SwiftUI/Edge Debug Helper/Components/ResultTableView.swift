@@ -13,9 +13,13 @@ struct ResultTableView: View {
     var onDelete: ((String, String) -> Void)?
     var hasExecutedQuery: Bool = false
 
-    @State private var selectedRecord: String?
-    @State private var selectedIndex: Int?
-    @State private var showModal = false
+    @State private var modalRecord: ModalRecord?
+
+    struct ModalRecord: Identifiable {
+        let id = UUID()
+        let jsonString: String
+        let index: Int?
+    }
 
     // Extract all unique keys from all JSON objects
     private var allKeys: [String] {
@@ -70,50 +74,27 @@ struct ResultTableView: View {
                 // Data rows
                 ForEach(parsedItems.indices, id: \.self) { index in
                     let documentId = parsedItems[index]["_id"] as? String
-                    HStack(spacing: 0) {
-                        // Row number
-                        Text("\(index + 1)")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .frame(width: 50)
-                            .padding(8)
-                            .background(
-                                index % 2 == 0
-                                    ? Color.clear
-                                    : Color.primary.opacity(0.03)
-                            )
-
-                        ForEach(allKeys, id: \.self) { key in
-                            TableCell(
-                                value: parsedItems[index][key],
-                                isEvenRow: index % 2 == 0
-                            )
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedRecord = items[index]
-                        selectedIndex = index
-                        showModal = true
-                    }
-                    .help("Click to view full record")
-                    .contextMenu {
-                        Button {
-                            copyRowToClipboard(index: index)
-                        } label: {
-                            Label("Copy JSON", systemImage: "doc.on.doc")
-                        }
-
-                        if let docId = documentId, let deleteHandler = onDelete {
-                            Divider()
-                            Button(role: .destructive) {
-                                print("[ResultTableView] Delete requested for document ID: \(docId)")
-                                deleteHandler(docId, "")  // Collection name will be filled in by the handler
-                            } label: {
-                                Label("Delete Document", systemImage: "trash")
+                    TableRow(
+                        index: index,
+                        allKeys: allKeys,
+                        parsedItems: parsedItems,
+                        items: items,
+                        documentId: documentId,
+                        onDelete: onDelete,
+                        onRowTap: { rowIndex in
+                            print("[ResultTableView] Row tapped, index: \(rowIndex)")
+                            print("[ResultTableView] Total items: \(items.count)")
+                            if rowIndex < items.count {
+                                let record = items[rowIndex]
+                                print("[ResultTableView] Record at index \(rowIndex): \(record.prefix(200))")
+                                modalRecord = ModalRecord(jsonString: record, index: rowIndex)
+                                print("[ResultTableView] modalRecord set with data")
+                            } else {
+                                print("[ResultTableView] ERROR: Index out of bounds!")
                             }
-                        }
-                    }
+                        },
+                        onCopyRow: copyRowToClipboard
+                    )
 
                     if index < parsedItems.count - 1 {
                         Divider()
@@ -121,15 +102,22 @@ struct ResultTableView: View {
                 }
             }
         }
-        .sheet(isPresented: $showModal) {
-            if let record = selectedRecord {
-                RecordDetailModal(
-                    jsonString: record,
-                    index: selectedIndex,
-                    attachmentFields: attachmentFields,
-                    isPresented: $showModal
+        .sheet(item: $modalRecord) { record in
+            let _ = print("[ResultTableView] ===== SHEET PRESENTING =====")
+            let _ = print("[ResultTableView] Presenting modal with record at index \(String(describing: record.index))")
+            let _ = print("[ResultTableView] Record length: \(record.jsonString.count) chars")
+            let _ = print("[ResultTableView] Record preview: \(record.jsonString.prefix(100))")
+            let _ = print("[ResultTableView] attachmentFields: \(attachmentFields)")
+
+            RecordDetailModal(
+                jsonString: record.jsonString,
+                index: record.index,
+                attachmentFields: attachmentFields,
+                isPresented: Binding(
+                    get: { modalRecord != nil },
+                    set: { if !$0 { modalRecord = nil } }
                 )
-            }
+            )
         }
     }
 
@@ -146,6 +134,74 @@ struct ResultTableView: View {
     }
 }
 
+struct TableRow: View {
+    let index: Int
+    let allKeys: [String]
+    let parsedItems: [[String: Any]]
+    let items: [String]
+    let documentId: String?
+    let onDelete: ((String, String) -> Void)?
+    let onRowTap: (Int) -> Void
+    let onCopyRow: (Int) -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Row number
+            Text("\(index + 1)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 50)
+                .padding(8)
+
+            ForEach(allKeys, id: \.self) { key in
+                TableCell(
+                    value: parsedItems[index][key],
+                    isEvenRow: index % 2 == 0,
+                    isHovered: false  // Pass false since background is on row now
+                )
+            }
+        }
+        .background(rowBackground)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onRowTap(index)
+        }
+        .help("Click to view full record")
+        .contextMenu {
+            Button {
+                onCopyRow(index)
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+
+            if let docId = documentId, let deleteHandler = onDelete {
+                Divider()
+                Button(role: .destructive) {
+                    print("[ResultTableView] Delete requested for document ID: \(docId)")
+                    deleteHandler(docId, "")
+                } label: {
+                    Label("Delete Document", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private var rowBackground: Color {
+        if isHovered {
+            return Color.accentColor.opacity(0.15)
+        } else if index % 2 == 0 {
+            return Color.clear
+        } else {
+            return Color.primary.opacity(0.03)
+        }
+    }
+}
+
 struct TableHeaderCell: View {
     let title: String
 
@@ -154,7 +210,8 @@ struct TableHeaderCell: View {
             .font(.system(.caption, design: .monospaced))
             .fontWeight(.bold)
             .lineLimit(1)
-            .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: 200, alignment: .leading)
             .padding(8)
             .background(Color.primary.opacity(0.1))
             .help(title)
@@ -164,6 +221,7 @@ struct TableHeaderCell: View {
 struct TableCell: View {
     let value: Any?
     let isEvenRow: Bool
+    var isHovered: Bool = false
 
     private var displayValue: String {
         guard let value = value else {
@@ -194,18 +252,23 @@ struct TableCell: View {
         return "\(value)"
     }
 
+    private var truncatedValue: String {
+        let maxLength = 80
+        if displayValue.count > maxLength {
+            return String(displayValue.prefix(maxLength)) + "..."
+        }
+        return displayValue
+    }
+
     var body: some View {
-        Text(displayValue)
+        Text(truncatedValue)
             .font(.system(.body, design: .monospaced))
-            .lineLimit(3)
-            .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 200, alignment: .leading)
             .textSelection(.enabled)
             .padding(8)
-            .background(
-                isEvenRow
-                    ? Color.clear
-                    : Color.primary.opacity(0.03)
-            )
+            .help(displayValue)  // Show full value on hover
     }
 }
 

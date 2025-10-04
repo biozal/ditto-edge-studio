@@ -29,20 +29,28 @@ struct RecordDetailModal: View {
     }
 
     private var formattedJSON: String {
+        print("[RecordDetailModal] formattedJSON computed property called")
+        print("[RecordDetailModal] jsonString length in formattedJSON: \(jsonString.count)")
+
+        guard !jsonString.isEmpty else {
+            print("[RecordDetailModal] ERROR formattedJSON: jsonString is EMPTY!")
+            return "No data"
+        }
+
         guard let data = jsonString.data(using: .utf8) else {
-            print("[RecordDetailModal] ERROR  formattedJSON: Failed to convert jsonString to data")
+            print("[RecordDetailModal] ERROR formattedJSON: Failed to convert jsonString to data")
             return jsonString
         }
         guard let json = try? JSONSerialization.jsonObject(with: data) else {
-            print("[RecordDetailModal] ERROR  formattedJSON: Failed to parse JSON from data")
+            print("[RecordDetailModal] ERROR formattedJSON: Failed to parse JSON from data")
             return jsonString
         }
         guard let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else {
-            print("[RecordDetailModal] ERROR  formattedJSON: Failed to create pretty-printed data")
+            print("[RecordDetailModal] ERROR formattedJSON: Failed to create pretty-printed data")
             return jsonString
         }
         guard let prettyString = String(data: prettyData, encoding: .utf8) else {
-            print("[RecordDetailModal] ERROR  formattedJSON: Failed to convert pretty data to string")
+            print("[RecordDetailModal] ERROR formattedJSON: Failed to convert pretty data to string")
             return jsonString
         }
         print("[RecordDetailModal] formattedJSON: Successfully formatted JSON (\(prettyString.count) chars)")
@@ -50,18 +58,39 @@ struct RecordDetailModal: View {
     }
 
     private var parsedFields: [(key: String, value: Any)] {
+        print("[RecordDetailModal] parsedFields computed property called")
+        print("[RecordDetailModal] jsonString length in parsedFields: \(jsonString.count)")
+        print("[RecordDetailModal] jsonString content (first 500 chars): \(jsonString.prefix(500))")
+
+        guard !jsonString.isEmpty else {
+            print("[RecordDetailModal] ERROR parsedFields: jsonString is EMPTY!")
+            return []
+        }
+
         guard let data = jsonString.data(using: .utf8) else {
-            print("[RecordDetailModal] ERROR  parsedFields: Failed to convert jsonString to data")
+            print("[RecordDetailModal] ERROR parsedFields: Failed to convert jsonString to data")
+            print("[RecordDetailModal] ERROR parsedFields: jsonString was: \(jsonString)")
             return []
         }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("[RecordDetailModal] ERROR  parsedFields: Failed to parse JSON as dictionary")
+
+        print("[RecordDetailModal] parsedFields: Successfully converted to data, size: \(data.count) bytes")
+
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                print("[RecordDetailModal] ERROR parsedFields: JSON is not a dictionary")
+                if let jsonObj = try? JSONSerialization.jsonObject(with: data) {
+                    print("[RecordDetailModal] ERROR parsedFields: JSON type is: \(type(of: jsonObj))")
+                }
+                return []
+            }
+            let sorted = json.sorted { $0.key < $1.key }
+            print("[RecordDetailModal] parsedFields: Successfully parsed \(sorted.count) fields")
+            print("[RecordDetailModal] parsedFields keys: \(sorted.map { $0.key })")
+            return sorted
+        } catch {
+            print("[RecordDetailModal] ERROR parsedFields: JSON parsing threw error: \(error)")
             return []
         }
-        let sorted = json.sorted { $0.key < $1.key }
-        print("[RecordDetailModal] parsedFields: Successfully parsed \(sorted.count) fields")
-        print("[RecordDetailModal] parsedFields keys: \(sorted.map { $0.key })")
-        return sorted
     }
 
     private func isAttachmentField(_ fieldName: String) -> Bool {
@@ -76,10 +105,13 @@ struct RecordDetailModal: View {
     @State private var selectedTab = 0
 
     var body: some View {
-        let _ = print("RecordDetailModal body rendering")
-        let _ = print("jsonString: \(jsonString)")
-        let _ = print("parsedFields.count: \(parsedFields.count)")
-        let _ = print("index: \(String(describing: index))")
+        let _ = print("[RecordDetailModal] ===== BODY RENDERING =====")
+        let _ = print("[RecordDetailModal] jsonString length: \(jsonString.count)")
+        let _ = print("[RecordDetailModal] jsonString content: \(jsonString)")
+        let _ = print("[RecordDetailModal] parsedFields.count: \(parsedFields.count)")
+        let _ = print("[RecordDetailModal] parsedFields: \(parsedFields.map { $0.key })")
+        let _ = print("[RecordDetailModal] index: \(String(describing: index))")
+        let _ = print("[RecordDetailModal] selectedTab: \(selectedTab)")
 
         return VStack(spacing: 0) {
             // Header
@@ -135,49 +167,53 @@ struct RecordDetailModal: View {
             Divider()
 
             // Content based on selected tab
-            Group {
-                if selectedTab == 0 {
-                    // Formatted view
-                    let _ = print("[RecordDetailModal] Rendering Formatted view, parsedFields count: \(parsedFields.count)")
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if parsedFields.isEmpty {
-                                let _ = print("[RecordDetailModal] ERROR  Showing 'Invalid JSON' - parsedFields is empty")
-                                Text("Invalid JSON")
-                                    .foregroundColor(.secondary)
-                                    .padding()
-                            } else {
-                                let _ = print("[RecordDetailModal] Rendering \(parsedFields.count) fields")
-                                ForEach(parsedFields.indices, id: \.self) { index in
-                                    let field = parsedFields[index]
-                                    let _ = print("[RecordDetailModal] Rendering field[\(index)]: \(field.key)")
-                                    if isAttachmentField(field.key) {
-                                        let attachmentInfo = getAttachmentInfo(for: field.key, value: field.value)
-                                        let token = field.value as? [String: Any]
-                                        AttachmentFieldView(
-                                            fieldName: field.key,
-                                            token: token,
-                                            metadata: attachmentInfo.metadata
-                                        )
-                                    } else {
-                                        FieldRow(
-                                            key: field.key,
-                                            value: field.value
-                                        )
-                                    }
+            if selectedTab == 0 {
+                // Formatted view
+                let _ = print("[RecordDetailModal] Rendering Formatted view, parsedFields count: \(parsedFields.count)")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if parsedFields.isEmpty {
+                            let _ = print("[RecordDetailModal] ERROR - Showing 'Invalid JSON' - parsedFields is empty")
+                            let _ = print("[RecordDetailModal] ERROR - jsonString was: \(jsonString)")
+                            Text("Invalid JSON")
+                                .foregroundColor(.secondary)
+                                .padding()
+                        } else {
+                            let _ = print("[RecordDetailModal] SUCCESS - Rendering \(parsedFields.count) fields")
+                            ForEach(parsedFields.indices, id: \.self) { fieldIndex in
+                                let field = parsedFields[fieldIndex]
+                                let _ = print("[RecordDetailModal] Rendering field[\(fieldIndex)]: \(field.key) = \(field.value)")
+                                if isAttachmentField(field.key) {
+                                    let attachmentInfo = getAttachmentInfo(for: field.key, value: field.value)
+                                    let token = field.value as? [String: Any]
+                                    AttachmentFieldView(
+                                        fieldName: field.key,
+                                        token: token,
+                                        metadata: attachmentInfo.metadata
+                                    )
+                                } else {
+                                    FieldRow(
+                                        key: field.key,
+                                        value: field.value
+                                    )
                                 }
                             }
                         }
-                        .padding()
                     }
-                } else {
-                    // Raw JSON view
-                    let _ = print("[RecordDetailModal] Rendering Raw JSON view")
+                    .padding()
+                }
+            } else {
+                // Raw JSON view
+                let _ = print("[RecordDetailModal] Rendering Raw JSON view")
+                let _ = print("[RecordDetailModal] formattedJSON length: \(formattedJSON.count)")
+                GeometryReader { geometry in
                     ScrollView([.horizontal, .vertical]) {
                         Text(formattedJSON)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                             .padding()
+                            .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                            .background(Color.primary.opacity(0.08))
                     }
                 }
             }
@@ -263,26 +299,40 @@ struct FieldRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                // Key
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                // Key column
                 Text(key)
                     .font(.system(.body, design: .monospaced))
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)
                     .frame(width: 150, alignment: .leading)
 
-                // Type badge
+                // Type column
                 Text(valueType)
                     .font(.system(.caption2, design: .monospaced))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.2))
                     .cornerRadius(4)
+                    .frame(width: 80, alignment: .leading)
 
-                Spacer()
+                // Value column
+                if isComplexType && !isExpanded {
+                    Text(displayValue.components(separatedBy: "\n").first ?? displayValue)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(displayValue)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
-                // Actions
+                // Action buttons column
                 HStack(spacing: 8) {
                     if isComplexType {
                         Button {
@@ -291,9 +341,10 @@ struct FieldRow: View {
                             }
                         } label: {
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 10))
+                                .font(.system(size: 12))
                         }
                         .buttonStyle(.borderless)
+                        .help(isExpanded ? "Collapse" : "Expand")
                     }
 
                     Button {
@@ -302,35 +353,22 @@ struct FieldRow: View {
                         if isCopied {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
-                                .font(.system(size: 10))
+                                .font(.system(size: 12))
                         } else {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 10))
+                                .font(.system(size: 12))
                         }
                     }
                     .buttonStyle(.borderless)
+                    .help("Copy value")
                 }
+                .frame(width: 60, alignment: .trailing)
             }
-
-            // Value
-            if isComplexType && !isExpanded {
-                Text(displayValue.components(separatedBy: "\n").first ?? displayValue)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .padding(.leading, 150)
-            } else {
-                Text(displayValue)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .textSelection(.enabled)
-                    .padding(.leading, 150)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
 
             Divider()
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 

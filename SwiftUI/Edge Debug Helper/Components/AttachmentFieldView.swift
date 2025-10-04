@@ -23,44 +23,109 @@ struct AttachmentFieldView: View {
     @State private var isAvailableLocally = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "paperclip")
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                // Key column
+                Text(fieldName)
+                    .font(.system(.body, design: .monospaced))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .frame(width: 150, alignment: .leading)
 
-                Text("Attachment: \(fieldName)")
-                    .font(.headline)
+                // Type column
+                Text("Attachment")
+                    .font(.system(.caption2, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.2))
+                    .cornerRadius(4)
+                    .frame(width: 80, alignment: .leading)
 
-                if let metadata = metadata {
-                    Text(metadata.sizeFormatted)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            if let error = fetchError {
-                ErrorView(message: error)
-            } else if isDeleted {
-                DeletedView()
-            } else if let data = fetchedData {
-                AttachmentPreview(data: data, metadata: metadata)
-            } else if isFetching {
-                FetchingView(progress: fetchProgress)
-            } else if isCheckingLocal {
-                CheckingLocalView()
-            } else {
-                NotFetchedView(
-                    metadata: metadata,
-                    isAvailableLocally: isAvailableLocally,
-                    onFetch: {
-                        await fetchAttachment()
+                // Value column - attachment content
+                VStack(alignment: .leading, spacing: 8) {
+                    if let metadata = metadata {
+                        Text(metadata.sizeFormatted)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                )
+
+                    if let error = fetchError {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    } else if isDeleted {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                                .foregroundColor(.secondary)
+                            Text("Attachment has been deleted")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if let data = fetchedData {
+                        AttachmentPreviewInline(data: data, metadata: metadata)
+                    } else if isFetching {
+                        VStack(spacing: 8) {
+                            ProgressView(value: fetchProgress, total: 1.0)
+                                .progressViewStyle(.linear)
+                            Text("Fetching... \(Int(fetchProgress * 100))%")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if isCheckingLocal {
+                        HStack {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Checking availability...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        HStack {
+                            if isAvailableLocally {
+                                Image(systemName: "checkmark.circle")
+                                    .foregroundColor(.green)
+                                Text("Available locally")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            } else {
+                                Image(systemName: "xmark.circle")
+                                    .foregroundColor(.orange)
+                                Text("Not available locally")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Action buttons column
+                HStack(spacing: 8) {
+                    if fetchedData == nil && !isFetching && !isCheckingLocal && !isDeleted && fetchError == nil {
+                        Button {
+                            Task {
+                                await fetchAttachment()
+                            }
+                        } label: {
+                            Image(systemName: isAvailableLocally ? "arrow.down.to.line" : "arrow.down.circle")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.borderless)
+                        .help(isAvailableLocally ? "Fetch attachment from local store" : "Fetch attachment from network")
+                    }
+                }
+                .frame(width: 60, alignment: .trailing)
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+
+            Divider()
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.05))
-        .cornerRadius(8)
+        .contentShape(Rectangle())
         .task {
             await checkLocalAvailability()
         }
@@ -122,10 +187,7 @@ struct AttachmentFieldView: View {
             await MainActor.run {
                 isAvailableLocally = true
                 isCheckingLocal = false
-                // Start fetching immediately if available locally
-                if !isFetching {
-                    isFetching = true
-                }
+                // Don't auto-fetch - let user click the button
             }
 
         } catch {
@@ -303,6 +365,112 @@ struct DeletedView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
+    }
+}
+
+struct AttachmentPreviewInline: View {
+    let data: Data
+    let metadata: AttachmentMetadata?
+
+    @State private var showSaveDialog = false
+
+    private var isImage: Bool {
+        guard let type = metadata?.type else {
+            // Try to detect from data
+            if let _ = NSImage(data: data) {
+                return true
+            }
+            return false
+        }
+        return type.hasPrefix("image/")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Fetched successfully")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button {
+                    showSaveDialog = true
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.borderless)
+                .help("Save attachment")
+            }
+
+            if isImage {
+                #if os(macOS)
+                if let nsImage = NSImage(data: data) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 200)
+                        .cornerRadius(4)
+                }
+                #else
+                if let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 200)
+                        .cornerRadius(4)
+                }
+                #endif
+            } else {
+                HStack {
+                    Image(systemName: "doc.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading) {
+                        if let type = metadata?.type {
+                            Text(type)
+                                .font(.caption)
+                        }
+                        Text("\(data.count) bytes")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .fileExporter(
+            isPresented: $showSaveDialog,
+            document: AttachmentDocument(data: data, metadata: metadata),
+            contentType: contentType,
+            defaultFilename: defaultFilename
+        ) { result in
+            switch result {
+            case .success(let url):
+                print("Saved attachment to \(url)")
+            case .failure(let error):
+                print("Failed to save attachment: \(error)")
+            }
+        }
+    }
+
+    private var contentType: UTType {
+        if let typeString = metadata?.type,
+           let utType = UTType(mimeType: typeString) {
+            return utType
+        }
+        return .data
+    }
+
+    private var defaultFilename: String {
+        if let type = metadata?.type {
+            let ext = type.split(separator: "/").last.map(String.init) ?? "bin"
+            return "attachment.\(ext)"
+        }
+        return "attachment.bin"
     }
 }
 

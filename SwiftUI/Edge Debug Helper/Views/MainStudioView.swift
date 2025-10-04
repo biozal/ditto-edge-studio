@@ -1163,6 +1163,12 @@ extension MainStudioView {
             )
 
             self.selectedMenuItem = storeExplorerItem
+
+            // Initialize with home tab
+            let homeTab = TabItem(title: "Home", content: .network, systemImage: "house")
+            self.openTabs = [homeTab]
+            self.activeTabId = homeTab.id
+            self.selectedItem = .network
             self.mainMenuItems = [
                 storeExplorerItem,
                 MenuItem(id: 2, name: "Query", icon: "doc.text"),
