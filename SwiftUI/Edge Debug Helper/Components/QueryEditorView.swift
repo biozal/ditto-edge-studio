@@ -13,7 +13,13 @@ struct QueryEditorView: View {
     @Binding var selectedExecuteMode: String
     @Binding var isLoading: Bool
     var onExecuteQuery: () async -> Void
-    
+
+    @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
+
+    private var hasAttachments: Bool {
+        !AttachmentQueryParser.extractAttachmentFields(from: queryText).isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
@@ -47,7 +53,7 @@ struct QueryEditorView: View {
 
                     }
                 }.disabled(isLoading)
-                
+
                 if isLoading {
                 #if os(macOS)
                     HStack {
@@ -69,7 +75,21 @@ struct QueryEditorView: View {
                     .shadow(radius: 5)
                 #endif
                 }
+
                 Spacer()
+
+                // Auto-fetch toggle (only show if query has attachments)
+                if hasAttachments {
+                    Toggle(isOn: $autoFetchAttachments) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Auto-fetch")
+                        }
+                        .font(.caption)
+                    }
+                    .toggleStyle(.button)
+                    .help("Automatically fetch attachment data when query executes")
+                }
             }.padding(.top, 8)
                 .padding(.trailing, 16)
             CodeEditor(

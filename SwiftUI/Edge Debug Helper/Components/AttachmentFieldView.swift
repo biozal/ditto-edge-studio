@@ -13,6 +13,7 @@ struct AttachmentFieldView: View {
     let fieldName: String
     let token: [String: Any]?
     let metadata: AttachmentMetadata?
+    let autoFetch: Bool
 
     @State private var isFetching = false
     @State private var fetchProgress: Double = 0
@@ -187,7 +188,12 @@ struct AttachmentFieldView: View {
             await MainActor.run {
                 isAvailableLocally = true
                 isCheckingLocal = false
-                // Don't auto-fetch - let user click the button
+            }
+
+            // Auto-fetch if enabled
+            if autoFetch {
+                print("[AttachmentFieldView] Auto-fetching attachment: \(fieldName)")
+                await fetchAttachment()
             }
 
         } catch {
@@ -612,13 +618,15 @@ struct AttachmentDocument: FileDocument {
         AttachmentFieldView(
             fieldName: "profileImage",
             token: ["id": "abc123", "len": 1024],
-            metadata: AttachmentMetadata(id: "abc123", len: 1024, type: "image/jpeg")
+            metadata: AttachmentMetadata(id: "abc123", len: 1024, type: "image/jpeg"),
+            autoFetch: false
         )
 
         AttachmentFieldView(
             fieldName: "document",
             token: ["id": "def456", "len": 2048],
-            metadata: AttachmentMetadata(id: "def456", len: 2048, type: "application/pdf")
+            metadata: AttachmentMetadata(id: "def456", len: 2048, type: "application/pdf"),
+            autoFetch: false
         )
     }
     .padding()

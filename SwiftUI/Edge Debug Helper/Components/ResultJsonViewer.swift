@@ -15,6 +15,7 @@ struct ResultJsonViewer: View {
     var collectionName: String?
     var onDelete: ((String, String) -> Void)?
     var hasExecutedQuery: Bool = false
+    var autoFetchAttachments: Bool = false
 
     @State private var currentPage = 1
     @State private var pageSize = 10
@@ -35,13 +36,14 @@ struct ResultJsonViewer: View {
         resultText.count
     }
 
-    init(resultText: Binding<[String]>, viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = [], collectionName: String? = nil, onDelete: ((String, String) -> Void)? = nil, hasExecutedQuery: Bool = false) {
+    init(resultText: Binding<[String]>, viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = [], collectionName: String? = nil, onDelete: ((String, String) -> Void)? = nil, hasExecutedQuery: Bool = false, autoFetchAttachments: Bool = false) {
         self._resultText = resultText
         self.viewMode = viewMode
         self.attachmentFields = attachmentFields
         self.collectionName = collectionName
         self.onDelete = onDelete
         self.hasExecutedQuery = hasExecutedQuery
+        self.autoFetchAttachments = autoFetchAttachments
     }
 
     // Convenience initializer for static arrays
@@ -51,6 +53,7 @@ struct ResultJsonViewer: View {
         self.attachmentFields = attachmentFields
         self.collectionName = nil
         self.onDelete = nil
+        self.autoFetchAttachments = false
     }
     
     private var pageCount: Int {
@@ -77,7 +80,8 @@ struct ResultJsonViewer: View {
                                 onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
                                     onDelete?(docId, collectionName!)
                                 } : nil,
-                                hasExecutedQuery: hasExecutedQuery
+                                hasExecutedQuery: hasExecutedQuery,
+                                autoFetchAttachments: autoFetchAttachments
                             )
                         case .raw:
                             ResultsList(items: pagedItems, hasExecutedQuery: hasExecutedQuery)

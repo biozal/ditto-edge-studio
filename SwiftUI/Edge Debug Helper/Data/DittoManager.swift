@@ -72,6 +72,8 @@ actor DittoManager {
                     )
                 }
 
+                print("[DittoManager] Will initialize LOCAL Ditto at: \(localDirectoryPath.path)")
+
                 //validate that the dittoConfig.plist file is valid
                 if appState.appConfig.appId.isEmpty
                     || appState.appConfig.appId == "put appId here"
@@ -81,7 +83,7 @@ actor DittoManager {
                     )
                     throw error
                 }
-                
+
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 // Use Objective-C exception handler to catch NSException from Ditto initialization
                 var dittoInstance: Ditto?
@@ -102,14 +104,17 @@ actor DittoManager {
                 guard let ditto = dittoInstance else {
                     throw AppError.error(message: "Failed to create Ditto instance")
                 }
-                
+
+                print("[DittoManager] Local Ditto initialized successfully")
+                print("[DittoManager] Local persistence directory: \(localDirectoryPath.path)")
+
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
                 if (appState.appConfig.mode == .sharedKey || appState.appConfig.mode == .offlinePlayground) && !appState.appConfig.authToken.isEmpty {
                     print("Setting offline license token: `\(appState.appConfig.authToken)`")
                     try ditto.setOfflineOnlyLicenseToken(appState.appConfig.authToken)
                     print("Successfully set offline license token")
                 }
-                
+
                 dittoLocal = ditto
 
                 dittoLocal?.updateTransportConfig(block: { config in
@@ -139,7 +144,39 @@ actor DittoManager {
         }
         dittoSelectedApp = nil
     }
-    
+
+    func wipeDatabaseForApp(_ appConfig: DittoAppConfig) async throws {
+        print("[DittoManager] Wiping database for app: \(appConfig.name)")
+
+        // If this is the currently selected app, close it first
+        if let selectedConfig = dittoSelectedAppConfig, selectedConfig._id == appConfig._id {
+            print("[DittoManager] Closing currently selected app before wiping database")
+            await closeDittoSelectedApp()
+        }
+
+        // Calculate the directory path (same logic as in hydrateDittoSelectedApp)
+        let dbname = appConfig.name.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).lowercased()
+        let localDirectoryPath = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+            .appendingPathComponent("ditto_apps")
+            .appendingPathComponent("\(dbname)-\(appConfig.appId)")
+
+        // Check if directory exists
+        guard FileManager.default.fileExists(atPath: localDirectoryPath.path) else {
+            print("[DittoManager] Database directory does not exist: \(localDirectoryPath.path)")
+            return
+        }
+
+        // Delete the directory
+        print("[DittoManager] Deleting database directory: \(localDirectoryPath.path)")
+        try FileManager.default.removeItem(at: localDirectoryPath)
+        print("[DittoManager] Database wiped successfully")
+    }
+
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
     -> Bool {
         var isSuccess: Bool = false
@@ -167,16 +204,19 @@ actor DittoManager {
                     withIntermediateDirectories: true
                 )
             }
-            
+
+            print("[DittoManager] Will initialize Ditto at: \(localDirectoryPath.path)")
+            print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
+
             // Validate inputs before trying to create Ditto
             guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {
                 throw AppError.error(message: "Invalid app configuration - missing appId or token")
             }
-            
+
             //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
             // Use Objective-C exception handler to catch NSException from Ditto initialization
             var dittoInstance: Ditto?
-            
+
             let error = ExceptionCatcher.perform {
                 let identity = self.createIdentity(from: appConfig)
                 dittoInstance = Ditto(
@@ -193,12 +233,16 @@ actor DittoManager {
             guard let ditto = dittoInstance else {
                 throw AppError.error(message: "Failed to create Ditto instance")
             }
-            
+
+            print("[DittoManager] Ditto initialized successfully")
+            print("[DittoManager] Persistence directory: \(localDirectoryPath.path)")
+            print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
+
             // For shared key and offline playground modes, set the offline license token (using authToken field)
             if (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground) && !appConfig.authToken.isEmpty {
                 try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
-            
+
             dittoSelectedApp = ditto
             
             guard let ditto = dittoSelectedApp else {

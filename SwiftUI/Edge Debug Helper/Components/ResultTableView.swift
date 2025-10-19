@@ -12,8 +12,10 @@ struct ResultTableView: View {
     let attachmentFields: [String]
     var onDelete: ((String, String) -> Void)?
     var hasExecutedQuery: Bool = false
+    var autoFetchAttachments: Bool = false
 
     @State private var modalRecord: ModalRecord?
+    @State private var columnWidths: [String: CGFloat] = [:]
 
     struct ModalRecord: Identifiable {
         let id = UUID()
@@ -36,6 +38,14 @@ struct ResultTableView: View {
         return Array(keys).sorted()
     }
 
+    private func getColumnWidth(_ key: String) -> CGFloat {
+        columnWidths[key] ?? 200
+    }
+
+    private func setColumnWidth(_ key: String, width: CGFloat) {
+        columnWidths[key] = max(50, min(width, 800))
+    }
+
     // Parse JSON items into dictionaries
     private var parsedItems: [[String: Any]] {
         items.compactMap { jsonString in
@@ -55,17 +65,23 @@ struct ResultTableView: View {
                     .padding()
             } else {
                 // Header row
-                HStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
                     // Row number column
                     Text("#")
                         .font(.system(.caption, design: .monospaced))
                         .fontWeight(.bold)
-                        .frame(width: 50)
+                        .frame(width: 50, alignment: .leading)
                         .padding(8)
                         .background(Color.primary.opacity(0.1))
 
                     ForEach(allKeys, id: \.self) { key in
-                        TableHeaderCell(title: key)
+                        ResizableTableHeaderCell(
+                            title: key,
+                            width: getColumnWidth(key),
+                            onWidthChange: { newWidth in
+                                setColumnWidth(key, width: newWidth)
+                            }
+                        )
                     }
                 }
 
@@ -80,6 +96,9 @@ struct ResultTableView: View {
                         parsedItems: parsedItems,
                         items: items,
                         documentId: documentId,
+                        columnWidths: allKeys.reduce(into: [:]) { result, key in
+                            result[key] = getColumnWidth(key)
+                        },
                         onDelete: onDelete,
                         onRowTap: { rowIndex in
                             print("[ResultTableView] Row tapped, index: \(rowIndex)")
@@ -102,6 +121,7 @@ struct ResultTableView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(item: $modalRecord) { record in
             let _ = print("[ResultTableView] ===== SHEET PRESENTING =====")
             let _ = print("[ResultTableView] Presenting modal with record at index \(String(describing: record.index))")
@@ -113,6 +133,7 @@ struct ResultTableView: View {
                 jsonString: record.jsonString,
                 index: record.index,
                 attachmentFields: attachmentFields,
+                autoFetchAttachments: autoFetchAttachments,
                 isPresented: Binding(
                     get: { modalRecord != nil },
                     set: { if !$0 { modalRecord = nil } }
@@ -140,6 +161,7 @@ struct TableRow: View {
     let parsedItems: [[String: Any]]
     let items: [String]
     let documentId: String?
+    let columnWidths: [String: CGFloat]
     let onDelete: ((String, String) -> Void)?
     let onRowTap: (Int) -> Void
     let onCopyRow: (Int) -> Void
@@ -147,19 +169,20 @@ struct TableRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {
             // Row number
             Text("\(index + 1)")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundColor(.secondary)
-                .frame(width: 50)
+                .frame(width: 50, alignment: .leading)
                 .padding(8)
 
             ForEach(allKeys, id: \.self) { key in
                 TableCell(
                     value: parsedItems[index][key],
                     isEvenRow: index % 2 == 0,
-                    isHovered: false  // Pass false since background is on row now
+                    isHovered: false,  // Pass false since background is on row now
+                    width: columnWidths[key] ?? 200
                 )
             }
         }
@@ -222,6 +245,7 @@ struct TableCell: View {
     let value: Any?
     let isEvenRow: Bool
     var isHovered: Bool = false
+    var width: CGFloat = 200
 
     private var displayValue: String {
         guard let value = value else {
@@ -265,10 +289,66 @@ struct TableCell: View {
             .font(.system(.body, design: .monospaced))
             .lineLimit(1)
             .truncationMode(.tail)
-            .frame(maxWidth: 200, alignment: .leading)
+            .frame(width: width, alignment: .topLeading)
             .textSelection(.enabled)
             .padding(8)
             .help(displayValue)  // Show full value on hover
+    }
+}
+
+struct ResizableTableHeaderCell: View {
+    let title: String
+    let width: CGFloat
+    let onWidthChange: (CGFloat) -> Void
+
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // Header cell content
+            Text(title)
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.bold)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: width + dragOffset, alignment: .topLeading)
+                .padding(8)
+                .background(Color.primary.opacity(0.1))
+                .help(title)
+
+            // Resize handle
+            VStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(isDragging ? Color.accentColor : Color.secondary.opacity(0.5))
+                        .frame(width: 3, height: 3)
+                }
+            }
+            .frame(width: 8)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle().inset(by: -4))
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        isDragging = true
+                        dragOffset = value.translation.width
+                    }
+                    .onEnded { value in
+                        isDragging = false
+                        let newWidth = width + value.translation.width
+                        onWidthChange(newWidth)
+                        dragOffset = 0
+                    }
+            )
+        }
     }
 }
 

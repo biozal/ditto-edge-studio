@@ -14,23 +14,20 @@ struct QueryResultsView: View {
     @State private var viewMode: QueryResultViewMode = .table
     @State private var isExporting = false
     @State private var resultsCount: Int = 0
+    @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
 
     private var attachmentFields: [String] {
         AttachmentQueryParser.extractAttachmentFields(from: queryText)
     }
 
     private var collectionName: String? {
-        // Extract collection name from query like "SELECT * FROM collection_name"
         print("[QueryResultsView] Extracting collection name from query: \(queryText)")
-        let pattern = #"FROM\s+(\w+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-              let match = regex.firstMatch(in: queryText, range: NSRange(queryText.startIndex..., in: queryText)),
-              let range = Range(match.range(at: 1), in: queryText) else {
+        let extracted = DQLQueryParser.extractCollectionName(from: queryText)
+        if let extracted = extracted {
+            print("[QueryResultsView] Extracted collection name: \(extracted)")
+        } else {
             print("[QueryResultsView] Failed to extract collection name from query")
-            return nil
         }
-        let extracted = String(queryText[range])
-        print("[QueryResultsView] Extracted collection name: \(extracted)")
         return extracted
     }
 
@@ -97,14 +94,16 @@ struct QueryResultsView: View {
                         attachmentFields: attachmentFields,
                         collectionName: collectionName,
                         onDelete: handleDelete,
-                        hasExecutedQuery: hasExecutedQuery
+                        hasExecutedQuery: hasExecutedQuery,
+                        autoFetchAttachments: autoFetchAttachments
                     )
                 case .raw:
                     ResultJsonViewer(
                         resultText: $jsonResults,
                         viewMode: .raw,
                         attachmentFields: attachmentFields,
-                        hasExecutedQuery: hasExecutedQuery
+                        hasExecutedQuery: hasExecutedQuery,
+                        autoFetchAttachments: autoFetchAttachments
                     )
                 }
             }

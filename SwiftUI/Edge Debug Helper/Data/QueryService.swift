@@ -149,10 +149,13 @@ actor QueryService {
 
         print("[QueryService] Deleting document with ID: \(documentId) from collection: \(collection)")
 
-        let query = "DELETE FROM \(collection) WHERE _id = '\(documentId)'"
+        let query = "DELETE FROM \(collection) WHERE _id = :id"
+        let arguments = ["id": documentId]
         print("[QueryService] Executing delete query: \(query)")
+        print("[QueryService] Query arguments: \(arguments)")
+        print("[QueryService] Substituted query: DELETE FROM \(collection) WHERE _id = '\(documentId)'")
 
-        let results = try await ditto.store.execute(query: query)
+        let results = try await ditto.store.execute(query: query, arguments: arguments)
 
         if !results.mutatedDocumentIDs().isEmpty {
             print("[QueryService] Successfully deleted document. Mutated IDs: \(results.mutatedDocumentIDs())")

@@ -11,6 +11,7 @@ struct ResultCardView: View {
     let items: [String]
     let attachmentFields: [String]
     var onDelete: ((String, String) -> Void)?
+    var autoFetchAttachments: Bool = false
 
     @State private var selectedRecord: String?
     @State private var selectedIndex: Int?
@@ -60,6 +61,7 @@ struct ResultCardView: View {
                     jsonString: record,
                     index: selectedIndex,
                     attachmentFields: attachmentFields,
+                    autoFetchAttachments: autoFetchAttachments,
                     isPresented: $showModal
                 )
             }

@@ -12,11 +12,12 @@ struct RecordDetailModal: View {
     let jsonString: String
     let index: Int?
     let attachmentFields: [String]
+    let autoFetchAttachments: Bool
     @Binding var isPresented: Bool
 
     @State private var isCopied = false
 
-    init(jsonString: String, index: Int?, attachmentFields: [String] = [], isPresented: Binding<Bool>) {
+    init(jsonString: String, index: Int?, attachmentFields: [String] = [], autoFetchAttachments: Bool = false, isPresented: Binding<Bool>) {
         print("[RecordDetailModal] init called")
         print("[RecordDetailModal] jsonString length: \(jsonString.count)")
         print("[RecordDetailModal] jsonString first 200 chars: \(jsonString.prefix(200))")
@@ -25,6 +26,7 @@ struct RecordDetailModal: View {
         self.jsonString = jsonString
         self.index = index
         self.attachmentFields = attachmentFields
+        self.autoFetchAttachments = autoFetchAttachments
         self._isPresented = isPresented
     }
 
@@ -189,7 +191,8 @@ struct RecordDetailModal: View {
                                     AttachmentFieldView(
                                         fieldName: field.key,
                                         token: token,
-                                        metadata: attachmentInfo.metadata
+                                        metadata: attachmentInfo.metadata,
+                                        autoFetch: autoFetchAttachments
                                     )
                                 } else {
                                     FieldRow(
