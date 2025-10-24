@@ -85,6 +85,8 @@ struct ResultJsonViewer: View {
                             )
                         case .raw:
                             ResultsList(items: pagedItems, hasExecutedQuery: hasExecutedQuery)
+                        case .map:
+                            EmptyView() // Map view is handled by MapResultView in QueryResultsView
                         }
                     }
                     .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)

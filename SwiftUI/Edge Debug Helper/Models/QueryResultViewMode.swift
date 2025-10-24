@@ -10,6 +10,7 @@ import Foundation
 enum QueryResultViewMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case raw = "Raw"
+    case map = "Map"
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum QueryResultViewMode: String, CaseIterable, Identifiable {
         switch self {
         case .table: return "tablecells"
         case .raw: return "doc.text"
+        case .map: return "map"
         }
     }
 }

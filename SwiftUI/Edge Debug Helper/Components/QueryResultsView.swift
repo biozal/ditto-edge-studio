@@ -50,6 +50,47 @@ struct QueryResultsView: View {
         }
     }
 
+    private func handleDeleteAll() {
+        guard let collection = collectionName else {
+            print("[QueryResultsView] Cannot delete all: no collection name found")
+            return
+        }
+
+        Task {
+            do {
+                // Extract all document IDs from results
+                let documentIds = extractAllDocumentIds()
+                guard !documentIds.isEmpty else {
+                    print("[QueryResultsView] No document IDs found to delete")
+                    return
+                }
+
+                print("[QueryResultsView] Deleting \(documentIds.count) documents from collection: \(collection)")
+
+                // Create DELETE query with WHERE _id IN clause
+                try await QueryService.shared.deleteDocuments(documentIds: documentIds, collection: collection)
+
+                // Clear results after successful deletion
+                jsonResults = []
+            } catch {
+                print("[QueryResultsView] ERROR deleting all documents: \(error)")
+            }
+        }
+    }
+
+    private func extractAllDocumentIds() -> [String] {
+        var ids: [String] = []
+        for jsonString in jsonResults {
+            guard let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let id = json["_id"] as? String else {
+                continue
+            }
+            ids.append(id)
+        }
+        return ids
+    }
+
     init(jsonResults: Binding<[String]>, queryText: String = "", hasExecutedQuery: Bool = false) {
         _jsonResults = jsonResults
         self.queryText = queryText
@@ -59,7 +100,7 @@ struct QueryResultsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with view mode picker and clear button
+            // Header with view mode picker and action buttons
             HStack {
                 ViewModePicker(selectedMode: $viewMode)
                     .padding(.leading, 16)
@@ -67,6 +108,20 @@ struct QueryResultsView: View {
 
                 Spacer()
 
+                // Delete All button
+                Button {
+                    handleDeleteAll()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash.fill")
+                        Text("Delete All")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(jsonResults.isEmpty || collectionName == nil)
+                .help("Delete all documents in results from the database")
+
+                // Clear button
                 Button {
                     jsonResults = []
                 } label: {
@@ -104,6 +159,11 @@ struct QueryResultsView: View {
                         attachmentFields: attachmentFields,
                         hasExecutedQuery: hasExecutedQuery,
                         autoFetchAttachments: autoFetchAttachments
+                    )
+                case .map:
+                    MapResultView(
+                        jsonResults: $jsonResults,
+                        hasExecutedQuery: hasExecutedQuery
                     )
                 }
             }

@@ -255,15 +255,16 @@ actor DittoManager {
                 )
                 config.enableAllPeerToPeer()
             })
-            
-            
-            try ditto.disableSyncWithV3()
-            
+
+            // IMPORTANT: Execute ALTER SYSTEM commands BEFORE disableSyncWithV3()
+            // This ensures the internal database schema is fully initialized
             // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
-            //
             try await ditto.store.execute(
                 query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
             )
+
+            // Now it's safe to disable v3 sync after the database is properly initialized
+            try ditto.disableSyncWithV3()
             
             self.dittoSelectedAppConfig = appConfig
             

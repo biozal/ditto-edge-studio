@@ -163,4 +163,55 @@ actor QueryService {
             print("[QueryService] WARNING: Delete query executed but no documents were mutated")
         }
     }
+
+    // MARK: Delete Multiple Documents
+    func deleteDocuments(documentIds: [String], collection: String) async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
+        }
+
+        guard !documentIds.isEmpty else {
+            print("[QueryService] No document IDs provided for deletion")
+            return
+        }
+
+        print("[QueryService] Deleting \(documentIds.count) documents from collection: \(collection)")
+
+        // Batch deletions to avoid huge SQL queries
+        // Process in chunks of 100 to keep queries manageable
+        let batchSize = 100
+        var totalDeleted = 0
+
+        for batchStart in stride(from: 0, to: documentIds.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, documentIds.count)
+            let batch = Array(documentIds[batchStart..<batchEnd])
+
+            print("[QueryService] Processing batch \(batchStart/batchSize + 1) of \((documentIds.count + batchSize - 1) / batchSize): \(batch.count) documents")
+
+            // Create WHERE clause with IN operator for this batch
+            var arguments: [String: Any] = [:]
+            var placeholders: [String] = []
+
+            for (index, id) in batch.enumerated() {
+                let key = "id\(index)"
+                arguments[key] = id
+                placeholders.append(":\(key)")
+            }
+
+            let placeholderString = placeholders.joined(separator: ", ")
+            let query = "DELETE FROM \(collection) WHERE _id IN (\(placeholderString))"
+
+            let results = try await ditto.store.execute(query: query, arguments: arguments)
+            let deletedCount = results.mutatedDocumentIDs().count
+            totalDeleted += deletedCount
+
+            if deletedCount > 0 {
+                print("[QueryService] Batch deleted \(deletedCount) documents")
+            } else {
+                print("[QueryService] WARNING: Batch delete executed but no documents were mutated")
+            }
+        }
+
+        print("[QueryService] Successfully deleted \(totalDeleted) documents total")
+    }
 }
