@@ -8,6 +8,9 @@
 import SwiftUI
 import DittoSwift
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 struct AttachmentFieldView: View {
     let fieldName: String
@@ -403,7 +406,7 @@ struct AttachmentPreviewInline: View {
                 Spacer()
 
                 Button {
-                    showSaveDialog = true
+                    saveAttachment()
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 12))
@@ -448,19 +451,33 @@ struct AttachmentPreviewInline: View {
                 }
             }
         }
-        .fileExporter(
-            isPresented: $showSaveDialog,
-            document: AttachmentDocument(data: data, metadata: metadata),
-            contentType: contentType,
-            defaultFilename: defaultFilename
-        ) { result in
-            switch result {
-            case .success(let url):
-                print("Saved attachment to \(url)")
-            case .failure(let error):
-                print("Failed to save attachment: \(error)")
+    }
+
+    private func saveAttachment() {
+        #if os(macOS)
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [contentType]
+        savePanel.nameFieldStringValue = defaultFilename
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else {
+                print("[AttachmentPreviewInline] Save cancelled")
+                return
+            }
+
+            do {
+                try data.write(to: url)
+                print("[AttachmentPreviewInline] Saved attachment to \(url)")
+            } catch {
+                print("[AttachmentPreviewInline] Failed to save attachment: \(error)")
             }
         }
+        #else
+        // For iOS/iPadOS, use the fileExporter
+        showSaveDialog = true
+        #endif
     }
 
     private var contentType: UTType {
@@ -510,7 +527,7 @@ struct AttachmentPreview: View {
                 Spacer()
 
                 Button {
-                    showSaveDialog = true
+                    saveAttachment()
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                         .font(.caption)
@@ -556,19 +573,33 @@ struct AttachmentPreview: View {
             }
         }
         .padding()
-        .fileExporter(
-            isPresented: $showSaveDialog,
-            document: AttachmentDocument(data: data, metadata: metadata),
-            contentType: contentType,
-            defaultFilename: defaultFilename
-        ) { result in
-            switch result {
-            case .success(let url):
-                print("Saved attachment to \(url)")
-            case .failure(let error):
-                print("Failed to save attachment: \(error)")
+    }
+
+    private func saveAttachment() {
+        #if os(macOS)
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [contentType]
+        savePanel.nameFieldStringValue = defaultFilename
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else {
+                print("[AttachmentPreview] Save cancelled")
+                return
+            }
+
+            do {
+                try data.write(to: url)
+                print("[AttachmentPreview] Saved attachment to \(url)")
+            } catch {
+                print("[AttachmentPreview] Failed to save attachment: \(error)")
             }
         }
+        #else
+        // For iOS/iPadOS, use the fileExporter
+        showSaveDialog = true
+        #endif
     }
 
     private var contentType: UTType {

@@ -14,6 +14,7 @@ struct TabContainer: View {
   let onSelectTab: (TabItem) -> Void
   let contentForTab: (TabItem) -> AnyView
   let defaultContent: () -> AnyView
+  var titleForTab: ((TabItem) -> String)? // Optional function to get dynamic titles
 
   var body: some View {
     VStack(spacing: 0) {
@@ -60,7 +61,8 @@ struct TabContainer: View {
                 tab: tab,
                 isActive: activeTabId == tab.id,
                 onSelect: { onSelectTab(tab) },
-                onClose: { onCloseTab(tab) }
+                onClose: { onCloseTab(tab) },
+                displayTitle: titleForTab?(tab)
               )
             }
           }
@@ -132,6 +134,7 @@ struct TabComponent: View {
   let isActive: Bool
   let onSelect: () -> Void
   let onClose: () -> Void
+  let displayTitle: String? // Optional override for dynamic titles
   @State private var isHoveringTab = false
   @State private var isHoveringClose = false
 
@@ -149,7 +152,7 @@ struct TabComponent: View {
           HStack(spacing: 6) {
             Image(systemName: tab.systemImage)
               .font(.system(size: 12))
-            Text(tab.title)
+            Text(displayTitle ?? tab.title)
               .font(.system(size: 13))
               .lineLimit(1)
           }

@@ -91,12 +91,34 @@ struct ViewContainer: View {
                 // Results at the bottom
                 QueryResultsView(
                     jsonResults: $viewModel.jsonResults,
-                    queryText: viewModel.selectedQuery
+                    queryText: viewModel.selectedQuery,
+                    currentPage: viewModel.currentPage,
+                    pageSize: viewModel.pageSize,
+                    isLoadingPage: viewModel.isLoadingPage,
+                    onNextPage: {
+                        await viewModel.nextPage(appState: appState)
+                    },
+                    onPreviousPage: {
+                        await viewModel.previousPage(appState: appState)
+                    },
+                    onFirstPage: {
+                        await viewModel.goToFirstPage(appState: appState)
+                    }
                 )
             }
             .onAppear {
                 if let subscription = subscription {
                     viewModel.selectedQuery = subscription.query
+                }
+            }
+            .onChange(of: viewModel.selectedQuery) { oldValue, newValue in
+                // Save query changes to the dictionary for query tabs
+                if case .query(let queryId) = viewModel.selectedItem {
+                    viewModel.tabQueries[queryId] = newValue
+
+                    // Update the tab title in the dictionary
+                    let newTitle = viewModel.generateTabTitle(from: newValue)
+                    viewModel.tabTitles[queryId] = newTitle
                 }
             }
 
@@ -128,7 +150,19 @@ struct ViewContainer: View {
                 // Results at the bottom
                 QueryResultsView(
                     jsonResults: $viewModel.jsonResults,
-                    queryText: viewModel.selectedQuery
+                    queryText: viewModel.selectedQuery,
+                    currentPage: viewModel.currentPage,
+                    pageSize: viewModel.pageSize,
+                    isLoadingPage: viewModel.isLoadingPage,
+                    onNextPage: {
+                        await viewModel.nextPage(appState: appState)
+                    },
+                    onPreviousPage: {
+                        await viewModel.previousPage(appState: appState)
+                    },
+                    onFirstPage: {
+                        await viewModel.goToFirstPage(appState: appState)
+                    }
                 )
             }
             .onAppear {

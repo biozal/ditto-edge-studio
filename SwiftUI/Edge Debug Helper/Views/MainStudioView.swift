@@ -706,6 +706,9 @@ extension MainStudioView {
                         appState: appState
                     )
                 )
+            },
+            titleForTab: { tab in
+                viewModel.getTabTitle(for: tab)
             }
         )
     }
@@ -751,6 +754,9 @@ extension MainStudioView {
                     }
                     .padding()
                 )
+            },
+            titleForTab: { tab in
+                viewModel.getTabTitle(for: tab)
             }
         )
     }
@@ -900,7 +906,9 @@ extension MainStudioView {
                     //bottom half
                     QueryResultsView(
                         jsonResults: $viewModel.jsonResults,
-                        hasExecutedQuery: viewModel.hasExecutedQuery
+                        queryText: viewModel.selectedQuery,
+                        hasExecutedQuery: viewModel.hasExecutedQuery,
+                        appId: viewModel.selectedApp.appId
                     )
                 }
             #else
@@ -918,7 +926,9 @@ extension MainStudioView {
                     //bottom half
                     QueryResultsView(
                         jsonResults: $viewModel.jsonResults,
-                        hasExecutedQuery: viewModel.hasExecutedQuery
+                        queryText: viewModel.selectedQuery,
+                        hasExecutedQuery: viewModel.hasExecutedQuery,
+                        appId: viewModel.selectedApp.appId
                     )
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -1146,6 +1156,12 @@ extension MainStudioView {
         var jsonResults: [String]
         var hasExecutedQuery: Bool = false
 
+        //pagination
+        var currentPage: Int = 0
+        var pageSize: Int = 100  // Default page size
+        var totalResults: Int = 0  // Total number of results available
+        var isLoadingPage: Bool = false
+
         //MainMenu Toolbar
         var selectedMenuItem: MenuItem
         var mainMenuItems: [MenuItem] = []
@@ -1153,6 +1169,8 @@ extension MainStudioView {
         //Tab Management (shared between Store Explorer and Query tool)
         var openTabs: [TabItem] = []
         var activeTabId: UUID?
+        var tabQueries: [String: String] = [:] // Maps query tab IDs to their query strings
+        var tabTitles: [String: String] = [:] // Maps query tab IDs to their titles
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
@@ -1388,23 +1406,68 @@ extension MainStudioView {
             try await SubscriptionsRepository.shared.removeDittoSubscription(subscription)
         }
 
-        func executeQuery(appState: AppState) async {
+        // Helper function to add pagination to a query
+        func addPaginationToQuery(_ query: String, limit: Int, offset: Int) -> String {
+            let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Check if query already has LIMIT or OFFSET
+            let upperQuery = trimmedQuery.uppercased()
+            if upperQuery.contains("LIMIT") || upperQuery.contains("OFFSET") {
+                // Query already has pagination, return as-is
+                return query
+            }
+
+            // Add LIMIT and OFFSET to the query
+            return "\(trimmedQuery) LIMIT \(limit) OFFSET \(offset)"
+        }
+
+        func executeQuery(appState: AppState, page: Int? = nil) async {
             isQueryExecuting = true
+            isLoadingPage = true
+
+            // If page is specified, use it; otherwise reset to page 0 for new queries
+            let targetPage = page ?? 0
+            let offset = targetPage * pageSize
+
             do {
+                // Add pagination to the query
+                let paginatedQuery = addPaginationToQuery(selectedQuery, limit: pageSize, offset: offset)
+
                 if selectedExecuteMode == "Local" {
                      jsonResults = try await QueryService.shared
-                        .executeSelectedAppQuery(query: selectedQuery)
+                        .executeSelectedAppQuery(query: paginatedQuery)
                 } else {
                     jsonResults = try await QueryService.shared
-                        .executeSelectedAppQueryHttp(query: selectedQuery)
+                        .executeSelectedAppQueryHttp(query: paginatedQuery)
                 }
+
+                // Update current page
+                currentPage = targetPage
                 hasExecutedQuery = true
-                // Add query to history
+
+                // Add query to history (original query, not paginated)
                 await addQueryToHistory(appState: appState)
             } catch {
                 appState.setError(error)
             }
             isQueryExecuting = false
+            isLoadingPage = false
+        }
+
+        // Pagination navigation functions
+        func nextPage(appState: AppState) async {
+            guard !isLoadingPage else { return }
+            await executeQuery(appState: appState, page: currentPage + 1)
+        }
+
+        func previousPage(appState: AppState) async {
+            guard currentPage > 0, !isLoadingPage else { return }
+            await executeQuery(appState: appState, page: currentPage - 1)
+        }
+
+        func goToFirstPage(appState: AppState) async {
+            guard currentPage > 0, !isLoadingPage else { return }
+            await executeQuery(appState: appState, page: 0)
         }
 
         func formCancel() {
@@ -1604,6 +1667,12 @@ extension MainStudioView {
             let countAfter = openTabs.count
             print("DEBUG: Removed tab. Count before: \(countBefore), after: \(countAfter)")
 
+            // Clean up the query and title dictionaries if this was a query tab
+            if case .query(let queryId) = tab.content {
+                tabQueries.removeValue(forKey: queryId)
+                tabTitles.removeValue(forKey: queryId)
+            }
+
             // Update active tab and selected item
             if let newTab = newActiveTab {
                 activeTabId = newTab.id
@@ -1622,6 +1691,13 @@ extension MainStudioView {
         func selectTab(_ tab: TabItem) {
             activeTabId = tab.id
             selectedItem = tab.content
+
+            // If this is a query tab, restore its query text
+            if case .query(let queryId) = tab.content {
+                if let savedQuery = tabQueries[queryId] {
+                    selectedQuery = savedQuery
+                }
+            }
         }
 
         func openQueryTab(_ query: String) {
@@ -1631,9 +1707,12 @@ extension MainStudioView {
             // Use a special query case instead of subscription
             let queryItem = SelectedItem.query(queryId)
 
+            // Generate title from query
+            let title = generateTabTitle(from: query)
+
             // Open the tab
             let newTab = TabItem(
-                title: "Query",
+                title: title,
                 content: queryItem,
                 systemImage: "doc.text"
             )
@@ -1641,8 +1720,64 @@ extension MainStudioView {
             activeTabId = newTab.id
             self.selectedItem = queryItem
 
+            // Store the query text and title in dictionaries
+            tabQueries[queryId] = query
+            tabTitles[queryId] = title
+
             // Set the query text
             selectedQuery = query
+        }
+
+        // Helper method to update query text and save to dictionary if we're on a query tab
+        func updateQueryText(_ newQuery: String) {
+            selectedQuery = newQuery
+
+            // If currently viewing a query tab, update its stored query
+            if case .query(let queryId) = selectedItem {
+                tabQueries[queryId] = newQuery
+            }
+        }
+
+        // Generate a tab title from a query string
+        func generateTabTitle(from query: String) -> String {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // If empty, return default
+            guard !trimmed.isEmpty else {
+                return "New Query"
+            }
+
+            // Try to extract collection name for a more meaningful title
+            if let collectionName = DQLQueryParser.extractCollectionName(from: trimmed) {
+                // Check if it's a SELECT, INSERT, UPDATE, DELETE, or EVICT
+                let upperQuery = trimmed.uppercased()
+                if upperQuery.hasPrefix("SELECT") {
+                    return "SELECT \(collectionName)"
+                } else if upperQuery.hasPrefix("INSERT") {
+                    return "INSERT \(collectionName)"
+                } else if upperQuery.hasPrefix("UPDATE") {
+                    return "UPDATE \(collectionName)"
+                } else if upperQuery.hasPrefix("DELETE") || upperQuery.hasPrefix("EVICT") {
+                    return "DELETE \(collectionName)"
+                } else {
+                    return collectionName
+                }
+            }
+
+            // Fallback: use first line or first 30 characters
+            let firstLine = trimmed.components(separatedBy: .newlines).first ?? trimmed
+            if firstLine.count > 30 {
+                return String(firstLine.prefix(30)) + "..."
+            }
+            return firstLine
+        }
+
+        // Get the display title for a tab (returns updated title from dictionary if available)
+        func getTabTitle(for tab: TabItem) -> String {
+            if case .query(let queryId) = tab.content {
+                return tabTitles[queryId] ?? tab.title
+            }
+            return tab.title
         }
 
         func viewContext(for selectedItem: SelectedItem) -> ViewContext {

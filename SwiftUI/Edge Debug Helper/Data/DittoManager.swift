@@ -62,16 +62,6 @@ actor DittoManager {
                 )[0]
                 .appendingPathComponent("ditto_appconfig")
 
-                // Ensure directory exists
-                if !FileManager.default.fileExists(
-                    atPath: localDirectoryPath.path
-                ) {
-                    try FileManager.default.createDirectory(
-                        at: localDirectoryPath,
-                        withIntermediateDirectories: true
-                    )
-                }
-
                 print("[DittoManager] Will initialize LOCAL Ditto at: \(localDirectoryPath.path)")
 
                 //validate that the dittoConfig.plist file is valid
@@ -84,26 +74,11 @@ actor DittoManager {
                     throw error
                 }
 
-                //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-                // Use Objective-C exception handler to catch NSException from Ditto initialization
-                var dittoInstance: Ditto?
-                
-                let error = ExceptionCatcher.perform {
-                    let identity = self.createIdentity(from: appState.appConfig)
-                    dittoInstance = Ditto(
-                        identity: identity,
-                        persistenceDirectory: localDirectoryPath
-                    )
-                }
-                
-                if let error = error {
-                    let errorMessage = error.localizedDescription
-                    throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
-                }
-                
-                guard let ditto = dittoInstance else {
-                    throw AppError.error(message: "Failed to create Ditto instance")
-                }
+                // Use safe initialization with automatic corruption recovery
+                let ditto = try await safeInitializeDitto(
+                    appConfig: appState.appConfig,
+                    persistenceDirectory: localDirectoryPath
+                )
 
                 print("[DittoManager] Local Ditto initialized successfully")
                 print("[DittoManager] Local persistence directory: \(localDirectoryPath.path)")
@@ -124,7 +99,7 @@ actor DittoManager {
                 })
 
                 // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
-                // 
+                //
                 try await dittoLocal?.store.execute(
                     query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
                 )
@@ -143,6 +118,97 @@ actor DittoManager {
             }.value
         }
         dittoSelectedApp = nil
+    }
+
+    /// Checks if an error indicates database corruption
+    private func isDatabaseCorruptionError(_ error: Error) -> Bool {
+        let errorMessage = error.localizedDescription.lowercased()
+        return errorMessage.contains("no such table: __ditto_internal__") ||
+               errorMessage.contains("sqlite") ||
+               errorMessage.contains("database corruption") ||
+               errorMessage.contains("failed to get tx_id")
+    }
+
+    /// Wipes the corrupted database directory for recovery
+    private func clearCorruptedDatabase(at persistenceDirectory: URL) async throws {
+        print("[DittoManager] 🔧 Clearing corrupted database at: \(persistenceDirectory.path)")
+
+        // Check if directory exists
+        guard FileManager.default.fileExists(atPath: persistenceDirectory.path) else {
+            print("[DittoManager] Database directory does not exist, nothing to clear")
+            return
+        }
+
+        // Delete the entire directory
+        try FileManager.default.removeItem(at: persistenceDirectory)
+        print("[DittoManager] ✅ Corrupted database cleared successfully")
+
+        // Recreate the directory
+        try FileManager.default.createDirectory(
+            at: persistenceDirectory,
+            withIntermediateDirectories: true
+        )
+        print("[DittoManager] ✅ Fresh directory created")
+    }
+
+    /// Safely initializes a Ditto instance with automatic corruption recovery
+    /// Returns the initialized Ditto instance or throws an error
+    private func safeInitializeDitto(
+        appConfig: DittoAppConfig,
+        persistenceDirectory: URL,
+        maxRetries: Int = 2
+    ) async throws -> Ditto {
+        var lastError: Error?
+
+        for attempt in 1...maxRetries {
+            print("[DittoManager] Initialization attempt \(attempt)/\(maxRetries)")
+
+            // Ensure directory exists
+            if !FileManager.default.fileExists(atPath: persistenceDirectory.path) {
+                try FileManager.default.createDirectory(
+                    at: persistenceDirectory,
+                    withIntermediateDirectories: true
+                )
+            }
+
+            // Try to initialize Ditto
+            var dittoInstance: Ditto?
+            let error = ExceptionCatcher.perform {
+                let identity = self.createIdentity(from: appConfig)
+                dittoInstance = Ditto(
+                    identity: identity,
+                    persistenceDirectory: persistenceDirectory
+                )
+            }
+
+            // Check for initialization errors
+            if let error = error {
+                lastError = error
+                print("[DittoManager] ⚠️ Initialization failed: \(error.localizedDescription)")
+
+                // Check if this is a corruption error
+                if isDatabaseCorruptionError(error) {
+                    print("[DittoManager] 🔧 Detected database corruption, clearing and retrying...")
+                    try await clearCorruptedDatabase(at: persistenceDirectory)
+                    continue
+                } else {
+                    // Non-corruption error, don't retry
+                    throw AppError.error(message: "Failed to initialize Ditto: \(error.localizedDescription)")
+                }
+            }
+
+            guard let ditto = dittoInstance else {
+                throw AppError.error(message: "Failed to create Ditto instance (nil)")
+            }
+
+            // Successfully initialized
+            print("[DittoManager] ✅ Ditto initialized successfully on attempt \(attempt)")
+            return ditto
+        }
+
+        // All retries exhausted
+        let errorMessage = lastError?.localizedDescription ?? "Unknown error"
+        throw AppError.error(message: "Failed to initialize Ditto after \(maxRetries) attempts: \(errorMessage)")
     }
 
     func wipeDatabaseForApp(_ appConfig: DittoAppConfig) async throws {
@@ -182,7 +248,7 @@ actor DittoManager {
         var isSuccess: Bool = false
         do {
             await closeDittoSelectedApp()
-            
+
             // setup the new selected app
             // need to calculate the directory path so each app has it's own
             // unique directory
@@ -195,15 +261,6 @@ actor DittoManager {
             )[0]
                 .appendingPathComponent("ditto_apps")
                 .appendingPathComponent("\(dbname)-\(appConfig.appId)")
-            
-            // Ensure directory exists
-            if !FileManager.default.fileExists(atPath: localDirectoryPath.path)
-            {
-                try FileManager.default.createDirectory(
-                    at: localDirectoryPath,
-                    withIntermediateDirectories: true
-                )
-            }
 
             print("[DittoManager] Will initialize Ditto at: \(localDirectoryPath.path)")
             print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
@@ -213,26 +270,11 @@ actor DittoManager {
                 throw AppError.error(message: "Invalid app configuration - missing appId or token")
             }
 
-            //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-            // Use Objective-C exception handler to catch NSException from Ditto initialization
-            var dittoInstance: Ditto?
-
-            let error = ExceptionCatcher.perform {
-                let identity = self.createIdentity(from: appConfig)
-                dittoInstance = Ditto(
-                    identity: identity,
-                    persistenceDirectory: localDirectoryPath
-                )
-            }
-            
-            if let error = error {
-                let errorMessage = error.localizedDescription
-                throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
-            }
-            
-            guard let ditto = dittoInstance else {
-                throw AppError.error(message: "Failed to create Ditto instance")
-            }
+            // Use safe initialization with automatic corruption recovery
+            let ditto = try await safeInitializeDitto(
+                appConfig: appConfig,
+                persistenceDirectory: localDirectoryPath
+            )
 
             print("[DittoManager] Ditto initialized successfully")
             print("[DittoManager] Persistence directory: \(localDirectoryPath.path)")
