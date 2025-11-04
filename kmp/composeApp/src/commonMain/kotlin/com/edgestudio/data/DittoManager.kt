@@ -5,8 +5,10 @@ import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
 import com.edgestudio.getAppDataDirectory
 import com.edgestudio.models.ESDatabaseConfig
+
 import okio.FileSystem
 import okio.Path.Companion.toPath
+import okio.SYSTEM
 
 class DittoManager
     : IDittoManager {
