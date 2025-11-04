@@ -15,3 +15,8 @@ kmp/.idea
 kmp/.kotlin
 kmp/build
 kmp/composeApp/build
+avalonia/.idea
+avalonia/EdgeStudio/bin
+avalonia/EdgeStudio/obj
+avalonia/EdgeStudioTests/bin/Debug
+avalonia/EdgeStudioTests/obj

@@ -4,7 +4,7 @@ import com.ditto.kotlin.Ditto
 import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
 import com.edgestudio.getAppDataDirectory
-import com.edgestudio.models.DittoDatabaseConfig
+import com.edgestudio.models.ESDatabaseConfig
 import okio.FileSystem
 import okio.Path.Companion.toPath
 
@@ -12,7 +12,7 @@ class DittoManager
     : IDittoManager {
     override var dittoLocalDatabase: Ditto? = null
     override var dittoSelectedDatabase: Ditto? = null
-    override var selectedDatabaseConfig: DittoDatabaseConfig? = null
+    override var selectedDatabaseConfig: ESDatabaseConfig? = null
 
     var isDittoLocalDatabaseInitialized = false
 
@@ -24,7 +24,7 @@ class DittoManager
         dittoSelectedDatabase = null
     }
 
-    override suspend fun initializeDittoStoreAsync(databaseConfig: DittoDatabaseConfig) {
+    override suspend fun initializeDittoStoreAsync(databaseConfig: ESDatabaseConfig) {
         if (isDittoLocalDatabaseInitialized) return
 
         //enable logging
@@ -44,7 +44,7 @@ class DittoManager
         //initialize the local database cache
     }
 
-    override suspend fun initializeDittoSelectedDatabase(databaseConfig: DittoDatabaseConfig): Boolean {
+    override suspend fun initializeDittoSelectedDatabase(databaseConfig: ESDatabaseConfig): Boolean {
         TODO("Not yet implemented")
     }
 

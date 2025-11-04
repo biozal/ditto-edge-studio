@@ -1,16 +1,16 @@
 package com.edgestudio.data
 
 import com.ditto.kotlin.Ditto
-import com.edgestudio.models.DittoDatabaseConfig
+import com.edgestudio.models.ESDatabaseConfig
 
 interface IDittoManager {
-    var dittoLocalDatabase: Ditto?
-    var dittoSelectedDatabase: Ditto?
-    var selectedDatabaseConfig: DittoDatabaseConfig?
+    var dittoLocal: Ditto?
+    var dittoSelectedApp: Ditto?
+    var selectedDatabaseConfig: ESDatabaseConfig?
 
     fun closeSelectedDatabase()
-    suspend fun initializeDittoStoreAsync(databaseConfig: DittoDatabaseConfig)
-    suspend fun initializeDittoSelectedDatabase(databaseConfig: DittoDatabaseConfig): Boolean
+    suspend fun initializeDittoAsync(databaseConfig: ESDatabaseConfig)
+    suspend fun initializeDittoSelectedApp(databaseConfig: ESDatabaseConfig): Boolean
     fun selectedAppStartSync()
     fun selectedAppStopSync()
 }
