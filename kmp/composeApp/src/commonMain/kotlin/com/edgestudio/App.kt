@@ -23,9 +23,9 @@ import com.edgestudio.ui.components.QuickThemeToggle
 
 @Composable
 @Preview
-fun App() {
+fun App(
+    modifier: Modifier = Modifier) {
     val themeManager = remember { ThemeManager() }
-    
     CompositionLocalProvider(LocalThemeManager provides themeManager) {
         DittoEdgeStudioTheme(
             darkTheme = themeManager.isDarkTheme()

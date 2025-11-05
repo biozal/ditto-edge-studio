@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.edgestudio.data.initializeAndroidContext
+import com.ditto.kotlin.transports.DittoSyncPermissions
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,19 +17,17 @@ class MainActivity : ComponentActivity() {
         
         // Initialize Android context for Ditto
         initializeAndroidContext(this)
-        AndroidContextProvider.initialize(this)
         setContent {
             App()
         }
+        requestMissingPermissions()
     }
-}
 
-// In androidMain, create a context provider
-object AndroidContextProvider {
-    lateinit var applicationContext: Context
-
-    fun initialize(context: Context) {
-        applicationContext = context.applicationContext
+    private fun requestMissingPermissions() {
+        val missingPermissions = DittoSyncPermissions(this).missingPermissions()
+        if (missingPermissions.isNotEmpty()) {
+            this.requestPermissions(missingPermissions, 0)
+        }
     }
 }
 
