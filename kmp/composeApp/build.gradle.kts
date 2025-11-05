@@ -1,6 +1,10 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompileTool
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.util.*
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -32,6 +36,10 @@ kotlin {
     jvm()
 
     sourceSets {
+        commonMain {
+            // Add generated sources directory
+            kotlin.srcDir(layout.buildDirectory.dir("generated-sources"))
+        }
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
@@ -60,6 +68,57 @@ kotlin {
         }
     }
 }
+
+// Ditto Secrets Configuration Generation
+val generatedSources = layout.buildDirectory.dir("generated-sources")
+
+val generateDittoSecrets by tasks.registering {
+    val envFile = rootDir.resolve("../.env")
+    val outputFile = generatedSources.map {
+        it.file("com/edgestudio/config/DittoSecretsConfiguration.kt")
+    }
+    inputs.files(envFile.takeIf { it.exists() }).optional()
+    outputs.file(outputFile)
+
+    doLast {
+        val properties = Properties()
+
+        // Load properties from the .env file in parent directory
+        if (envFile.exists()) {
+            FileInputStream(envFile).use(properties::load)
+        } else {
+            throw FileNotFoundException("""
+                Could not find .env file at ${envFile.path}.
+                Please create a '.env' file in the root of the ditto-edge-studio repository based on the '.env-sample' file.
+                Required properties: DITTO_APP_ID, DITTO_PLAYGROUND_TOKEN, DITTO_AUTH_URL, DITTO_WEBSOCKET_URL
+            """.trimIndent())
+        }
+
+        val kotlinSource = """
+            |package com.edgestudio.config
+            |
+            |/**
+            | * Auto-generated configuration from .env file.
+            | * Do not modify this file directly - edit the .env file instead.
+            | */
+            |object DittoSecretsConfiguration {
+            |${properties.map { "    const val ${it.key}: String = \"${it.value.toString().removeSurrounding("\"")}\"" }.joinToString("\n")}
+            |}
+        """.trimMargin()
+
+        outputFile.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(kotlinSource)
+        }
+    }
+}
+
+// Make Kotlin compilation depend on secret generation
+tasks
+    .withType<AbstractKotlinCompileTool<*>>()
+    .configureEach {
+        dependsOn(generateDittoSecrets)
+    }
 
 android {
     namespace = "com.edgestudio"

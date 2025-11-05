@@ -9,7 +9,7 @@ interface IDittoManager {
     var selectedDatabaseConfig: ESDatabaseConfig?
 
     fun closeSelectedDatabase()
-    suspend fun initializeDittoStoreAsync(databaseConfig: ESDatabaseConfig)
+    suspend fun initializeDittoStoreAsync()
     suspend fun initializeDittoSelectedDatabase(databaseConfig: ESDatabaseConfig): Boolean
     fun selectedAppStartSync()
     fun selectedAppStopSync()
