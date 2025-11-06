@@ -27,9 +27,10 @@ import okio.SYSTEM
 
 private const val TAG = "DittoManager"
 
-class DittoManager
-    : IDittoManager {
-    private val scope = CoroutineScope(SupervisorJob())
+class DittoManager(
+    private val scopeProvider: CoroutineScopeProvider = ProductionCoroutineScopeProvider()
+) : IDittoManager {
+    private val scope = scopeProvider.applicationScope
     //local database
     override var dittoLocalDatabase: Ditto? = null
     private var createLocalDatabaseJob: Job? = null
@@ -43,7 +44,7 @@ class DittoManager
     private var appDataPath = getAppDataDirectory() + "DittoEdgeStudio"
 
     override fun closeLocalDatabase() {
-        closeLocalDatabaseJob = scope.launch(Dispatchers.IO) {
+        closeLocalDatabaseJob = scope.launch(scopeProvider.ioDispatcher) {
             getDittoLocalDatabase()?.stopSync()
             getDittoLocalDatabase()?.close()
             dittoLocalDatabase = null
@@ -57,7 +58,7 @@ class DittoManager
     }
 
     override fun closeSelectedDatabase() {
-        closeSelectedDatabaseJob = scope.launch(Dispatchers.IO) {
+        closeSelectedDatabaseJob = scope.launch(scopeProvider.ioDispatcher) {
             getDittoSelectedDatabase()?.stopSync()
             getDittoSelectedDatabase()?.close()
             dittoSelectedDatabase = null
@@ -100,7 +101,7 @@ class DittoManager
         }
 
         // SDKS-1294: Don't create Ditto in a scope using Dispatchers.IO
-        createLocalDatabaseJob = scope.launch(Dispatchers.Default) {
+        createLocalDatabaseJob = scope.launch(scopeProvider.defaultDispatcher) {
             dittoLocalDatabase = try {
                 //enable logging
                 //TODO update this later based on user config
@@ -148,7 +149,7 @@ class DittoManager
         closeLocalDatabaseJob?.join()
 
         // SDKS-1294: Don't create Ditto in a scope using Dispatchers.IO
-        createSelectedDatabaseJob = scope.launch(Dispatchers.Default) {
+        createSelectedDatabaseJob = scope.launch(scopeProvider.defaultDispatcher) {
             dittoSelectedDatabase = try {
                 val dittoConfig = DittoConfig(
                     databaseId = databaseConfig.databaseId,

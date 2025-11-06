@@ -56,9 +56,15 @@ kotlin {
             // Ditto SDK
             implementation(libs.ditto)
             implementation(libs.okio)
+            // Koin for Dependency Injection
+            implementation(libs.koin.compose)
+            implementation(libs.koin.compose.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.koin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.turbine)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)

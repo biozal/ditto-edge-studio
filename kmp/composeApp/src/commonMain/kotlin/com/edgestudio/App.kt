@@ -19,18 +19,29 @@ import com.edgestudio.ui.theme.LocalThemeManager
 import com.edgestudio.ui.theme.ThemeManager
 import com.edgestudio.ui.components.ThemeToggleButton
 import com.edgestudio.ui.components.QuickThemeToggle
+import com.edgestudio.di.appModules
+import com.edgestudio.ui.screens.InitializationScreen
+import org.koin.compose.KoinApplication
 
 
 @Composable
 @Preview
 fun App(
     modifier: Modifier = Modifier) {
-    val themeManager = remember { ThemeManager() }
-    CompositionLocalProvider(LocalThemeManager provides themeManager) {
-        DittoEdgeStudioTheme(
-            darkTheme = themeManager.isDarkTheme()
-        ) {
-            AppContent()
+    KoinApplication(
+        application = {
+            modules(appModules())
+        }
+    ) {
+        val themeManager = remember { ThemeManager() }
+        CompositionLocalProvider(LocalThemeManager provides themeManager) {
+            DittoEdgeStudioTheme(
+                darkTheme = themeManager.isDarkTheme()
+            ) {
+                InitializationScreen {
+                    AppContent()
+                }
+            }
         }
     }
 }
