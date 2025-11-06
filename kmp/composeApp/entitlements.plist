@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox - Required for App Store -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	
+	<!-- File Access - Read/Write for user-selected files -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	
+	<!-- Network Permissions -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	
+	<!-- Bluetooth Permission for Ditto SDK -->
+	<key>com.apple.security.device.bluetooth</key>
+	<true/>
+	
+	<!-- JVM Runtime Requirements -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+	
+	<!-- Application Identifier - Replace TEAMID with your Apple Developer Team ID -->
+	<!-- Replace com.edgestudio with your actual bundle ID if different -->
+	<key>com.apple.application-identifier</key>
+	<string>E3FRN9JNGJ.com.edgestudio</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>E3FRN9JNGJ</string>
+</dict>
+</plist>
