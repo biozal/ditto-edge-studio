@@ -1125,7 +1125,7 @@ extension MainStudioView {
                 do {
                     try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
                 } catch {
-                    print("Failed to register observables observer: \(error)")
+                    assertionFailure("Failed to register observables observer: \(error)")
                 }
                 
                 if collections.isEmpty {
@@ -1138,7 +1138,7 @@ extension MainStudioView {
                 do {
                     try await SystemRepository.shared.registerSyncStatusObserver()
                 } catch {
-                    print("Failed to register sync status observer: \(error)")
+                    assertionFailure("Failed to register sync status observer: \(error)")
                 }
 
                 isLoading = false

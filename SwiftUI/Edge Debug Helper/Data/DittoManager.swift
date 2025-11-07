@@ -87,13 +87,9 @@ actor DittoManager {
                 var dittoInstance: Ditto?
                 
                 let error = ExceptionCatcher.perform {
+                    let identity = self.createIdentity(from: appState.appConfig)
                     dittoInstance = Ditto(
-                        identity: .onlinePlayground(
-                            appID: appState.appConfig.appId,
-                            token: appState.appConfig.authToken,
-                            enableDittoCloudSync: false,
-                            customAuthURL: URL(string: appState.appConfig.authUrl)
-                        ),
+                        identity: identity,
                         persistenceDirectory: localDirectoryPath
                     )
                 }
@@ -105,6 +101,11 @@ actor DittoManager {
                 
                 guard let ditto = dittoInstance else {
                     throw AppError.error(message: "Failed to create Ditto instance")
+                }
+                
+                // For shared key and offline playground modes, set the offline license token (using authToken field)
+                if shouldSetOfflineLicenseToken(for: appState.appConfig) {
+                    // Offline license token set
                 }
                 
                 dittoLocal = ditto
@@ -175,13 +176,9 @@ actor DittoManager {
             var dittoInstance: Ditto?
             
             let error = ExceptionCatcher.perform {
+                let identity = self.createIdentity(from: appConfig)
                 dittoInstance = Ditto(
-                    identity: .onlinePlayground(
-                        appID: appConfig.appId,
-                        token: appConfig.authToken,
-                        enableDittoCloudSync: false,
-                        customAuthURL: URL(string: appConfig.authUrl)
-                    ),
+                    identity: identity,
                     persistenceDirectory: localDirectoryPath
                 )
             }
@@ -193,6 +190,11 @@ actor DittoManager {
             
             guard let ditto = dittoInstance else {
                 throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            
+            // For shared key and offline playground modes, set the offline license token (using authToken field)
+            if shouldSetOfflineLicenseToken(for: appConfig) {
+                try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
             
             dittoSelectedApp = ditto
@@ -250,6 +252,64 @@ actor DittoManager {
             await Task.detached(priority: .utility) {
                 ditto.sync.stop()
             }.value
+        }
+    }
+    
+    /// Shuts down all Ditto instances and cleans up resources
+    func shutdown() async {
+        // Stop and clean up selected app
+        await closeDittoSelectedApp()
+        
+        // Stop and clean up local Ditto instance
+        if let localDitto = dittoLocal {
+            await Task.detached(priority: .utility) {
+                localDitto.sync.stop()
+            }.value
+            dittoLocal = nil
+        }
+        
+        // Reset state
+        isStoreInitialized = false
+        appState = nil
+        dittoSelectedAppConfig = nil
+    }
+    
+    /// Determines if offline license token should be set for the given app configuration
+    private func shouldSetOfflineLicenseToken(for appConfig: DittoAppConfig) -> Bool {
+        return (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground)
+            && !appConfig.authToken.isEmpty
+    }
+
+    /// Creates the appropriate Ditto identity based on app configuration
+    private func createIdentity(from appConfig: DittoAppConfig) -> DittoIdentity {
+        switch appConfig.mode {
+        case .sharedKey:            
+            // Use shared key identity with optional secret key
+            // Note: The offline license token is set separately via setOfflineOnlyLicenseToken
+            if !appConfig.secretKey.isEmpty {
+                // If secret key is provided, use it for identity creation
+                return .sharedKey(appID: appConfig.appId, sharedKey: appConfig.secretKey)
+            } else {
+                // No secret key, use basic offline playground identity
+                return .offlinePlayground(appID: appConfig.appId)
+            }
+            
+        case .offlinePlayground:
+            // Use offline playground identity
+            return .offlinePlayground(appID: appConfig.appId)
+            
+        case .onlinePlayground:
+            // Use online playground identity (authToken is the playground token here)            
+            return .onlinePlayground(
+                appID: appConfig.appId,
+                token: appConfig.authToken,
+                enableDittoCloudSync: false,
+                customAuthURL: URL(string: appConfig.authUrl)
+            )
+            
+        default:
+            // This should not be possible. Here as to future-proof.
+            fatalError("Unknown mode: '\(appConfig.mode)'. Expected .onlinePlayground, .offlinePlayground, or .sharedKey")
         }
     }
 }

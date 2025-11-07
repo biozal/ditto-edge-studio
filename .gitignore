@@ -10,3 +10,4 @@ rust/target
 rust/.vscode
 rust/debug
 rust/designs
+.claude

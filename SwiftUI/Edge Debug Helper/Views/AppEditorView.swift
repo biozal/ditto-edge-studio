@@ -7,6 +7,32 @@
 
 import SwiftUI
 
+// View modifier to handle paste trimming
+struct PasteTrimModifier: ViewModifier {
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        content
+            .onPasteCommand(of: [.plainText]) { providers in
+                for provider in providers {
+                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                        if let string = string as? String {
+                            DispatchQueue.main.async {
+                                text = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func trimOnPaste(_ text: Binding<String>) -> some View {
+        modifier(PasteTrimModifier(text: text))
+    }
+}
+
 struct AppEditorView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
@@ -20,8 +46,9 @@ struct AppEditorView: View {
         NavigationStack {
             Form {
                 Picker("Mode", selection: $viewModel.mode) {
-                                        Text("Online Playground").tag("online")
-                                        Text("Offline").tag("offline")
+                                        ForEach(AuthMode.allCases, id: \.self) { mode in
+                                            Text(mode.displayName).tag(mode)
+                                        }
                                     }
                                     .pickerStyle(.segmented)
                 Section("Basic Information") {
@@ -35,73 +62,13 @@ struct AppEditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .lineLimit(1)
-                        // Auto-trim whitespace when pasting content
-                        .onPasteCommand(of: [.plainText]) { providers in
-                            for provider in providers {
-                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                    if let string = string as? String {
-                                        DispatchQueue.main.async {
-                                            viewModel.appId = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        .trimOnPaste($viewModel.appId)
                         .padding(.bottom, 5)
-                    
-                    TextField("Playground Token", text: $viewModel.authToken)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1)
-                        // Auto-trim whitespace when pasting token content
-                        .onPasteCommand(of: [.plainText]) { providers in
-                            for provider in providers {
-                                _ = provider.loadObject(ofClass: NSString.self) { string, error in
-                                    if let string = string as? String {
-                                        DispatchQueue.main.async {
-                                            viewModel.authToken = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.bottom, 10)
+
+                    authTokenField(for: viewModel.mode)
                 }
 
-                if (viewModel.mode == "online") {
-                    Section("Ditto Server (BigPeer) Information") {
-                        TextField("Auth URL", text: $viewModel.authUrl)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                        
-                        TextField("Websocket URL", text: $viewModel.websocketUrl)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1)
-                            .padding(.bottom, 10)
-                    }
-                    Section("Ditto Server - HTTP API - Optional") {
-                        VStack(alignment: .leading) {
-                            TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(1)
-                                .padding(.bottom, 8)
-                            
-                            TextField("HTTP API Key", text: $viewModel.httpApiKey)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(1)
-                                .padding(.bottom, 10)
-                            
-                            Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
-                                .padding(.bottom, 5)
-                            
-                            Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.bottom, 10)
-                        }
-                    }
-                }
+                modeSpecificSections(for: viewModel.mode)
             }
 #if os(macOS)
             .padding()
@@ -134,6 +101,100 @@ struct AppEditorView: View {
             }
         }
     }
+
+    // MARK: - View Builders
+
+    @ViewBuilder
+    private func authTokenField(for mode: AuthMode) -> some View {
+        switch mode {
+        case .onlinePlayground, .offlinePlayground:
+            TextField("Playground Token", text: $viewModel.authToken)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .trimOnPaste($viewModel.authToken)
+                .padding(.bottom, 10)
+        case .sharedKey:
+            TextField("Offline License Token", text: $viewModel.authToken)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .trimOnPaste($viewModel.authToken)
+                .padding(.bottom, 5)
+
+            Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func modeSpecificSections(for mode: AuthMode) -> some View {
+        switch mode {
+        case .sharedKey:
+            secretKeySection()
+        case .onlinePlayground:
+            serverInformationSection()
+            httpApiSection()
+        case .offlinePlayground:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func secretKeySection() -> some View {
+        Section("Optional Secret Key") {
+            TextField("Secret Key (Optional)", text: $viewModel.secretKey)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .padding(.bottom, 5)
+
+            Text("Optional secret key for shared key identity encryption. Leave empty if not required.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func serverInformationSection() -> some View {
+        Section("Ditto Server (BigPeer) Information") {
+            TextField("Auth URL", text: $viewModel.authUrl)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+
+            TextField("Websocket URL", text: $viewModel.websocketUrl)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func httpApiSection() -> some View {
+        Section("Ditto Server - HTTP API - Optional") {
+            VStack(alignment: .leading) {
+                TextField("HTTP API URL", text: $viewModel.httpApiUrl)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1)
+                    .padding(.bottom, 8)
+
+                TextField("HTTP API Key", text: $viewModel.httpApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(1)
+                    .padding(.bottom, 10)
+
+                Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
+                    .padding(.bottom, 5)
+
+                Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 10)
+            }
+        }
+    }
 }
 
 #Preview {
@@ -151,8 +212,9 @@ extension AppEditorView {
         var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
-        var mode: String
+        var mode: AuthMode
         var allowUntrustedCerts: Bool
+        var secretKey: String
         
         let isNewItem: Bool
         private let databaseRepository = DatabaseRepository.shared
@@ -168,6 +230,7 @@ extension AppEditorView {
             httpApiKey = appConfig.httpApiKey
             mode = appConfig.mode
             allowUntrustedCerts = appConfig.allowUntrustedCerts
+            secretKey = appConfig.secretKey
             
             if (appConfig.appId == "") {
                 isNewItem = true
@@ -190,7 +253,8 @@ extension AppEditorView {
                                                httpApiUrl: httpApiUrl,
                                                httpApiKey: httpApiKey,
                                                mode: mode,
-                                               allowUntrustedCerts: allowUntrustedCerts)
+                                               allowUntrustedCerts: allowUntrustedCerts,
+                                               secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines))
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {

@@ -50,82 +50,21 @@
 		0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppState.swift,
-				Components/DatabaseCard.swift,
-				Components/MongoSidebarView.swift,
-				Components/PaginationControls.swift,
-				Components/Pill.swift,
-				Components/QueryArgumentEditor.swift,
-				Components/QueryEditorView.swift,
-				Components/QueryResultsView.swift,
-				Components/QueryToolbarView.swift,
-				Components/ResultJsonViewer.swift,
-				Components/SecureField.swift,
-				Components/SubscriptionCard.swift,
-				Components/SubscriptionList.swift,
-				Data/AllowUntrustedCertsDelegate.swift,
-				Data/DittoManager.swift,
+				Models/AuthMode.swift,
 				Models/DittoAppConfig.swift,
-				Models/DittoCollectionModel.swift,
-				Models/DittoObservable.swift,
-				Models/DittoObserveEvent.swift,
-				Models/DittoQueryHistory.swift,
-				Models/DittoSubscription.swift,
-				Models/IndexInfo.swift,
-				Models/QueryResultsDocument.swift,
-				Models/SyncStatus.swift,
-				Views/AppEditorView.swift,
-				Views/MainStudioView.swift,
-				Views/Tools/DiskUsageViewer.swift,
-				Views/Tools/DittoPeersListView.swift,
-				Views/Tools/PermissionsHealthViewer.swift,
-				Views/Tools/PresenceViewer.swift,
-				Views/Tools/ToolsErrorView.swift,
-				Views/Tools/ToolsViewer.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
 		};
 		0D0266822E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				AppState.swift,
-				Components/DatabaseCard.swift,
-				Components/MongoSidebarView.swift,
-				Components/PaginationControls.swift,
-				Components/Pill.swift,
-				Components/QueryArgumentEditor.swift,
-				Components/QueryEditorView.swift,
-				Components/QueryResultsView.swift,
-				Components/QueryToolbarView.swift,
-				Components/ResultJsonViewer.swift,
-				Components/SecureField.swift,
-				Components/SubscriptionCard.swift,
-				Components/SubscriptionList.swift,
-				Data/AllowUntrustedCertsDelegate.swift,
-				Data/DittoManager.swift,
-				Models/DittoAppConfig.swift,
-				Models/DittoCollectionModel.swift,
-				Models/DittoObservable.swift,
-				Models/DittoObserveEvent.swift,
-				Models/DittoQueryHistory.swift,
-				Models/DittoSubscription.swift,
-				Models/IndexInfo.swift,
-				Models/QueryResultsDocument.swift,
-				Models/SyncStatus.swift,
-				Views/AppEditorView.swift,
-				Views/MainStudioView.swift,
-				Views/Tools/DiskUsageViewer.swift,
-				Views/Tools/DittoPeersListView.swift,
-				Views/Tools/PermissionsHealthViewer.swift,
-				Views/Tools/PresenceViewer.swift,
-				Views/Tools/ToolsErrorView.swift,
-				Views/Tools/ToolsViewer.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
 		};
 		0D026A212E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug Helper" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
 			);
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
@@ -133,6 +72,7 @@
 		0D026A222E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug HelperTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
