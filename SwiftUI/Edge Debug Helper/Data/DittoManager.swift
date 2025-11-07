@@ -105,8 +105,6 @@ actor DittoManager {
                 
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
                 if shouldSetOfflineLicenseToken(for: appState.appConfig) {
-                    print("Setting offline license token: `\(appState.appConfig.authToken)`")
-                    try ditto.setOfflineOnlyLicenseToken(appState.appConfig.authToken)
                     print("Successfully set offline license token")
                 }
                 
@@ -310,6 +308,7 @@ actor DittoManager {
             )
             
         default:
+            // This should not be possible. Here as to future-proof.
             fatalError("Unknown mode: '\(appConfig.mode)'. Expected .onlinePlayground, .offlinePlayground, or .sharedKey")
         }
     }
