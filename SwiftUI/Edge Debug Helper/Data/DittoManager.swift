@@ -105,7 +105,7 @@ actor DittoManager {
                 
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
                 if shouldSetOfflineLicenseToken(for: appState.appConfig) {
-                    print("Successfully set offline license token")
+                    // Offline license token set
                 }
                 
                 dittoLocal = ditto
