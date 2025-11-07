@@ -15,46 +15,44 @@ struct TabContainer: View {
   let contentForTab: (TabItem) -> AnyView
   let defaultContent: () -> AnyView
   var titleForTab: ((TabItem) -> String)? // Optional function to get dynamic titles
+  var onNewQuery: (() -> Void)? // Optional callback for new query button
 
   var body: some View {
     VStack(spacing: 0) {
-      if openTabs.isEmpty {
-        // No tabs - show default content
-        defaultContent()
-      } else {
-        // Tab Bar with navigation controls
-        HStack(spacing: 0) {
-          // Tab navigation controls (like Xcode)
-          HStack(spacing: 2) {
-            // Previous tab button with proper hit area
-            Button(action: navigateToPreviousTab) {
-              Image(systemName: "chevron.left")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(canNavigateToPrevious ? Color.primary : Color.secondary.opacity(0.3))
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle()) // Make entire area clickable
-            }
-            .buttonStyle(.plain)
-            .disabled(!canNavigateToPrevious)
-
-            // Next tab button with proper hit area
-            Button(action: navigateToNextTab) {
-              Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(canNavigateToNext ? Color.primary : Color.secondary.opacity(0.3))
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle()) // Make entire area clickable
-            }
-            .buttonStyle(.plain)
-            .disabled(!canNavigateToNext)
+      // Tab Bar - always show (with or without tabs)
+      HStack(spacing: 0) {
+        // Tab navigation controls (always visible)
+        HStack(spacing: 2) {
+          // Previous tab button with proper hit area
+          Button(action: navigateToPreviousTab) {
+            Image(systemName: "chevron.left")
+              .font(.system(size: 10, weight: .medium))
+              .foregroundColor(canNavigateToPrevious ? Color.primary : Color.secondary.opacity(0.3))
+              .frame(width: 24, height: 24)
+              .contentShape(Rectangle()) // Make entire area clickable
           }
-          .padding(.leading, 4)
+          .buttonStyle(.plain)
+          .disabled(!canNavigateToPrevious)
 
-          Divider()
-            .frame(height: 20)
-            .padding(.horizontal, 4)
+          // Next tab button with proper hit area
+          Button(action: navigateToNextTab) {
+            Image(systemName: "chevron.right")
+              .font(.system(size: 10, weight: .medium))
+              .foregroundColor(canNavigateToNext ? Color.primary : Color.secondary.opacity(0.3))
+              .frame(width: 24, height: 24)
+              .contentShape(Rectangle()) // Make entire area clickable
+          }
+          .buttonStyle(.plain)
+          .disabled(!canNavigateToNext)
+        }
+        .padding(.leading, 4)
 
-          // Tab items
+        Divider()
+          .frame(height: 20)
+          .padding(.horizontal, 4)
+
+        // Tab items (only show if tabs exist)
+        if !openTabs.isEmpty {
           HStack(spacing: 2) {
             ForEach(openTabs) { tab in
               TabComponent(
@@ -66,27 +64,40 @@ struct TabContainer: View {
               )
             }
           }
-          .padding(.trailing, 8)
           .padding(.vertical, 4)
-
-          Spacer()
         }
-        .background(Color(NSColor.controlBackgroundColor))
-        .frame(height: 36)
 
-        // Tab Content
-        VStack(spacing: 0) {
-          if let activeTabId = activeTabId,
-            let activeTab = openTabs.first(where: { $0.id == activeTabId })
-          {
-            contentForTab(activeTab)
-          } else {
-            defaultContent()
+        // New Query button (always present)
+        if let newQuery = onNewQuery {
+          Button(action: newQuery) {
+            Image(systemName: "plus.circle")
+              .font(.system(size: 14))
+              .foregroundColor(.secondary)
+              .frame(width: 24, height: 24)
+              .contentShape(Rectangle())
           }
+          .buttonStyle(.plain)
+          .help("New Query")
+          .padding(.leading, 4)
         }
-        .background(Color(NSColor.controlBackgroundColor))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        Spacer()
       }
+      .background(Color(NSColor.controlBackgroundColor))
+      .frame(height: 36)
+
+      // Tab Content
+      VStack(spacing: 0) {
+        if let activeTabId = activeTabId,
+          let activeTab = openTabs.first(where: { $0.id == activeTabId })
+        {
+          contentForTab(activeTab)
+        } else {
+          defaultContent()
+        }
+      }
+      .background(Color(NSColor.controlBackgroundColor))
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
@@ -191,12 +202,16 @@ struct TabComponent: View {
     }
     .fixedSize(horizontal: true, vertical: false)  // Size to content width
     .contentShape(Rectangle())  // defines a clear hit-test area
-    .allowsHitTesting(true)  // make sure the root accepts events
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.1)) {
         isHoveringTab = hovering
       }
     }
+    #if os(macOS)
+    .background(
+      MiddleClickHandler(onMiddleClick: onClose)
+    )
+    #endif
   }
 
   private var backgroundColor: Color {
@@ -207,3 +222,62 @@ struct TabComponent: View {
     }
   }
 }
+
+#if os(macOS)
+// Helper view to detect middle-click on macOS
+struct MiddleClickHandler: NSViewRepresentable {
+  let onMiddleClick: () -> Void
+
+  func makeNSView(context: Context) -> NSView {
+    let view = MiddleClickView()
+    view.onMiddleClick = onMiddleClick
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    if let middleClickView = nsView as? MiddleClickView {
+      middleClickView.onMiddleClick = onMiddleClick
+    }
+  }
+
+  class MiddleClickView: NSView {
+    var onMiddleClick: (() -> Void)?
+    private var eventMonitor: Any?
+
+    override init(frame frameRect: NSRect) {
+      super.init(frame: frameRect)
+      self.wantsLayer = true
+
+      // Monitor for other mouse down events (middle/auxiliary buttons)
+      eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+        guard let self = self else { return event }
+
+        // Check if the click is within this view's bounds
+        let locationInWindow = event.locationInWindow
+        let locationInView = self.convert(locationInWindow, from: nil)
+
+        if self.bounds.contains(locationInView) && event.buttonNumber == 2 {
+          self.onMiddleClick?()
+          return nil  // Consume the event
+        }
+
+        return event  // Pass through if not middle click or not in bounds
+      }
+    }
+
+    required init?(coder: NSCoder) {
+      fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+      if let monitor = eventMonitor {
+        NSEvent.removeMonitor(monitor)
+      }
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+      return true
+    }
+  }
+}
+#endif

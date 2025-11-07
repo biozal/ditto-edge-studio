@@ -34,6 +34,9 @@ struct QueryResultsView: View {
     // Cached collection name to avoid recomputing on every view update
     @State private var collectionName: String? = nil
 
+    // Confirmation alert state
+    @State private var showDeleteAllConfirmation = false
+
     // Access singleton repository directly
     private var mappingRepository: MapFieldMappingRepository {
         MapFieldMappingRepository.shared
@@ -46,7 +49,6 @@ struct QueryResultsView: View {
     private func updateCollectionName() {
         let extracted = DQLQueryParser.extractCollectionName(from: queryText)
         if extracted != collectionName {
-            print("[QueryResultsView] Collection name changed from '\(collectionName ?? "nil")' to '\(extracted ?? "nil")'")
             collectionName = extracted
         }
     }
@@ -65,14 +67,13 @@ struct QueryResultsView: View {
                     return id == documentId
                 }
             } catch {
-                print("[QueryResultsView] ERROR deleting document: \(error)")
+                // Errors are already handled by QueryService
             }
         }
     }
 
     private func handleDeleteAll() {
         guard let collection = collectionName else {
-            print("[QueryResultsView] Cannot delete all: no collection name found")
             return
         }
 
@@ -81,11 +82,8 @@ struct QueryResultsView: View {
                 // Extract all document IDs from results
                 let documentIds = extractAllDocumentIds()
                 guard !documentIds.isEmpty else {
-                    print("[QueryResultsView] No document IDs found to delete")
                     return
                 }
-
-                print("[QueryResultsView] Deleting \(documentIds.count) documents from collection: \(collection)")
 
                 // Create DELETE query with WHERE _id IN clause
                 try await QueryService.shared.deleteDocuments(documentIds: documentIds, collection: collection)
@@ -93,7 +91,7 @@ struct QueryResultsView: View {
                 // Clear results after successful deletion
                 jsonResults = []
             } catch {
-                print("[QueryResultsView] ERROR deleting all documents: \(error)")
+                // Errors are already handled by QueryService
             }
         }
     }
@@ -159,7 +157,7 @@ struct QueryResultsView: View {
 
                 // Delete All button
                 Button {
-                    handleDeleteAll()
+                    showDeleteAllConfirmation = true
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash.fill")
@@ -298,21 +296,26 @@ struct QueryResultsView: View {
         .onChange(of: collectionName) { _, _ in
             loadFieldMapping()
         }
+        .alert("Delete All Documents", isPresented: $showDeleteAllConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete All", role: .destructive) {
+                handleDeleteAll()
+            }
+        } message: {
+            Text("Are you sure you want to delete all \(jsonResults.count) document(s) from the database? This action cannot be undone.")
+        }
     }
 
     // MARK: - Map Field Mapping Methods
 
     private func loadFieldMapping() {
         guard !appId.isEmpty, let collection = collectionName else {
-            print("[QueryResultsView] loadFieldMapping skipped: appId='\(appId)', collection='\(collectionName ?? "nil")'")
             return
         }
 
-        print("[QueryResultsView] Loading field mapping for \(appId)/\(collection)")
         let mapping = mappingRepository.getMapping(appId: appId, collectionName: collection)
         latitudeField = mapping.latitudeField
         longitudeField = mapping.longitudeField
-        print("[QueryResultsView] Loaded mapping: lat=\(latitudeField), lon=\(longitudeField)")
 
         updateAvailableFields()
     }
@@ -348,7 +351,6 @@ struct QueryResultsView: View {
         )
 
         mappingRepository.saveMapping(mapping)
-        print("[QueryResultsView] Saved map field mapping: lat=\(latitudeField), lon=\(longitudeField) for \(appId)/\(collection)")
     }
 
     private func flattenJsonResults() -> String {

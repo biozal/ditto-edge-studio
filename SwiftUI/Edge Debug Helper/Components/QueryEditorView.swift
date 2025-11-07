@@ -13,6 +13,7 @@ struct QueryEditorView: View {
     @Binding var selectedExecuteMode: String
     @Binding var isLoading: Bool
     var onExecuteQuery: () async -> Void
+    var onAddToFavorites: (() async -> Void)?
 
     @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
 
@@ -77,6 +78,24 @@ struct QueryEditorView: View {
                 }
 
                 Spacer()
+
+                // Add to Favorites button
+                if let addToFavorites = onAddToFavorites, !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button {
+                        Task {
+                            await addToFavorites()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star")
+                            Text("Add to Favorites")
+                        }
+                        .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Add current query to favorites")
+                    .padding(.trailing, 8)
+                }
 
                 // Auto-fetch toggle (only show if query has attachments)
                 if hasAttachments {

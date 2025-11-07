@@ -62,8 +62,6 @@ actor DittoManager {
                 )[0]
                 .appendingPathComponent("ditto_appconfig")
 
-                print("[DittoManager] Will initialize LOCAL Ditto at: \(localDirectoryPath.path)")
-
                 //validate that the dittoConfig.plist file is valid
                 if appState.appConfig.appId.isEmpty
                     || appState.appConfig.appId == "put appId here"
@@ -141,24 +139,19 @@ actor DittoManager {
 
     /// Wipes the corrupted database directory for recovery
     private func clearCorruptedDatabase(at persistenceDirectory: URL) async throws {
-        print("[DittoManager] 🔧 Clearing corrupted database at: \(persistenceDirectory.path)")
-
         // Check if directory exists
         guard FileManager.default.fileExists(atPath: persistenceDirectory.path) else {
-            print("[DittoManager] Database directory does not exist, nothing to clear")
             return
         }
 
         // Delete the entire directory
         try FileManager.default.removeItem(at: persistenceDirectory)
-        print("[DittoManager] ✅ Corrupted database cleared successfully")
 
         // Recreate the directory
         try FileManager.default.createDirectory(
             at: persistenceDirectory,
             withIntermediateDirectories: true
         )
-        print("[DittoManager] ✅ Fresh directory created")
     }
 
     /// Safely initializes a Ditto instance with automatic corruption recovery
@@ -170,9 +163,7 @@ actor DittoManager {
     ) async throws -> Ditto {
         var lastError: Error?
 
-        for attempt in 1...maxRetries {
-            print("[DittoManager] Initialization attempt \(attempt)/\(maxRetries)")
-
+        for _ in 1...maxRetries {
             // Ensure directory exists
             if !FileManager.default.fileExists(atPath: persistenceDirectory.path) {
                 try FileManager.default.createDirectory(
@@ -194,11 +185,9 @@ actor DittoManager {
             // Check for initialization errors
             if let error = error {
                 lastError = error
-                print("[DittoManager] ⚠️ Initialization failed: \(error.localizedDescription)")
 
                 // Check if this is a corruption error
                 if isDatabaseCorruptionError(error) {
-                    print("[DittoManager] 🔧 Detected database corruption, clearing and retrying...")
                     try await clearCorruptedDatabase(at: persistenceDirectory)
                     continue
                 } else {
@@ -212,7 +201,6 @@ actor DittoManager {
             }
 
             // Successfully initialized
-            print("[DittoManager] ✅ Ditto initialized successfully on attempt \(attempt)")
             return ditto
         }
 
@@ -222,11 +210,8 @@ actor DittoManager {
     }
 
     func wipeDatabaseForApp(_ appConfig: DittoAppConfig) async throws {
-        print("[DittoManager] Wiping database for app: \(appConfig.name)")
-
         // If this is the currently selected app, close it first
         if let selectedConfig = dittoSelectedAppConfig, selectedConfig._id == appConfig._id {
-            print("[DittoManager] Closing currently selected app before wiping database")
             await closeDittoSelectedApp()
         }
 
@@ -243,14 +228,11 @@ actor DittoManager {
 
         // Check if directory exists
         guard FileManager.default.fileExists(atPath: localDirectoryPath.path) else {
-            print("[DittoManager] Database directory does not exist: \(localDirectoryPath.path)")
             return
         }
 
         // Delete the directory
-        print("[DittoManager] Deleting database directory: \(localDirectoryPath.path)")
         try FileManager.default.removeItem(at: localDirectoryPath)
-        print("[DittoManager] Database wiped successfully")
     }
 
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
@@ -271,9 +253,6 @@ actor DittoManager {
             )[0]
                 .appendingPathComponent("ditto_apps")
                 .appendingPathComponent("\(dbname)-\(appConfig.appId)")
-
-            print("[DittoManager] Will initialize Ditto at: \(localDirectoryPath.path)")
-            print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
 
             // Validate inputs before trying to create Ditto
             guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {

@@ -60,9 +60,17 @@ struct ResultTableView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if parsedItems.isEmpty {
-                Text(hasExecutedQuery ? "No data to display" : "Run a query for data")
-                    .foregroundColor(.secondary)
-                    .padding()
+                if hasExecutedQuery {
+                    // Show record count for executed query with no results
+                    Text("0 records found")
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    // Show message when no query has been executed
+                    Text("Run a query for data")
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
             } else {
                 // Header row
                 HStack(alignment: .top, spacing: 0) {
@@ -101,15 +109,9 @@ struct ResultTableView: View {
                         },
                         onDelete: onDelete,
                         onRowTap: { rowIndex in
-                            print("[ResultTableView] Row tapped, index: \(rowIndex)")
-                            print("[ResultTableView] Total items: \(items.count)")
                             if rowIndex < items.count {
                                 let record = items[rowIndex]
-                                print("[ResultTableView] Record at index \(rowIndex): \(record.prefix(200))")
                                 modalRecord = ModalRecord(jsonString: record, index: rowIndex)
-                                print("[ResultTableView] modalRecord set with data")
-                            } else {
-                                print("[ResultTableView] ERROR: Index out of bounds!")
                             }
                         },
                         onCopyRow: copyRowToClipboard
@@ -123,12 +125,6 @@ struct ResultTableView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(item: $modalRecord) { record in
-            let _ = print("[ResultTableView] ===== SHEET PRESENTING =====")
-            let _ = print("[ResultTableView] Presenting modal with record at index \(String(describing: record.index))")
-            let _ = print("[ResultTableView] Record length: \(record.jsonString.count) chars")
-            let _ = print("[ResultTableView] Record preview: \(record.jsonString.prefix(100))")
-            let _ = print("[ResultTableView] attachmentFields: \(attachmentFields)")
-
             RecordDetailModal(
                 jsonString: record.jsonString,
                 index: record.index,
@@ -205,7 +201,6 @@ struct TableRow: View {
             if let docId = documentId, let deleteHandler = onDelete {
                 Divider()
                 Button(role: .destructive) {
-                    print("[ResultTableView] Delete requested for document ID: \(docId)")
                     deleteHandler(docId, "")
                 } label: {
                     Label("Delete Document", systemImage: "trash")

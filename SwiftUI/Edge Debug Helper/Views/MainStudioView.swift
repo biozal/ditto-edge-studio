@@ -57,8 +57,6 @@ struct MainStudioView: View {
                     storeExplorerSidebarView()
                 case "Query":
                     querySidebarView()
-                case "Favorites":
-                    favoritesSidebarView()
                 case "Ditto Tools":
                     dittoToolsSidebarView()
                 default:
@@ -68,39 +66,32 @@ struct MainStudioView: View {
 
                 //Bottom Toolbar in Sidebar
                     HStack {
-                        Menu {
-                        Button(
-                            "Add Subscription",
-                            systemImage: "arrow.trianglehead.2.clockwise"
-                        ) {
-                            viewModel.editorSubscription =
-                                DittoSubscription.new()
-                            viewModel.actionSheetMode = .subscription
-                        }
-                        Button("Add Observer", systemImage: "eye") {
-                            viewModel.editorObservable = DittoObservable.new()
-                            viewModel.actionSheetMode = .observer
-                        }
-                    } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.title2)
-                            .padding(4)
-                    }
-                    Spacer()
-                    if viewModel.selectedMenuItem.name == "Query" {
-                        Button {
-                            Task {
-                                try await HistoryRepository.shared
-                                    .clearQueryHistory()
+                        // Store Explorer pane: +subscription/+observer menu
+                        if viewModel.selectedMenuItem.name == "Store Explorer" {
+                            Menu {
+                                Button(
+                                    "Add Subscription",
+                                    systemImage: "arrow.trianglehead.2.clockwise"
+                                ) {
+                                    viewModel.editorSubscription =
+                                        DittoSubscription.new()
+                                    viewModel.actionSheetMode = .subscription
+                                }
+                                Button("Add Observer", systemImage: "eye") {
+                                    viewModel.editorObservable = DittoObservable.new()
+                                    viewModel.actionSheetMode = .observer
+                                }
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.title2)
+                                    .padding(4)
                             }
-                        } label: {
-                            Label("Clear History", systemImage: "trash")
-                                .labelStyle(.iconOnly)
                         }
+
+                        Spacer()
                     }
-                }
-                .padding(.leading, 4)
-                .padding(.bottom, 6)
+                    .padding(.leading, 4)
+                    .padding(.bottom, 6)
             }
             .padding(.leading, 8)
             .padding(.trailing, 8)
@@ -112,8 +103,6 @@ struct MainStudioView: View {
                 storeExplorerTabView()
             case "Query":
                 queryTabView()
-            case "Favorites":
-                queryDetailView()
             case "Observer":
                 observeDetailView()
             case "Ditto Tools":
@@ -286,119 +275,185 @@ extension MainStudioView {
     }
 
     func querySidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Query History")
+        return VStack(alignment: .leading, spacing: 0) {
+            // History Section control at top
+            HStack(spacing: 4) {
+                Spacer()
 
-            // New Query button
-            Button(action: {
-                viewModel.openQueryTab("")  // Open empty query
-            }) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                    Text("New Query")
-                        .font(.system(size: 13))
-                    Spacer()
+                // Clear History menu
+                Menu {
+                    Button("Clear History", systemImage: "trash", role: .destructive) {
+                        Task {
+                            try await HistoryRepository.shared.clearQueryHistory()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.1))
-                .cornerRadius(6)
+                .fixedSize()
+                .buttonStyle(.plain)
+                .menuStyle(.borderlessButton)
             }
-            .buttonStyle(.plain)
             .padding(.horizontal, 8)
-            .padding(.bottom, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
 
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading History...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.history.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No History",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No queries have been ran or query history has been cleared."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                List(viewModel.history) { query in
-                    VStack(alignment: .leading) {
-                        Text(query.query)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .font(.system(.body, design: .monospaced))
+            // Favorites Section (Collapsible)
+            VStack(alignment: .leading, spacing: 0) {
+                Button(action: {
+                    viewModel.isFavoritesExpanded.toggle()
+                }) {
+                    HStack {
+                        Image(systemName: viewModel.isFavoritesExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Text("Favorites")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(viewModel.favorites.count)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
                     }
-                    .onTapGesture {
-                        // Open query in a new tab
-                        viewModel.openQueryTab(query.query)
-                    }
-                    #if os(macOS)
-                        .contextMenu {
-                            Button {
-                                Task {
-                                    do {
-                                        try await HistoryRepository.shared
-                                        .deleteQueryHistory(query.id)
-                                    }catch{
-                                        appState.setError(error)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+
+                if viewModel.isFavoritesExpanded {
+                    if viewModel.favorites.isEmpty {
+                        Text("No favorites")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(viewModel.favorites) { query in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(query.query)
+                                    .lineLimit(3)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .font(.system(size: 12, design: .monospaced))
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 6)
+                            .onTapGesture {
+                                viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                            }
+                            #if os(macOS)
+                                .contextMenu {
+                                    Button {
+                                        Task {
+                                            do {
+                                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                            } catch {
+                                                appState.setError(error)
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Remove from Favorites", systemImage: "trash")
+                                            .labelStyle(.titleAndIcon)
                                     }
                                 }
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
-                            Button {
-                                Task {
-                                    do {
-                                        try await FavoritesRepository.shared.saveFavorite(query)
-                                    }catch{
-                                        appState.setError(error)
-                                    }
-                                }
-                            } label: {
-                                Label(
-                                    "Favorite",
-                                    systemImage: "star"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
+                            #endif
+                            Divider()
+                                .padding(.leading, 24)
                         }
-                    #else
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .cancel) {
-                                Task {
-                                    try await FavoritesRepository.shared
-                                    .saveFavorite(query)
-                                }
-                            } label: {
-                                Label("Favorite", systemImage: "star")
-                            }
-
-                            Button(role: .destructive) {
-                                Task {
-                                    try await DittoManager.shared
-                                    .deleteQueryHistory(query.id)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                    #endif
-                    Divider()
+                    }
                 }
             }
+
+            // History Section (Collapsible)
+            VStack(alignment: .leading, spacing: 0) {
+                Button(action: {
+                    viewModel.isHistoryExpanded.toggle()
+                }) {
+                    HStack {
+                        Image(systemName: viewModel.isHistoryExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Text("History")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(viewModel.history.count)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+
+                if viewModel.isHistoryExpanded {
+                    // History items (collapsible)
+                    if viewModel.isLoading {
+                        ProgressView("Loading...")
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+                    } else if viewModel.history.isEmpty {
+                        Text("No history")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+                    } else {
+                        ScrollView {
+                            ForEach(viewModel.history) { query in
+                                VStack(alignment: .leading, spacing: 0) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(query.query)
+                                            .lineLimit(3)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .font(.system(size: 12, design: .monospaced))
+                                    }
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 6)
+                                    .onTapGesture {
+                                        viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                                    }
+                                    #if os(macOS)
+                                    .contextMenu {
+                                        Button {
+                                            Task {
+                                                do {
+                                                    try await FavoritesRepository.shared.saveFavorite(query)
+                                                } catch {
+                                                    appState.setError(error)
+                                                }
+                                            }
+                                        } label: {
+                                            Label("Add to Favorites", systemImage: "star")
+                                                .labelStyle(.titleAndIcon)
+                                        }
+                                        Button {
+                                            Task {
+                                                do {
+                                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                                } catch {
+                                                    appState.setError(error)
+                                                }
+                                            }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                                .labelStyle(.titleAndIcon)
+                                        }
+                                    }
+                                    #endif
+
+                                    Divider()
+                                        .padding(.leading, 24)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer()
         }
     }
 
@@ -587,10 +642,8 @@ extension MainStudioView {
                     viewModel.openTab(for: .network)
                 },
                 onSelectSubscription: { subscription in
-                    let selectedItem = SelectedItem.subscription(subscription.id)
-                    viewModel.selectedItem = selectedItem
-                    viewModel.openTab(for: selectedItem)
-                    viewModel.selectedQuery = subscription.query
+                    // Open subscription query in a query editor tab
+                    viewModel.openQueryTab(subscription.query)
                     Task {
                         await executeQuery()
                     }
@@ -611,10 +664,9 @@ extension MainStudioView {
                     }
                 },
                 onSelectCollection: { collection in
-                    let selectedItem = SelectedItem.collection(collection.name)
-                    viewModel.selectedItem = selectedItem
-                    viewModel.openTab(for: selectedItem)
-                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    // Open collection query in a query editor tab
+                    let query = "SELECT * FROM \(collection.name)"
+                    viewModel.openQueryTab(query)
                     Task {
                         await executeQuery()
                     }
@@ -709,6 +761,9 @@ extension MainStudioView {
             },
             titleForTab: { tab in
                 viewModel.getTabTitle(for: tab)
+            },
+            onNewQuery: {
+                viewModel.openQueryTab("")  // Open empty query
             }
         )
     }
@@ -752,11 +807,15 @@ extension MainStudioView {
                         }
                         Spacer()
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
                 )
             },
             titleForTab: { tab in
                 viewModel.getTabTitle(for: tab)
+            },
+            onNewQuery: {
+                viewModel.openQueryTab("")  // Open empty query
             }
         )
     }
@@ -900,7 +959,10 @@ extension MainStudioView {
                         executeModes: $viewModel.executeModes,
                         selectedExecuteMode: $viewModel.selectedExecuteMode,
                         isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
+                        onExecuteQuery: executeQuery,
+                        onAddToFavorites: {
+                            await viewModel.addCurrentQueryToFavorites(appState: appState)
+                        }
                     )
 
                     //bottom half
@@ -919,7 +981,10 @@ extension MainStudioView {
                         executeModes: $viewModel.executeModes,
                         selectedExecuteMode: $viewModel.selectedExecuteMode,
                         isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
+                        onExecuteQuery: executeQuery,
+                        onAddToFavorites: {
+                            await viewModel.addCurrentQueryToFavorites(appState: appState)
+                        }
                     )
                     .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
 
@@ -968,6 +1033,7 @@ extension MainStudioView {
             }
 #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
@@ -1052,6 +1118,7 @@ extension MainStudioView {
                 .navigationTitle("Observer Events")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     fileprivate func observableDetailNoContent() -> some View {
@@ -1064,6 +1131,7 @@ extension MainStudioView {
                 )
             )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     fileprivate func observableDetailSelectedEvent(observeEvent: DittoObserveEvent?) -> some View {
@@ -1147,6 +1215,10 @@ extension MainStudioView {
         var selectedObservableEvents: [DittoObserveEvent] = []
         var mongoCollections: [String] = []
 
+        // Collapsible section states
+        var isHistoryExpanded: Bool = true
+        var isFavoritesExpanded: Bool = true
+
         //query editor view
         var selectedQuery: String
         var executeModes: [String]
@@ -1171,6 +1243,7 @@ extension MainStudioView {
         var activeTabId: UUID?
         var tabQueries: [String: String] = [:] // Maps query tab IDs to their query strings
         var tabTitles: [String: String] = [:] // Maps query tab IDs to their titles
+        var tabResults: [String: [String]] = [:] // Maps query tab IDs to their results
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
@@ -1190,8 +1263,7 @@ extension MainStudioView {
             self.mainMenuItems = [
                 storeExplorerItem,
                 MenuItem(id: 2, name: "Query", icon: "doc.text"),
-                MenuItem(id: 3, name: "Favorites", icon: "star"),
-                MenuItem(id: 4, name: "Ditto Tools", icon: "gearshape"),
+                MenuItem(id: 3, name: "Ditto Tools", icon: "gearshape"),
             ]
 
             //query section
@@ -1299,12 +1371,28 @@ extension MainStudioView {
         func addQueryToHistory(appState: AppState) async {
             if !selectedQuery.isEmpty && selectedQuery.count > 0 {
                 let queryHistory = DittoQueryHistory(
-                    id: UUID().uuidString,
+                    id: UniqueIDGenerator.generateHistoryID(),
                     query: selectedQuery,
                     createdDate: Date().ISO8601Format()
                 )
                 do {
                     try await HistoryRepository.shared.saveQueryHistory(queryHistory)
+                } catch {
+                    appState.setError(error)
+                }
+            }
+        }
+
+        func addCurrentQueryToFavorites(appState: AppState) async {
+            let trimmedQuery = selectedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedQuery.isEmpty {
+                let queryHistory = DittoQueryHistory(
+                    id: UniqueIDGenerator.generateFavoritesID(),
+                    query: trimmedQuery,
+                    createdDate: Date().ISO8601Format()
+                )
+                do {
+                    try await FavoritesRepository.shared.saveFavorite(queryHistory)
                 } catch {
                     appState.setError(error)
                 }
@@ -1441,6 +1529,11 @@ extension MainStudioView {
                         .executeSelectedAppQueryHttp(query: paginatedQuery)
                 }
 
+                // Save results to the current query tab if we're on one
+                if case .query(let queryId) = selectedItem {
+                    tabResults[queryId] = jsonResults
+                }
+
                 // Update current page
                 currentPage = targetPage
                 hasExecutedQuery = true
@@ -1520,6 +1613,20 @@ extension MainStudioView {
                 Task {
                     do {
                         try await ObservableRepository.shared.saveDittoObservable(observer)
+
+                        // Update in the observerables array
+                        await MainActor.run {
+                            if let index = observerables.firstIndex(where: { $0.id == observer.id }) {
+                                observerables[index].name = observer.name
+                                observerables[index].query = observer.query
+                                observerables[index].args = observer.args
+                            }
+
+                            // Update selectedObservable if it matches the edited observer
+                            if selectedObservable?.id == observer.id {
+                                selectedObservable = observer
+                            }
+                        }
                     } catch {
                         appState.setError(error)
                     }
@@ -1595,9 +1702,15 @@ extension MainStudioView {
             }
             observerables[index].storeObserver?.cancel()
             observerables[index].storeObserver = nil
-            selectedEventId = nil
-            observableEvents.removeAll()
-            observableEvents = []
+
+            // Only clear events for this specific observer
+            observableEvents.removeAll { $0.observeId == observable.id }
+
+            // If this was the selected observable, clear selected events too
+            if selectedObservable?.id == observable.id {
+                selectedEventId = nil
+                selectedObservableEvents.removeAll()
+            }
         }
 
         func showObservableEditor(_ observable: DittoObservable) {
@@ -1626,91 +1739,108 @@ extension MainStudioView {
         }
 
         func closeTab(_ tab: TabItem) {
-            print("DEBUG: closeTab called for tab: \(tab.title) with id: \(tab.id)")
-            print("DEBUG: Current open tabs count: \(openTabs.count)")
-            print("DEBUG: Current active tab id: \(String(describing: activeTabId))")
-
             // Find the index of the tab being closed
             guard let closingIndex = openTabs.firstIndex(where: { $0.id == tab.id }) else {
-                print("DEBUG: Tab not found in openTabs array!")
                 return // Tab not found
             }
-
-            print("DEBUG: Tab found at index: \(closingIndex)")
 
             var newActiveTab: TabItem? = nil
 
             // If closed tab was active, determine which tab to select next
             if activeTabId == tab.id {
-                print("DEBUG: Closing the active tab, need to select a new one")
                 // Try to select the next tab (same index after removal)
                 if closingIndex < openTabs.count - 1 {
                     newActiveTab = openTabs[closingIndex + 1]
-                    print("DEBUG: Will select next tab: \(newActiveTab?.title ?? "nil")")
                 }
                 // If no next tab, try the previous tab
                 else if closingIndex > 0 {
                     newActiveTab = openTabs[closingIndex - 1]
-                    print("DEBUG: Will select previous tab: \(newActiveTab?.title ?? "nil")")
                 }
-                // If no other tabs, newActiveTab remains nil
-                else {
-                    print("DEBUG: No other tabs available")
-                }
-            } else {
-                print("DEBUG: Closing non-active tab")
             }
 
             // Remove the tab
-            let countBefore = openTabs.count
             openTabs.removeAll { $0.id == tab.id }
-            let countAfter = openTabs.count
-            print("DEBUG: Removed tab. Count before: \(countBefore), after: \(countAfter)")
 
-            // Clean up the query and title dictionaries if this was a query tab
+            // Clean up the query, title, and results dictionaries if this was a query tab
             if case .query(let queryId) = tab.content {
                 tabQueries.removeValue(forKey: queryId)
                 tabTitles.removeValue(forKey: queryId)
+                tabResults.removeValue(forKey: queryId)
             }
 
             // Update active tab and selected item
             if let newTab = newActiveTab {
                 activeTabId = newTab.id
                 selectedItem = newTab.content
-                print("DEBUG: Set new active tab: \(newTab.title)")
             } else if activeTabId == tab.id {
                 // Only reset if the closed tab was active and no replacement found
                 activeTabId = nil
                 selectedItem = .none
-                print("DEBUG: Reset to no active tab")
             }
-
-            print("DEBUG: closeTab completed. Final tab count: \(openTabs.count)")
         }
 
         func selectTab(_ tab: TabItem) {
+            // Update tab selection
             activeTabId = tab.id
             selectedItem = tab.content
 
-            // If this is a query tab, restore its query text
+            // If this is a query tab, restore its query text and results
             if case .query(let queryId) = tab.content {
-                if let savedQuery = tabQueries[queryId] {
-                    selectedQuery = savedQuery
-                }
+                // Restore query text
+                selectedQuery = tabQueries[queryId] ?? ""
+
+                // Restore the tab's results, or empty array if no results yet
+                let restoredResults = tabResults[queryId] ?? []
+                jsonResults = restoredResults
+
+                // Set hasExecutedQuery based on whether we have results
+                hasExecutedQuery = !restoredResults.isEmpty
+            } else {
+                // For non-query tabs (subscriptions, collections, etc.), keep existing behavior
+                // Results will be managed by the subscription/collection specific logic
             }
         }
 
-        func openQueryTab(_ query: String) {
-            // Generate a unique ID for this query tab
-            let queryId = UUID().uuidString
+        /// Opens a query tab with the given query text
+        /// - Parameters:
+        ///   - query: The query string to execute
+        ///   - uniqueID: Optional uniqueID (with namespace prefix). If nil, generates a new 'query-' prefixed ID
+        ///   - reuseExisting: If true and uniqueID is provided, will reuse an existing tab with that ID if found
+        func openQueryTab(_ query: String, uniqueID: String? = nil, reuseExisting: Bool = true) {
+            let queryId: String
+            let isNewQuery = uniqueID == nil
 
-            // Use a special query case instead of subscription
+            // Determine the query ID
+            if let providedID = uniqueID {
+                queryId = providedID
+
+                // If reuse is enabled and it's not a new query, check for existing tab
+                if reuseExisting && !isNewQuery {
+                    let queryItem = SelectedItem.query(queryId)
+                    if let existingTab = openTabs.first(where: { $0.content == queryItem }) {
+                        // Reuse existing tab - just switch to it
+                        activeTabId = existingTab.id
+                        self.selectedItem = queryItem
+
+                        // Load the stored query and results
+                        if let storedQuery = tabQueries[queryId] {
+                            selectedQuery = storedQuery
+                        }
+                        if let storedResults = tabResults[queryId] {
+                            jsonResults = storedResults
+                        }
+                        return
+                    }
+                }
+            } else {
+                // Generate a new unique ID for a new query
+                queryId = UniqueIDGenerator.generateQueryID()
+            }
+
+            // Create new tab (either no existing tab found, or it's a new query)
             let queryItem = SelectedItem.query(queryId)
-
-            // Generate title from query
             let title = generateTabTitle(from: query)
 
-            // Open the tab
             let newTab = TabItem(
                 title: title,
                 content: queryItem,
@@ -1720,12 +1850,14 @@ extension MainStudioView {
             activeTabId = newTab.id
             self.selectedItem = queryItem
 
-            // Store the query text and title in dictionaries
+            // Store the query text, title, and initialize empty results in dictionaries
             tabQueries[queryId] = query
             tabTitles[queryId] = title
+            tabResults[queryId] = []
 
-            // Set the query text
+            // Set the query text and clear results for new tab
             selectedQuery = query
+            jsonResults = []
         }
 
         // Helper method to update query text and save to dictionary if we're on a query tab

@@ -30,15 +30,11 @@ actor QueryService {
                 return ["No results found"]
             }
         } else {
-            print("[QueryService] Query returned \(results.items.count) items")
-            let resultJsonStrings = results.items.enumerated().compactMap { index, item -> String? in
+            let resultJsonStrings = results.items.compactMap { item -> String? in
                 // Convert [String: Any?] to [String: Any] by removing nil values
                 let cleanedValue = item.value.compactMapValues {
                     $0
                 }
-
-                print("[QueryService] Item[\(index)] keys: \(cleanedValue.keys.sorted())")
-                print("[QueryService] Item[\(index)] full value: \(cleanedValue)")
 
                 do {
                     let data = try JSONSerialization.data(
@@ -50,17 +46,11 @@ actor QueryService {
                             .withoutEscapingSlashes,
                         ]
                     )
-                    if let jsonString = String(data: data, encoding: .utf8) {
-                        print("[QueryService] Item[\(index)] JSON length: \(jsonString.count) chars")
-                        return jsonString
-                    }
-                    return nil
+                    return String(data: data, encoding: .utf8)
                 } catch {
-                    print("[QueryService] ERROR Item[\(index)] JSON serialization error: \(error)")
                     return nil
                 }
             }
-            print("[QueryService] Returning \(resultJsonStrings.count) JSON strings")
             return resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
         }
     }
@@ -147,20 +137,13 @@ actor QueryService {
             throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
         }
 
-        print("[QueryService] Deleting document with ID: \(documentId) from collection: \(collection)")
-
         let query = "DELETE FROM \(collection) WHERE _id = :id"
         let arguments = ["id": documentId]
-        print("[QueryService] Executing delete query: \(query)")
-        print("[QueryService] Query arguments: \(arguments)")
-        print("[QueryService] Substituted query: DELETE FROM \(collection) WHERE _id = '\(documentId)'")
-
         let results = try await ditto.store.execute(query: query, arguments: arguments)
 
-        if !results.mutatedDocumentIDs().isEmpty {
-            print("[QueryService] Successfully deleted document. Mutated IDs: \(results.mutatedDocumentIDs())")
-        } else {
-            print("[QueryService] WARNING: Delete query executed but no documents were mutated")
+        // Verify deletion occurred
+        guard !results.mutatedDocumentIDs().isEmpty else {
+            throw NSError(domain: "QueryService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Delete query executed but no documents were mutated"])
         }
     }
 
@@ -171,22 +154,16 @@ actor QueryService {
         }
 
         guard !documentIds.isEmpty else {
-            print("[QueryService] No document IDs provided for deletion")
             return
         }
-
-        print("[QueryService] Deleting \(documentIds.count) documents from collection: \(collection)")
 
         // Batch deletions to avoid huge SQL queries
         // Process in chunks of 100 to keep queries manageable
         let batchSize = 100
-        var totalDeleted = 0
 
         for batchStart in stride(from: 0, to: documentIds.count, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, documentIds.count)
             let batch = Array(documentIds[batchStart..<batchEnd])
-
-            print("[QueryService] Processing batch \(batchStart/batchSize + 1) of \((documentIds.count + batchSize - 1) / batchSize): \(batch.count) documents")
 
             // Create WHERE clause with IN operator for this batch
             var arguments: [String: Any] = [:]
@@ -201,17 +178,7 @@ actor QueryService {
             let placeholderString = placeholders.joined(separator: ", ")
             let query = "DELETE FROM \(collection) WHERE _id IN (\(placeholderString))"
 
-            let results = try await ditto.store.execute(query: query, arguments: arguments)
-            let deletedCount = results.mutatedDocumentIDs().count
-            totalDeleted += deletedCount
-
-            if deletedCount > 0 {
-                print("[QueryService] Batch deleted \(deletedCount) documents")
-            } else {
-                print("[QueryService] WARNING: Batch delete executed but no documents were mutated")
-            }
+            _ = try await ditto.store.execute(query: query, arguments: arguments)
         }
-
-        print("[QueryService] Successfully deleted \(totalDeleted) documents total")
     }
 }

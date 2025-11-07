@@ -56,15 +56,14 @@ struct MapResultView: View {
             overlayView
             counterView
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: jsonResults) { _, newResults in
             updateAnnotations(from: newResults)
         }
         .onChange(of: latitudeField) { _, _ in
-            print("[MapResultView] Latitude field changed to: \(latitudeField)")
             updateAnnotations(from: jsonResults)
         }
         .onChange(of: longitudeField) { _, _ in
-            print("[MapResultView] Longitude field changed to: \(longitudeField)")
             updateAnnotations(from: jsonResults)
         }
         .onAppear {
@@ -83,9 +82,7 @@ struct MapResultView: View {
             }
         }
         .mapStyle(.standard)
-        .onAppear {
-            print("[MapResultView] Map appeared with \(annotations.count) annotations")
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var customMarker: some View {
@@ -217,19 +214,13 @@ struct MapResultView: View {
     }
 
     private func updateAnnotations(from results: [String]) {
-        print("[MapResultView] updateAnnotations called with \(results.count) results")
-        print("[MapResultView] Looking for fields: lat='\(latitudeField)', lon='\(longitudeField)'")
-
         var newAnnotations: [LocationAnnotation] = []
 
         for (index, jsonString) in results.enumerated() {
             guard let data = jsonString.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                print("[MapResultView] Failed to parse JSON for result \(index)")
                 continue
             }
-
-            print("[MapResultView] Result \(index) keys: \(json.keys.joined(separator: ", "))")
 
             // Try to extract lat and lon fields using configured field names
             if let lat = extractDouble(from: json, key: latitudeField),
@@ -237,14 +228,8 @@ struct MapResultView: View {
 
                 // Validate coordinates are within valid ranges
                 guard lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 else {
-                    print("[MapResultView] ⚠️ Invalid coordinate range at \(index): lat=\(lat), lon=\(lon)")
                     continue
                 }
-
-                print("[MapResultView] ✓ Found coordinates at \(index):")
-                print("[MapResultView]   - Field '\(latitudeField)' = \(lat) (will be used as LATITUDE)")
-                print("[MapResultView]   - Field '\(longitudeField)' = \(lon) (will be used as LONGITUDE)")
-                print("[MapResultView]   - Creating coordinate: CLLocationCoordinate2D(latitude: \(lat), longitude: \(lon))")
 
                 let annotation = LocationAnnotation(
                     id: UUID(),
@@ -252,29 +237,14 @@ struct MapResultView: View {
                     title: "Location \(index + 1)"
                 )
                 newAnnotations.append(annotation)
-            } else {
-                print("[MapResultView] ✗ No valid coordinates found at \(index)")
-                print("[MapResultView]   - lat field '\(latitudeField)': \(json[latitudeField] ?? "nil")")
-                print("[MapResultView]   - lon field '\(longitudeField)': \(json[longitudeField] ?? "nil")")
             }
         }
 
-        print("[MapResultView] Created \(newAnnotations.count) annotations")
-
-        // Log details of each annotation
-        for (i, annotation) in newAnnotations.enumerated() {
-            print("[MapResultView]   Annotation \(i): \(annotation.coordinate.latitude), \(annotation.coordinate.longitude)")
-        }
-
         annotations = newAnnotations
-        print("[MapResultView] annotations array now has \(annotations.count) items")
 
         // Center map on annotations if we have any
         if !newAnnotations.isEmpty {
-            print("[MapResultView] Centering map on \(newAnnotations.count) annotations")
             centerMapOnAnnotations()
-        } else {
-            print("[MapResultView] No annotations to center on")
         }
     }
 

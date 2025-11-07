@@ -29,31 +29,15 @@ struct ResultCardView: View {
                         jsonString: items[index],
                         index: index,
                         onTap: {
-                            print("[ResultCardView] Card tapped for index: \(index)")
-                            print("[ResultCardView] Setting selectedRecord to item at index \(index)")
                             selectedRecord = items[index]
                             selectedIndex = index
-                            print("[ResultCardView] Setting showModal to true")
                             showModal = true
-                            print("[ResultCardView] showModal is now: \(showModal)")
                         },
                         onDelete: onDelete
                     )
                 }
             }
             .padding()
-        }
-        .onChange(of: showModal) { oldValue, newValue in
-            print("[ResultCardView] showModal changed from \(oldValue) to \(newValue)")
-            if newValue {
-                print("[ResultCardView] Modal opening with selectedRecord: \(selectedRecord != nil ? "present" : "nil")")
-                if let record = selectedRecord {
-                    print("[ResultCardView] Record length: \(record.count) chars")
-                    print("[ResultCardView] First 200 chars: \(record.prefix(200))")
-                    print("[ResultCardView] Index: \(String(describing: selectedIndex))")
-                    print("[ResultCardView] Attachment fields: \(attachmentFields)")
-                }
-            }
         }
         .sheet(isPresented: $showModal) {
             if let record = selectedRecord {
@@ -235,7 +219,6 @@ struct ResultCard: View {
             if let docId = documentId, let deleteHandler = onDelete {
                 Divider()
                 Button(role: .destructive) {
-                    print("[ResultCard] Delete requested for document ID: \(docId)")
                     deleteHandler(docId, "")  // Collection name will be filled in by the handler
                 } label: {
                     Label("Delete Document", systemImage: "trash")

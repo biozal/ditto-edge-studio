@@ -43,12 +43,8 @@ class MapFieldMappingRepository: ObservableObject {
 
     /// Save or update a mapping
     func saveMapping(_ mapping: MapFieldMapping) {
-        print("[MapFieldMappingRepository] Saving mapping: \(mapping.id)")
-        print("[MapFieldMappingRepository]   - lat field: \(mapping.latitudeField)")
-        print("[MapFieldMappingRepository]   - lon field: \(mapping.longitudeField)")
         mappings[mapping.id] = mapping
         persistMappings()
-        print("[MapFieldMappingRepository] Total mappings in memory: \(mappings.count)")
     }
 
     /// Extract available numeric/coordinate-like fields from sample results
@@ -114,42 +110,25 @@ class MapFieldMappingRepository: ObservableObject {
     // MARK: - Persistence
 
     private func loadMappings() {
-        print("[MapFieldMappingRepository] Loading mappings from UserDefaults...")
         guard let data = UserDefaults.standard.data(forKey: storageKey) else {
-            print("[MapFieldMappingRepository] No saved mappings found")
             return
         }
 
         guard let decoded = try? JSONDecoder().decode([MapFieldMapping].self, from: data) else {
-            print("[MapFieldMappingRepository] Failed to decode mappings")
             return
         }
 
         mappings = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
-        print("[MapFieldMappingRepository] Loaded \(mappings.count) mappings:")
-        for (key, mapping) in mappings {
-            print("[MapFieldMappingRepository]   - \(key): lat=\(mapping.latitudeField), lon=\(mapping.longitudeField)")
-        }
     }
 
     private func persistMappings() {
         let mappingsArray = Array(mappings.values)
-        print("[MapFieldMappingRepository] Persisting \(mappingsArray.count) mappings...")
 
         guard let encoded = try? JSONEncoder().encode(mappingsArray) else {
-            print("[MapFieldMappingRepository] ❌ Failed to encode mappings")
             return
         }
 
         UserDefaults.standard.set(encoded, forKey: storageKey)
         UserDefaults.standard.synchronize()
-        print("[MapFieldMappingRepository] ✓ Mappings persisted to UserDefaults")
-
-        // Verify it was saved
-        if let verification = UserDefaults.standard.data(forKey: storageKey) {
-            print("[MapFieldMappingRepository] ✓ Verified: \(verification.count) bytes saved")
-        } else {
-            print("[MapFieldMappingRepository] ❌ Verification failed: data not found in UserDefaults")
-        }
     }
 }

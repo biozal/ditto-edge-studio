@@ -136,10 +136,7 @@ struct AttachmentFieldView: View {
     }
 
     private func checkLocalAvailability() async {
-        print("[AttachmentFieldView] Checking local availability for \(fieldName)")
-
         guard let token = token else {
-            print("[AttachmentFieldView] No token available for \(fieldName)")
             await MainActor.run {
                 isCheckingLocal = false
             }
@@ -148,7 +145,6 @@ struct AttachmentFieldView: View {
 
         do {
             guard let ditto = await DittoManager.shared.dittoSelectedApp else {
-                print("[AttachmentFieldView] No Ditto instance available")
                 await MainActor.run {
                     isCheckingLocal = false
                 }
@@ -161,25 +157,21 @@ struct AttachmentFieldView: View {
                     do {
                         switch event {
                         case .progress(let downloadedBytes, let totalBytes):
-                            print("[AttachmentFieldView] Progress: \(downloadedBytes)/\(totalBytes)")
                             if totalBytes > 0 {
                                 fetchProgress = Double(downloadedBytes) / Double(totalBytes)
                             }
 
                         case .completed(let attachment):
-                            print("[AttachmentFieldView] Attachment available locally: \(fieldName)")
                             fetchedData = try attachment.getData()
                             isFetching = false
                             isCheckingLocal = false
 
                         case .deleted:
-                            print("[AttachmentFieldView] Attachment deleted: \(fieldName)")
                             isDeleted = true
                             isFetching = false
                             isCheckingLocal = false
                         }
                     } catch {
-                        print("[AttachmentFieldView] ERROR processing attachment: \(error)")
                         fetchError = error.localizedDescription
                         isFetching = false
                         isCheckingLocal = false
@@ -195,12 +187,10 @@ struct AttachmentFieldView: View {
 
             // Auto-fetch if enabled
             if autoFetch {
-                print("[AttachmentFieldView] Auto-fetching attachment: \(fieldName)")
                 await fetchAttachment()
             }
 
         } catch {
-            print("[AttachmentFieldView] ERROR checking attachment: \(error)")
             await MainActor.run {
                 isAvailableLocally = false
                 isCheckingLocal = false
@@ -214,7 +204,6 @@ struct AttachmentFieldView: View {
             return
         }
 
-        print("[AttachmentFieldView] Starting fetch for \(fieldName)")
         isFetching = true
         fetchProgress = 0
         fetchError = nil
@@ -382,6 +371,7 @@ struct AttachmentPreviewInline: View {
     let metadata: AttachmentMetadata?
 
     @State private var showSaveDialog = false
+    @State private var saveError: String?
 
     private var isImage: Bool {
         guard let type = metadata?.type else {
@@ -463,15 +453,14 @@ struct AttachmentPreviewInline: View {
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else {
-                print("[AttachmentPreviewInline] Save cancelled")
                 return
             }
 
             do {
                 try data.write(to: url)
-                print("[AttachmentPreviewInline] Saved attachment to \(url)")
+                saveError = nil  // Clear any previous errors
             } catch {
-                print("[AttachmentPreviewInline] Failed to save attachment: \(error)")
+                saveError = "Failed to save attachment: \(error.localizedDescription)"
             }
         }
         #else
@@ -502,6 +491,7 @@ struct AttachmentPreview: View {
     let metadata: AttachmentMetadata?
 
     @State private var showSaveDialog = false
+    @State private var saveError: String?
 
     private var isImage: Bool {
         guard let type = metadata?.type else {
@@ -585,15 +575,14 @@ struct AttachmentPreview: View {
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else {
-                print("[AttachmentPreview] Save cancelled")
                 return
             }
 
             do {
                 try data.write(to: url)
-                print("[AttachmentPreview] Saved attachment to \(url)")
+                saveError = nil  // Clear any previous errors
             } catch {
-                print("[AttachmentPreview] Failed to save attachment: \(error)")
+                saveError = "Failed to save attachment: \(error.localizedDescription)"
             }
         }
         #else

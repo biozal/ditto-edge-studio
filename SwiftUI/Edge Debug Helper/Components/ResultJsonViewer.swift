@@ -187,9 +187,19 @@ struct ResultsList: View {
 
     var body: some View {
         if items.isEmpty {
-            Text(hasExecutedQuery ? "No data to display" : "Run a query for data")
-                .foregroundColor(.secondary)
-                .padding()
+            if hasExecutedQuery {
+                // Show empty JSON array for executed query with no results
+                Text("[]")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .padding()
+            } else {
+                // Show message when no query has been executed
+                Text("Run a query for data")
+                    .foregroundColor(.secondary)
+                    .padding()
+            }
         } else {
             Text(jsonArrayText)
                 .font(.system(.body, design: .monospaced))

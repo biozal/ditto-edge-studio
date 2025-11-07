@@ -198,6 +198,7 @@ struct DefaultStoreExplorerView: View {
             }
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }
@@ -214,6 +215,7 @@ struct ObserverDetailView: View {
             Text("Events: \(events.count)")
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }
