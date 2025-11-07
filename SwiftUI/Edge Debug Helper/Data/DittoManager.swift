@@ -84,9 +84,7 @@ actor DittoManager {
                 print("[DittoManager] Local persistence directory: \(localDirectoryPath.path)")
 
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
-                if (appState.appConfig.mode == .sharedKey || appState.appConfig.mode == .offlinePlayground) && !appState.appConfig.authToken.isEmpty {
-                    print("Setting offline license token: `\(appState.appConfig.authToken)`")
-                    try ditto.setOfflineOnlyLicenseToken(appState.appConfig.authToken)
+                if shouldSetOfflineLicenseToken(for: appState.appConfig) {
                     print("Successfully set offline license token")
                 }
 
@@ -281,7 +279,7 @@ actor DittoManager {
             print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
 
             // For shared key and offline playground modes, set the offline license token (using authToken field)
-            if (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground) && !appConfig.authToken.isEmpty {
+            if shouldSetOfflineLicenseToken(for: appConfig) {
                 try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
 
@@ -363,43 +361,32 @@ actor DittoManager {
         dittoSelectedAppConfig = nil
     }
     
+    /// Determines if offline license token should be set for the given app configuration
+    private func shouldSetOfflineLicenseToken(for appConfig: DittoAppConfig) -> Bool {
+        return (appConfig.mode == .sharedKey || appConfig.mode == .offlinePlayground)
+            && !appConfig.authToken.isEmpty
+    }
+
     /// Creates the appropriate Ditto identity based on app configuration
     private func createIdentity(from appConfig: DittoAppConfig) -> DittoIdentity {
         switch appConfig.mode {
-        case .sharedKey:
-            // Log the offline license token and secret key for verification
-            print("Creating shared key identity:")
-            print("App ID: `\(appConfig.appId)`")
-            print("Offline License Token: `\(appConfig.authToken)`")
-            print("Secret Key: `\(appConfig.secretKey)`")
-            print("Secret Key isEmpty: \(appConfig.secretKey.isEmpty)")
-            
+        case .sharedKey:            
             // Use shared key identity with optional secret key
             // Note: The offline license token is set separately via setOfflineOnlyLicenseToken
             if !appConfig.secretKey.isEmpty {
                 // If secret key is provided, use it for identity creation
-                print("Using shared key identity WITH secret key")
                 return .sharedKey(appID: appConfig.appId, sharedKey: appConfig.secretKey)
             } else {
                 // No secret key, use basic offline playground identity
-                print("Using shared key identity WITHOUT secret key")
                 return .offlinePlayground(appID: appConfig.appId)
             }
             
         case .offlinePlayground:
             // Use offline playground identity
-            print("Creating offline playground identity:")
-            print("App ID: `\(appConfig.appId)`")
-
             return .offlinePlayground(appID: appConfig.appId)
             
         case .onlinePlayground:
-            // Use online playground identity (authToken is the playground token here)
-            print("Creating online identity:")
-            print("App ID: `\(appConfig.appId)`")
-            print("Playground Token: `\(appConfig.authToken)`")
-            print("Auth URL: `\(appConfig.authUrl)`")
-            
+            // Use online playground identity (authToken is the playground token here)            
             return .onlinePlayground(
                 appID: appConfig.appId,
                 token: appConfig.authToken,
@@ -408,6 +395,7 @@ actor DittoManager {
             )
             
         default:
+            // This should not be possible. Here as to future-proof.
             fatalError("Unknown mode: '\(appConfig.mode)'. Expected .onlinePlayground, .offlinePlayground, or .sharedKey")
         }
     }
