@@ -132,12 +132,10 @@ struct ImportService {
                     failureCount += 1
                     let errorMessage = "Ditto error for document \(documentId): \(dittoError.localizedDescription)"
                     errors.append(errorMessage)
-                    print("Ditto Import Error: \(errorMessage)")
                 } catch {
                     failureCount += 1
                     let errorMessage = "Failed to import document \(documentId): \(error.localizedDescription)"
                     errors.append(errorMessage)
-                    print("Import Error: \(errorMessage)")
                 }
             }
         }
@@ -154,8 +152,6 @@ struct ImportService {
         do {
             return try await operation()
         } catch {
-            // Log the error for debugging
-            print("Ditto operation failed: \(error)")
             throw error
         }
     }

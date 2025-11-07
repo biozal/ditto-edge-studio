@@ -126,16 +126,7 @@ struct ResultJsonViewer: View {
                     ),
                     contentType: .json,
                     defaultFilename: "query_results"
-                ) { result in
-                    switch result {
-                    case .success(let url):
-                        print("Saved to \(url)")
-                    case .failure(let error):
-                        print(
-                            "Error saving file: \(error.localizedDescription)"
-                        )
-                    }
-                }
+                ) { _ in }
             }
             .padding(.bottom, 10)
             .padding(.trailing, 20)

@@ -16,11 +16,11 @@ struct IndexInfo: Identifiable {
             if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 self.init(from: jsonObject)
             } else {
+                assertionFailure("IndexInfo: Failed to cast JSON object to [String: Any]")
                 return nil
             }
         } catch {
-            print("IndexInfo DECODING ERROR:", error.localizedDescription)
-            print("Raw data: \(String(data: data, encoding: .utf8) ?? "Unable to convert to string")")
+            assertionFailure("IndexInfo decoding error: \(error.localizedDescription)")
             return nil
         }
     }

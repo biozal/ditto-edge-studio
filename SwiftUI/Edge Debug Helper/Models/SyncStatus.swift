@@ -27,11 +27,11 @@ struct SyncStatusInfo: Identifiable, Equatable {
             if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 self.init(from: jsonObject)
             } else {
+                assertionFailure("SyncStatusInfo: Failed to cast JSON object to [String: Any]")
                 return nil
             }
         } catch {
-            print("SyncStatusInfo DECODING ERROR:", error.localizedDescription)
-            print("Raw data: \(String(data: data, encoding: .utf8) ?? "Unable to convert to string")")
+            assertionFailure("SyncStatusInfo decoding error: \(error.localizedDescription)")
             return nil
         }
     }

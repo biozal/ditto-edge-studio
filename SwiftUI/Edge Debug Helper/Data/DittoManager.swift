@@ -73,21 +73,33 @@ actor DittoManager {
                     )
                     throw error
                 }
-
-                // Use safe initialization with automatic corruption recovery
-                let ditto = try await safeInitializeDitto(
-                    appConfig: appState.appConfig,
-                    persistenceDirectory: localDirectoryPath
-                )
-
-                print("[DittoManager] Local Ditto initialized successfully")
-                print("[DittoManager] Local persistence directory: \(localDirectoryPath.path)")
-
+                
+                //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
+                // Use Objective-C exception handler to catch NSException from Ditto initialization
+                var dittoInstance: Ditto?
+                
+                let error = ExceptionCatcher.perform {
+                    let identity = self.createIdentity(from: appState.appConfig)
+                    dittoInstance = Ditto(
+                        identity: identity,
+                        persistenceDirectory: localDirectoryPath
+                    )
+                }
+                
+                if let error = error {
+                    let errorMessage = error.localizedDescription
+                    throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
+                }
+                
+                guard let ditto = dittoInstance else {
+                    throw AppError.error(message: "Failed to create Ditto instance")
+                }
+                
                 // For shared key and offline playground modes, set the offline license token (using authToken field)
                 if shouldSetOfflineLicenseToken(for: appState.appConfig) {
-                    print("Successfully set offline license token")
+                    // Offline license token set
                 }
-
+                
                 dittoLocal = ditto
 
                 dittoLocal?.updateTransportConfig(block: { config in
@@ -267,22 +279,33 @@ actor DittoManager {
             guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {
                 throw AppError.error(message: "Invalid app configuration - missing appId or token")
             }
-
-            // Use safe initialization with automatic corruption recovery
-            let ditto = try await safeInitializeDitto(
-                appConfig: appConfig,
-                persistenceDirectory: localDirectoryPath
-            )
-
-            print("[DittoManager] Ditto initialized successfully")
-            print("[DittoManager] Persistence directory: \(localDirectoryPath.path)")
-            print("[DittoManager] App: \(appConfig.name) (ID: \(appConfig.appId))")
-
+            
+            //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
+            // Use Objective-C exception handler to catch NSException from Ditto initialization
+            var dittoInstance: Ditto?
+            
+            let error = ExceptionCatcher.perform {
+                let identity = self.createIdentity(from: appConfig)
+                dittoInstance = Ditto(
+                    identity: identity,
+                    persistenceDirectory: localDirectoryPath
+                )
+            }
+            
+            if let error = error {
+                let errorMessage = error.localizedDescription
+                throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
+            }
+            
+            guard let ditto = dittoInstance else {
+                throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            
             // For shared key and offline playground modes, set the offline license token (using authToken field)
             if shouldSetOfflineLicenseToken(for: appConfig) {
                 try ditto.setOfflineOnlyLicenseToken(appConfig.authToken)
             }
-
+            
             dittoSelectedApp = ditto
             
             guard let ditto = dittoSelectedApp else {
