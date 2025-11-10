@@ -18,40 +18,63 @@ actor ObservableRepository {
         observablesObserver?.cancel()
     }
     
+    func hydrateObservables(for selectedAppId: String) async throws -> [DittoObservable] {
+        guard let ditto = await dittoManager.dittoLocal else {
+            throw InvalidStateError(message: "Local Ditto instance not available")
+        }
+
+        let query = "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId ORDER BY lastUpdated"
+        let arguments = ["selectedAppId": selectedAppId]
+
+        do {
+            let results = try await ditto.store.execute(
+                query: query,
+                arguments: arguments
+            )
+            return results.items.compactMap { DittoObservable($0.value) }
+        } catch {
+            self.appState?.setError(error)
+            throw error
+        }
+    }
+
     func registerObservablesObserver(for selectedAppId: String) async throws {
         guard let ditto = await dittoManager.dittoLocal else {
             throw InvalidStateError(message: "Local Ditto instance not available")
         }
-        
+
         _ = self.appState  // Capture reference before closure
-        
+
         // Cancel existing observer if any
         observablesObserver?.cancel()
-        
-        // Create a mutable array to track observables
-        var currentObservables: [DittoObservable] = []
-        
+
+        // Hydrate initial data
+        var currentObservables = try await hydrateObservables(for: selectedAppId)
+
+        // Send initial data to callback
+        await self.onObservablesUpdate?(currentObservables)
+
         // Register observer for observables
         let query = "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId ORDER BY lastUpdated"
         let arguments = ["selectedAppId": selectedAppId]
-        
+
         observablesObserver = try ditto.store.registerObserver(
             query: query,
             arguments: arguments
         ) { [weak self] results in
             Task { [weak self] in
                 guard let self else { return }
-                
+
                 // Calculate diffs
                 let diffs = await self.differ.diff(results.items)
-                
+
                 // Apply deletions
                 diffs.deletions.forEach { index in
                     if index < currentObservables.count {
                         currentObservables.remove(at: index)
                     }
                 }
-                
+
                 // Apply insertions
                 diffs.insertions.forEach { index in
                     if index < results.items.count {
@@ -64,7 +87,7 @@ actor ObservableRepository {
                         }
                     }
                 }
-                
+
                 // Apply updates
                 diffs.updates.forEach { index in
                     if index < results.items.count && index < currentObservables.count {
@@ -72,7 +95,7 @@ actor ObservableRepository {
                         currentObservables[index] = DittoObservable(item.value)
                     }
                 }
-                
+
                 // Call the callback to update the ViewModel's published property
                 await self.onObservablesUpdate?(currentObservables)
             }
