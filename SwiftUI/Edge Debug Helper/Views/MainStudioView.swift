@@ -655,9 +655,10 @@ extension MainStudioView {
                 onStartObserver: viewModel.registerStoreObserver,
                 onStopObserver: viewModel.removeStoreObserver,
                 onSelectObserver: { observable in
-                    let selectedItem = SelectedItem.observer(observable.id)
-                    viewModel.selectedItem = selectedItem
-                    viewModel.openTab(for: selectedItem)
+                    // Open the single "Observers" tab and select the observer
+                    let observersTab = SelectedItem.observersView
+                    viewModel.selectedItem = observersTab
+                    viewModel.openTab(for: observersTab)
                     viewModel.selectedObservable = observable
                     Task {
                         await viewModel.loadObservedEvents()
@@ -1924,6 +1925,8 @@ extension MainStudioView {
                     return .observer(observable: observer)
                 }
                 return .empty
+            case .observersView:
+                return .observersView
             case .collection(let name):
                 return .collection(name: name)
             case .query(_):
@@ -1947,6 +1950,8 @@ extension MainStudioView {
                     return (observer.name.isEmpty ? "Observer" : observer.name, "eye")
                 }
                 return ("Observer", "eye")
+            case .observersView:
+                return ("Observers", "eye")
             case .collection(let name):
                 return (name, "square.stack.fill")
             case .query(_):
@@ -1975,7 +1980,8 @@ struct MenuItem: Identifiable, Equatable, Hashable {
 
 enum SelectedItem: Equatable, Hashable {
     case subscription(String)  // subscription ID
-    case observer(String)      // observer ID
+    case observer(String)      // observer ID (deprecated - use observersView instead)
+    case observersView         // single observers tab showing all events
     case collection(String)    // collection name
     case query(String)         // query ID
     case network              // network view
@@ -1987,6 +1993,8 @@ enum SelectedItem: Equatable, Hashable {
             return "subscription_\(id)"
         case .observer(let id):
             return "observer_\(id)"
+        case .observersView:
+            return "observers"
         case .collection(let name):
             return "collection_\(name)"
         case .query(let id):
