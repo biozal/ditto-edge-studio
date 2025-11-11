@@ -8,8 +8,8 @@
 import Foundation
 
 enum QueryResultViewMode: String, CaseIterable, Identifiable {
-    case table = "Table"
     case raw = "Raw"
+    case table = "Table"
     case map = "Map"
 
     var id: String { rawValue }

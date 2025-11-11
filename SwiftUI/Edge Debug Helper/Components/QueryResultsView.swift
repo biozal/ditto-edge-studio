@@ -21,7 +21,7 @@ struct QueryResultsView: View {
     var onPreviousPage: (() async -> Void)? = nil
     var onFirstPage: (() async -> Void)? = nil
 
-    @State private var viewMode: QueryResultViewMode = .table
+    @State private var viewMode: QueryResultViewMode = .raw
     @State private var isExporting = false
     @State private var resultsCount: Int = 0
     @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
