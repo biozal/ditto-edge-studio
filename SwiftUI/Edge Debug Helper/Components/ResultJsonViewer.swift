@@ -250,44 +250,12 @@ struct ResultsList: View {
             }
         }
 
-        // Build JSON and chunk into groups of lines for lazy rendering
+        // Build and render using native text view for proper selection and performance
         let jsonString = buildJsonString()
-        let lines = jsonString.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-
-        // Find the longest line to establish width
-        let longestLine = lines.max(by: { $0.count < $1.count }) ?? ""
-
-        // Chunk lines into groups of 10 for better performance
-        let linesPerChunk = 10
-        var chunks: [String] = []
-        for i in stride(from: 0, to: lines.count, by: linesPerChunk) {
-            let endIndex = min(i + linesPerChunk, lines.count)
-            let chunkLines = lines[i..<endIndex]
-            chunks.append(chunkLines.joined(separator: "\n"))
-        }
 
         return AnyView(
-            ScrollView([.vertical, .horizontal]) {
-                ZStack(alignment: .topLeading) {
-                    // Invisible longest line to establish width
-                    Text(longestLine)
-                        .font(.system(.body, design: .monospaced))
-                        .fixedSize()
-                        .opacity(0)
-                        .allowsHitTesting(false)
-
-                    // Actual content
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                        ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
-                            Text(chunk)
-                                .font(.system(.body, design: .monospaced))
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                    }
-                    .textSelection(.enabled)
-                }
-                .padding()
-            }
+            NativeTextView(text: jsonString)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         )
     }
 
@@ -318,6 +286,68 @@ struct ResultsList: View {
     }
 }
 
+// MARK: - Native Text View for Performance and Selection
+
+#if os(macOS)
+struct NativeTextView: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = false
+
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.allowsUndo = false
+        textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        textView.textColor = NSColor.labelColor
+        textView.backgroundColor = NSColor.textBackgroundColor
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.autoresizingMask = []
+
+        scrollView.documentView = textView
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let textView = nsView.documentView as? NSTextView {
+            if textView.string != text {
+                textView.string = text
+            }
+        }
+    }
+}
+#else
+struct NativeTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = true
+        textView.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.textColor = UIColor.label
+        textView.backgroundColor = UIColor.systemBackground
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        return textView
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+    }
+}
+#endif
 
 struct ResultItem: View {
     let jsonString: String
