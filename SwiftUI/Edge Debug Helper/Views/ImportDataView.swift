@@ -19,16 +19,20 @@ struct ImportDataView: View {
     @State private var importSuccess: Bool = false
     @State private var successMessage: String = ""
     @State private var useInitialInsert: Bool = false
+    @State private var showCopiedConfirmation: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Fixed header
             Text("Import JSON Data")
                 .font(.title2)
                 .bold()
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 30)
-            
-            VStack(alignment: .leading, spacing: 20) {
+
+            // Scrollable content area
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Select JSON File")
                         .font(.headline)
@@ -174,14 +178,40 @@ struct ImportDataView: View {
                                 .fill(Color.blue.opacity(0.1))
                         )
                     } else if let error = importError {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                                .font(.system(size: 14))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .textSelection(.enabled)
+                                Spacer()
+                                Button(action: {
+                                    copyToClipboard(error)
+                                }) {
+                                    ZStack {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                            .opacity(showCopiedConfirmation ? 0 : 1)
+                                        if showCopiedConfirmation {
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(systemName: "doc.on.doc")
+                                                    .font(.system(size: 12))
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.system(size: 8))
+                                                    .offset(x: 2, y: -2)
+                                            }
+                                            .foregroundColor(.green)
+                                        }
+                                    }
+                                    .frame(width: 16, height: 16)
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(showCopiedConfirmation ? .green : .red)
+                            }
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,13 +220,39 @@ struct ImportDataView: View {
                                 .fill(Color.red.opacity(0.1))
                         )
                     } else if importSuccess {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 14))
-                            Text(successMessage)
-                                .font(.caption)
-                                .foregroundColor(.green)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 14))
+                                Text(successMessage)
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .textSelection(.enabled)
+                                Spacer()
+                                Button(action: {
+                                    copyToClipboard(successMessage)
+                                }) {
+                                    ZStack {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                            .opacity(showCopiedConfirmation ? 0 : 1)
+                                        if showCopiedConfirmation {
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(systemName: "doc.on.doc")
+                                                    .font(.system(size: 12))
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.system(size: 8))
+                                                    .offset(x: 2, y: -2)
+                                            }
+                                            .foregroundColor(.green)
+                                        }
+                                    }
+                                    .frame(width: 16, height: 16)
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(showCopiedConfirmation ? .green : .green.opacity(0.8))
+                            }
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,9 +267,13 @@ struct ImportDataView: View {
                 .animation(.easeInOut(duration: 0.3), value: importError)
                 .animation(.easeInOut(duration: 0.3), value: importSuccess)
             }
-            
-            Spacer()
-            
+            }
+            // End ScrollView
+
+            Divider()
+                .padding(.vertical, 12)
+
+            // Fixed footer with buttons
             HStack {
                 Button("Cancel") {
                     isPresented = false
@@ -273,7 +333,8 @@ struct ImportDataView: View {
     private func loadExistingCollections() {
         Task {
             do {
-                existingCollections = try await CollectionsRepository.shared.hydrateCollections()
+                let collections = try await CollectionsRepository.shared.hydrateCollections()
+                existingCollections = collections.map { $0.name }
                 if !existingCollections.isEmpty {
                     selectedCollection = existingCollections[0]
                 }
@@ -335,7 +396,8 @@ struct ImportDataView: View {
                         importSuccess = true
                         successMessage = "Successfully imported \(result.successCount) document(s) to \(targetCollection)"
                     } else {
-                        importSuccess = true
+                        // Partial success - show warning but keep Import button available
+                        importSuccess = false
                         successMessage = "Imported \(result.successCount) document(s) with \(result.failureCount) failure(s)"
                         if !result.errors.isEmpty {
                             // Show first error
@@ -353,8 +415,30 @@ struct ImportDataView: View {
                     isImporting = false
                     importProgress = nil
                     currentImportStatus = ""
+                    importSuccess = false
                     importError = error.localizedDescription
                 }
+            }
+        }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        #if os(macOS)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        #else
+            UIPasteboard.general.string = text
+        #endif
+
+        // Show copied feedback
+        withAnimation {
+            showCopiedConfirmation = true
+        }
+
+        // Reset after 500ms
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation {
+                showCopiedConfirmation = false
             }
         }
     }

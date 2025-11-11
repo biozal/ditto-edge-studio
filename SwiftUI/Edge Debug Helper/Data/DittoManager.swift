@@ -72,10 +72,13 @@ actor DittoManager {
                     throw error
                 }
                 
+                // Note: We can't reliably pre-check for lock files because Ditto manages its own locking.
+                // Instead, we'll rely on catching the error after initialization attempt.
+
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 // Use Objective-C exception handler to catch NSException from Ditto initialization
                 var dittoInstance: Ditto?
-                
+
                 let error = ExceptionCatcher.perform {
                     let identity = self.createIdentity(from: appState.appConfig)
                     dittoInstance = Ditto(
@@ -83,12 +86,26 @@ actor DittoManager {
                         persistenceDirectory: localDirectoryPath
                     )
                 }
-                
+
                 if let error = error {
                     let errorMessage = error.localizedDescription
+
+                    // Check if this is a lock error
+                    if errorMessage.contains("persistenceDirectoryLocked") || errorMessage.contains("File already locked") {
+                        await MainActor.run {
+                            appState.setError(AppError.error(message: """
+                                Cannot open database - Another instance of this app is already using this database.
+
+                                Please close any other instances of this app or use a different app configuration.
+
+                                Error: \(errorMessage)
+                                """))
+                        }
+                    }
+
                     throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
                 }
-                
+
                 guard let ditto = dittoInstance else {
                     throw AppError.error(message: "Failed to create Ditto instance")
                 }

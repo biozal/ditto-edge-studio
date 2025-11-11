@@ -212,50 +212,33 @@ struct ResultsList: View {
     var hasExecutedQuery: Bool = false
 
     var body: some View {
-        Group {
-            if items.isEmpty {
-                if hasExecutedQuery {
-                    // Show empty JSON array for executed query with no results
-                    Text("[]")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .textSelection(.enabled)
-                        .padding()
-                } else {
-                    // Show message when no query has been executed
-                    Text("Run a query for data")
-                        .foregroundColor(.secondary)
-                        .padding()
-                }
-            } else {
-                // PERFORMANCE: Use LazyVStack for efficient rendering (parent has ScrollView)
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    Text("[")
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
+        // Build the entire JSON string as one text block for proper text selection
+        let jsonString = buildJsonString()
 
-                    ForEach(items.indices, id: \.self) { index in
-                        // Each item rendered lazily as it comes into view
-                        Group {
-                            Text(items[index].split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
+        Text(jsonString)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-                            if index < items.count - 1 {
-                                Text(",")
-                                    .font(.system(.body, design: .monospaced))
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-
-                    Text("]")
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-                .padding()
-            }
+    private func buildJsonString() -> String {
+        if items.isEmpty {
+            return "[]"
         }
+
+        var result = "[\n"
+        for (index, item) in items.enumerated() {
+            // Indent each item
+            let indented = item.split(separator: "\n").map { "  \($0)" }.joined(separator: "\n")
+            result += indented
+            if index < items.count - 1 {
+                result += ","
+            }
+            result += "\n"
+        }
+        result += "]"
+        return result
     }
 }
 

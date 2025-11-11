@@ -12,7 +12,7 @@ struct DittoCollection: Codable {
     let name: String
 }
 
-struct DittoCollectionModel: Codable {
+struct DittoCollectionModel: Codable, Hashable {
     let name: String
     let documentCount: Int
 }

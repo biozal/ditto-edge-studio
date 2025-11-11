@@ -313,6 +313,7 @@ struct StoreExplorerContextMenuView: View {
 struct CollectionCard: View {
     let collection: DittoCollectionModel
     let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -324,32 +325,29 @@ struct CollectionCard: View {
                 .padding(.leading, 14)
 
             // Content
-            VStack(alignment: .leading, spacing: 2) {
-                Text(collection.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                    .foregroundColor(.primary)
-
-                Text("\(collection.documentCount) docs")
-                    .font(.system(size: 11))
-                    .lineLimit(1)
-                    .foregroundColor(.secondary)
-            }
+            Text(collection.name)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .foregroundColor(.primary)
 
             Spacer()
 
-            // Document count indicator
-            if collection.documentCount > 0 {
-                Circle()
-                    .fill(.secondary)
-                    .frame(width: 4, height: 4)
-            }
+            // Chevron indicator
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.secondary)
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .padding(.vertical, 4)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.15) :
+            isHovered ? Color.primary.opacity(0.05) : Color.clear
+        )
         .cornerRadius(4)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 

@@ -81,6 +81,12 @@ struct MainStudioView: View {
                                     viewModel.editorObservable = DittoObservable.new()
                                     viewModel.actionSheetMode = .observer
                                 }
+
+                                Divider()
+
+                                Button("Import Data", systemImage: "square.and.arrow.down") {
+                                    showingImportView = true
+                                }
                             } label: {
                                 Image(systemName: "plus.circle")
                                     .font(.title2)
@@ -262,10 +268,10 @@ extension MainStudioView {
                 Spacer()
             } else {
                 List(viewModel.collections, id: \.self) { collection in
-                    Text(collection)
+                    Text(collection.name)
                         .onTapGesture {
                             viewModel.selectedQuery =
-                                "SELECT * FROM \(collection)"
+                                "SELECT * FROM \(collection.name)"
                         }
                     Divider()
                 }
@@ -632,10 +638,7 @@ extension MainStudioView {
             StoreExplorerContextMenuView(
                 subscriptions: $viewModel.subscriptions,
                 observers: $viewModel.observerables,
-                collections: Binding(
-                    get: { viewModel.collections.map { DittoCollectionModel(name: $0, documentCount: 0) } },
-                    set: { _ in }
-                ),
+                collections: $viewModel.collections,
                 selectedItem: $viewModel.selectedItem,
                 onSelectNetwork: {
                     viewModel.selectedItem = .network
@@ -971,7 +974,10 @@ extension MainStudioView {
                         jsonResults: $viewModel.jsonResults,
                         queryText: viewModel.selectedQuery,
                         hasExecutedQuery: viewModel.hasExecutedQuery,
-                        appId: viewModel.selectedApp.appId
+                        appId: viewModel.selectedApp.appId,
+                        onRefreshQuery: {
+                            await viewModel.executeQuery(appState: appState)
+                        }
                     )
                 }
             #else
@@ -994,7 +1000,10 @@ extension MainStudioView {
                         jsonResults: $viewModel.jsonResults,
                         queryText: viewModel.selectedQuery,
                         hasExecutedQuery: viewModel.hasExecutedQuery,
-                        appId: viewModel.selectedApp.appId
+                        appId: viewModel.selectedApp.appId,
+                        onRefreshQuery: {
+                            await viewModel.executeQuery(appState: appState)
+                        }
                     )
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -1210,7 +1219,7 @@ extension MainStudioView {
         var subscriptions: [DittoSubscription] = []
         var history: [DittoQueryHistory] = []
         var favorites: [DittoQueryHistory] = []
-        var collections: [String] = []
+        var collections: [DittoCollectionModel] = []
         var observerables: [DittoObservable] = []
         var observableEvents: [DittoObserveEvent] = []
         var selectedObservableEvents: [DittoObserveEvent] = []
@@ -1348,7 +1357,7 @@ extension MainStudioView {
                 if collections.isEmpty {
                     selectedQuery = subscriptions.first?.query ?? ""
                 } else {
-                    selectedQuery = "SELECT * FROM \(collections.first ?? "")"
+                    selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
                 }
 
                 // Start observing sync status
@@ -1529,7 +1538,7 @@ extension MainStudioView {
                         do {
                             let count = try await QueryService.shared.getCollectionCount(collection: collectionName)
                             // Use server-side pagination for large collections (>10,000 items)
-                            if count > 10_000 {
+                            if count > 1_000_000 {
                                 shouldUseServerPagination = true
                                 print("Large collection detected (\(count) items), using server-side pagination")
                             } else {

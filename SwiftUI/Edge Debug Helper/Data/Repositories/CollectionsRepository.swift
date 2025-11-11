@@ -16,7 +16,7 @@ actor CollectionsRepository {
     private var collectionsObserver: DittoStoreObserver?
     
     // Store the callback inside the actor
-    private var onCollectionsUpdate: (([String]) -> Void)?
+    private var onCollectionsUpdate: (([DittoCollectionModel]) -> Void)?
     
     private init() { }
     
@@ -24,19 +24,19 @@ actor CollectionsRepository {
         collectionsObserver?.cancel()
     }
     
-    func hydrateCollections() async throws -> [String] {
+    func hydrateCollections() async throws -> [DittoCollectionModel] {
         guard let ditto = await dittoManager.dittoSelectedApp,
               let appState = self.appState else {
             throw InvalidStateError(message: "No Ditto selected app or app state available")
         }
-        
+
         let query = "SELECT * FROM __collections"
         let decoder = JSONDecoder()
-        
+
         do {
             // Hydrate the initial data from the database
             let results = try await ditto.store.execute(query: query)
-            let items = results.items.compactMap { item in
+            let collectionNames = results.items.compactMap { item in
                 do {
                     return try decoder.decode(
                         DittoCollection.self,
@@ -47,15 +47,18 @@ actor CollectionsRepository {
                     return nil
                 }
             }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
-            
+
+            // Create collection models without counts (set to 0)
+            let collections = collectionNames.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
+
             // Register for any changes in the database
             collectionsObserver = try ditto.store.registerObserver(
                 query: query
             ) { [weak self] results in
                 Task { [weak self] in
                     guard let self else { return }
-                    
-                    let items = results.items.compactMap { item in
+
+                    let collectionNames = results.items.compactMap { item in
                         do {
                             return try decoder.decode(
                                 DittoCollection.self,
@@ -66,13 +69,16 @@ actor CollectionsRepository {
                             return nil
                         }
                     }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
-                    
+
+                    // Create collection models without counts (set to 0)
+                    let collections = collectionNames.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
+
                     // Call the callback to update collections
-                    await self.onCollectionsUpdate?(items.map { $0.name })
+                    await self.onCollectionsUpdate?(collections)
                 }
             }
-            
-            return items.map { $0.name }
+
+            return collections
         } catch {
             self.appState?.setError(error)
             throw error
@@ -83,7 +89,7 @@ actor CollectionsRepository {
         self.appState = appState
     }
     
-    func setOnCollectionsUpdate(_ callback: @escaping ([String]) -> Void) {
+    func setOnCollectionsUpdate(_ callback: @escaping ([DittoCollectionModel]) -> Void) {
         self.onCollectionsUpdate = callback
     }
     

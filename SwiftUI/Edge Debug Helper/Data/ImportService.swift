@@ -25,17 +25,65 @@ struct ImportService {
     }
     
     func validateJSON(_ data: Data) throws -> [[String: Any]] {
-        guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            throw ImportError.invalidJSON("File must contain an array of JSON objects")
+        let jsonObject: Any
+        do {
+            jsonObject = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw ImportError.invalidJSON("File contains invalid JSON syntax: \(error.localizedDescription)")
         }
-        
-        for (index, object) in jsonArray.enumerated() {
-            if object["_id"] == nil {
-                throw ImportError.missingID("Document at index \(index) is missing required '_id' field")
+
+        // Must be an array
+        guard let jsonArray = jsonObject as? [Any] else {
+            throw ImportError.invalidJSON("""
+                Invalid format: File must contain a JSON array.
+
+                Expected format:
+                [
+                  {"field1": "value1", "field2": "value2"},
+                  {"field1": "value3", "field2": "value4"}
+                ]
+
+                Your file appears to contain a single object instead of an array.
+                Wrap your data in square brackets [ ] to create an array.
+                """)
+        }
+
+        // Array must contain only objects
+        var documents: [[String: Any]] = []
+        for (index, element) in jsonArray.enumerated() {
+            guard let object = element as? [String: Any] else {
+                let elementType: String
+                if element is String {
+                    elementType = "a string"
+                } else if element is NSNumber {
+                    elementType = "a number"
+                } else if element is [Any] {
+                    elementType = "an array"
+                } else {
+                    elementType = "type: \(type(of: element))"
+                }
+
+                throw ImportError.invalidJSON("""
+                    Invalid format: Element at index \(index) is \(elementType), not a JSON object.
+
+                    Each element in the array must be a JSON object with key-value pairs.
+                    Example: {"name": "John", "age": 30}
+                    """)
             }
+
+            // Validate object is not empty
+            if object.isEmpty {
+                throw ImportError.invalidJSON("Document at index \(index) is empty. Each document must have at least one field.")
+            }
+
+            documents.append(object)
         }
-        
-        return jsonArray
+
+        if documents.isEmpty {
+            throw ImportError.invalidJSON("The JSON array is empty. Add at least one document to import.")
+        }
+
+        return documents
     }
     
     @MainActor
@@ -86,48 +134,45 @@ struct ImportService {
             
             for (indexInBatch, document) in batch.enumerated() {
                 let globalIndex = batchStartIndex + indexInBatch
-                let documentId = document["_id"] as? String ?? "unknown"
-                
+                let documentId = document["_id"] as? String ?? "document_\(globalIndex)"
+
                 // Report progress
                 progressHandler(ImportProgress(
                     current: globalIndex + 1,
                     total: totalDocuments,
                     currentDocumentId: documentId
                 ))
-                
+
                 do {
-                    // Validate document structure
-                    guard let documentId = document["_id"] as? String, !documentId.isEmpty else {
-                        throw ImportError.missingID("Document is missing a valid '_id' field")
-                    }
-                    
-                    // Convert document to JSON string
-                    let jsonData = try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys])
-                    guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-                        throw ImportError.encodingError("Failed to encode document as JSON")
-                    }
-                    
-                    // Build the appropriate DQL INSERT statement
+                    // Note: _id is optional - if not provided, Ditto will generate one
+
+                    // Build the DQL INSERT statement using parameterized query
+                    // This is safer and cleaner than manual string formatting
                     let dqlQuery: String
                     if insertType == .initial {
-                        // Use INSERT WITH INITIAL DOCUMENTS for initial data load
-                        dqlQuery = "INSERT INTO \(collection) DOCUMENTS (\(jsonString)) WITH INITIAL DOCUMENTS"
+                        dqlQuery = "INSERT INTO \(collection) INITIAL DOCUMENTS (:documents)"
                     } else {
-                        // Use regular INSERT for normal operations
-                        dqlQuery = "INSERT INTO \(collection) DOCUMENTS (\(jsonString))"
+                        dqlQuery = "INSERT INTO \(collection) DOCUMENTS (:documents)"
                     }
-                    
-                    // Execute the DQL query using store.execute
+
+                    // Execute the DQL query with the document as a parameter
                     try await withErrorHandling {
-                        _ = try await ditto.store.execute(query: dqlQuery)
+                        _ = try await ditto.store.execute(
+                            query: dqlQuery,
+                            arguments: ["documents": document]
+                        )
                     }
-                    
+
                     successCount += 1
                     
                     // Add small delay to make progress visible for small datasets
                     if totalDocuments < 50 {
                         try await Task.sleep(nanoseconds: 10_000_000) // 10ms delay
                     }
+                } catch let formattingError as DQLFormattingError {
+                    failureCount += 1
+                    let errorMessage = "Formatting error for document \(documentId): \(formattingError.localizedDescription)"
+                    errors.append(errorMessage)
                 } catch let dittoError as DittoError {
                     failureCount += 1
                     let errorMessage = "Ditto error for document \(documentId): \(dittoError.localizedDescription)"

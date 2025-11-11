@@ -35,8 +35,9 @@ struct QueryResultsView: View {
     // Cached collection name to avoid recomputing on every view update
     @State private var collectionName: String? = nil
 
-    // Confirmation alert state
-    @State private var showDeleteAllConfirmation = false
+    // Delete all modal state
+    @State private var showDeleteAllModal = false
+    @State private var extractedIdsCount = 0
 
     // Access singleton repository directly
     private var mappingRepository: MapFieldMappingRepository {
@@ -84,11 +85,21 @@ struct QueryResultsView: View {
                 // Refresh results by removing the deleted item
                 jsonResults.removeAll { jsonString in
                     guard let data = jsonString.data(using: .utf8),
-                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let id = json["_id"] as? String else {
+                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                         return false
                     }
-                    return id == documentId
+
+                    // Handle different _id formats
+                    if let id = json["_id"] as? String {
+                        return id == documentId
+                    } else if let id = json["_id"] as? Int {
+                        return String(id) == documentId
+                    } else if let id = json["_id"] as? Double {
+                        return String(Int(id)) == documentId
+                    } else if let idObj = json["_id"] as? [String: Any], let oidValue = idObj["$oid"] as? String {
+                        return oidValue == documentId
+                    }
+                    return false
                 }
             } catch {
                 // Errors are already handled by QueryService
@@ -96,53 +107,127 @@ struct QueryResultsView: View {
         }
     }
 
-    private func handleDeleteAll() {
+    private func handleDeleteAll(options: DeleteAllModal.DeleteAllOptions) async {
         guard let collection = collectionName else {
+            print("DEBUG: No collection name found")
             return
         }
 
-        Task {
-            do {
-                // Extract all document IDs from results
-                let documentIds = extractAllDocumentIds()
+        print("DEBUG: handleDeleteAll called for collection: \(collection), mode: \(options.mode)")
+
+        do {
+            if options.mode == .entireCollection {
+                // Delete entire collection - no WHERE clause
+                print("DEBUG: Deleting entire collection")
+                try await QueryService.shared.deleteEntireCollection(collection: collection)
+                print("DEBUG: Entire collection deleted successfully")
+            } else {
+                // Delete only results using unique field
+                print("DEBUG: Extracting IDs using field: \(options.uniqueField)")
+                let documentIds = extractFieldValues(fieldName: options.uniqueField)
+                print("DEBUG: Extracted \(documentIds.count) document IDs: \(documentIds.prefix(5))...")
+
                 guard !documentIds.isEmpty else {
+                    print("DEBUG: No document IDs to delete")
                     return
                 }
 
-                // Create DELETE query with WHERE _id IN clause
-                try await QueryService.shared.deleteDocuments(documentIds: documentIds, collection: collection)
+                print("DEBUG: Calling deleteDocuments...")
+                try await QueryService.shared.deleteDocumentsByField(
+                    fieldValues: documentIds,
+                    fieldName: options.uniqueField,
+                    collection: collection
+                )
+                print("DEBUG: Delete completed successfully")
+            }
 
-                // Clear results after successful deletion
+            // Re-execute the query to refresh results
+            if let onRefreshQuery = onRefreshQuery {
+                print("DEBUG: Calling onRefreshQuery callback")
+                await onRefreshQuery()
+                print("DEBUG: onRefreshQuery completed")
+            } else {
+                print("DEBUG: No refresh callback, clearing results")
                 jsonResults = []
-            } catch {
-                // Errors are already handled by QueryService
+            }
+        } catch {
+            print("DEBUG: Delete failed with error: \(error)")
+        }
+    }
+
+    private func extractFieldValues(fieldName: String) -> [String] {
+        var values: [String] = []
+        for jsonString in jsonResults {
+            guard let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+
+            // Extract field value and convert to string
+            if let value = json[fieldName] as? String {
+                values.append(value)
+            } else if let value = json[fieldName] as? Int {
+                values.append(String(value))
+            } else if let value = json[fieldName] as? Double {
+                values.append(String(Int(value)))
+            } else if let valueObj = json[fieldName] as? [String: Any] {
+                // Handle MongoDB extended JSON formats
+                if let oidValue = valueObj["$oid"] as? String {
+                    values.append(oidValue)
+                }
             }
         }
+        print("DEBUG: extractFieldValues(\(fieldName)) returning \(values.count) values")
+        return values
     }
 
     private func extractAllDocumentIds() -> [String] {
         var ids: [String] = []
         for jsonString in jsonResults {
             guard let data = jsonString.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let id = json["_id"] as? String else {
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 continue
             }
-            ids.append(id)
+
+            // Handle different _id formats
+            if let id = json["_id"] as? String {
+                // Simple string ID
+                ids.append(id)
+            } else if let id = json["_id"] as? Int {
+                // Numeric ID
+                ids.append(String(id))
+            } else if let id = json["_id"] as? Double {
+                // Double ID
+                ids.append(String(Int(id)))
+            } else if let idObj = json["_id"] as? [String: Any] {
+                // MongoDB extended JSON format like {"$oid": "..."}
+                if let oidValue = idObj["$oid"] as? String {
+                    ids.append(oidValue)
+                } else {
+                    print("DEBUG: Unknown _id object format: \(idObj)")
+                }
+            } else {
+                print("DEBUG: Unknown _id type: \(type(of: json["_id"]))")
+            }
         }
+        print("DEBUG: extractAllDocumentIds returning \(ids.count) IDs")
         return ids
     }
+
+    var onRefreshQuery: (() async -> Void)?
 
     init(
         jsonResults: Binding<[String]>,
         queryText: String = "",
         hasExecutedQuery: Bool = false,
-        appId: String = ""
+        appId: String = "",
+        onRefreshQuery: (() async -> Void)? = nil
     ) {
         _jsonResults = jsonResults
         self.queryText = queryText
         self.hasExecutedQuery = hasExecutedQuery
         self.appId = appId
+        self.onRefreshQuery = onRefreshQuery
         resultsCount = _jsonResults.wrappedValue.count
     }
 
@@ -169,7 +254,7 @@ struct QueryResultsView: View {
 
                 // Delete All button
                 Button {
-                    showDeleteAllConfirmation = true
+                    showDeleteAllModal = true
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash.fill")
@@ -256,13 +341,16 @@ struct QueryResultsView: View {
         .onChange(of: collectionName) { _, _ in
             loadFieldMapping()
         }
-        .alert("Delete All Documents", isPresented: $showDeleteAllConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete All", role: .destructive) {
-                handleDeleteAll()
-            }
-        } message: {
-            Text("Are you sure you want to delete all \(jsonResults.count) document(s) from the database? This action cannot be undone.")
+        .sheet(isPresented: $showDeleteAllModal) {
+            DeleteAllModal(
+                isPresented: $showDeleteAllModal,
+                collectionName: collectionName ?? "",
+                resultsCount: jsonResults.count,
+                availableFields: allKeys.isEmpty ? ["_id"] : allKeys,
+                onDelete: { options in
+                    await handleDeleteAll(options: options)
+                }
+            )
         }
     }
 

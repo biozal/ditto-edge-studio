@@ -167,17 +167,22 @@ actor QueryService {
 
     // MARK: Delete Multiple Documents
     func deleteDocuments(documentIds: [String], collection: String) async throws {
+        print("DEBUG QueryService: deleteDocuments called with \(documentIds.count) IDs from collection: \(collection)")
+
         guard let ditto = await dittoManager.dittoSelectedApp else {
+            print("DEBUG QueryService: No Ditto instance available")
             throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
         }
 
         guard !documentIds.isEmpty else {
+            print("DEBUG QueryService: documentIds is empty, returning")
             return
         }
 
         // Batch deletions to avoid huge SQL queries
         // Process in chunks of 100 to keep queries manageable
         let batchSize = 100
+        print("DEBUG QueryService: Processing \(documentIds.count) deletes in batches of \(batchSize)")
 
         for batchStart in stride(from: 0, to: documentIds.count, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, documentIds.count)
@@ -196,7 +201,73 @@ actor QueryService {
             let placeholderString = placeholders.joined(separator: ", ")
             let query = "DELETE FROM \(collection) WHERE _id IN (\(placeholderString))"
 
-            _ = try await ditto.store.execute(query: query, arguments: arguments)
+            print("DEBUG QueryService: Executing batch delete: \(query)")
+            print("DEBUG QueryService: Arguments: \(arguments)")
+
+            let result = try await ditto.store.execute(query: query, arguments: arguments)
+            print("DEBUG QueryService: Batch delete completed. Mutated IDs: \(result.mutatedDocumentIDs())")
         }
+
+        print("DEBUG QueryService: All delete batches completed")
+    }
+
+    // MARK: Delete Documents by Custom Field
+    func deleteDocumentsByField(fieldValues: [String], fieldName: String, collection: String) async throws {
+        print("DEBUG QueryService: deleteDocumentsByField called with \(fieldValues.count) values for field '\(fieldName)' from collection: \(collection)")
+
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            print("DEBUG QueryService: No Ditto instance available")
+            throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
+        }
+
+        guard !fieldValues.isEmpty else {
+            print("DEBUG QueryService: fieldValues is empty, returning")
+            return
+        }
+
+        // Batch deletions to avoid huge SQL queries
+        let batchSize = 100
+        print("DEBUG QueryService: Processing \(fieldValues.count) deletes in batches of \(batchSize)")
+
+        for batchStart in stride(from: 0, to: fieldValues.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, fieldValues.count)
+            let batch = Array(fieldValues[batchStart..<batchEnd])
+
+            // Create WHERE clause with IN operator for this batch
+            var arguments: [String: Any] = [:]
+            var placeholders: [String] = []
+
+            for (index, value) in batch.enumerated() {
+                let key = "val\(index)"
+                arguments[key] = value
+                placeholders.append(":\(key)")
+            }
+
+            let placeholderString = placeholders.joined(separator: ", ")
+            let query = "DELETE FROM \(collection) WHERE \(fieldName) IN (\(placeholderString))"
+
+            print("DEBUG QueryService: Executing batch delete by field: \(query)")
+
+            let result = try await ditto.store.execute(query: query, arguments: arguments)
+            print("DEBUG QueryService: Batch delete completed. Mutated IDs: \(result.mutatedDocumentIDs())")
+        }
+
+        print("DEBUG QueryService: All delete batches completed")
+    }
+
+    // MARK: Delete Entire Collection
+    func deleteEntireCollection(collection: String) async throws {
+        print("DEBUG QueryService: deleteEntireCollection called for collection: \(collection)")
+
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            print("DEBUG QueryService: No Ditto instance available")
+            throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
+        }
+
+        let query = "DELETE FROM \(collection)"
+        print("DEBUG QueryService: Executing delete entire collection: \(query)")
+
+        let result = try await ditto.store.execute(query: query)
+        print("DEBUG QueryService: Delete entire collection completed. Mutated IDs: \(result.mutatedDocumentIDs())")
     }
 }
