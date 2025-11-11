@@ -21,21 +21,30 @@ struct PaginationControls: View {
         HStack (alignment: .center) {
             Text("Total: \(totalCount)")
             Spacer()
-            Picker("Page Size", selection: $pageSize) {
+
+            // PERFORMANCE: Use Menu instead of Picker to avoid SwiftUI layout recalculation hang
+            Menu {
                 ForEach(pageSizes, id: \.self) { size in
-                    Text("\(size)").tag(size)
+                    Button("\(size)") {
+                        let startTime = CFAbsoluteTimeGetCurrent()
+                        let oldValue = pageSize
+                        print("🔄 PaginationControls: pageSize changing from \(oldValue) to \(size)")
+                        pageSize = size
+                        onPageSizeChange(size)
+                        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+                        print("⏱️ PaginationControls onChange took \(String(format: "%.1f", elapsed))ms")
+                    }
                 }
+            } label: {
+                HStack {
+                    Text("\(pageSize)")
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                }
+                .frame(minWidth: 60)
             }
             .frame(minWidth: 100, idealWidth: 150, maxWidth: 200)
-            .pickerStyle(DefaultPickerStyle())
             .padding(.horizontal)
-            .onChange(of: pageSize) { oldValue, newValue in
-                let startTime = CFAbsoluteTimeGetCurrent()
-                print("🔄 PaginationControls: pageSize changed from \(oldValue) to \(newValue)")
-                onPageSizeChange(newValue)
-                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-                print("⏱️ PaginationControls onChange took \(String(format: "%.1f", elapsed))ms")
-            }
 
             Button(action: {
                 onPageChange(currentPage - 1)

@@ -137,30 +137,28 @@ struct ResultJsonViewer: View {
             // Main content area based on view mode
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
-                    Group {
-                        switch viewMode {
-                        case .table:
-                            ResultTableView(
-                                items: pagedItemsComputed,
-                                parsedItems: pagedParsedItemsComputed,
-                                allKeys: allKeys,
-                                attachmentFields: attachmentFields,
-                                onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
-                                    onDelete?(docId, collectionName!)
-                                } : nil,
-                                hasExecutedQuery: hasExecutedQuery,
-                                autoFetchAttachments: autoFetchAttachments,
-                                globalRowOffset: globalRowOffset
-                            )
-                            .id("\(currentPage)-\(pageSize)")  // Force view recreation only when pagination changes
+                    switch viewMode {
+                    case .table:
+                        ResultTableView(
+                            items: pagedItemsComputed,
+                            parsedItems: pagedParsedItemsComputed,
+                            allKeys: allKeys,
+                            attachmentFields: attachmentFields,
+                            onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
+                                onDelete?(docId, collectionName!)
+                            } : nil,
+                            hasExecutedQuery: hasExecutedQuery,
+                            autoFetchAttachments: autoFetchAttachments,
+                            globalRowOffset: globalRowOffset
+                        )
+                        .id("\(currentPage)-\(pageSize)")  // Force view recreation only when pagination changes
+                        .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                    case .raw:
+                        ResultsList(items: pagedItemsComputed, hasExecutedQuery: hasExecutedQuery)
                             .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
-                        case .raw:
-                            ResultsList(items: pagedItemsComputed, hasExecutedQuery: hasExecutedQuery)
-                                .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
-                        case .map:
-                            EmptyView() // Map view is handled by MapResultView in QueryResultsView
-                                .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
-                        }
+                    case .map:
+                        EmptyView() // Map view is handled by MapResultView in QueryResultsView
+                            .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                     }
                 }
             }
@@ -182,6 +180,7 @@ struct ResultJsonViewer: View {
                         self.currentPage = 1
                     }
                 )
+                .background(Color(NSColor.controlBackgroundColor))  // PERFORMANCE: Isolate picker with background
                 Spacer()
                 Button {
                     isExporting = true
@@ -202,6 +201,7 @@ struct ResultJsonViewer: View {
             }
             .padding(.bottom, 10)
             .padding(.trailing, 20)
+            .background(Color(NSColor.controlBackgroundColor))  // PERFORMANCE: Separate layer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onChange(of: pageSize) { oldValue, newValue in
@@ -250,12 +250,11 @@ struct ResultsList: View {
     var body: some View {
         let bodyStartTime = CFAbsoluteTimeGetCurrent()
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        print("[\(timestamp)] 🏁 ResultsList.body START - building string for \(items.count) items, hasExecutedQuery: \(hasExecutedQuery)")
+        print("[\(timestamp)] 🏁 ResultsList.body START - building view for \(items.count) items, hasExecutedQuery: \(hasExecutedQuery)")
 
         // Handle empty state properly
         if items.isEmpty {
             if !hasExecutedQuery {
-                // No query executed yet
                 return AnyView(
                     Text("Run a query for results")
                         .foregroundColor(.secondary)
@@ -263,7 +262,6 @@ struct ResultsList: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 )
             } else {
-                // Query executed but no results - show empty brackets
                 return AnyView(
                     Text("[]")
                         .font(.system(.body, design: .monospaced))
@@ -275,42 +273,52 @@ struct ResultsList: View {
         }
 
         // Check if this is a single scalar value (like COUNT result)
-        // Don't wrap in brackets
         if items.count == 1 {
             let item = items[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            // Check if it's just a number or simple scalar (not JSON object/array)
             if !item.hasPrefix("{") && !item.hasPrefix("[") {
-                let textView = Text(item)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
-                let endTimestamp = ISO8601DateFormatter().string(from: Date())
-                print("[\(endTimestamp)] 🏁 ResultsList.body END (scalar) - total: \(String(format: "%.1f", elapsed))ms")
-
-                return AnyView(textView)
+                return AnyView(
+                    Text(item)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
             }
         }
-
-        // Build the entire JSON string as one text block for proper text selection
-        let jsonString = buildJsonString()
-
-        let stringBuilt = CFAbsoluteTimeGetCurrent()
-        print("[\(timestamp)] 📊 ResultsList string built - \(jsonString.count) chars")
-
-        let textView = Text(jsonString)
-            .font(.system(.body, design: .monospaced))
-            .textSelection(.enabled)
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
         let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
         let endTimestamp = ISO8601DateFormatter().string(from: Date())
         print("[\(endTimestamp)] 🏁 ResultsList.body END - total: \(String(format: "%.1f", elapsed))ms")
 
-        return AnyView(textView)
+        // PERFORMANCE: Split text into lines for lazy rendering
+        // Build full JSON first (fast - ~8ms)
+        let jsonString = buildJsonString()
+        print("[\(timestamp)] 📊 ResultsList string built - \(jsonString.count) chars")
+
+        // Split into lines for lazy rendering
+        let lines = jsonString.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        print("[\(timestamp)] 📊 Split into \(lines.count) lines")
+
+        let renderStart = CFAbsoluteTimeGetCurrent()
+        let result = AnyView(
+            ScrollView([.vertical, .horizontal]) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .textSelection(.enabled)
+                .padding()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        )
+
+        let renderElapsed = (CFAbsoluteTimeGetCurrent() - renderStart) * 1000
+        print("[\(timestamp)] 📊 LazyVStack created in \(String(format: "%.1f", renderElapsed))ms")
+
+        return result
     }
 
     private func buildJsonString() -> String {
@@ -349,6 +357,7 @@ struct ResultsList: View {
         return result
     }
 }
+
 
 struct ResultItem: View {
     let jsonString: String
