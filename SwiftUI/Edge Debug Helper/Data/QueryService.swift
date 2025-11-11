@@ -131,6 +131,24 @@ actor QueryService {
         return ["No results found"]
     }
 
+    // MARK: Collection Size
+    func getCollectionCount(collection: String) async throws -> Int {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
+        }
+
+        let query = "SELECT COUNT(*) as count FROM \(collection)"
+        let results = try await ditto.store.execute(query: query)
+
+        // Extract count from the first result
+        guard let firstItem = results.items.first,
+              let count = firstItem.value["count"] as? Int else {
+            return 0
+        }
+
+        return count
+    }
+
     // MARK: Delete Document
     func deleteDocument(documentId: String, collection: String) async throws {
         guard let ditto = await dittoManager.dittoSelectedApp else {

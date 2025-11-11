@@ -1510,7 +1510,7 @@ extension MainStudioView {
             return "\(trimmedQuery) LIMIT \(limit) OFFSET \(offset)"
         }
 
-        func executeQuery(appState: AppState, page: Int? = nil) async {
+        func executeQuery(appState: AppState, page: Int? = nil, forceServerPagination: Bool = false) async {
             isQueryExecuting = true
             isLoadingPage = true
 
@@ -1519,15 +1519,40 @@ extension MainStudioView {
             let offset = targetPage * pageSize
 
             do {
-                // Add pagination to the query
-                let paginatedQuery = addPaginationToQuery(selectedQuery, limit: pageSize, offset: offset)
+                // Determine if we should use server-side pagination based on query type and collection size
+                var shouldUseServerPagination = forceServerPagination
+
+                // Only consider server-side pagination for non-aggregate queries
+                if !DQLQueryParser.isAggregateOrPaginatedQuery(selectedQuery) {
+                    // Try to get collection size for smart decision
+                    if let collectionName = DQLQueryParser.extractCollectionName(from: selectedQuery) {
+                        do {
+                            let count = try await QueryService.shared.getCollectionCount(collection: collectionName)
+                            // Use server-side pagination for large collections (>10,000 items)
+                            if count > 10_000 {
+                                shouldUseServerPagination = true
+                                print("Large collection detected (\(count) items), using server-side pagination")
+                            } else {
+                                print("Small collection (\(count) items), using in-memory pagination")
+                            }
+                        } catch {
+                            // If count fails, default to in-memory pagination (safer/faster)
+                            print("Failed to get collection count, defaulting to in-memory pagination")
+                        }
+                    }
+                }
+
+                // Execute query with or without pagination based on decision
+                let queryToExecute = shouldUseServerPagination
+                    ? addPaginationToQuery(selectedQuery, limit: pageSize, offset: offset)
+                    : selectedQuery
 
                 if selectedExecuteMode == "Local" {
                      jsonResults = try await QueryService.shared
-                        .executeSelectedAppQuery(query: paginatedQuery)
+                        .executeSelectedAppQuery(query: queryToExecute)
                 } else {
                     jsonResults = try await QueryService.shared
-                        .executeSelectedAppQueryHttp(query: paginatedQuery)
+                        .executeSelectedAppQueryHttp(query: queryToExecute)
                 }
 
                 // Save results to the current query tab if we're on one
@@ -1539,8 +1564,10 @@ extension MainStudioView {
                 currentPage = targetPage
                 hasExecutedQuery = true
 
-                // Add query to history (original query, not paginated)
-                await addQueryToHistory(appState: appState)
+                // Add query to history (original query, not paginated) - only on first page
+                if targetPage == 0 {
+                    await addQueryToHistory(appState: appState)
+                }
             } catch {
                 appState.setError(error)
             }

@@ -99,18 +99,8 @@ struct ViewContainer: View {
                 QueryResultsView(
                     jsonResults: $viewModel.jsonResults,
                     queryText: viewModel.selectedQuery,
-                    currentPage: viewModel.currentPage,
-                    pageSize: viewModel.pageSize,
-                    isLoadingPage: viewModel.isLoadingPage,
-                    onNextPage: {
-                        await viewModel.nextPage(appState: appState)
-                    },
-                    onPreviousPage: {
-                        await viewModel.previousPage(appState: appState)
-                    },
-                    onFirstPage: {
-                        await viewModel.goToFirstPage(appState: appState)
-                    }
+                    hasExecutedQuery: viewModel.hasExecutedQuery,
+                    appId: viewModel.selectedApp.appId
                 )
             }
             .onAppear {
@@ -180,18 +170,8 @@ struct ViewContainer: View {
                 QueryResultsView(
                     jsonResults: $viewModel.jsonResults,
                     queryText: viewModel.selectedQuery,
-                    currentPage: viewModel.currentPage,
-                    pageSize: viewModel.pageSize,
-                    isLoadingPage: viewModel.isLoadingPage,
-                    onNextPage: {
-                        await viewModel.nextPage(appState: appState)
-                    },
-                    onPreviousPage: {
-                        await viewModel.previousPage(appState: appState)
-                    },
-                    onFirstPage: {
-                        await viewModel.goToFirstPage(appState: appState)
-                    }
+                    hasExecutedQuery: viewModel.hasExecutedQuery,
+                    appId: viewModel.selectedApp.appId
                 )
             }
             .onAppear {

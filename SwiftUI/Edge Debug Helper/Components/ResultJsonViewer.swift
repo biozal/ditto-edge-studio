@@ -10,6 +10,8 @@ import SwiftUI
 
 struct ResultJsonViewer: View {
     @Binding var resultText: [String]
+    let parsedItems: [[String: Any]]   // Pre-parsed from parent
+    let allKeys: [String]               // Pre-computed from parent
     let viewMode: QueryResultViewMode
     let attachmentFields: [String]
     var collectionName: String?
@@ -17,27 +19,44 @@ struct ResultJsonViewer: View {
     var hasExecutedQuery: Bool = false
     var autoFetchAttachments: Bool = false
 
-    @State private var currentPage = 1
-    @State private var pageSize = 10
+    // Pagination state - can be provided as bindings or use default state
+    @Binding var currentPage: Int
+    @Binding var pageSize: Int
+
     @State private var isExporting = false
 
     private var pageSizes: [Int] {
         switch resultCount {
         case 0...10: return [10]
-        case 11...25: return [25]
-        case 26...50: return [25, 50]
-        case 51...100: return [25, 50, 100]
-        case 101...200: return [25, 50, 100, 200]
-        case 201...250: return [25, 50, 100, 200, 250]
-        default: return [10, 25, 50, 100, 200, 250]
+        case 11...25: return [10, 25]
+        case 26...50: return [10, 25, 50]
+        case 51...100: return [10, 25, 50, 100]
+        case 101...250: return [10, 25, 50, 100, 250]
+        default: return [10, 25, 50, 100, 250]
         }
     }
     private var resultCount: Int {
         resultText.count
     }
 
-    init(resultText: Binding<[String]>, viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = [], collectionName: String? = nil, onDelete: ((String, String) -> Void)? = nil, hasExecutedQuery: Bool = false, autoFetchAttachments: Bool = false) {
+    init(
+        resultText: Binding<[String]>,
+        parsedItems: [[String: Any]],
+        allKeys: [String],
+        currentPage: Binding<Int>,
+        pageSize: Binding<Int>,
+        viewMode: QueryResultViewMode = .raw,
+        attachmentFields: [String] = [],
+        collectionName: String? = nil,
+        onDelete: ((String, String) -> Void)? = nil,
+        hasExecutedQuery: Bool = false,
+        autoFetchAttachments: Bool = false
+    ) {
         self._resultText = resultText
+        self.parsedItems = parsedItems
+        self.allKeys = allKeys
+        self._currentPage = currentPage
+        self._pageSize = pageSize
         self.viewMode = viewMode
         self.attachmentFields = attachmentFields
         self.collectionName = collectionName
@@ -46,9 +65,13 @@ struct ResultJsonViewer: View {
         self.autoFetchAttachments = autoFetchAttachments
     }
 
-    // Convenience initializer for static arrays
+    // Convenience initializer for static arrays (e.g., previews)
     init(resultText: [String], viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = []) {
         self._resultText = .constant(resultText)
+        self.parsedItems = []
+        self.allKeys = []
+        self._currentPage = .constant(1)
+        self._pageSize = .constant(10)
         self.viewMode = viewMode
         self.attachmentFields = attachmentFields
         self.collectionName = nil
@@ -61,9 +84,23 @@ struct ResultJsonViewer: View {
     }
 
     private var pagedItems: [String] {
+        guard !resultText.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
+        guard start < end && start < resultText.count else { return [] }
         return Array(resultText[start..<end])
+    }
+
+    private var pagedParsedItems: [[String: Any]] {
+        guard !parsedItems.isEmpty else { return [] }
+        let start = (currentPage - 1) * pageSize
+        let end = min(start + pageSize, parsedItems.count)
+        guard start < end && start < parsedItems.count else { return [] }
+        return Array(parsedItems[start..<end])
+    }
+
+    private var globalRowOffset: Int {
+        (currentPage - 1) * pageSize
     }
 
     var body: some View {
@@ -76,20 +113,25 @@ struct ResultJsonViewer: View {
                         case .table:
                             ResultTableView(
                                 items: pagedItems,
+                                parsedItems: pagedParsedItems,
+                                allKeys: allKeys,
                                 attachmentFields: attachmentFields,
                                 onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
                                     onDelete?(docId, collectionName!)
                                 } : nil,
                                 hasExecutedQuery: hasExecutedQuery,
-                                autoFetchAttachments: autoFetchAttachments
+                                autoFetchAttachments: autoFetchAttachments,
+                                globalRowOffset: globalRowOffset
                             )
+                            .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                         case .raw:
                             ResultsList(items: pagedItems, hasExecutedQuery: hasExecutedQuery)
+                                .frame(minWidth: geometry.size.width, alignment: .topLeading)
                         case .map:
                             EmptyView() // Map view is handled by MapResultView in QueryResultsView
+                                .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                         }
                     }
-                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                 }
             }
 
@@ -169,42 +211,50 @@ struct ResultsList: View {
     let items: [String]
     var hasExecutedQuery: Bool = false
 
-    private var jsonArrayText: String {
-        if items.isEmpty {
-            return ""
-        }
-
-        // Format as a JSON array with proper indentation
-        let formattedItems = items.map { item in
-            // Add 2-space indentation to each line of the item
-            item.split(separator: "\n")
-                .map { "  \($0)" }
-                .joined(separator: "\n")
-        }
-
-        return "[\n" + formattedItems.joined(separator: ",\n") + "\n]"
-    }
-
     var body: some View {
-        if items.isEmpty {
-            if hasExecutedQuery {
-                // Show empty JSON array for executed query with no results
-                Text("[]")
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .textSelection(.enabled)
-                    .padding()
+        Group {
+            if items.isEmpty {
+                if hasExecutedQuery {
+                    // Show empty JSON array for executed query with no results
+                    Text("[]")
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                        .padding()
+                } else {
+                    // Show message when no query has been executed
+                    Text("Run a query for data")
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
             } else {
-                // Show message when no query has been executed
-                Text("Run a query for data")
-                    .foregroundColor(.secondary)
-                    .padding()
-            }
-        } else {
-            Text(jsonArrayText)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
+                // PERFORMANCE: Use LazyVStack for efficient rendering (parent has ScrollView)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Text("[")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+
+                    ForEach(items.indices, id: \.self) { index in
+                        // Each item rendered lazily as it comes into view
+                        Group {
+                            Text(items[index].split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+
+                            if index < items.count - 1 {
+                                Text(",")
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+
+                    Text("]")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                }
                 .padding()
+            }
         }
     }
 }
@@ -268,7 +318,7 @@ struct ResultItem: View {
 
 #Preview {
     ResultJsonViewer(
-        resultText: .constant([
+        resultText: [
             "{\n  \"id\": 1,\n  \"name\": \"Test\"\n}",
             "{\n  \"id\": 2,\n  \"name\": \"Sample\"\n}",
             "{\n  \"id\": 3,\n  \"name\": \"Example\"\n}",
@@ -297,7 +347,7 @@ struct ResultItem: View {
             "{\n  \"id\": 26,\n  \"name\": \"Chi\"\n}",
             "{\n  \"id\": 27,\n  \"name\": \"Psi\"\n}",
             "{\n  \"id\": 28,\n  \"name\": \"Omega\"\n}",
-        ])
+        ]
     )
     .frame(width: 400, height: 300)
 }

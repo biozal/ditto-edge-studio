@@ -13,18 +13,19 @@ struct QueryResultsView: View {
     var hasExecutedQuery: Bool = false
     var appId: String = ""
 
-    // Pagination parameters
-    var currentPage: Int = 0
-    var pageSize: Int = 100
-    var isLoadingPage: Bool = false
-    var onNextPage: (() async -> Void)? = nil
-    var onPreviousPage: (() async -> Void)? = nil
-    var onFirstPage: (() async -> Void)? = nil
-
     @State private var viewMode: QueryResultViewMode = .raw
     @State private var isExporting = false
     @State private var resultsCount: Int = 0
     @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
+
+    // Shared pagination state across all view modes
+    @State private var currentPage: Int = 1
+    @State private var pageSize: Int = 10
+
+    // PERFORMANCE: Parse JSON once and share across all views
+    @State private var parsedResults: [[String: Any]] = []
+    @State private var allKeys: [String] = []
+    @State private var parseCacheKey: Int = 0
 
     // Map field mapping state
     @State private var latitudeField: String = "lat"
@@ -44,6 +45,29 @@ struct QueryResultsView: View {
 
     private var attachmentFields: [String] {
         AttachmentQueryParser.extractAttachmentFields(from: queryText)
+    }
+
+    // PERFORMANCE: Parse JSON once when results change
+    private func parseResults() {
+        let newCacheKey = jsonResults.count
+        guard newCacheKey != parseCacheKey else { return }
+
+        parseCacheKey = newCacheKey
+
+        var parsed: [[String: Any]] = []
+        var keys = Set<String>()
+
+        for jsonString in jsonResults {
+            guard let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            parsed.append(json)
+            keys.formUnion(json.keys)
+        }
+
+        parsedResults = parsed
+        allKeys = Array(keys).sorted()
     }
 
     private func updateCollectionName() {
@@ -113,24 +137,12 @@ struct QueryResultsView: View {
         jsonResults: Binding<[String]>,
         queryText: String = "",
         hasExecutedQuery: Bool = false,
-        appId: String = "",
-        currentPage: Int = 0,
-        pageSize: Int = 100,
-        isLoadingPage: Bool = false,
-        onNextPage: (() async -> Void)? = nil,
-        onPreviousPage: (() async -> Void)? = nil,
-        onFirstPage: (() async -> Void)? = nil
+        appId: String = ""
     ) {
         _jsonResults = jsonResults
         self.queryText = queryText
         self.hasExecutedQuery = hasExecutedQuery
         self.appId = appId
-        self.currentPage = currentPage
-        self.pageSize = pageSize
-        self.isLoadingPage = isLoadingPage
-        self.onNextPage = onNextPage
-        self.onPreviousPage = onPreviousPage
-        self.onFirstPage = onFirstPage
         resultsCount = _jsonResults.wrappedValue.count
     }
 
@@ -186,77 +198,17 @@ struct QueryResultsView: View {
 
             Divider()
 
-            // Pagination controls
-            if hasExecutedQuery && !jsonResults.isEmpty {
-                HStack {
-                    // Page info
-                    Text("Page \(currentPage + 1)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("•")
-                        .foregroundColor(.secondary)
-
-                    Text("\(jsonResults.count) results")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    // Loading indicator
-                    if isLoadingPage {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .padding(.trailing, 8)
-                    }
-
-                    // Navigation buttons
-                    Button {
-                        Task {
-                            await onFirstPage?()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.left.2")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(currentPage == 0 || isLoadingPage)
-                    .help("Go to first page")
-
-                    Button {
-                        Task {
-                            await onPreviousPage?()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(currentPage == 0 || isLoadingPage)
-                    .help("Previous page")
-
-                    Button {
-                        Task {
-                            await onNextPage?()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.right")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(jsonResults.count < pageSize || isLoadingPage)
-                    .help("Next page")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.03))
-
-                Divider()
-            }
-
             // Content based on selected view mode
+            // Note: Pagination state and parsed data shared across all view modes
             Group {
                 switch viewMode {
                 case .table:
                     ResultJsonViewer(
                         resultText: $jsonResults,
+                        parsedItems: parsedResults,
+                        allKeys: allKeys,
+                        currentPage: $currentPage,
+                        pageSize: $pageSize,
                         viewMode: .table,
                         attachmentFields: attachmentFields,
                         collectionName: collectionName,
@@ -267,6 +219,10 @@ struct QueryResultsView: View {
                 case .raw:
                     ResultJsonViewer(
                         resultText: $jsonResults,
+                        parsedItems: parsedResults,
+                        allKeys: allKeys,
+                        currentPage: $currentPage,
+                        pageSize: $pageSize,
                         viewMode: .raw,
                         attachmentFields: attachmentFields,
                         hasExecutedQuery: hasExecutedQuery,
@@ -284,11 +240,15 @@ struct QueryResultsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear {
+            parseResults()
             updateCollectionName()
             loadFieldMapping()
         }
         .onChange(of: jsonResults) { _, _ in
+            parseResults() // Parse once when results change
             updateAvailableFields()
+            // Reset to first page when results change (new query executed)
+            currentPage = 1
         }
         .onChange(of: queryText) { _, _ in
             updateCollectionName()

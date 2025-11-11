@@ -9,10 +9,13 @@ import SwiftUI
 
 struct ResultTableView: View {
     let items: [String]
+    let parsedItems: [[String: Any]]  // Pre-parsed from parent
+    let allKeys: [String]              // Pre-computed from parent
     let attachmentFields: [String]
     var onDelete: ((String, String) -> Void)?
     var hasExecutedQuery: Bool = false
     var autoFetchAttachments: Bool = false
+    var globalRowOffset: Int = 0  // Offset for global row numbering across pages
 
     @State private var modalRecord: ModalRecord?
     @State private var columnWidths: [String: CGFloat] = [:]
@@ -23,38 +26,12 @@ struct ResultTableView: View {
         let index: Int?
     }
 
-    // Extract all unique keys from all JSON objects
-    private var allKeys: [String] {
-        var keys = Set<String>()
-
-        for jsonString in items {
-            guard let data = jsonString.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                continue
-            }
-            keys.formUnion(json.keys)
-        }
-
-        return Array(keys).sorted()
-    }
-
     private func getColumnWidth(_ key: String) -> CGFloat {
         columnWidths[key] ?? 200
     }
 
     private func setColumnWidth(_ key: String, width: CGFloat) {
         columnWidths[key] = max(50, min(width, 800))
-    }
-
-    // Parse JSON items into dictionaries
-    private var parsedItems: [[String: Any]] {
-        items.compactMap { jsonString in
-            guard let data = jsonString.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return nil
-            }
-            return json
-        }
     }
 
     var body: some View {
@@ -95,30 +72,33 @@ struct ResultTableView: View {
 
                 Divider()
 
-                // Data rows
-                ForEach(parsedItems.indices, id: \.self) { index in
-                    let documentId = parsedItems[index]["_id"] as? String
-                    TableRow(
-                        index: index,
-                        allKeys: allKeys,
-                        parsedItems: parsedItems,
-                        items: items,
-                        documentId: documentId,
-                        columnWidths: allKeys.reduce(into: [:]) { result, key in
-                            result[key] = getColumnWidth(key)
-                        },
-                        onDelete: onDelete,
-                        onRowTap: { rowIndex in
-                            if rowIndex < items.count {
-                                let record = items[rowIndex]
-                                modalRecord = ModalRecord(jsonString: record, index: rowIndex)
-                            }
-                        },
-                        onCopyRow: copyRowToClipboard
-                    )
+                // Data rows - LazyVStack ensures only visible rows are rendered
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(parsedItems.indices, id: \.self) { index in
+                        let documentId = parsedItems[index]["_id"] as? String
+                        TableRow(
+                            index: index,
+                            globalIndex: globalRowOffset + index,
+                            allKeys: allKeys,
+                            parsedItems: parsedItems,
+                            items: items,
+                            documentId: documentId,
+                            columnWidths: allKeys.reduce(into: [:]) { result, key in
+                                result[key] = getColumnWidth(key)
+                            },
+                            onDelete: onDelete,
+                            onRowTap: { rowIndex in
+                                if rowIndex < items.count {
+                                    let record = items[rowIndex]
+                                    modalRecord = ModalRecord(jsonString: record, index: rowIndex)
+                                }
+                            },
+                            onCopyRow: copyRowToClipboard
+                        )
 
-                    if index < parsedItems.count - 1 {
-                        Divider()
+                        if index < parsedItems.count - 1 {
+                            Divider()
+                        }
                     }
                 }
             }
@@ -153,6 +133,7 @@ struct ResultTableView: View {
 
 struct TableRow: View {
     let index: Int
+    let globalIndex: Int  // Global row number across all pages
     let allKeys: [String]
     let parsedItems: [[String: Any]]
     let items: [String]
@@ -166,8 +147,8 @@ struct TableRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            // Row number
-            Text("\(index + 1)")
+            // Row number - use global index for correct numbering across pages
+            Text("\(globalIndex + 1)")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundColor(.secondary)
                 .frame(width: 50, alignment: .leading)
@@ -348,36 +329,51 @@ struct ResizableTableHeaderCell: View {
 }
 
 #Preview {
-    ResultTableView(
-        items: [
-            """
-            {
-              "_id": "123abc",
-              "name": "John Doe",
-              "email": "john@example.com",
-              "age": 30,
-              "active": true
-            }
-            """,
-            """
-            {
-              "_id": "456def",
-              "name": "Jane Smith",
-              "email": "jane@example.com",
-              "age": 28,
-              "active": false,
-              "city": "New York"
-            }
-            """,
-            """
-            {
-              "_id": "789ghi",
-              "name": "Bob Johnson",
-              "age": 35,
-              "active": true
-            }
-            """
-        ],
+    let items = [
+        """
+        {
+          "_id": "123abc",
+          "name": "John Doe",
+          "email": "john@example.com",
+          "age": 30,
+          "active": true
+        }
+        """,
+        """
+        {
+          "_id": "456def",
+          "name": "Jane Smith",
+          "email": "jane@example.com",
+          "age": 28,
+          "active": false,
+          "city": "New York"
+        }
+        """,
+        """
+        {
+          "_id": "789ghi",
+          "name": "Bob Johnson",
+          "age": 35,
+          "active": true
+        }
+        """
+    ]
+
+    // Parse items for preview
+    var parsedItems: [[String: Any]] = []
+    var allKeys = Set<String>()
+    for jsonString in items {
+        if let data = jsonString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            parsedItems.append(json)
+            allKeys.formUnion(json.keys)
+        }
+    }
+
+    return ResultTableView(
+        items: items,
+        parsedItems: parsedItems,
+        allKeys: Array(allKeys).sorted(),
         attachmentFields: []
     )
     .frame(width: 800, height: 400)

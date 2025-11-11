@@ -32,4 +32,51 @@ struct DQLQueryParser {
 
         return String(query[range])
     }
+
+    /// Determines if a query is an aggregate query that doesn't benefit from server-side pagination
+    /// - Parameter query: The DQL query string
+    /// - Returns: True if the query uses aggregate functions, GROUP BY, or already has LIMIT/OFFSET
+    ///
+    /// Examples of aggregate queries:
+    /// - `SELECT COUNT(*) FROM cars` → true
+    /// - `SELECT AVG(price) FROM cars` → true
+    /// - `SELECT make, COUNT(*) FROM cars GROUP BY make` → true
+    /// - `SELECT * FROM cars LIMIT 10` → true (already paginated)
+    /// - `SELECT make FROM cars` → false (can benefit from pagination)
+    static func isAggregateOrPaginatedQuery(_ query: String) -> Bool {
+        let upperQuery = query.uppercased()
+
+        // Check if query already has LIMIT or OFFSET
+        if upperQuery.contains("LIMIT") || upperQuery.contains("OFFSET") {
+            return true
+        }
+
+        // Check for aggregate functions: COUNT, SUM, AVG, MIN, MAX
+        let aggregateFunctions = ["COUNT(", "SUM(", "AVG(", "MIN(", "MAX("]
+        for function in aggregateFunctions {
+            if upperQuery.contains(function) {
+                return true
+            }
+        }
+
+        // Check for GROUP BY clause
+        if upperQuery.contains("GROUP BY") {
+            return true
+        }
+
+        // Check for DISTINCT (often returns smaller result sets)
+        if upperQuery.contains("SELECT DISTINCT") {
+            return true
+        }
+
+        return false
+    }
+
+    /// Checks if the query already has pagination clauses
+    /// - Parameter query: The DQL query string
+    /// - Returns: True if the query contains LIMIT or OFFSET
+    static func hasPagination(_ query: String) -> Bool {
+        let upperQuery = query.uppercased()
+        return upperQuery.contains("LIMIT") || upperQuery.contains("OFFSET")
+    }
 }
