@@ -35,24 +35,12 @@ struct ResultTableView: View {
     }
 
     var body: some View {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        print("[\(timestamp)] 🏁 ResultTableView.body START with \(parsedItems.count) items, \(allKeys.count) keys")
-
-        // PERFORMANCE: Calculate column widths once instead of per-row
+        // Calculate column widths once instead of per-row
         let columnWidthsDict = allKeys.reduce(into: [:]) { result, key in
             result[key] = getColumnWidth(key)
         }
-        let columnWidthsTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-        print("[\(timestamp)] 📊 Column widths computed in \(String(format: "%.1f", columnWidthsTime))ms")
 
-        // PERFORMANCE WARNING: Show warning if rendering large dataset
-        if parsedItems.count > 100 {
-            print("[\(timestamp)] ⚠️ WARNING: Rendering \(parsedItems.count) rows with \(allKeys.count) columns = \(parsedItems.count * allKeys.count) cells!")
-        }
-
-        let viewStartTime = CFAbsoluteTimeGetCurrent()
-        let result = VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 0) {
             if parsedItems.isEmpty {
                 if hasExecutedQuery {
                     // Show record count for executed query with no results
@@ -114,7 +102,7 @@ struct ResultTableView: View {
                             },
                             onCopyRow: copyRowToClipboard
                         )
-                        .id(index)  // PERFORMANCE: Stable identity per row
+                        .id(index)
 
                         if index < parsedItems.count - 1 {
                             Divider()
@@ -136,14 +124,6 @@ struct ResultTableView: View {
                 )
             )
         }
-
-        let viewBuildTime = (CFAbsoluteTimeGetCurrent() - viewStartTime) * 1000
-        let totalTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-        let endTimestamp = ISO8601DateFormatter().string(from: Date())
-        print("[\(endTimestamp)] 📊 View structure built in \(String(format: "%.1f", viewBuildTime))ms")
-        print("[\(endTimestamp)] 🏁 ResultTableView.body END - total: \(String(format: "%.1f", totalTime))ms")
-
-        return result
     }
 
     private func copyRowToClipboard(index: Int) {

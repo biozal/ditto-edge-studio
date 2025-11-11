@@ -22,17 +22,11 @@ struct PaginationControls: View {
             Text("Total: \(totalCount)")
             Spacer()
 
-            // PERFORMANCE: Use Menu instead of Picker to avoid SwiftUI layout recalculation hang
             Menu {
                 ForEach(pageSizes, id: \.self) { size in
                     Button("\(size)") {
-                        let startTime = CFAbsoluteTimeGetCurrent()
-                        let oldValue = pageSize
-                        print("🔄 PaginationControls: pageSize changing from \(oldValue) to \(size)")
                         pageSize = size
                         onPageSizeChange(size)
-                        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-                        print("⏱️ PaginationControls onChange took \(String(format: "%.1f", elapsed))ms")
                     }
                 }
             } label: {

@@ -668,9 +668,10 @@ extension MainStudioView {
                     }
                 },
                 onSelectCollection: { collection in
-                    // Open collection query in a query editor tab
+                    // Open collection query in a query editor tab with unique ID based on collection name
                     let query = "SELECT * FROM \(collection.name)"
-                    viewModel.openQueryTab(query)
+                    let uniqueID = "collection-\(collection.name)"
+                    viewModel.openQueryTab(query, uniqueID: uniqueID, reuseExisting: true)
                     Task {
                         await executeQuery()
                     }

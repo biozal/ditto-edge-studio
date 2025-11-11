@@ -84,39 +84,19 @@ struct ResultJsonViewer: View {
     }
 
     private var pagedItems: [String] {
-        let startTime = CFAbsoluteTimeGetCurrent()
-
         guard !resultText.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
         guard start < end && start < resultText.count else { return [] }
-
-        let result = Array(resultText[start..<end])
-
-        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-        if elapsed > 10 {
-            print("⚠️ PERFORMANCE: pagedItems took \(String(format: "%.1f", elapsed))ms for page size \(pageSize)")
-        }
-
-        return result
+        return Array(resultText[start..<end])
     }
 
     private var pagedParsedItems: [[String: Any]] {
-        let startTime = CFAbsoluteTimeGetCurrent()
-
         guard !parsedItems.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, parsedItems.count)
         guard start < end && start < parsedItems.count else { return [] }
-
-        let result = Array(parsedItems[start..<end])
-
-        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-        if elapsed > 10 {
-            print("⚠️ PERFORMANCE: pagedParsedItems took \(String(format: "%.1f", elapsed))ms for page size \(pageSize)")
-        }
-
-        return result
+        return Array(parsedItems[start..<end])
     }
 
     private var globalRowOffset: Int {
@@ -124,14 +104,8 @@ struct ResultJsonViewer: View {
     }
 
     var body: some View {
-        let bodyStartTime = CFAbsoluteTimeGetCurrent()
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-
         let pagedItemsComputed = pagedItems
         let pagedParsedItemsComputed = pagedParsedItems
-
-        let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
-        print("[\(timestamp)] 📊 ResultJsonViewer.body START - pagedItems computed in \(String(format: "%.1f", elapsed))ms - items: \(pagedItemsComputed.count)")
 
         return VStack(alignment: .leading, spacing: 0) {
             // Main content area based on view mode
@@ -204,14 +178,8 @@ struct ResultJsonViewer: View {
             .background(Color(NSColor.controlBackgroundColor))  // PERFORMANCE: Separate layer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: pageSize) { oldValue, newValue in
-            let startTime = CFAbsoluteTimeGetCurrent()
-            print("🔄 Page size changed from \(oldValue) to \(newValue)")
-
+        .onChange(of: pageSize) { _, _ in
             currentPage = max(1, min(currentPage, pageCount))
-
-            let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-            print("⏱️ Page size change handler took \(String(format: "%.1f", elapsed))ms")
         }
         .onChange(of: resultText) { _, _ in
             currentPage = 1
@@ -248,10 +216,6 @@ struct ResultsList: View {
     var hasExecutedQuery: Bool = false
 
     var body: some View {
-        let bodyStartTime = CFAbsoluteTimeGetCurrent()
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        print("[\(timestamp)] 🏁 ResultsList.body START - building view for \(items.count) items, hasExecutedQuery: \(hasExecutedQuery)")
-
         // Handle empty state properly
         if items.isEmpty {
             if !hasExecutedQuery {
@@ -286,57 +250,57 @@ struct ResultsList: View {
             }
         }
 
-        let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
-        let endTimestamp = ISO8601DateFormatter().string(from: Date())
-        print("[\(endTimestamp)] 🏁 ResultsList.body END - total: \(String(format: "%.1f", elapsed))ms")
-
-        // PERFORMANCE: Split text into lines for lazy rendering
-        // Build full JSON first (fast - ~8ms)
+        // Build JSON and chunk into groups of lines for lazy rendering
         let jsonString = buildJsonString()
-        print("[\(timestamp)] 📊 ResultsList string built - \(jsonString.count) chars")
-
-        // Split into lines for lazy rendering
         let lines = jsonString.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        print("[\(timestamp)] 📊 Split into \(lines.count) lines")
 
-        let renderStart = CFAbsoluteTimeGetCurrent()
-        let result = AnyView(
+        // Find the longest line to establish width
+        let longestLine = lines.max(by: { $0.count < $1.count }) ?? ""
+
+        // Chunk lines into groups of 10 for better performance
+        let linesPerChunk = 10
+        var chunks: [String] = []
+        for i in stride(from: 0, to: lines.count, by: linesPerChunk) {
+            let endIndex = min(i + linesPerChunk, lines.count)
+            let chunkLines = lines[i..<endIndex]
+            chunks.append(chunkLines.joined(separator: "\n"))
+        }
+
+        return AnyView(
             ScrollView([.vertical, .horizontal]) {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                ZStack(alignment: .topLeading) {
+                    // Invisible longest line to establish width
+                    Text(longestLine)
+                        .font(.system(.body, design: .monospaced))
+                        .fixedSize()
+                        .opacity(0)
+                        .allowsHitTesting(false)
+
+                    // Actual content
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                        ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                            Text(chunk)
+                                .font(.system(.body, design: .monospaced))
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
+                    .textSelection(.enabled)
                 }
-                .textSelection(.enabled)
                 .padding()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         )
-
-        let renderElapsed = (CFAbsoluteTimeGetCurrent() - renderStart) * 1000
-        print("[\(timestamp)] 📊 LazyVStack created in \(String(format: "%.1f", renderElapsed))ms")
-
-        return result
     }
 
     private func buildJsonString() -> String {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-
         if items.isEmpty {
             return "[]"
         }
 
-        // PERFORMANCE: Pre-allocate capacity for better string building performance
-        // Estimate ~500 chars per item on average
         var result = ""
         result.reserveCapacity(items.count * 500)
 
         result.append("[\n")
         for (index, item) in items.enumerated() {
-            // Indent each item
             let lines = item.split(separator: "\n", omittingEmptySubsequences: false)
             for line in lines {
                 result.append("  ")
@@ -344,15 +308,11 @@ struct ResultsList: View {
                 result.append("\n")
             }
             if index < items.count - 1 {
-                // Remove last newline and add comma
                 result.removeLast()
                 result.append(",\n")
             }
         }
         result.append("]")
-
-        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
-        print("[\(timestamp)] ⚠️ buildJsonString took \(String(format: "%.1f", elapsed))ms for \(items.count) items, \(result.count) chars")
 
         return result
     }

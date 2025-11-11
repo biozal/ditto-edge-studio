@@ -109,49 +109,33 @@ struct QueryResultsView: View {
 
     private func handleDeleteAll(options: DeleteAllModal.DeleteAllOptions) async {
         guard let collection = collectionName else {
-            print("DEBUG: No collection name found")
             return
         }
 
-        print("DEBUG: handleDeleteAll called for collection: \(collection), mode: \(options.mode)")
-
         do {
             if options.mode == .entireCollection {
-                // Delete entire collection - no WHERE clause
-                print("DEBUG: Deleting entire collection")
                 try await QueryService.shared.deleteEntireCollection(collection: collection)
-                print("DEBUG: Entire collection deleted successfully")
             } else {
-                // Delete only results using unique field
-                print("DEBUG: Extracting IDs using field: \(options.uniqueField)")
                 let documentIds = extractFieldValues(fieldName: options.uniqueField)
-                print("DEBUG: Extracted \(documentIds.count) document IDs: \(documentIds.prefix(5))...")
-
                 guard !documentIds.isEmpty else {
-                    print("DEBUG: No document IDs to delete")
                     return
                 }
 
-                print("DEBUG: Calling deleteDocuments...")
                 try await QueryService.shared.deleteDocumentsByField(
                     fieldValues: documentIds,
                     fieldName: options.uniqueField,
                     collection: collection
                 )
-                print("DEBUG: Delete completed successfully")
             }
 
             // Re-execute the query to refresh results
             if let onRefreshQuery = onRefreshQuery {
-                print("DEBUG: Calling onRefreshQuery callback")
                 await onRefreshQuery()
-                print("DEBUG: onRefreshQuery completed")
             } else {
-                print("DEBUG: No refresh callback, clearing results")
                 jsonResults = []
             }
         } catch {
-            print("DEBUG: Delete failed with error: \(error)")
+            // Error already logged by QueryService
         }
     }
 
@@ -177,7 +161,6 @@ struct QueryResultsView: View {
                 }
             }
         }
-        print("DEBUG: extractFieldValues(\(fieldName)) returning \(values.count) values")
         return values
     }
 
@@ -191,26 +174,15 @@ struct QueryResultsView: View {
 
             // Handle different _id formats
             if let id = json["_id"] as? String {
-                // Simple string ID
                 ids.append(id)
             } else if let id = json["_id"] as? Int {
-                // Numeric ID
                 ids.append(String(id))
             } else if let id = json["_id"] as? Double {
-                // Double ID
                 ids.append(String(Int(id)))
-            } else if let idObj = json["_id"] as? [String: Any] {
-                // MongoDB extended JSON format like {"$oid": "..."}
-                if let oidValue = idObj["$oid"] as? String {
-                    ids.append(oidValue)
-                } else {
-                    print("DEBUG: Unknown _id object format: \(idObj)")
-                }
-            } else {
-                print("DEBUG: Unknown _id type: \(type(of: json["_id"]))")
+            } else if let idObj = json["_id"] as? [String: Any], let oidValue = idObj["$oid"] as? String {
+                ids.append(oidValue)
             }
         }
-        print("DEBUG: extractAllDocumentIds returning \(ids.count) IDs")
         return ids
     }
 
