@@ -11,9 +11,9 @@ actor QueryService {
     // MARK: Query Execution
     func executeSelectedAppQuery(query: String) async throws -> [String] {
         guard let ditto = await dittoManager.dittoSelectedApp else {
-            return ["No results found"]
+            return []
         }
-        
+
         let results = try await ditto.store.execute(query: query)
         if results.items.isEmpty {
             if (!results.mutatedDocumentIDs().isEmpty) {
@@ -27,9 +27,27 @@ actor QueryService {
                 }
                 return resultsStrings
             } else {
-                return ["No results found"]
+                return []
             }
         } else {
+            // Check if this is an aggregate query (COUNT, SUM, AVG, etc.)
+            // These queries return a single result with aggregate values
+            if results.items.count == 1,
+               let firstItem = results.items.first {
+                let cleanedValue = firstItem.value.compactMapValues { $0 }
+
+                // Check if the result has aggregate function keys like "($1)", "count", etc.
+                // For aggregate queries, return just the scalar value(s)
+                if cleanedValue.count == 1,
+                   let firstKey = cleanedValue.keys.first,
+                   (firstKey.hasPrefix("($") || firstKey.lowercased() == "count") {
+                    if let value = cleanedValue[firstKey] {
+                        return ["\(value)"]
+                    }
+                }
+            }
+
+            // Regular query results - return as JSON array
             let resultJsonStrings = results.items.compactMap { item -> String? in
                 // Convert [String: Any?] to [String: Any] by removing nil values
                 let cleanedValue = item.value.compactMapValues {
@@ -51,7 +69,7 @@ actor QueryService {
                     return nil
                 }
             }
-            return resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
+            return resultJsonStrings
         }
     }
     
@@ -120,15 +138,15 @@ actor QueryService {
                     }
                 }
                 
-                return resultStrings.isEmpty ? ["No items found"] : resultStrings
+                return resultStrings
             }
         }
-        
+
         // If response format is different, return the whole thing as one item
         if let jsonString = String(data: data, encoding: .utf8) {
             return [jsonString]
         }
-        return ["No results found"]
+        return []
     }
 
     // MARK: Collection Size

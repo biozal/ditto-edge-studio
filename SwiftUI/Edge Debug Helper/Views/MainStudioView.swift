@@ -1528,30 +1528,11 @@ extension MainStudioView {
             let offset = targetPage * pageSize
 
             do {
-                // Determine if we should use server-side pagination based on query type and collection size
-                var shouldUseServerPagination = forceServerPagination
+                // Always use in-memory pagination - load all data in one shot
+                // This is faster and provides better user experience for typical dataset sizes
+                let shouldUseServerPagination = false
 
-                // Only consider server-side pagination for non-aggregate queries
-                if !DQLQueryParser.isAggregateOrPaginatedQuery(selectedQuery) {
-                    // Try to get collection size for smart decision
-                    if let collectionName = DQLQueryParser.extractCollectionName(from: selectedQuery) {
-                        do {
-                            let count = try await QueryService.shared.getCollectionCount(collection: collectionName)
-                            // Use server-side pagination for large collections (>10,000 items)
-                            if count > 1_000_000 {
-                                shouldUseServerPagination = true
-                                print("Large collection detected (\(count) items), using server-side pagination")
-                            } else {
-                                print("Small collection (\(count) items), using in-memory pagination")
-                            }
-                        } catch {
-                            // If count fails, default to in-memory pagination (safer/faster)
-                            print("Failed to get collection count, defaulting to in-memory pagination")
-                        }
-                    }
-                }
-
-                // Execute query with or without pagination based on decision
+                // Execute query - always load all results
                 let queryToExecute = shouldUseServerPagination
                     ? addPaginationToQuery(selectedQuery, limit: pageSize, offset: offset)
                     : selectedQuery

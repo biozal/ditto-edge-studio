@@ -29,8 +29,12 @@ struct PaginationControls: View {
             .frame(minWidth: 100, idealWidth: 150, maxWidth: 200)
             .pickerStyle(DefaultPickerStyle())
             .padding(.horizontal)
-            .onChange(of: pageSize) { _, newValue in
+            .onChange(of: pageSize) { oldValue, newValue in
+                let startTime = CFAbsoluteTimeGetCurrent()
+                print("🔄 PaginationControls: pageSize changed from \(oldValue) to \(newValue)")
                 onPageSizeChange(newValue)
+                let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+                print("⏱️ PaginationControls onChange took \(String(format: "%.1f", elapsed))ms")
             }
 
             Button(action: {

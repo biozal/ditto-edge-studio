@@ -84,19 +84,39 @@ struct ResultJsonViewer: View {
     }
 
     private var pagedItems: [String] {
+        let startTime = CFAbsoluteTimeGetCurrent()
+
         guard !resultText.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
         guard start < end && start < resultText.count else { return [] }
-        return Array(resultText[start..<end])
+
+        let result = Array(resultText[start..<end])
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        if elapsed > 10 {
+            print("⚠️ PERFORMANCE: pagedItems took \(String(format: "%.1f", elapsed))ms for page size \(pageSize)")
+        }
+
+        return result
     }
 
     private var pagedParsedItems: [[String: Any]] {
+        let startTime = CFAbsoluteTimeGetCurrent()
+
         guard !parsedItems.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, parsedItems.count)
         guard start < end && start < parsedItems.count else { return [] }
-        return Array(parsedItems[start..<end])
+
+        let result = Array(parsedItems[start..<end])
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        if elapsed > 10 {
+            print("⚠️ PERFORMANCE: pagedParsedItems took \(String(format: "%.1f", elapsed))ms for page size \(pageSize)")
+        }
+
+        return result
     }
 
     private var globalRowOffset: Int {
@@ -104,7 +124,16 @@ struct ResultJsonViewer: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let bodyStartTime = CFAbsoluteTimeGetCurrent()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
+        let pagedItemsComputed = pagedItems
+        let pagedParsedItemsComputed = pagedParsedItems
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
+        print("[\(timestamp)] 📊 ResultJsonViewer.body START - pagedItems computed in \(String(format: "%.1f", elapsed))ms - items: \(pagedItemsComputed.count)")
+
+        return VStack(alignment: .leading, spacing: 0) {
             // Main content area based on view mode
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
@@ -112,8 +141,8 @@ struct ResultJsonViewer: View {
                         switch viewMode {
                         case .table:
                             ResultTableView(
-                                items: pagedItems,
-                                parsedItems: pagedParsedItems,
+                                items: pagedItemsComputed,
+                                parsedItems: pagedParsedItemsComputed,
                                 allKeys: allKeys,
                                 attachmentFields: attachmentFields,
                                 onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
@@ -123,10 +152,11 @@ struct ResultJsonViewer: View {
                                 autoFetchAttachments: autoFetchAttachments,
                                 globalRowOffset: globalRowOffset
                             )
+                            .id("\(currentPage)-\(pageSize)")  // Force view recreation only when pagination changes
                             .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                         case .raw:
-                            ResultsList(items: pagedItems, hasExecutedQuery: hasExecutedQuery)
-                                .frame(minWidth: geometry.size.width, alignment: .topLeading)
+                            ResultsList(items: pagedItemsComputed, hasExecutedQuery: hasExecutedQuery)
+                                .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
                         case .map:
                             EmptyView() // Map view is handled by MapResultView in QueryResultsView
                                 .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
@@ -174,8 +204,14 @@ struct ResultJsonViewer: View {
             .padding(.trailing, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: pageSize) { _, _ in
+        .onChange(of: pageSize) { oldValue, newValue in
+            let startTime = CFAbsoluteTimeGetCurrent()
+            print("🔄 Page size changed from \(oldValue) to \(newValue)")
+
             currentPage = max(1, min(currentPage, pageCount))
+
+            let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+            print("⏱️ Page size change handler took \(String(format: "%.1f", elapsed))ms")
         }
         .onChange(of: resultText) { _, _ in
             currentPage = 1
@@ -212,32 +248,104 @@ struct ResultsList: View {
     var hasExecutedQuery: Bool = false
 
     var body: some View {
+        let bodyStartTime = CFAbsoluteTimeGetCurrent()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        print("[\(timestamp)] 🏁 ResultsList.body START - building string for \(items.count) items, hasExecutedQuery: \(hasExecutedQuery)")
+
+        // Handle empty state properly
+        if items.isEmpty {
+            if !hasExecutedQuery {
+                // No query executed yet
+                return AnyView(
+                    Text("Run a query for results")
+                        .foregroundColor(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
+            } else {
+                // Query executed but no results - show empty brackets
+                return AnyView(
+                    Text("[]")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
+            }
+        }
+
+        // Check if this is a single scalar value (like COUNT result)
+        // Don't wrap in brackets
+        if items.count == 1 {
+            let item = items[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            // Check if it's just a number or simple scalar (not JSON object/array)
+            if !item.hasPrefix("{") && !item.hasPrefix("[") {
+                let textView = Text(item)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
+                let endTimestamp = ISO8601DateFormatter().string(from: Date())
+                print("[\(endTimestamp)] 🏁 ResultsList.body END (scalar) - total: \(String(format: "%.1f", elapsed))ms")
+
+                return AnyView(textView)
+            }
+        }
+
         // Build the entire JSON string as one text block for proper text selection
         let jsonString = buildJsonString()
 
-        Text(jsonString)
+        let stringBuilt = CFAbsoluteTimeGetCurrent()
+        print("[\(timestamp)] 📊 ResultsList string built - \(jsonString.count) chars")
+
+        let textView = Text(jsonString)
             .font(.system(.body, design: .monospaced))
             .textSelection(.enabled)
             .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - bodyStartTime) * 1000
+        let endTimestamp = ISO8601DateFormatter().string(from: Date())
+        print("[\(endTimestamp)] 🏁 ResultsList.body END - total: \(String(format: "%.1f", elapsed))ms")
+
+        return AnyView(textView)
     }
 
     private func buildJsonString() -> String {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
         if items.isEmpty {
             return "[]"
         }
 
-        var result = "[\n"
+        // PERFORMANCE: Pre-allocate capacity for better string building performance
+        // Estimate ~500 chars per item on average
+        var result = ""
+        result.reserveCapacity(items.count * 500)
+
+        result.append("[\n")
         for (index, item) in items.enumerated() {
             // Indent each item
-            let indented = item.split(separator: "\n").map { "  \($0)" }.joined(separator: "\n")
-            result += indented
-            if index < items.count - 1 {
-                result += ","
+            let lines = item.split(separator: "\n", omittingEmptySubsequences: false)
+            for line in lines {
+                result.append("  ")
+                result.append(String(line))
+                result.append("\n")
             }
-            result += "\n"
+            if index < items.count - 1 {
+                // Remove last newline and add comma
+                result.removeLast()
+                result.append(",\n")
+            }
         }
-        result += "]"
+        result.append("]")
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        print("[\(timestamp)] ⚠️ buildJsonString took \(String(format: "%.1f", elapsed))ms for \(items.count) items, \(result.count) chars")
+
         return result
     }
 }

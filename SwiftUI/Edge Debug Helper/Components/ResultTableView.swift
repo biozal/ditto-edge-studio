@@ -35,7 +35,24 @@ struct ResultTableView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        print("[\(timestamp)] 🏁 ResultTableView.body START with \(parsedItems.count) items, \(allKeys.count) keys")
+
+        // PERFORMANCE: Calculate column widths once instead of per-row
+        let columnWidthsDict = allKeys.reduce(into: [:]) { result, key in
+            result[key] = getColumnWidth(key)
+        }
+        let columnWidthsTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        print("[\(timestamp)] 📊 Column widths computed in \(String(format: "%.1f", columnWidthsTime))ms")
+
+        // PERFORMANCE WARNING: Show warning if rendering large dataset
+        if parsedItems.count > 100 {
+            print("[\(timestamp)] ⚠️ WARNING: Rendering \(parsedItems.count) rows with \(allKeys.count) columns = \(parsedItems.count * allKeys.count) cells!")
+        }
+
+        let viewStartTime = CFAbsoluteTimeGetCurrent()
+        let result = VStack(alignment: .leading, spacing: 0) {
             if parsedItems.isEmpty {
                 if hasExecutedQuery {
                     // Show record count for executed query with no results
@@ -72,20 +89,22 @@ struct ResultTableView: View {
 
                 Divider()
 
-                // Data rows - LazyVStack ensures only visible rows are rendered
-                LazyVStack(alignment: .leading, spacing: 0) {
+                // Data rows - LazyVStack with improved performance
+                // PERFORMANCE: Extract item data once per row instead of passing entire arrays
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
                     ForEach(parsedItems.indices, id: \.self) { index in
-                        let documentId = parsedItems[index]["_id"] as? String
-                        TableRow(
+                        let parsedItem = parsedItems[index]
+                        let item = items[index]
+                        let documentId = parsedItem["_id"] as? String
+
+                        OptimizedTableRow(
                             index: index,
                             globalIndex: globalRowOffset + index,
                             allKeys: allKeys,
-                            parsedItems: parsedItems,
-                            items: items,
+                            parsedItem: parsedItem,
+                            item: item,
                             documentId: documentId,
-                            columnWidths: allKeys.reduce(into: [:]) { result, key in
-                                result[key] = getColumnWidth(key)
-                            },
+                            columnWidths: columnWidthsDict,
                             onDelete: onDelete,
                             onRowTap: { rowIndex in
                                 if rowIndex < items.count {
@@ -95,6 +114,7 @@ struct ResultTableView: View {
                             },
                             onCopyRow: copyRowToClipboard
                         )
+                        .id(index)  // PERFORMANCE: Stable identity per row
 
                         if index < parsedItems.count - 1 {
                             Divider()
@@ -116,6 +136,14 @@ struct ResultTableView: View {
                 )
             )
         }
+
+        let viewBuildTime = (CFAbsoluteTimeGetCurrent() - viewStartTime) * 1000
+        let totalTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        let endTimestamp = ISO8601DateFormatter().string(from: Date())
+        print("[\(endTimestamp)] 📊 View structure built in \(String(format: "%.1f", viewBuildTime))ms")
+        print("[\(endTimestamp)] 🏁 ResultTableView.body END - total: \(String(format: "%.1f", totalTime))ms")
+
+        return result
     }
 
     private func copyRowToClipboard(index: Int) {
@@ -131,7 +159,78 @@ struct ResultTableView: View {
     }
 }
 
-struct TableRow: View {
+// PERFORMANCE: Optimized version that only takes single item data
+struct OptimizedTableRow: View {
+    let index: Int
+    let globalIndex: Int
+    let allKeys: [String]
+    let parsedItem: [String: Any]  // Single item instead of array
+    let item: String  // Single item JSON string
+    let documentId: String?
+    let columnWidths: [String: CGFloat]
+    let onDelete: ((String, String) -> Void)?
+    let onRowTap: (Int) -> Void
+    let onCopyRow: (Int) -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Row number
+            Text("\(globalIndex + 1)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 50, alignment: .leading)
+                .padding(8)
+
+            ForEach(allKeys, id: \.self) { key in
+                TableCell(
+                    value: parsedItem[key],
+                    isEvenRow: index % 2 == 0,
+                    isHovered: false,
+                    width: columnWidths[key] ?? 200
+                )
+            }
+        }
+        .background(rowBackground)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onRowTap(index)
+        }
+        .help("Click to view full record")
+        .contextMenu {
+            Button {
+                onCopyRow(index)
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+
+            if let docId = documentId, let deleteHandler = onDelete {
+                Divider()
+                Button(role: .destructive) {
+                    deleteHandler(docId, "")
+                } label: {
+                    Label("Delete Document", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private var rowBackground: Color {
+        if isHovered {
+            return Color.accentColor.opacity(0.15)
+        } else if index % 2 == 0 {
+            return Color.clear
+        } else {
+            return Color.primary.opacity(0.03)
+        }
+    }
+}
+
+struct TableRow: View, Equatable {
     let index: Int
     let globalIndex: Int  // Global row number across all pages
     let allKeys: [String]
@@ -144,6 +243,16 @@ struct TableRow: View {
     let onCopyRow: (Int) -> Void
 
     @State private var isHovered = false
+
+    // PERFORMANCE: Implement Equatable to avoid unnecessary re-renders
+    static func == (lhs: TableRow, rhs: TableRow) -> Bool {
+        return lhs.index == rhs.index &&
+               lhs.globalIndex == rhs.globalIndex &&
+               lhs.allKeys == rhs.allKeys &&
+               lhs.documentId == rhs.documentId &&
+               lhs.columnWidths == rhs.columnWidths &&
+               lhs.items[lhs.index] == rhs.items[rhs.index]
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
