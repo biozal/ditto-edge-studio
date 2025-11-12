@@ -84,7 +84,7 @@ struct HistoryQueryContextMenu: View {
                     Button {
                         Task {
                             do {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                try await HistoryService.shared.deleteHistoryEntry(query.id)
                             } catch {
                                 appState.setError(error)
                             }

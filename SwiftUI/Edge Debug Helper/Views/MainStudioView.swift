@@ -125,6 +125,12 @@ struct MainStudioView: View {
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
+        .onChange(of: viewModel.selectedMenuItem) { oldValue, newValue in
+            // When switching to Query menu item, open or switch to a blank query tab
+            if newValue.name == "Query" {
+                viewModel.ensureBlankQueryTab()
+            }
+        }
         .sheet(
             isPresented: isSheetPresented
         ) {
@@ -172,6 +178,15 @@ struct MainStudioView: View {
                 closeToolbarButton()
             }
         #endif
+        .onKeyPress(.init("n"), phases: .down) { keyPress in
+            // Create new query tab if we're in Query or Store Explorer and Cmd is pressed
+            if keyPress.modifiers.contains(.command) &&
+               (viewModel.selectedMenuItem.name == "Query" || viewModel.selectedMenuItem.name == "Store Explorer") {
+                viewModel.openQueryTab("", uniqueID: nil, reuseExisting: false)
+                return .handled
+            }
+            return .ignored
+        }
     }
     
     private func registerCollection(_ collectionName: String) async {
@@ -234,34 +249,13 @@ extension MainStudioView {
     func subscriptionSidebarView() -> some View {
         return VStack(alignment: .leading) {
             headerView(title: "Subscriptions")
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading Subscriptions...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.subscriptions.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Subscriptions",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No apps have been added yet. Click the plus button in the bottom left corner to add your first subscription."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                SubscriptionList(
-                    subscriptions: $viewModel.subscriptions,
-                    onEdit: viewModel.showSubscriptionEditor,
-                    onDelete: viewModel.deleteSubscription,
-                    appState: appState
-                )
-            }
+            SubscriptionsSidebarView(
+                subscriptions: $viewModel.subscriptions,
+                isLoading: $viewModel.isLoading,
+                onEdit: viewModel.showSubscriptionEditor,
+                onDelete: viewModel.deleteSubscription
+            )
+            .environmentObject(appState)
         }
     }
 
@@ -312,7 +306,7 @@ extension MainStudioView {
                 Menu {
                     Button("Clear History", systemImage: "trash", role: .destructive) {
                         Task {
-                            try await HistoryRepository.shared.clearQueryHistory()
+                            try await HistoryService.shared.clearAllHistory()
                         }
                     }
                 } label: {
@@ -341,25 +335,31 @@ extension MainStudioView {
                         .padding(.horizontal, 24)
                         .padding(.vertical, 8)
                 } else {
-                    ForEach(viewModel.favorites) { query in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(query.query)
-                                .lineLimit(3)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .font(.system(size: 12, design: .monospaced))
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 6)
-                        .onTapGesture {
-                            viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                        }
-                        #if os(macOS)
-                            .contextMenu {
-                                FavoriteQueryContextMenu(query: query, appState: appState)
+                    VStack(spacing: 0) {
+                        ForEach(viewModel.favorites) { query in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(query.query)
+                                        .lineLimit(3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .font(.system(size: 12, design: .monospaced))
+                                }
+                                Spacer(minLength: 0)
                             }
-                        #endif
-                        Divider()
-                            .padding(.leading, 24)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 4)
+                            .hoverableCard(isSelected: false)
+                            .padding(.horizontal, 4)
+                            .onTapGesture {
+                                viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                            }
+                            #if os(macOS)
+                                .contextMenu {
+                                    FavoriteQueryContextMenu(query: query, appState: appState)
+                                }
+                            #endif
+                        }
                     }
                 }
             }
@@ -383,27 +383,15 @@ extension MainStudioView {
                         .padding(.vertical, 8)
                 } else {
                     ScrollView {
-                        ForEach(viewModel.history) { query in
-                            VStack(alignment: .leading, spacing: 0) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(query.query)
-                                        .lineLimit(3)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .font(.system(size: 12, design: .monospaced))
-                                }
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 6)
-                                .onTapGesture {
-                                    viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                                }
-                                #if os(macOS)
-                                .contextMenu {
-                                    HistoryQueryContextMenu(query: query, appState: appState)
-                                }
-                                #endif
-
-                                Divider()
-                                    .padding(.leading, 24)
+                        VStack(spacing: 0) {
+                            ForEach(viewModel.history) { query in
+                                HistoryCard(
+                                    query: query,
+                                    appState: appState,
+                                    onTap: {
+                                        viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                                    }
+                                )
                             }
                         }
                     }
@@ -453,120 +441,17 @@ extension MainStudioView {
     func observeSidebarView() -> some View {
         return VStack(alignment: .leading) {
             headerView(title: "Observers")
-            if viewModel.observerables.isEmpty {
-                Spacer()
-                ContentUnavailableView(
-                    "No Observers",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "No observers have been added yet. Click the plus button to add your first observers."
-                    )
-                )
-            } else {
-                List(viewModel.observerables) { observer in
-                    observerCard(observer: observer)
-                        .onTapGesture {
-                            viewModel.selectedObservable = observer
-                            Task {
-                                await viewModel.loadObservedEvents()
-                            }
-                        }
-                        #if os(macOS)
-                            .contextMenu {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                                                                          
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Activate",
-                                            systemImage: "play.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Stop",
-                                            systemImage: "stop.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                }
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.deleteObservable(observer)
-                                        }catch{
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        "Delete",
-                                        systemImage: "trash"
-                                    )
-                                    .labelStyle(.titleAndIcon)
-                                }
-                            }
-                        #else
-                            .swipeActions(edge: .trailing) {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Activate", systemImage: "play.circle")
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Stop", systemImage: "stop.circle")
-                                    }
-                                }
-                                Button(role: .destructive) {
-                                    Task {
-                                        do {
-                                            try await viewModel.deleteObservable(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                        #endif
-                    Divider()
-                }
-            }
-            Spacer()
+            ObservablesSidebarView(
+                observables: $viewModel.observerables,
+                selectedObservable: $viewModel.selectedObservable,
+                onSelectObservable: { observer in
+                    await viewModel.loadObservedEvents()
+                },
+                onRegisterObserver: viewModel.registerStoreObserver,
+                onRemoveObserver: viewModel.removeStoreObserver,
+                onDeleteObservable: viewModel.deleteObservable
+            )
+            .environmentObject(appState)
         }
     }
 
@@ -590,6 +475,10 @@ extension MainStudioView {
                 },
                 onEditSubscription: viewModel.showSubscriptionEditor,
                 onDeleteSubscription: viewModel.deleteSubscription,
+                onAddSubscription: {
+                    viewModel.editorSubscription = DittoSubscription.new()
+                    viewModel.actionSheetMode = .subscription
+                },
                 onEditObserver: viewModel.showObservableEditor,
                 onDeleteObserver: viewModel.deleteObservable,
                 onStartObserver: viewModel.registerStoreObserver,
@@ -604,6 +493,10 @@ extension MainStudioView {
                         await viewModel.loadObservedEvents()
                     }
                 },
+                onAddObserver: {
+                    viewModel.editorObservable = DittoObservable.new()
+                    viewModel.actionSheetMode = .observer
+                },
                 onSelectCollection: { collection in
                     // Open collection query in a query editor tab with unique ID based on collection name
                     let query = "SELECT * FROM \(collection.name)"
@@ -612,6 +505,9 @@ extension MainStudioView {
                     Task {
                         await executeQuery()
                     }
+                },
+                onRegisterCollection: {
+                    showingRegisterCollectionView = true
                 },
                 appState: appState
             )
@@ -630,36 +526,6 @@ extension MainStudioView {
             }
             Spacer()
         }
-    }
-
-    private func observerCard(observer: DittoObservable) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill((observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15)))
-                .shadow(radius: 1)
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(observer.name)
-                        .font(.headline)
-                        .bold()
-                  
-                }
-                Spacer()
-                if (observer.storeObserver == nil){
-                    Text("Idle")
-                        .font(.subheadline)
-                        .padding(.trailing, 4)
-                } else {
-                    Text("Active")
-                        .font(.subheadline)
-                        .bold()
-                        .padding(.trailing, 4)
-                }
-            }
-            .padding()
-        }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
     }
 
     func headerView(title: String) -> some View {
@@ -957,31 +823,18 @@ extension MainStudioView {
     }
 
     func observeDetailView() -> some View {
-        return VStack(alignment: .trailing) {
-#if os(macOS)
-            VSplitView {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                        .frame(minHeight: 200)
-
-                } else {
-                    observableEventsList()
-                        .frame(minHeight: 200)
-                }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-            }
-#else
-            VStack {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                } else {
-                    observableEventsList()
-                }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-            }
-#endif
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        return ObservablesView(
+            observables: $viewModel.observerables,
+            selectedObservable: $viewModel.selectedObservable,
+            observableEvents: $viewModel.observableEvents,
+            selectedEventId: $viewModel.selectedEventId,
+            eventMode: $viewModel.eventMode,
+            onLoadEvents: viewModel.loadObservedEvents,
+            onRegisterObserver: viewModel.registerStoreObserver,
+            onRemoveObserver: viewModel.removeStoreObserver,
+            onDeleteObservable: viewModel.deleteObservable
+        )
+        .environmentObject(appState)
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
@@ -1015,115 +868,6 @@ extension MainStudioView {
         #endif
     }
 
-}
-
-//MARK: Observe functions
-extension MainStudioView {
-    
-    fileprivate func observableEventsList() -> some View {
-        return VStack {
-            if viewModel.observableEvents.isEmpty {
-                ContentUnavailableView(
-                    "No Observer Events",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "Activate an observer to see observable events."
-                    )
-                )
-            } else {
-                Table(viewModel.observableEvents, selection: Binding<Set<String>>(get: {
-                    if let selectedId = viewModel.selectedEventId {
-                        return Set([selectedId])
-                    } else {
-                        return Set<String>()
-                    }
-                }, set: { newValue in
-                    if let first = newValue.first {
-                        viewModel.selectedEventId = first
-                    } else {
-                        viewModel.selectedEventId = nil
-                    }
-                })) {
-                    TableColumn("Time") { event in
-                        Text(event.eventTime)
-                    }
-                    TableColumn("Count") { event in
-                        Text("\(event.data.count)")
-                    }
-                    TableColumn("Inserted") { event in
-                        Text("\(event.insertIndexes.count)")
-                    }
-                    TableColumn("Updated") { event in
-                        Text("\(event.updatedIndexes.count)")
-                    }
-                    TableColumn("Deleted") { event in
-                        Text("\(event.deletedIndexes.count)")
-                    }
-                    TableColumn("Moves") { event in
-                        Text("\(event.movedIndexes.count)")
-                    }
-                }
-                .navigationTitle("Observer Events")
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
-    fileprivate func observableDetailNoContent() -> some View {
-        return VStack {
-            ContentUnavailableView(
-                "No Observer Selected",
-                systemImage: "exclamationmark.triangle.fill",
-                description: Text(
-                    "Please select an observer from the siderbar to view events."
-                )
-            )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
-    fileprivate func observableDetailSelectedEvent(observeEvent: DittoObserveEvent?) -> some View {
-        return VStack(alignment: .leading, spacing: 0) {
-            if let event = observeEvent {
-                Picker("", selection: $viewModel.eventMode) {
-                    Text("Items")
-                        .tag("items")
-                    Text("Inserted")
-                        .tag("inserted")
-                    Text("Updated")
-                        .tag("updated")
-                }
-#if os(macOS)
-                .padding(.top, 24)
-#else
-                .padding(.top, 8)
-#endif
-                .padding(.bottom, 8)
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-                switch viewModel.eventMode {
-                    case "inserted":
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.getInsertedData())
-                        }
-                    case "updated":
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.getUpdatedData())
-                        }
-                    default:
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.data)
-                        }
-                }
-                Spacer()
-            
-            } else {
-                ResultJsonViewer(resultText: [])
-            }
-        }
-        .padding(.leading, 12)
-    }
-    
 }
 
 //MARK: ViewModel
@@ -1259,9 +1003,9 @@ extension MainStudioView {
                 }
             }
             
-            // Setup HistoryRepository callback
+            // Setup HistoryService callback
             Task {
-                await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
+                await HistoryService.shared.setOnHistoryUpdate { [weak self] history in
                     Task { @MainActor in
                         self?.history = history
                     }
@@ -1281,7 +1025,7 @@ extension MainStudioView {
                 }
                 collections = try await CollectionsRepository.shared.hydrateCollections()
 
-                history = try await HistoryRepository.shared.hydrateQueryHistory()
+                history = try await HistoryService.shared.loadHistory()
 
                 favorites = try await FavoritesRepository.shared.hydrateQueryFavorites()
 
@@ -1320,18 +1064,8 @@ extension MainStudioView {
         }
 
         func addQueryToHistory(appState: AppState) async {
-            if !selectedQuery.isEmpty && selectedQuery.count > 0 {
-                let queryHistory = DittoQueryHistory(
-                    id: UniqueIDGenerator.generateHistoryID(),
-                    query: selectedQuery,
-                    createdDate: Date().ISO8601Format()
-                )
-                do {
-                    try await HistoryRepository.shared.saveQueryHistory(queryHistory)
-                } catch {
-                    appState.setError(error)
-                }
-            }
+            // Use HistoryService to record every query execution
+            await HistoryService.shared.recordQueryExecution(selectedQuery, appState: appState)
         }
 
         func addCurrentQueryToFavorites(appState: AppState) async {
@@ -1393,7 +1127,7 @@ extension MainStudioView {
                     await SystemRepository.shared.stopObserver()
                     await ObservableRepository.shared.stopObserver()
                     await FavoritesRepository.shared.stopObserver()
-                    await HistoryRepository.shared.stopObserver()
+                    await HistoryService.shared.stopObserving()
                     await CollectionsRepository.shared.stopObserver()
                     await SubscriptionsRepository.shared.cancelAllSubscriptions()
                     await DatabaseRepository.shared.stopDatabaseConfigSubscription()
@@ -1824,6 +1558,32 @@ extension MainStudioView {
             jsonResults = []
         }
 
+        /// Ensures a blank query tab is available and active
+        /// If already in a query tab, does nothing
+        /// If a blank query tab already exists, switches to it
+        /// Otherwise, opens a new blank query tab
+        func ensureBlankQueryTab() {
+            // If we're already in a query tab, don't switch
+            if case .query = selectedItem {
+                return
+            }
+
+            // Check if there's an existing blank query tab
+            for tab in openTabs {
+                if case .query(let queryId) = tab.content {
+                    let query = tabQueries[queryId] ?? ""
+                    if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Found a blank query tab, switch to it
+                        selectTab(tab)
+                        return
+                    }
+                }
+            }
+
+            // No blank query tab found, open a new one
+            openQueryTab("", uniqueID: nil, reuseExisting: false)
+        }
+
         // Helper method to update query text and save to dictionary if we're on a query tab
         func updateQueryText(_ newQuery: String) {
             selectedQuery = newQuery
@@ -1983,6 +1743,65 @@ struct TabItem: Identifiable, Equatable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+    }
+}
+
+// MARK: - History Card Component
+struct HistoryCard: View {
+    let query: DittoQueryHistory
+    let appState: AppState
+    let onTap: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(query.query)
+                    .lineLimit(2)
+                    .font(.system(size: 12, design: .monospaced))
+            }
+
+            Spacer(minLength: 0)
+
+            // Delete button - only visible on hover
+            if isHovering {
+                Button(action: {
+                    Task {
+                        do {
+                            try await HistoryService.shared.deleteHistoryEntry(query.id)
+                        } catch {
+                            appState.setError(error)
+                        }
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .help("Remove from history")
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 4)
+        .hoverableCard(isSelected: false)
+        .padding(.horizontal, 4)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+        .onTapGesture {
+            onTap()
+        }
+        #if os(macOS)
+        .contextMenu {
+            HistoryQueryContextMenu(query: query, appState: appState)
+        }
+        #endif
     }
 }
 

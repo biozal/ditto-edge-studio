@@ -2,8 +2,6 @@
 //  MapFieldMapping.swift
 //  Edge Studio
 //
-//  Created by Claude Code on 10/23/25.
-//
 
 import Foundation
 

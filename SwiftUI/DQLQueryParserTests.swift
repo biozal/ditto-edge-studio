@@ -2,8 +2,7 @@
 //  DQLQueryParserTests.swift
 //  Edge Debug Helper Tests
 //
-//  Created by Claude Code on 1/18/25.
-//
+
 //  IMPORTANT: This test file must be added to the "Edge Debug Helper Tests" target in Xcode.
 //
 //  To add this file to the test target:

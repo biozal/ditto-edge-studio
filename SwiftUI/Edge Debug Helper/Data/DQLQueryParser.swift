@@ -2,8 +2,6 @@
 //  DQLQueryParser.swift
 //  Edge Studio
 //
-//  Created by Claude Code on 10/18/25.
-//
 
 import Foundation
 

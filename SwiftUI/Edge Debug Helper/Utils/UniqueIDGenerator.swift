@@ -2,8 +2,6 @@
 //  UniqueIDGenerator.swift
 //  Edge Studio
 //
-//  Created by Claude Code on 11/7/25.
-//
 
 import Foundation
 

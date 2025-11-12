@@ -46,9 +46,7 @@ struct SubscriptionCard: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .cornerRadius(4)
-        .contentShape(Rectangle())
+        .hoverableCard(isSelected: isSelected)
     }
 }
 

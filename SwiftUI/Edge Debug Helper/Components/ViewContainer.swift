@@ -74,6 +74,9 @@ struct ViewContainer: View {
     @Bindable var viewModel: MainStudioView.ViewModel
     let appState: AppState
 
+    // Debounce service for tab title updates (200ms delay)
+    @State private var titleDebouncer = DebounceService(delay: 0.2)
+
     var body: some View {
         switch context {
         case .home:
@@ -112,13 +115,16 @@ struct ViewContainer: View {
                 }
             }
             .onChange(of: viewModel.selectedQuery) { oldValue, newValue in
-                // Save query changes to the dictionary for query tabs
+                // Save query changes immediately to the dictionary for query tabs
                 if case .query(let queryId) = viewModel.selectedItem {
                     viewModel.tabQueries[queryId] = newValue
 
-                    // Update the tab title in the dictionary
-                    let newTitle = viewModel.generateTabTitle(from: newValue)
-                    viewModel.tabTitles[queryId] = newTitle
+                    // Debounce the tab title update to reduce re-renders
+                    // Title will update 200ms after the user stops typing
+                    titleDebouncer.debounce {
+                        let newTitle = viewModel.generateTabTitle(from: newValue)
+                        viewModel.tabTitles[queryId] = newTitle
+                    }
                 }
             }
 

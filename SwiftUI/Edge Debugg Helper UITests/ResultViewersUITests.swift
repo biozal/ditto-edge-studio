@@ -2,8 +2,6 @@
 //  ResultViewersUITests.swift
 //  Edge Studio UITests
 //
-//  Created by Claude Code on 11/7/25.
-//
 
 import XCTest
 

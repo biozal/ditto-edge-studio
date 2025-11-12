@@ -2,8 +2,6 @@
 //  RecordDetailModal.swift
 //  Edge Studio
 //
-//  Created by Claude Code on 10/2/25.
-//
 
 import CodeEditor
 import SwiftUI

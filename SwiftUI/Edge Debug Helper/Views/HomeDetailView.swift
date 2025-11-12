@@ -58,11 +58,23 @@ struct HomeDetailView: View {
                     }
 
                     if syncStatusItems.isEmpty {
-                        EmptyStateView(
-                            "No Sync Status Available",
-                            systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                            description: Text("Enable sync to see connected peers and their status")
-                        )
+                        HStack {
+                            Spacer()
+                            if isSyncEnabled {
+                                EmptyStateView(
+                                    "No Peers Connected",
+                                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                                    description: Text("Sync is active but no peers are currently connected")
+                                )
+                            } else {
+                                EmptyStateView(
+                                    "Sync Paused",
+                                    systemImage: "pause.circle",
+                                    description: Text("Enable sync to see connected peers and their status")
+                                )
+                            }
+                            Spacer()
+                        }
                     } else {
                         LazyVStack(spacing: 12) {
                             ForEach(syncStatusItems, id: \.peerType) { status in

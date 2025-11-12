@@ -19,12 +19,15 @@ struct StoreExplorerContextMenuView: View {
     var onSelectSubscription: (DittoSubscription) -> Void
     var onEditSubscription: (DittoSubscription) async -> Void
     var onDeleteSubscription: (DittoSubscription) async throws -> Void
+    var onAddSubscription: () -> Void
     var onEditObserver: (DittoObservable) async -> Void
     var onDeleteObserver: (DittoObservable) async throws -> Void
     var onStartObserver: (DittoObservable) async throws -> Void
     var onStopObserver: (DittoObservable) async throws -> Void
     var onSelectObserver: (DittoObservable) -> Void
+    var onAddObserver: () -> Void
     var onSelectCollection: (DittoCollectionModel) -> Void
+    var onRegisterCollection: () -> Void
 
     let appState: AppState
 
@@ -48,6 +51,10 @@ struct StoreExplorerContextMenuView: View {
                     isExpanded: $isCollectionsExpanded
                 ) {
                     collectionsContent
+                } contextMenu: {
+                    Button("Register Collection", systemImage: "folder.badge.plus") {
+                        onRegisterCollection()
+                    }
                 }
                 .padding(.bottom, isCollectionsExpanded ? 8 : 2)
 
@@ -58,6 +65,10 @@ struct StoreExplorerContextMenuView: View {
                     isExpanded: $isSubscriptionsExpanded
                 ) {
                     subscriptionsContent
+                } contextMenu: {
+                    Button("Add Subscription", systemImage: "arrow.trianglehead.2.clockwise") {
+                        onAddSubscription()
+                    }
                 }
                 .padding(.bottom, isSubscriptionsExpanded ? 8 : 2)
 
@@ -68,6 +79,10 @@ struct StoreExplorerContextMenuView: View {
                     isExpanded: $isObserversExpanded
                 ) {
                     observersContent
+                } contextMenu: {
+                    Button("Add Observer", systemImage: "eye") {
+                        onAddObserver()
+                    }
                 }
             }
             .padding(.horizontal, 2)
@@ -399,12 +414,15 @@ struct ObserverCard: View {
         onSelectSubscription: { _ in },
         onEditSubscription: { _ in },
         onDeleteSubscription: { _ in },
+        onAddSubscription: { },
         onEditObserver: { _ in },
         onDeleteObserver: { _ in },
         onStartObserver: { _ in },
         onStopObserver: { _ in },
         onSelectObserver: { _ in },
+        onAddObserver: { },
         onSelectCollection: { _ in },
+        onRegisterCollection: { },
         appState: AppState()
     )
 }

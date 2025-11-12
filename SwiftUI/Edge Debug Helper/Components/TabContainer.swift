@@ -21,7 +21,7 @@ struct TabContainer: View {
     VStack(spacing: 0) {
       // Tab Bar - always show (with or without tabs)
       HStack(spacing: 0) {
-        // Tab navigation controls (always visible)
+        // Tab navigation controls (always visible) - Fixed position
         HStack(spacing: 2) {
           // Previous tab button with proper hit area
           Button(action: navigateToPreviousTab) {
@@ -51,7 +51,7 @@ struct TabContainer: View {
           .frame(height: 20)
           .padding(.horizontal, 4)
 
-        // Tab items (only show if tabs exist)
+        // Scrollable tab items area (only show if tabs exist)
         if !openTabs.isEmpty {
           #if os(macOS)
           MacOSHorizontalScroller(activeTabId: activeTabId) {
@@ -69,6 +69,7 @@ struct TabContainer: View {
             }
             .padding(.vertical, 4)
           }
+          .frame(maxWidth: .infinity) // Allow scroller to take available space
           #else
           ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -86,6 +87,7 @@ struct TabContainer: View {
               }
               .padding(.vertical, 4)
             }
+            .frame(maxWidth: .infinity) // Allow scroll view to take available space
             .scrollBounceBehavior(.basedOnSize)
             .onChange(of: activeTabId) { _, newTabId in
               if let newTabId = newTabId {
@@ -96,23 +98,31 @@ struct TabContainer: View {
             }
           }
           #endif
+        } else {
+          // Spacer when no tabs to push new query button to the right
+          Spacer()
         }
 
-        // New Query button (always present)
+        // Divider before new query button
+        if let _ = onNewQuery {
+          Divider()
+            .frame(height: 20)
+            .padding(.horizontal, 4)
+        }
+
+        // New Query button (always present) - Fixed position
         if let newQuery = onNewQuery {
           Button(action: newQuery) {
-            Image(systemName: "plus.circle")
-              .font(.system(size: 14))
+            Image(systemName: "plus")
+              .font(.system(size: 14, weight: .medium))
               .foregroundColor(.secondary)
               .frame(width: 24, height: 24)
               .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .help("New Query")
-          .padding(.leading, 4)
+          .padding(.trailing, 4)
         }
-
-        Spacer()
       }
       .background(Color(NSColor.controlBackgroundColor))
       .frame(height: 36)

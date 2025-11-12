@@ -6,6 +6,9 @@ import CodeEditor
 //  Created by Aaron LaBeau on 5/23/25.
 //
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct QueryEditorView: View {
     @Binding var queryText: String
@@ -121,6 +124,17 @@ struct QueryEditorView: View {
                 theme: .atelierSavannaDark
             )
         }
+        #if os(macOS)
+        .onKeyPress(phases: .down) { press in
+            if press.key == KeyEquivalent(Character(UnicodeScalar(NSF5FunctionKey)!)) && !isLoading {
+                Task {
+                    await onExecuteQuery()
+                }
+                return .handled
+            }
+            return .ignored
+        }
+        #endif
     }
 }
 

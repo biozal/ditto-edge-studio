@@ -2,8 +2,6 @@
 //  MapResultView.swift
 //  Edge Studio
 //
-//  Created by Claude Code on 10/21/25.
-//
 
 import SwiftUI
 import MapKit
