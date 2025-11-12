@@ -41,13 +41,13 @@ struct CollapsibleSection<Content: View>: View {
                         .font(.system(.headline, weight: .semibold))
                         .foregroundColor(.primary)
 
+                    Spacer()
+
                     if let count = count {
-                        Text("(\(count))")
+                        Text("\(count)")
                             .font(.system(.caption))
                             .foregroundColor(.secondary)
                     }
-
-                    Spacer()
                 }
                 .padding(.vertical, 6)
                 .padding(.horizontal, 4)
@@ -58,6 +58,7 @@ struct CollapsibleSection<Content: View>: View {
             // Content
             if isExpanded {
                 content()
+                    .padding(.bottom, 8)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .top)),
                         removal: .opacity.combined(with: .move(edge: .top))

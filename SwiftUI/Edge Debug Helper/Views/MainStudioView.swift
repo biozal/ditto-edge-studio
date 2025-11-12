@@ -329,152 +329,81 @@ extension MainStudioView {
             .padding(.bottom, 4)
 
             // Favorites Section (Collapsible)
-            VStack(alignment: .leading, spacing: 0) {
-                Button(action: {
-                    viewModel.isFavoritesExpanded.toggle()
-                }) {
-                    HStack {
-                        Image(systemName: viewModel.isFavoritesExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Text("Favorites")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(viewModel.favorites.count)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-
-                if viewModel.isFavoritesExpanded {
-                    if viewModel.favorites.isEmpty {
-                        Text("No favorites")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 8)
-                    } else {
-                        ForEach(viewModel.favorites) { query in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(query.query)
-                                    .lineLimit(3)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .font(.system(size: 12, design: .monospaced))
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 6)
-                            .onTapGesture {
-                                viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                            }
-                            #if os(macOS)
-                                .contextMenu {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await FavoritesRepository.shared.deleteFavorite(query.id)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Remove from Favorites", systemImage: "trash")
-                                            .labelStyle(.titleAndIcon)
-                                    }
-                                }
-                            #endif
-                            Divider()
-                                .padding(.leading, 24)
+            CollapsibleSection(
+                title: "Favorites",
+                count: viewModel.favorites.count,
+                isExpanded: $viewModel.isFavoritesExpanded
+            ) {
+                if viewModel.favorites.isEmpty {
+                    Text("No favorites")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                } else {
+                    ForEach(viewModel.favorites) { query in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(query.query)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .font(.system(size: 12, design: .monospaced))
                         }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 6)
+                        .onTapGesture {
+                            viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                        }
+                        #if os(macOS)
+                            .contextMenu {
+                                FavoriteQueryContextMenu(query: query, appState: appState)
+                            }
+                        #endif
+                        Divider()
+                            .padding(.leading, 24)
                     }
                 }
             }
 
             // History Section (Collapsible)
-            VStack(alignment: .leading, spacing: 0) {
-                Button(action: {
-                    viewModel.isHistoryExpanded.toggle()
-                }) {
-                    HStack {
-                        Image(systemName: viewModel.isHistoryExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Text("History")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(viewModel.history.count)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-
-                if viewModel.isHistoryExpanded {
-                    // History items (collapsible)
-                    if viewModel.isLoading {
-                        ProgressView("Loading...")
-                            .font(.system(size: 12))
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 8)
-                    } else if viewModel.history.isEmpty {
-                        Text("No history")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 8)
-                    } else {
-                        ScrollView {
-                            ForEach(viewModel.history) { query in
-                                VStack(alignment: .leading, spacing: 0) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(query.query)
-                                            .lineLimit(3)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .font(.system(size: 12, design: .monospaced))
-                                    }
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 6)
-                                    .onTapGesture {
-                                        viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                                    }
-                                    #if os(macOS)
-                                    .contextMenu {
-                                        Button {
-                                            Task {
-                                                do {
-                                                    try await FavoritesRepository.shared.saveFavorite(query)
-                                                } catch {
-                                                    appState.setError(error)
-                                                }
-                                            }
-                                        } label: {
-                                            Label("Add to Favorites", systemImage: "star")
-                                                .labelStyle(.titleAndIcon)
-                                        }
-                                        Button {
-                                            Task {
-                                                do {
-                                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
-                                                } catch {
-                                                    appState.setError(error)
-                                                }
-                                            }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                                .labelStyle(.titleAndIcon)
-                                        }
-                                    }
-                                    #endif
-
-                                    Divider()
-                                        .padding(.leading, 24)
+            CollapsibleSection(
+                title: "History",
+                count: viewModel.history.count,
+                isExpanded: $viewModel.isHistoryExpanded
+            ) {
+                if viewModel.isLoading {
+                    ProgressView("Loading...")
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                } else if viewModel.history.isEmpty {
+                    Text("No history")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 8)
+                } else {
+                    ScrollView {
+                        ForEach(viewModel.history) { query in
+                            VStack(alignment: .leading, spacing: 0) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(query.query)
+                                        .lineLimit(3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .font(.system(size: 12, design: .monospaced))
                                 }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 6)
+                                .onTapGesture {
+                                    viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
+                                }
+                                #if os(macOS)
+                                .contextMenu {
+                                    HistoryQueryContextMenu(query: query, appState: appState)
+                                }
+                                #endif
+
+                                Divider()
+                                    .padding(.leading, 24)
                             }
                         }
                     }
@@ -500,21 +429,7 @@ extension MainStudioView {
                 }
                 #if os(macOS)
                     .contextMenu {
-                        Button {
-                            Task {
-                                do {
-                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
-                                }catch{
-                                    appState.setError(error)
-                                }
-                            }
-                        } label: {
-                            Label(
-                                "Delete",
-                                systemImage: "trash"
-                            )
-                            .labelStyle(.titleAndIcon)
-                        }
+                        FavoriteQueryContextMenu(query: query, appState: appState)
                     }
                 #else
                     .swipeActions(edge: .trailing) {
@@ -1369,7 +1284,10 @@ extension MainStudioView {
                 history = try await HistoryRepository.shared.hydrateQueryHistory()
 
                 favorites = try await FavoritesRepository.shared.hydrateQueryFavorites()
-                
+
+                // Load favorites into in-memory service
+                FavoritesService.shared.loadFavorites(favorites)
+
                 // Start observing observables through repository
                 do {
                     try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
@@ -1426,6 +1344,8 @@ extension MainStudioView {
                 )
                 do {
                     try await FavoritesRepository.shared.saveFavorite(queryHistory)
+                    // Update the in-memory service
+                    FavoritesService.shared.addToFavorites(trimmedQuery)
                 } catch {
                     appState.setError(error)
                 }
@@ -1438,7 +1358,7 @@ extension MainStudioView {
             editorSubscription = nil
             selectedEventId = nil
             selectedObservable = nil
-            
+
             subscriptions = []
             collections = []
             history = []
@@ -1447,7 +1367,10 @@ extension MainStudioView {
             observableEvents = []
             syncStatusItems = []
             isSyncEnabled = false
-            
+
+            // Clear favorites service
+            FavoritesService.shared.clear()
+
             // Perform heavy cleanup operations on background queue to avoid priority inversion
             await performCleanupOperations()
         }

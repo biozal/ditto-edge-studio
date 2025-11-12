@@ -64,21 +64,13 @@ struct SubscriptionList: View {
                             }
                         }
                         .contextMenu {
-                            Button {
-                                Task {
-                                    do {
-                                        try await onDelete(subscription)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
+                            SubscriptionQueryContextMenu(
+                                subscription: subscription,
+                                appState: appState,
+                                onDelete: {
+                                    try await onDelete(subscription)
                                 }
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
+                            )
                         }
                     Divider()
                 }

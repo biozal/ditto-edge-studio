@@ -79,21 +79,23 @@ struct QueryEditorView: View {
 
                 Spacer()
 
-                // Add to Favorites button
+                // Favorite star button
                 if let addToFavorites = onAddToFavorites, !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Button {
-                        Task {
-                            await addToFavorites()
+                    FavoriteButton(
+                        query: queryText,
+                        onAddToFavorites: addToFavorites,
+                        onRemoveFromFavorites: {
+                            // Remove from favorites by query
+                            let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            do {
+                                try await FavoritesRepository.shared.removeFavoriteByQuery(query: trimmedQuery)
+                                FavoritesService.shared.removeFromFavorites(trimmedQuery)
+                            } catch {
+                                // Silently fail - could show error in UI if needed
+                                print("Failed to remove from favorites: \(error)")
+                            }
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "star")
-                            Text("Add to Favorites")
-                        }
-                        .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Add current query to favorites")
+                    )
                     .padding(.trailing, 8)
                 }
 

@@ -92,6 +92,9 @@ struct ViewContainer: View {
                     isLoading: $viewModel.isQueryExecuting,
                     onExecuteQuery: {
                         await viewModel.executeQuery(appState: appState)
+                    },
+                    onAddToFavorites: {
+                        await viewModel.addCurrentQueryToFavorites(appState: appState)
                     }
                 )
 
@@ -163,6 +166,9 @@ struct ViewContainer: View {
                     isLoading: $viewModel.isQueryExecuting,
                     onExecuteQuery: {
                         await viewModel.executeQuery(appState: appState)
+                    },
+                    onAddToFavorites: {
+                        await viewModel.addCurrentQueryToFavorites(appState: appState)
                     }
                 )
 

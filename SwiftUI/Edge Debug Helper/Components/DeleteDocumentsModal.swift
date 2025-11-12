@@ -257,7 +257,7 @@ private struct UniqueFieldSelector: View {
             }
 
             let currentFieldInfo = getFieldInfo(selectedUniqueField)
-            Text("Selected \(currentFieldInfo.uniqueCount) unique documents of \(resultsCount) retrieved document results")
+            Text("Selected \(currentFieldInfo.uniqueCount) unique document(s) of \(resultsCount) retrieved document results")
                 .font(.caption)
                 .foregroundColor(currentFieldInfo.isUnique ? .green : .orange)
 
