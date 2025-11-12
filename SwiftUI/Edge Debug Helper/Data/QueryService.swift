@@ -163,12 +163,13 @@ actor QueryService {
             throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
         }
 
-        let query = "SELECT COUNT(*) as count FROM \(collection)"
+        let query = "SELECT COUNT(*) FROM \(collection)"
         let results = try await ditto.store.execute(query: query)
 
         // Extract count from the first result
         guard let firstItem = results.items.first,
-              let count = firstItem.value["count"] as? Int else {
+              let firstValue = firstItem.value.values.first,
+              let count = firstValue as? Int else {
             return 0
         }
 

@@ -1,13 +1,13 @@
 //
-//  DeleteAllModal.swift
+//  DeleteDocumentsModal.swift
 //  Edge Debug Helper
 //
-//  Modal for confirming and configuring delete all operations
+//  Modal for confirming and configuring delete operations
 //
 
 import SwiftUI
 
-struct DeleteAllModal: View {
+struct DeleteDocumentsModal: View {
     @Binding var isPresented: Bool
     let collectionName: String
     let resultsCount: Int
@@ -20,6 +20,8 @@ struct DeleteAllModal: View {
     @State private var fieldUniquenessInfo: [String: QueryResultsView.FieldUniquenessInfo] = [:]
     @State private var showFieldMismatchWarning: Bool = false
     @State private var removeCollectionFromStudio: Bool = false
+    @State private var collectionTotalCount: Int? = nil
+    @State private var isLoadingCount: Bool = false
 
     enum DeleteMode {
         case resultsOnly
@@ -44,8 +46,12 @@ struct DeleteAllModal: View {
                         resultsCount: resultsCount,
                         availableFields: availableFields,
                         selectedUniqueField: $selectedUniqueField,
+                        collectionName: collectionName,
+                        collectionTotalCount: $collectionTotalCount,
+                        isLoadingCount: $isLoadingCount,
                         getFieldInfo: getFieldInfo,
-                        updateWarning: updateWarning
+                        updateWarning: updateWarning,
+                        refreshCollectionCount: refreshCollectionCount
                     )
                 } else {
                     EntireCollectionModeContent(
@@ -73,6 +79,7 @@ struct DeleteAllModal: View {
             precomputeFieldInfo()
             preselectDefaultField()
             updateWarning()
+            await refreshCollectionCount()
         }
     }
 
@@ -107,6 +114,17 @@ struct DeleteAllModal: View {
             selectedUniqueField = firstField
         }
     }
+
+    private func refreshCollectionCount() async {
+        isLoadingCount = true
+        do {
+            let count = try await QueryService.shared.getCollectionCount(collection: collectionName)
+            collectionTotalCount = count
+        } catch {
+            collectionTotalCount = nil
+        }
+        isLoadingCount = false
+    }
 }
 
 private struct ModalHeader: View {
@@ -120,7 +138,7 @@ private struct ModalHeader: View {
 }
 
 private struct DeleteModeSelector: View {
-    @Binding var deleteMode: DeleteAllModal.DeleteMode
+    @Binding var deleteMode: DeleteDocumentsModal.DeleteMode
     let updateWarning: () -> Void
 
     var body: some View {
@@ -129,8 +147,8 @@ private struct DeleteModeSelector: View {
                 .font(.headline)
 
             Picker("", selection: $deleteMode) {
-                Text("Delete Retrieved Results Only").tag(DeleteAllModal.DeleteMode.resultsOnly)
-                Text("Delete Entire Collection").tag(DeleteAllModal.DeleteMode.entireCollection)
+                Text("Delete Retrieved Results Only").tag(DeleteDocumentsModal.DeleteMode.resultsOnly)
+                Text("Delete All Collection Documents").tag(DeleteDocumentsModal.DeleteMode.entireCollection)
             }
             .pickerStyle(.radioGroup)
             .onChange(of: deleteMode) { _, _ in
@@ -144,8 +162,12 @@ private struct ResultsOnlyModeContent: View {
     let resultsCount: Int
     let availableFields: [String]
     @Binding var selectedUniqueField: String
+    let collectionName: String
+    @Binding var collectionTotalCount: Int?
+    @Binding var isLoadingCount: Bool
     let getFieldInfo: (String) -> QueryResultsView.FieldUniquenessInfo
     let updateWarning: () -> Void
+    let refreshCollectionCount: () async -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -154,8 +176,12 @@ private struct ResultsOnlyModeContent: View {
                 availableFields: availableFields,
                 selectedUniqueField: $selectedUniqueField,
                 resultsCount: resultsCount,
+                collectionName: collectionName,
+                collectionTotalCount: $collectionTotalCount,
+                isLoadingCount: $isLoadingCount,
                 getFieldInfo: getFieldInfo,
-                updateWarning: updateWarning
+                updateWarning: updateWarning,
+                refreshCollectionCount: refreshCollectionCount
             )
             if !getFieldInfo(selectedUniqueField).isUnique {
                 NonUniqueFieldWarning(
@@ -191,13 +217,22 @@ private struct UniqueFieldSelector: View {
     let availableFields: [String]
     @Binding var selectedUniqueField: String
     let resultsCount: Int
+    let collectionName: String
+    @Binding var collectionTotalCount: Int?
+    @Binding var isLoadingCount: Bool
     let getFieldInfo: (String) -> QueryResultsView.FieldUniquenessInfo
     let updateWarning: () -> Void
+    let refreshCollectionCount: () async -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Unique Field")
                 .font(.headline)
+
+            Text("Select a unique field to identify and delete only the documents currently retrieved. This ensures you won't accidentally delete documents from the collection that weren't part of your query results.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Text("Unique field to use for identifying documents:")
@@ -222,9 +257,37 @@ private struct UniqueFieldSelector: View {
             }
 
             let currentFieldInfo = getFieldInfo(selectedUniqueField)
-            Text("Selected \(currentFieldInfo.uniqueCount) of \(resultsCount) documents for deletion")
+            Text("Selected \(currentFieldInfo.uniqueCount) unique documents of \(resultsCount) retrieved document results")
                 .font(.caption)
                 .foregroundColor(currentFieldInfo.isUnique ? .green : .orange)
+
+            HStack(spacing: 4) {
+                if isLoadingCount {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 12, height: 12)
+                } else if let total = collectionTotalCount {
+                    Text("Collection '\(collectionName)' has \(total) total documents")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Unable to retrieve collection count")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Button(action: {
+                    Task {
+                        await refreshCollectionCount()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLoadingCount)
+                .help("Refresh collection count")
+            }
         }
     }
 }
@@ -314,11 +377,11 @@ private struct RemoveCollectionCheckbox: View {
 
 private struct ModalFooter: View {
     @Binding var isPresented: Bool
-    let deleteMode: DeleteAllModal.DeleteMode
+    let deleteMode: DeleteDocumentsModal.DeleteMode
     let selectedUniqueField: String
     let removeCollectionFromStudio: Bool
     let getFieldInfo: (String) -> QueryResultsView.FieldUniquenessInfo
-    let onDelete: (DeleteAllModal.DeleteAllOptions) async -> Void
+    let onDelete: (DeleteDocumentsModal.DeleteAllOptions) async -> Void
 
     var body: some View {
         HStack {
@@ -329,9 +392,9 @@ private struct ModalFooter: View {
 
             Spacer()
 
-            Button(deleteMode == .entireCollection ? "Delete Entire Collection" : "Delete Results") {
+            Button(deleteMode == .entireCollection ? "Delete All Collection Documents" : "Delete Results") {
                 Task {
-                    await onDelete(DeleteAllModal.DeleteAllOptions(
+                    await onDelete(DeleteDocumentsModal.DeleteAllOptions(
                         mode: deleteMode,
                         uniqueField: selectedUniqueField,
                         removeCollectionFromStudio: removeCollectionFromStudio
@@ -349,7 +412,7 @@ private struct ModalFooter: View {
 }
 
 #Preview {
-    DeleteAllModal(
+    DeleteDocumentsModal(
         isPresented: .constant(true),
         collectionName: "books",
         resultsCount: 431,

@@ -130,7 +130,7 @@ struct QueryResultsView: View {
         }
     }
 
-    private func handleDeleteAll(options: DeleteAllModal.DeleteAllOptions) async {
+    private func handleDeleteAll(options: DeleteDocumentsModal.DeleteAllOptions) async {
         guard let collection = collectionName else {
             return
         }
@@ -401,7 +401,7 @@ struct QueryResultsView: View {
             loadFieldMapping()
         }
         .sheet(isPresented: $showDeleteAllModal) {
-            DeleteAllModal(
+            DeleteDocumentsModal(
                 isPresented: $showDeleteAllModal,
                 collectionName: collectionName ?? "",
                 resultsCount: jsonResults.count,
