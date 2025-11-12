@@ -126,7 +126,17 @@ struct ImportService {
         guard collection.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
             throw ImportError.invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
         }
-        
+
+        // Register collection in __collections if it doesn't exist (idempotent operation)
+        // This ensures the collection appears in Edge Studio even if it was unregistered
+        do {
+            try await CollectionsRepository.shared.registerCollection(name: collection)
+        } catch {
+            // Log but don't fail import if registration fails
+            // The collection will still work, just might not appear in UI
+            print("Warning: Failed to register collection '\(collection)' in __collections: \(error)")
+        }
+
         // Process documents in batches for better performance
         let batchSize = 50
         for (batchIndex, batch) in documents.chunked(into: batchSize).enumerated() {

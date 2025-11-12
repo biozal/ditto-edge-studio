@@ -12,6 +12,7 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
+    @State private var showingRegisterCollectionView = false
 
 
 
@@ -84,6 +85,10 @@ struct MainStudioView: View {
 
                                 Divider()
 
+                                Button("Register Collection", systemImage: "folder.badge.plus") {
+                                    showingRegisterCollectionView = true
+                                }
+
                                 Button("Import Data", systemImage: "square.and.arrow.down") {
                                     showingImportView = true
                                 }
@@ -150,6 +155,14 @@ struct MainStudioView: View {
             ImportDataView(isPresented: $showingImportView)
                 .environmentObject(appState)
         }
+        .sheet(isPresented: $showingRegisterCollectionView) {
+            RegisterCollectionModal(
+                isPresented: $showingRegisterCollectionView,
+                onRegister: { collectionName in
+                    await registerCollection(collectionName)
+                }
+            )
+        }
         .onAppear {
             // No longer needed - using DittoManager state directly
         }
@@ -161,6 +174,15 @@ struct MainStudioView: View {
         #endif
     }
     
+    private func registerCollection(_ collectionName: String) async {
+        do {
+            try await CollectionsRepository.shared.registerCollection(name: collectionName)
+            // Collections will update automatically via the observer
+        } catch {
+            appState.setError(error)
+        }
+    }
+
     func appNameToolbarLabel() -> some ToolbarContent {
         ToolbarItem(placement: .principal) {
             Text(viewModel.selectedApp.name).font(.headline).bold()

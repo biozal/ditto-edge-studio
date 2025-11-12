@@ -66,7 +66,15 @@ actor QueryService {
                     )
                     return String(data: data, encoding: .utf8)
                 } catch {
-                    return nil
+                    // JSON serialization failed - try to return a string representation
+                    // This can happen with special types or non-JSON-serializable objects
+                    let jsonData = item.jsonData()
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        return jsonString
+                    }
+
+                    // Last resort: return the description
+                    return String(describing: cleanedValue)
                 }
             }
             return resultJsonStrings
@@ -217,7 +225,7 @@ actor QueryService {
     }
 
     // MARK: Delete Documents by Custom Field
-    func deleteDocumentsByField(fieldValues: [String], fieldName: String, collection: String) async throws {
+    func deleteDocumentsByField(fieldValues: [Any], fieldName: String, collection: String) async throws {
         guard let ditto = await dittoManager.dittoSelectedApp else {
             throw NSError(domain: "QueryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No Ditto instance available"])
         }
@@ -232,19 +240,38 @@ actor QueryService {
             let batchEnd = min(batchStart + batchSize, fieldValues.count)
             let batch = Array(fieldValues[batchStart..<batchEnd])
 
+            // Build OR conditions for each value
             var arguments: [String: Any] = [:]
-            var placeholders: [String] = []
+            var conditions: [String] = []
 
             for (index, value) in batch.enumerated() {
                 let key = "val\(index)"
-                arguments[key] = value
-                placeholders.append(":\(key)")
+
+                // Check if value is an object (like MongoDB ObjectId)
+                if let dictValue = value as? [String: Any] {
+                    // For objects, we need to inline them as literals with single quotes
+                    // Convert to JSON and replace double quotes with single quotes
+                    if let jsonData = try? JSONSerialization.data(withJSONObject: dictValue),
+                       let jsonString = String(data: jsonData, encoding: .utf8) {
+                        let singleQuotedLiteral = jsonString.replacingOccurrences(of: "\"", with: "'")
+                        conditions.append("\(fieldName) = \(singleQuotedLiteral)")
+                    }
+                } else {
+                    // For scalar values, use parameterized queries
+                    arguments[key] = value
+                    conditions.append("\(fieldName) = :\(key)")
+                }
             }
 
-            let placeholderString = placeholders.joined(separator: ", ")
-            let query = "DELETE FROM \(collection) WHERE \(fieldName) IN (\(placeholderString))"
+            let whereClause = conditions.joined(separator: " OR ")
+            let query = "DELETE FROM \(collection) WHERE \(whereClause)"
 
-            _ = try await ditto.store.execute(query: query, arguments: arguments)
+            print("DEBUG: Deleting batch of \(batch.count) documents")
+            print("DEBUG: First 3 values = \(Array(batch.prefix(3)))")
+
+            let results = try await ditto.store.execute(query: query, arguments: arguments)
+            let mutatedCount = results.mutatedDocumentIDs().count
+            print("DEBUG: Mutated \(mutatedCount) documents")
         }
     }
 

@@ -48,8 +48,13 @@ actor CollectionsRepository {
                 }
             }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
 
+            // Deduplicate collection names using Dictionary to preserve order and avoid duplicate IDs
+            let uniqueCollections = Dictionary(grouping: collectionNames, by: { $0.name })
+                .compactMap { $0.value.first }
+                .sorted { $0.name < $1.name }
+
             // Create collection models without counts (set to 0)
-            let collections = collectionNames.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
+            let collections = uniqueCollections.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
 
             // Register for any changes in the database
             collectionsObserver = try ditto.store.registerObserver(
@@ -70,8 +75,13 @@ actor CollectionsRepository {
                         }
                     }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
 
+                    // Deduplicate collection names using Dictionary to preserve order and avoid duplicate IDs
+                    let uniqueCollections = Dictionary(grouping: collectionNames, by: { $0.name })
+                        .compactMap { $0.value.first }
+                        .sorted { $0.name < $1.name }
+
                     // Create collection models without counts (set to 0)
-                    let collections = collectionNames.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
+                    let collections = uniqueCollections.map { DittoCollectionModel(name: $0.name, documentCount: 0) }
 
                     // Call the callback to update collections
                     await self.onCollectionsUpdate?(collections)
@@ -93,6 +103,28 @@ actor CollectionsRepository {
         self.onCollectionsUpdate = callback
     }
     
+    func registerCollection(name: String) async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw InvalidStateError(message: "No Ditto selected app available")
+        }
+
+        // Register collection in __collections (idempotent operation)
+        let query = "INSERT INTO __collections DOCUMENTS (:doc) ON ID CONFLICT DO UPDATE"
+        let arguments = ["doc": ["name": name]]
+        _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+
+    func removeCollection(name: String) async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw InvalidStateError(message: "No Ditto selected app available")
+        }
+
+        // Remove from __collections system collection (unregisters from Edge Studio)
+        let query = "DELETE FROM __collections WHERE name = :collectionName"
+        let arguments = ["collectionName": name]
+        _ = try await ditto.store.execute(query: query, arguments: arguments)
+    }
+
     func stopObserver() {
         // Use Task to ensure observer cleanup runs on appropriate background queue
         // This prevents priority inversion when called from main thread
@@ -100,7 +132,7 @@ actor CollectionsRepository {
             await self?.performObserverCleanup()
         }
     }
-    
+
     private func performObserverCleanup() {
         collectionsObserver?.cancel()
         collectionsObserver = nil

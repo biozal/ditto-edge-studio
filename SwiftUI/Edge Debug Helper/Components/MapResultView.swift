@@ -162,22 +162,23 @@ struct MapResultView: View {
 
     private var noLocationsMessage: some View {
         VStack(spacing: 16) {
-            Image(systemName: "map.circle")
+            Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.white)
+                .foregroundColor(.orange)
                 .shadow(radius: 2)
-            Text("No valid locations to display")
+            Text("Invalid data format for map view")
                 .font(.headline)
                 .foregroundColor(.white)
                 .shadow(radius: 2)
-            Text("Looking for '\(latitudeField)' and '\(longitudeField)' fields")
+            Text("Map view requires coordinate fields: '\(latitudeField)' and '\(longitudeField)'")
                 .font(.caption)
                 .foregroundColor(.white)
                 .shadow(radius: 2)
-            Text("Use 'Map Fields' button to configure field mapping")
+            Text("Use 'Map Fields' button to configure field mapping or try Table/Raw view")
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.8))
                 .shadow(radius: 2)
+                .multilineTextAlignment(.center)
         }
         .padding(24)
         .background(Color.black.opacity(0.6))

@@ -34,14 +34,16 @@ struct ResultTableView: View {
         columnWidths[key] = max(50, min(width, 800))
     }
 
-    var body: some View {
-        // Calculate column widths once instead of per-row
-        let columnWidthsDict = allKeys.reduce(into: [:]) { result, key in
+    // Compute column widths as a cached property
+    private var columnWidthsDict: [String: CGFloat] {
+        allKeys.reduce(into: [:]) { result, key in
             result[key] = getColumnWidth(key)
         }
+    }
 
-        return VStack(alignment: .leading, spacing: 0) {
-            if parsedItems.isEmpty {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if parsedItems.isEmpty && items.isEmpty {
                 if hasExecutedQuery {
                     // Show record count for executed query with no results
                     Text("0 records found")
@@ -53,6 +55,21 @@ struct ResultTableView: View {
                         .foregroundColor(.secondary)
                         .padding()
                 }
+            } else if parsedItems.isEmpty && !items.isEmpty {
+                // Data exists but couldn't be parsed for table view
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text("Invalid data format for table view")
+                        .font(.headline)
+                    Text("Table view requires structured data with fields. Try using Raw view instead.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
             } else {
                 // Header row
                 HStack(alignment: .top, spacing: 0) {
@@ -79,33 +96,35 @@ struct ResultTableView: View {
 
                 // Data rows - LazyVStack with improved performance
                 // PERFORMANCE: Extract item data once per row instead of passing entire arrays
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    ForEach(parsedItems.indices, id: \.self) { index in
-                        let parsedItem = parsedItems[index]
-                        let item = items[index]
-                        let documentId = parsedItem["_id"] as? String
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                        ForEach(parsedItems.indices, id: \.self) { index in
+                            let parsedItem = parsedItems[index]
+                            let item = items[index]
+                            let documentId = parsedItem["_id"] as? String
 
-                        OptimizedTableRow(
-                            index: index,
-                            globalIndex: globalRowOffset + index,
-                            allKeys: allKeys,
-                            parsedItem: parsedItem,
-                            item: item,
-                            documentId: documentId,
-                            columnWidths: columnWidthsDict,
-                            onDelete: onDelete,
-                            onRowTap: { rowIndex in
-                                if rowIndex < items.count {
-                                    let record = items[rowIndex]
-                                    modalRecord = ModalRecord(jsonString: record, index: rowIndex)
-                                }
-                            },
-                            onCopyRow: copyRowToClipboard
-                        )
-                        .id(index)
+                            OptimizedTableRow(
+                                index: index,
+                                globalIndex: globalRowOffset + index,
+                                allKeys: allKeys,
+                                parsedItem: parsedItem,
+                                item: item,
+                                documentId: documentId,
+                                columnWidths: columnWidthsDict,
+                                onDelete: onDelete,
+                                onRowTap: { rowIndex in
+                                    if rowIndex < items.count {
+                                        let record = items[rowIndex]
+                                        modalRecord = ModalRecord(jsonString: record, index: rowIndex)
+                                    }
+                                },
+                                onCopyRow: copyRowToClipboard
+                            )
+                            .id(index)
 
-                        if index < parsedItems.count - 1 {
-                            Divider()
+                            if index < parsedItems.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                 }
@@ -154,6 +173,15 @@ struct OptimizedTableRow: View {
 
     @State private var isHovered = false
 
+    // Pre-compute the even/odd background color
+    private var baseBackground: Color {
+        index % 2 == 0 ? Color.clear : Color.primary.opacity(0.03)
+    }
+
+    private var hoverBackground: Color {
+        Color.accentColor.opacity(0.15)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Row number
@@ -172,7 +200,7 @@ struct OptimizedTableRow: View {
                 )
             }
         }
-        .background(rowBackground)
+        .background(isHovered ? hoverBackground : baseBackground)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
@@ -180,7 +208,6 @@ struct OptimizedTableRow: View {
         .onTapGesture {
             onRowTap(index)
         }
-        .help("Click to view full record")
         .contextMenu {
             Button {
                 onCopyRow(index)
@@ -196,16 +223,6 @@ struct OptimizedTableRow: View {
                     Label("Delete Document", systemImage: "trash")
                 }
             }
-        }
-    }
-
-    private var rowBackground: Color {
-        if isHovered {
-            return Color.accentColor.opacity(0.15)
-        } else if index % 2 == 0 {
-            return Color.clear
-        } else {
-            return Color.primary.opacity(0.03)
         }
     }
 }
@@ -357,7 +374,8 @@ struct TableCell: View {
             .frame(width: width, alignment: .topLeading)
             .textSelection(.enabled)
             .padding(8)
-            .help(displayValue)  // Show full value on hover
+            // Only compute help text for truncated values to avoid expensive hover computations
+            .help(truncatedValue != displayValue ? displayValue : "")
     }
 }
 
@@ -393,17 +411,21 @@ struct ResizableTableHeaderCell: View {
             .frame(width: 8)
             .padding(.vertical, 8)
             .contentShape(Rectangle().inset(by: -4))
-            .onHover { hovering in
-                if hovering {
+            // Cursor management is expensive - only set once on hover enter/exit
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
                     NSCursor.resizeLeftRight.push()
-                } else {
+                case .ended:
                     NSCursor.pop()
                 }
             }
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        isDragging = true
+                        if !isDragging {
+                            isDragging = true
+                        }
                         dragOffset = value.translation.width
                     }
                     .onEnded { value in

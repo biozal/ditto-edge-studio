@@ -37,7 +37,16 @@ struct QueryResultsView: View {
 
     // Delete all modal state
     @State private var showDeleteAllModal = false
-    @State private var extractedIdsCount = 0
+    @State private var selectedUniqueField = "_id"
+
+    // Field uniqueness tracking (lazy computed)
+    @State private var fieldUniquenessCache: [String: FieldUniquenessInfo] = [:]
+
+    struct FieldUniquenessInfo {
+        let isUnique: Bool
+        let uniqueCount: Int
+        let totalCount: Int
+    }
 
     // Access singleton repository directly
     private var mappingRepository: MapFieldMappingRepository {
@@ -59,12 +68,26 @@ struct QueryResultsView: View {
         var keys = Set<String>()
 
         for jsonString in jsonResults {
-            guard let data = jsonString.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            guard let data = jsonString.data(using: .utf8) else {
                 continue
             }
-            parsed.append(json)
-            keys.formUnion(json.keys)
+
+            // Try to parse as JSON object
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                parsed.append(json)
+                keys.formUnion(json.keys)
+            } else if let jsonValue = try? JSONSerialization.jsonObject(with: data) {
+                // Handle non-object JSON (arrays, strings, numbers, etc.)
+                // Wrap them in an object with a "value" key
+                let wrappedJson: [String: Any] = ["value": jsonValue]
+                parsed.append(wrappedJson)
+                keys.insert("value")
+            } else {
+                // If JSON parsing fails entirely, treat as raw string
+                let wrappedJson: [String: Any] = ["value": jsonString]
+                parsed.append(wrappedJson)
+                keys.insert("value")
+            }
         }
 
         parsedResults = parsed
@@ -115,6 +138,11 @@ struct QueryResultsView: View {
         do {
             if options.mode == .entireCollection {
                 try await QueryService.shared.deleteEntireCollection(collection: collection)
+
+                // Remove collection from Edge Studio if requested
+                if options.removeCollectionFromStudio {
+                    try await CollectionsRepository.shared.removeCollection(name: collection)
+                }
             } else {
                 let documentIds = extractFieldValues(fieldName: options.uniqueField)
                 guard !documentIds.isEmpty else {
@@ -139,28 +167,81 @@ struct QueryResultsView: View {
         }
     }
 
-    private func extractFieldValues(fieldName: String) -> [String] {
-        var values: [String] = []
+    // Check if a field has unique values across all results
+    private func checkFieldUniqueness(fieldName: String) -> FieldUniquenessInfo {
+        // Check cache first
+        if let cached = fieldUniquenessCache[fieldName] {
+            return cached
+        }
+
+        var uniqueValues = Set<String>()
+        var totalCount = 0
+
         for jsonString in jsonResults {
             guard let data = jsonString.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 continue
             }
 
+            totalCount += 1
+
             // Extract field value and convert to string
+            var valueString: String?
             if let value = json[fieldName] as? String {
-                values.append(value)
+                valueString = value
             } else if let value = json[fieldName] as? Int {
-                values.append(String(value))
+                valueString = String(value)
             } else if let value = json[fieldName] as? Double {
-                values.append(String(Int(value)))
+                valueString = String(Int(value))
             } else if let valueObj = json[fieldName] as? [String: Any] {
                 // Handle MongoDB extended JSON formats
                 if let oidValue = valueObj["$oid"] as? String {
-                    values.append(oidValue)
+                    valueString = oidValue
                 }
             }
+
+            if let valueString = valueString {
+                uniqueValues.insert(valueString)
+            }
         }
+
+        let uniqueCount = uniqueValues.count
+        let isUnique = uniqueCount == totalCount && totalCount > 0
+
+        let info = FieldUniquenessInfo(
+            isUnique: isUnique,
+            uniqueCount: uniqueCount,
+            totalCount: totalCount
+        )
+
+        // Cache the result
+        fieldUniquenessCache[fieldName] = info
+
+        return info
+    }
+
+    private func extractFieldValues(fieldName: String) -> [Any] {
+        var values: [Any] = []
+        for jsonString in jsonResults {
+            guard let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+
+            // Extract field value preserving its original type
+            if let value = json[fieldName] as? String {
+                values.append(value)
+            } else if let value = json[fieldName] as? Int {
+                values.append(value)
+            } else if let value = json[fieldName] as? Double {
+                values.append(value)
+            } else if let valueObj = json[fieldName] as? [String: Any] {
+                // For objects (like MongoDB ObjectId), pass the entire object
+                // DQL requires the full object: {'$oid': 'value'}
+                values.append(valueObj)
+            }
+        }
+
         return values
     }
 
@@ -224,32 +305,33 @@ struct QueryResultsView: View {
 
                 Spacer()
 
-                // Delete All button
+                // Delete button - permanently removes from database
                 Button {
                     showDeleteAllModal = true
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash.fill")
-                        Text("Delete All")
+                        Text("Delete")
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(jsonResults.isEmpty || collectionName == nil)
-                .help("Delete all documents in results from the database")
+                .disabled(collectionName == nil)
+                .padding(.trailing, 4)
+                .help("Delete documents or entire collection from the database")
 
-                // Clear button
+                // Clear button - only clears local results view
                 Button {
                     jsonResults = []
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                        Text("Clear")
+                        Image(systemName: "xmark.circle")
+                        Text("Clear Results")
                     }
                 }
                 .buttonStyle(.borderless)
                 .disabled(jsonResults.isEmpty)
                 .padding(.trailing, 16)
-                .help("Clear all query results")
+                .help("Clear query results from view (does not delete from database)")
             }
             .background(Color.primary.opacity(0.05))
 
@@ -304,6 +386,8 @@ struct QueryResultsView: View {
         .onChange(of: jsonResults) { _, _ in
             parseResults() // Parse once when results change
             updateAvailableFields()
+            // Clear uniqueness cache when results change
+            fieldUniquenessCache.removeAll()
             // Reset to first page when results change (new query executed)
             currentPage = 1
         }
@@ -319,6 +403,8 @@ struct QueryResultsView: View {
                 collectionName: collectionName ?? "",
                 resultsCount: jsonResults.count,
                 availableFields: allKeys.isEmpty ? ["_id"] : allKeys,
+                selectedUniqueField: $selectedUniqueField,
+                checkFieldUniqueness: checkFieldUniqueness,
                 onDelete: { options in
                     await handleDeleteAll(options: options)
                 }

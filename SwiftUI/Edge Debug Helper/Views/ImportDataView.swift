@@ -67,12 +67,12 @@ struct ImportDataView: View {
                     .pickerStyle(.segmented)
                     
                     if useExistingCollection {
-                        if existingCollections.isEmpty {
-                            Text("No existing collections found")
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            HStack {
+                        HStack {
+                            if existingCollections.isEmpty {
+                                Text("No existing collections found")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            } else {
                                 Text("Select Collection")
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -84,6 +84,14 @@ struct ImportDataView: View {
                                 .pickerStyle(.menu)
                                 .labelsHidden()
                             }
+
+                            Button(action: {
+                                loadExistingCollections()
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Refresh collections list")
                         }
                     } else {
                         TextField("New collection name", text: $collectionName)
@@ -318,6 +326,21 @@ struct ImportDataView: View {
         .onAppear {
             loadExistingCollections()
         }
+        .onChange(of: selectedFileURL) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: useExistingCollection) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: selectedCollection) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: collectionName) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: useInitialInsert) { _, _ in
+            resetSuccessState()
+        }
     }
     
     private var canImport: Bool {
@@ -330,11 +353,20 @@ struct ImportDataView: View {
         }
     }
     
+    private func resetSuccessState() {
+        if importSuccess {
+            importSuccess = false
+            importError = nil
+            successMessage = ""
+        }
+    }
+
     private func loadExistingCollections() {
         Task {
             do {
                 let collections = try await CollectionsRepository.shared.hydrateCollections()
-                existingCollections = collections.map { $0.name }
+                // Deduplicate collection names using Set to avoid duplicate IDs in ForEach
+                existingCollections = Array(Set(collections.map { $0.name })).sorted()
                 if !existingCollections.isEmpty {
                     selectedCollection = existingCollections[0]
                 }
@@ -405,10 +437,10 @@ struct ImportDataView: View {
                         }
                     }
                     
-                    // Refresh collections if we created a new one
-                    if !useExistingCollection {
-                        loadExistingCollections()
-                    }
+                    // Refresh collections list after import
+                    // This ensures newly created collections appear in the list
+                    // and existing collections are up-to-date
+                    loadExistingCollections()
                 }
             } catch {
                 await MainActor.run {

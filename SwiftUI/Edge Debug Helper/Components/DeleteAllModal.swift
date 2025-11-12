@@ -12,12 +12,14 @@ struct DeleteAllModal: View {
     let collectionName: String
     let resultsCount: Int
     let availableFields: [String]
+    @Binding var selectedUniqueField: String
+    let checkFieldUniqueness: (String) -> QueryResultsView.FieldUniquenessInfo
     let onDelete: (DeleteAllOptions) async -> Void
 
     @State private var deleteMode: DeleteMode = .resultsOnly
-    @State private var uniqueField: String = "_id"
-    @State private var extractedIdsCount: Int = 0
+    @State private var fieldUniquenessInfo: [String: QueryResultsView.FieldUniquenessInfo] = [:]
     @State private var showFieldMismatchWarning: Bool = false
+    @State private var removeCollectionFromStudio: Bool = false
 
     enum DeleteMode {
         case resultsOnly
@@ -27,6 +29,7 @@ struct DeleteAllModal: View {
     struct DeleteAllOptions {
         let mode: DeleteMode
         let uniqueField: String
+        let removeCollectionFromStudio: Bool
     }
 
     var body: some View {
@@ -46,7 +49,7 @@ struct DeleteAllModal: View {
                         .font(.headline)
 
                     Picker("", selection: $deleteMode) {
-                        Text("Delete Results Only").tag(DeleteMode.resultsOnly)
+                        Text("Delete Retrieved Results Only").tag(DeleteMode.resultsOnly)
                         Text("Delete Entire Collection").tag(DeleteMode.entireCollection)
                     }
                     .pickerStyle(.radioGroup)
@@ -60,6 +63,7 @@ struct DeleteAllModal: View {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle")
                             .foregroundColor(.blue)
+                            .help("This will only delete documents that you've queried and are currently visible in Edge Studio. It will NOT affect other records in the Ditto database that are not in your current results.")
                         Text("Will delete only the \(resultsCount) document(s) currently in the results using the unique field constraint.")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -76,34 +80,44 @@ struct DeleteAllModal: View {
                             .font(.headline)
 
                         HStack {
-                            Text("Field to use for identifying documents:")
+                            Text("Unique field to use for identifying documents:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Picker("", selection: $uniqueField) {
+                            Picker("", selection: $selectedUniqueField) {
                                 ForEach(availableFields, id: \.self) { field in
-                                    Text(field).tag(field)
+                                    let info = getFieldInfo(field)
+                                    if info.isUnique {
+                                        Text(field).tag(field)
+                                    } else {
+                                        Text("\(field) (not unique)").tag(field)
+                                    }
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(width: 150)
+                            .frame(width: 200)
+                            .onChange(of: selectedUniqueField) { _, _ in
+                                updateWarning()
+                            }
                         }
 
-                        Text("Extracted \(extractedIdsCount) of \(resultsCount) document IDs")
+                        let currentFieldInfo = getFieldInfo(selectedUniqueField)
+                        Text("Selected \(currentFieldInfo.uniqueCount) of \(resultsCount) documents for deletion")
                             .font(.caption)
-                            .foregroundColor(extractedIdsCount == resultsCount ? .green : .orange)
+                            .foregroundColor(currentFieldInfo.isUnique ? .green : .orange)
                     }
 
-                    // Warning if counts don't match
-                    if showFieldMismatchWarning {
+                    // Warning if field is not unique
+                    if !getFieldInfo(selectedUniqueField).isUnique {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Field mismatch detected")
+                                Text("Field is not unique")
                                     .font(.caption)
                                     .fontWeight(.semibold)
-                                Text("Could only extract \(extractedIdsCount) unique IDs from \(resultsCount) results. Try selecting a different unique field.")
+                                let info = getFieldInfo(selectedUniqueField)
+                                Text("Could only extract \(info.uniqueCount) unique IDs from \(info.totalCount) results. Try selecting a different unique field like '_id'.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -115,6 +129,7 @@ struct DeleteAllModal: View {
                         )
                     }
                 } else {
+                    // Entire collection mode
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.red)
@@ -127,6 +142,27 @@ struct DeleteAllModal: View {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(Color.red.opacity(0.1))
                     )
+
+                    // Remove collection checkbox - indented to show it's related to the delete mode
+                    HStack(spacing: 8) {
+                        Spacer()
+                            .frame(width: 20) // Indent to show relationship
+                        Toggle(isOn: $removeCollectionFromStudio) {
+                            Text("Also remove collection from Edge Studio")
+                                .font(.subheadline)
+                        }
+                        .toggleStyle(.checkbox)
+
+                        Button(action: {}) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .help("This will unregister the collection from Edge Studio's local database.\n\nNote: Collections in Ditto never truly disappear - they exist as long as documents reference them. This only removes the collection from Edge Studio's tracking.")
+
+                        Spacer()
+                    }
+                    .padding(.top, 8)
                 }
             }
             .padding(.bottom, 20)
@@ -144,37 +180,60 @@ struct DeleteAllModal: View {
 
                 Button(deleteMode == .entireCollection ? "Delete Entire Collection" : "Delete Results") {
                     Task {
-                        await onDelete(DeleteAllOptions(mode: deleteMode, uniqueField: uniqueField))
+                        await onDelete(DeleteAllOptions(
+                            mode: deleteMode,
+                            uniqueField: selectedUniqueField,
+                            removeCollectionFromStudio: removeCollectionFromStudio
+                        ))
                         isPresented = false
                     }
                 }
                 .keyboardShortcut(.return)
                 .buttonStyle(.borderedProminent)
                 .tint(deleteMode == .entireCollection ? .red : .blue)
-                .disabled(deleteMode == .resultsOnly && extractedIdsCount == 0)
+                .disabled(deleteMode == .resultsOnly && !getFieldInfo(selectedUniqueField).isUnique)
             }
             .padding(.top, 12)
         }
         .padding(30)
         .frame(width: 550)
-        .onAppear {
-            // Pre-select _id if available
-            if availableFields.contains("_id") {
-                uniqueField = "_id"
-            } else if let firstField = availableFields.first {
-                uniqueField = firstField
+        .task {
+            // Pre-compute all field info to avoid state modifications during view updates
+            for field in availableFields {
+                let info = checkFieldUniqueness(field)
+                fieldUniquenessInfo[field] = info
             }
-            updateWarning()
-        }
-        .onChange(of: uniqueField) { _, _ in
-            updateWarning()
+
+            // Pre-select _id if available and unique
+            if let idInfo = fieldUniquenessInfo["_id"], idInfo.isUnique {
+                selectedUniqueField = "_id"
+            } else if let firstUniqueField = availableFields.first(where: {
+                fieldUniquenessInfo[$0]?.isUnique == true
+            }) {
+                selectedUniqueField = firstUniqueField
+            } else if let firstField = availableFields.first {
+                selectedUniqueField = firstField
+            }
+
+            // Update warning after field info is computed
+            if let info = fieldUniquenessInfo[selectedUniqueField] {
+                showFieldMismatchWarning = !info.isUnique
+            }
         }
     }
 
+    private func getFieldInfo(_ field: String) -> QueryResultsView.FieldUniquenessInfo {
+        // Return cached info or default (should always be cached after .task runs)
+        return fieldUniquenessInfo[field] ?? QueryResultsView.FieldUniquenessInfo(
+            isUnique: false,
+            uniqueCount: 0,
+            totalCount: 0
+        )
+    }
+
     private func updateWarning() {
-        // This will be updated by the parent when field changes
-        // For now, just reset the warning state
-        showFieldMismatchWarning = extractedIdsCount != resultsCount && extractedIdsCount > 0
+        let info = getFieldInfo(selectedUniqueField)
+        showFieldMismatchWarning = !info.isUnique
     }
 }
 
@@ -183,7 +242,17 @@ struct DeleteAllModal: View {
         isPresented: .constant(true),
         collectionName: "books",
         resultsCount: 431,
-        availableFields: ["_id", "isbn", "title"],
+        availableFields: ["_id", "isbn", "title", "author"],
+        selectedUniqueField: .constant("_id"),
+        checkFieldUniqueness: { field in
+            // Mock implementation for preview
+            // _id and isbn are unique, title and author are not
+            QueryResultsView.FieldUniquenessInfo(
+                isUnique: field == "_id" || field == "isbn",
+                uniqueCount: field == "_id" || field == "isbn" ? 431 : 200,
+                totalCount: 431
+            )
+        },
         onDelete: { _ in }
     )
 }
