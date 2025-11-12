@@ -122,7 +122,10 @@ actor CollectionsRepository {
         // Remove from __collections system collection (unregisters from Edge Studio)
         let query = "DELETE FROM __collections WHERE name = :collectionName"
         let arguments = ["collectionName": name]
-        _ = try await ditto.store.execute(query: query, arguments: arguments)
+        print("DEBUG: Executing DELETE query: \(query) with arguments: \(arguments)")
+        let results = try await ditto.store.execute(query: query, arguments: arguments)
+        let mutatedCount = results.mutatedDocumentIDs().count
+        print("DEBUG: DELETE mutated \(mutatedCount) documents in __collections")
     }
 
     func stopObserver() {

@@ -53,18 +53,49 @@ struct TabContainer: View {
 
         // Tab items (only show if tabs exist)
         if !openTabs.isEmpty {
-          HStack(spacing: 2) {
-            ForEach(openTabs) { tab in
-              TabComponent(
-                tab: tab,
-                isActive: activeTabId == tab.id,
-                onSelect: { onSelectTab(tab) },
-                onClose: { onCloseTab(tab) },
-                displayTitle: titleForTab?(tab)
-              )
+          #if os(macOS)
+          MacOSHorizontalScroller(activeTabId: activeTabId) {
+            HStack(spacing: 2) {
+              ForEach(openTabs) { tab in
+                TabComponent(
+                  tab: tab,
+                  isActive: activeTabId == tab.id,
+                  onSelect: { onSelectTab(tab) },
+                  onClose: { onCloseTab(tab) },
+                  displayTitle: titleForTab?(tab)
+                )
+                .id(tab.id)
+              }
+            }
+            .padding(.vertical, 4)
+          }
+          #else
+          ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+              HStack(spacing: 2) {
+                ForEach(openTabs) { tab in
+                  TabComponent(
+                    tab: tab,
+                    isActive: activeTabId == tab.id,
+                    onSelect: { onSelectTab(tab) },
+                    onClose: { onCloseTab(tab) },
+                    displayTitle: titleForTab?(tab)
+                  )
+                  .id(tab.id)
+                }
+              }
+              .padding(.vertical, 4)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .onChange(of: activeTabId) { _, newTabId in
+              if let newTabId = newTabId {
+                withAnimation {
+                  proxy.scrollTo(newTabId, anchor: .center)
+                }
+              }
             }
           }
-          .padding(.vertical, 4)
+          #endif
         }
 
         // New Query button (always present)
@@ -277,6 +308,83 @@ struct MiddleClickHandler: NSViewRepresentable {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
       return true
+    }
+  }
+}
+
+// macOS-specific horizontal scroller that properly handles clicks and scrolling
+struct MacOSHorizontalScroller<Content: View>: NSViewRepresentable {
+  let activeTabId: UUID?
+  let content: Content
+
+  init(activeTabId: UUID?, @ViewBuilder content: () -> Content) {
+    self.activeTabId = activeTabId
+    self.content = content()
+  }
+
+  func makeNSView(context: Context) -> HorizontalScrollView {
+    let scrollView = HorizontalScrollView()
+    scrollView.hasHorizontalScroller = false
+    scrollView.hasVerticalScroller = false
+    scrollView.autohidesScrollers = true
+    scrollView.horizontalScrollElasticity = .automatic
+    scrollView.drawsBackground = false
+
+    let hostingController = NSHostingController(rootView: content)
+    hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+
+    scrollView.documentView = hostingController.view
+    context.coordinator.hostingController = hostingController
+
+    return scrollView
+  }
+
+  func updateNSView(_ scrollView: HorizontalScrollView, context: Context) {
+    context.coordinator.hostingController?.rootView = content
+
+    // Scroll to active tab if needed
+    if let activeTabId = activeTabId, context.coordinator.lastActiveTabId != activeTabId {
+      context.coordinator.lastActiveTabId = activeTabId
+      // Give the layout a chance to update before scrolling
+      DispatchQueue.main.async {
+        if let documentView = scrollView.documentView {
+          let visibleRect = scrollView.documentVisibleRect
+          let contentRect = documentView.frame
+
+          // Center the visible area (simple approach - can be refined)
+          let targetX = max(0, (contentRect.width - visibleRect.width) / 2)
+          scrollView.contentView.scroll(to: NSPoint(x: targetX, y: 0))
+        }
+      }
+    }
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator()
+  }
+
+  class Coordinator {
+    var hostingController: NSHostingController<Content>?
+    var lastActiveTabId: UUID?
+  }
+
+  // Custom NSScrollView that converts vertical scroll wheel to horizontal scrolling
+  class HorizontalScrollView: NSScrollView {
+    override func scrollWheel(with event: NSEvent) {
+      // Convert vertical scroll to horizontal
+      if event.scrollingDeltaX == 0 && event.scrollingDeltaY != 0 {
+        // Scroll horizontally using the vertical delta
+        let currentPoint = contentView.bounds.origin
+        let newX = currentPoint.x - event.scrollingDeltaY
+        let maxX = max(0, (documentView?.frame.width ?? 0) - contentView.bounds.width)
+        let clampedX = max(0, min(newX, maxX))
+
+        contentView.scroll(to: NSPoint(x: clampedX, y: currentPoint.y))
+        reflectScrolledClipView(contentView)
+      } else {
+        // Handle horizontal scrolling normally
+        super.scrollWheel(with: event)
+      }
     }
   }
 }

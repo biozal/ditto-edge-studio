@@ -141,7 +141,9 @@ struct QueryResultsView: View {
 
                 // Remove collection from Edge Studio if requested
                 if options.removeCollectionFromStudio {
+                    print("DEBUG: Attempting to remove collection '\(collection)' from Edge Studio")
                     try await CollectionsRepository.shared.removeCollection(name: collection)
+                    print("DEBUG: Successfully removed collection '\(collection)' from Edge Studio")
                 }
             } else {
                 let documentIds = extractFieldValues(fieldName: options.uniqueField)
@@ -163,6 +165,7 @@ struct QueryResultsView: View {
                 jsonResults = []
             }
         } catch {
+            print("DEBUG: Error in handleDeleteAll: \(error)")
             // Error already logged by QueryService
         }
     }
