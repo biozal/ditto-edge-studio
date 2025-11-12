@@ -313,7 +313,6 @@ struct StoreExplorerContextMenuView: View {
 struct CollectionCard: View {
     let collection: DittoCollectionModel
     let isSelected: Bool
-    @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -339,15 +338,7 @@ struct CollectionCard: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(
-            isSelected ? Color.accentColor.opacity(0.15) :
-            isHovered ? Color.primary.opacity(0.05) : Color.clear
-        )
-        .cornerRadius(4)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .hoverableCard(isSelected: isSelected)
     }
 }
 
@@ -394,9 +385,7 @@ struct ObserverCard: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .cornerRadius(4)
-        .contentShape(Rectangle())
+        .hoverableCard(isSelected: isSelected)
     }
 }
 
