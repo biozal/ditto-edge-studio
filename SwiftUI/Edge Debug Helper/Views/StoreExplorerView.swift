@@ -6,44 +6,24 @@
 import SwiftUI
 
 struct StoreExplorerContextMenuView: View {
-    @Binding var subscriptions: [DittoSubscription]
-    @Binding var observers: [DittoObservable]
     @Binding var collections: [DittoCollectionModel]
+    @Binding var favorites: [DittoQueryHistory]
+    @Binding var history: [DittoQueryHistory]
+    @Binding var isHistoryExpanded: Bool
+    @Binding var isFavoritesExpanded: Bool
     @Binding var selectedItem: SelectedItem
-    @State private var isSubscriptionsExpanded = true
-    @State private var isObserversExpanded = true
+    @Binding var isLoading: Bool
     @State private var isCollectionsExpanded = true
 
     // Callbacks for actions
-    var onSelectNetwork: () -> Void
-    var onSelectSubscription: (DittoSubscription) -> Void
-    var onEditSubscription: (DittoSubscription) async -> Void
-    var onDeleteSubscription: (DittoSubscription) async throws -> Void
-    var onAddSubscription: () -> Void
-    var onEditObserver: (DittoObservable) async -> Void
-    var onDeleteObserver: (DittoObservable) async throws -> Void
-    var onStartObserver: (DittoObservable) async throws -> Void
-    var onStopObserver: (DittoObservable) async throws -> Void
-    var onSelectObserver: (DittoObservable) -> Void
-    var onAddObserver: () -> Void
     var onSelectCollection: (DittoCollectionModel) -> Void
-    var onRegisterCollection: () -> Void
+    var onSelectQuery: (String, String) -> Void  // query, uniqueID
 
     let appState: AppState
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Home Section
-                homeItem
-
-                Divider()
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 8)
-
-                // Action Buttons
-                actionButtonsSection
-
                 // Collections Section
                 CollapsibleSection(
                     title: "Collections",
@@ -51,173 +31,30 @@ struct StoreExplorerContextMenuView: View {
                     isExpanded: $isCollectionsExpanded
                 ) {
                     collectionsContent
-                } contextMenu: {
-                    Button("Register Collection", systemImage: "folder.badge.plus") {
-                        onRegisterCollection()
-                    }
                 }
                 .padding(.bottom, isCollectionsExpanded ? 8 : 2)
 
-                // Subscriptions Section
+                // Favorites Section
                 CollapsibleSection(
-                    title: "Subscriptions",
-                    count: subscriptions.count,
-                    isExpanded: $isSubscriptionsExpanded
+                    title: "Favorites",
+                    count: favorites.count,
+                    isExpanded: $isFavoritesExpanded
                 ) {
-                    subscriptionsContent
-                } contextMenu: {
-                    Button("Add Subscription", systemImage: "arrow.trianglehead.2.clockwise") {
-                        onAddSubscription()
-                    }
+                    favoritesContent
                 }
-                .padding(.bottom, isSubscriptionsExpanded ? 8 : 2)
+                .padding(.bottom, isFavoritesExpanded ? 8 : 2)
 
-                // Observers Section
+                // History Section
                 CollapsibleSection(
-                    title: "Observers",
-                    count: observers.count,
-                    isExpanded: $isObserversExpanded
+                    title: "History",
+                    count: history.count,
+                    isExpanded: $isHistoryExpanded
                 ) {
-                    observersContent
-                } contextMenu: {
-                    Button("Add Observer", systemImage: "eye") {
-                        onAddObserver()
-                    }
+                    historyContent
                 }
             }
             .padding(.horizontal, 2)
             .padding(.vertical, 4)
-        }
-    }
-
-    @ViewBuilder
-    private var subscriptionsContent: some View {
-        if subscriptions.isEmpty {
-            HStack {
-                Spacer()
-                VStack(spacing: 6) {
-                    Image(systemName: "arrow.trianglehead.2.clockwise")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                    Text("No Subscriptions")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("Add subscriptions to sync data between peers")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 12)
-        } else {
-            LazyVStack(spacing: 0) {
-                ForEach(subscriptions, id: \.id) { subscription in
-                    SubscriptionCard(
-                        subscription: subscription,
-                        isSelected: selectedItem == .subscription(subscription.id)
-                    )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onSelectSubscription(subscription)
-                        }
-                        .contextMenu {
-                            Button("Edit") {
-                                Task {
-                                    await onEditSubscription(subscription)
-                                }
-                            }
-                            Button("Delete", role: .destructive) {
-                                Task {
-                                    do {
-                                        try await onDeleteSubscription(subscription)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
-                                }
-                            }
-                        }
-                }
-            }
-            .padding(.vertical, 2)
-        }
-    }
-
-    @ViewBuilder
-    private var observersContent: some View {
-        if observers.isEmpty {
-            HStack {
-                Spacer()
-                VStack(spacing: 6) {
-                    Image(systemName: "eye")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                    Text("No Observers")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("Add observers to watch real-time data changes")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 12)
-        } else {
-            LazyVStack(spacing: 0) {
-                ForEach(observers, id: \.id) { observer in
-                    ObserverCard(
-                        observer: observer,
-                        isSelected: selectedItem == .observer(observer.id)
-                    )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onSelectObserver(observer)
-                        }
-                        .contextMenu {
-                            Button("Edit") {
-                                Task {
-                                    await onEditObserver(observer)
-                                }
-                            }
-
-                            if observer.storeObserver == nil {
-                                Button("Start Observing") {
-                                    Task {
-                                        do {
-                                            try await onStartObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                }
-                            } else {
-                                Button("Stop Observing") {
-                                    Task {
-                                        do {
-                                            try await onStopObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Divider()
-
-                            Button("Delete", role: .destructive) {
-                                Task {
-                                    do {
-                                        try await onDeleteObserver(observer)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
-                                }
-                            }
-                        }
-                }
-            }
-            .padding(.vertical, 2)
         }
     }
 
@@ -259,69 +96,71 @@ struct StoreExplorerContextMenuView: View {
     }
 
     @ViewBuilder
-    private var homeItem: some View {
-        HStack {
-            // Home icon - aligned with CollapsibleSection chevrons
-            Image(systemName: "house")
-                .font(.system(size: 10, weight: .medium))
-                .frame(width: 16)
+    private var favoritesContent: some View {
+        if favorites.isEmpty {
+            Text("No favorites")
+                .font(.system(size: 12))
                 .foregroundColor(.secondary)
-
-            // Content - aligned with CollapsibleSection titles
-            Text("Home")
-                .font(.system(.headline, weight: .semibold))
-                .foregroundColor(.primary)
-
-            Spacer()
-
-            // Chevron indicator
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.secondary)
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelectNetwork()
-        }
-    }
-
-    // MARK: - Action Buttons
-    @ViewBuilder
-    private var actionButtonsSection: some View {
-        HStack {
-            Button(action: toggleAllSections) {
-                HStack(spacing: 4) {
-                    Image(systemName: allSectionsCollapsed ? "plus.circle" : "minus.circle")
-                        .font(.system(size: 12))
-                    Text(allSectionsCollapsed ? "Expand All" : "Collapse All")
-                        .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
+        } else {
+            VStack(spacing: 0) {
+                ForEach(favorites) { query in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(query.query)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .font(.system(size: 12, design: .monospaced))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
+                    .hoverableCard(isSelected: false)
+                    .padding(.horizontal, 4)
+                    .onTapGesture {
+                        onSelectQuery(query.query, query.id)
+                    }
+                    #if os(macOS)
+                        .contextMenu {
+                            FavoriteQueryContextMenu(query: query, appState: appState)
+                        }
+                    #endif
                 }
-                .foregroundColor(.secondary)
             }
-            .buttonStyle(.plain)
-
-            Spacer()
-        }
-        .padding(.horizontal, 4)
-        .padding(.bottom, 4)
-    }
-
-    // MARK: - Computed Properties
-    private var allSectionsCollapsed: Bool {
-        !isCollectionsExpanded && !isSubscriptionsExpanded && !isObserversExpanded
-    }
-
-    // MARK: - Action Methods
-    private func toggleAllSections() {
-        let shouldExpand = allSectionsCollapsed
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isCollectionsExpanded = shouldExpand
-            isSubscriptionsExpanded = shouldExpand
-            isObserversExpanded = shouldExpand
         }
     }
+
+    @ViewBuilder
+    private var historyContent: some View {
+        if isLoading {
+            ProgressView("Loading...")
+                .font(.system(size: 12))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
+        } else if history.isEmpty {
+            Text("No history")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
+        } else {
+            VStack(spacing: 0) {
+                ForEach(history) { query in
+                    HistoryCard(
+                        query: query,
+                        appState: appState,
+                        onTap: {
+                            onSelectQuery(query.query, query.id)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
 }
 
 // MARK: - Collection Card Component
@@ -406,23 +245,15 @@ struct ObserverCard: View {
 
 #Preview {
     StoreExplorerContextMenuView(
-        subscriptions: .constant([]),
-        observers: .constant([]),
         collections: .constant([]),
+        favorites: .constant([]),
+        history: .constant([]),
+        isHistoryExpanded: .constant(true),
+        isFavoritesExpanded: .constant(true),
         selectedItem: .constant(.none),
-        onSelectNetwork: { },
-        onSelectSubscription: { _ in },
-        onEditSubscription: { _ in },
-        onDeleteSubscription: { _ in },
-        onAddSubscription: { },
-        onEditObserver: { _ in },
-        onDeleteObserver: { _ in },
-        onStartObserver: { _ in },
-        onStopObserver: { _ in },
-        onSelectObserver: { _ in },
-        onAddObserver: { },
+        isLoading: .constant(false),
         onSelectCollection: { _ in },
-        onRegisterCollection: { },
+        onSelectQuery: { _, _ in },
         appState: AppState()
     )
 }

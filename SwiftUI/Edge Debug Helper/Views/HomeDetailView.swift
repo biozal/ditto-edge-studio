@@ -18,7 +18,7 @@ struct HomeDetailView: View {
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
-                    Text("Manage your Ditto database connections and monitor peer synchronization")
+                    Text("Manage your Ditto database connections")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -26,61 +26,40 @@ struct HomeDetailView: View {
 
                 Divider()
 
-                // Connected Peers Section
+                // Quick Actions or Info Section
                 VStack(alignment: .leading, spacing: 16) {
-                    // Header with last update time
-                    HStack {
-                        Text("Connected Peers")
-                            .font(.title2)
-                            .bold()
+                    Text("Quick Start")
+                        .font(.title2)
+                        .bold()
 
-                        Spacer()
+                    VStack(alignment: .leading, spacing: 12) {
+                        QuickActionCard(
+                            icon: "arrow.triangle.2.circlepath",
+                            title: "Sync",
+                            description: "Monitor real-time peer synchronization",
+                            iconColor: .blue
+                        )
 
-                        if isSyncEnabled {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                                Text("Sync Active")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "pause.circle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                Text("Sync Paused")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+                        QuickActionCard(
+                            icon: "cylinder.split.1x2",
+                            title: "Store Explorer",
+                            description: "Browse collections, subscriptions, and observers",
+                            iconColor: .green
+                        )
 
-                    if syncStatusItems.isEmpty {
-                        HStack {
-                            Spacer()
-                            if isSyncEnabled {
-                                EmptyStateView(
-                                    "No Peers Connected",
-                                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                                    description: Text("Sync is active but no peers are currently connected")
-                                )
-                            } else {
-                                EmptyStateView(
-                                    "Sync Paused",
-                                    systemImage: "pause.circle",
-                                    description: Text("Enable sync to see connected peers and their status")
-                                )
-                            }
-                            Spacer()
-                        }
-                    } else {
-                        LazyVStack(spacing: 12) {
-                            ForEach(syncStatusItems, id: \.peerType) { status in
-                                syncStatusCard(for: status)
-                            }
-                        }
+                        QuickActionCard(
+                            icon: "doc.text",
+                            title: "Query",
+                            description: "Execute DQL queries and view results",
+                            iconColor: .orange
+                        )
+
+                        QuickActionCard(
+                            icon: "gearshape",
+                            title: "Ditto Tools",
+                            description: "Access advanced database tools and utilities",
+                            iconColor: .purple
+                        )
                     }
                 }
                 .padding(.horizontal)
@@ -88,62 +67,33 @@ struct HomeDetailView: View {
             .padding(.vertical)
         }
     }
+}
 
-    private func syncStatusCard(for status: SyncStatusInfo) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with peer type and connection status
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(status.peerType)
-                        .font(.headline)
-                        .bold()
+// MARK: - Quick Action Card
+struct QuickActionCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    let iconColor: Color
 
-                    Text(status.syncSessionStatus)
-                        .font(.subheadline)
-                        .foregroundColor(status.syncSessionStatus == "Connected" ? .green : .orange)
-                }
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(iconColor)
+                .frame(width: 40, height: 40)
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .bold()
 
-                // Status icon
-                Image(systemName: status.syncSessionStatus == "Connected" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundColor(status.syncSessionStatus == "Connected" ? .green : .orange)
-                    .font(.title2)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
 
-            // Sync information
-            VStack(alignment: .leading, spacing: 8) {
-                if let commitId = status.syncedUpToLocalCommitId {
-                    HStack {
-                        Image(systemName: "checkmark.circle")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Synced to local database commit: \(commitId)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                HStack {
-                    Image(systemName: "person.circle")
-                        .foregroundColor(.blue)
-                        .font(.caption)
-                    Text("Peer ID: \(status.id)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                if status.lastUpdateReceivedTime != nil {
-                    HStack {
-                        Image(systemName: "clock")
-                            .foregroundColor(.gray)
-                            .font(.caption)
-                        Text("Last update: \(status.formattedLastUpdate)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
+            Spacer()
         }
         .padding()
         .background(Color(.controlBackgroundColor))

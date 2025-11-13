@@ -88,6 +88,7 @@ struct EventsTableHeader: View {
 struct EventsTableRow: View {
     let event: DittoObserveEvent
     let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -113,6 +114,13 @@ struct EventsTableRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .hoverableCard(isSelected: isSelected, spacing: 0)
+        .background(
+            isSelected ? Color.blue.opacity(0.25) :
+            isHovered ? Color.gray.opacity(0.1) : Color.clear
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

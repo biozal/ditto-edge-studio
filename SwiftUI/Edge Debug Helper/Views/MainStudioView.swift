@@ -12,7 +12,6 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
-    @State private var showingRegisterCollectionView = false
 
 
 
@@ -51,13 +50,21 @@ struct MainStudioView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 250)
                     .animation(.default, value: viewModel.selectedMenuItem)
+                    .onChange(of: viewModel.selectedMenuItem) { _, newValue in
+                        // Auto-create blank query tab when Store Explorer is selected with no tabs
+                        if newValue.name == "Store Explorer" && viewModel.openTabs.isEmpty {
+                            viewModel.openQueryTab("", uniqueID: nil, reuseExisting: false)
+                        }
+                    }
                     Spacer()
                 }
                 switch viewModel.selectedMenuItem.name {
+                case "Sync":
+                    syncSidebarView()
                 case "Store Explorer":
                     storeExplorerSidebarView()
-                case "Query":
-                    querySidebarView()
+                case "Observers":
+                    observersSidebarView()
                 case "Ditto Tools":
                     dittoToolsSidebarView()
                 default:
@@ -67,8 +74,8 @@ struct MainStudioView: View {
 
                 //Bottom Toolbar in Sidebar
                     HStack {
-                        // Store Explorer pane: +subscription/+observer menu
-                        if viewModel.selectedMenuItem.name == "Store Explorer" {
+                        // Sync pane: +subscription menu
+                        if viewModel.selectedMenuItem.name == "Sync" {
                             Menu {
                                 Button(
                                     "Add Subscription",
@@ -78,19 +85,32 @@ struct MainStudioView: View {
                                         DittoSubscription.new()
                                     viewModel.actionSheetMode = .subscription
                                 }
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.title2)
+                                    .padding(4)
+                            }
+                        }
+
+                        // Store Explorer pane: +import data menu
+                        if viewModel.selectedMenuItem.name == "Store Explorer" {
+                            Menu {
+                                Button("Import Data", systemImage: "square.and.arrow.down") {
+                                    showingImportView = true
+                                }
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.title2)
+                                    .padding(4)
+                            }
+                        }
+
+                        // Observers pane: +observer menu
+                        if viewModel.selectedMenuItem.name == "Observers" {
+                            Menu {
                                 Button("Add Observer", systemImage: "eye") {
                                     viewModel.editorObservable = DittoObservable.new()
                                     viewModel.actionSheetMode = .observer
-                                }
-
-                                Divider()
-
-                                Button("Register Collection", systemImage: "folder.badge.plus") {
-                                    showingRegisterCollectionView = true
-                                }
-
-                                Button("Import Data", systemImage: "square.and.arrow.down") {
-                                    showingImportView = true
                                 }
                             } label: {
                                 Image(systemName: "plus.circle")
@@ -110,27 +130,21 @@ struct MainStudioView: View {
 
         } detail: {
             switch viewModel.selectedMenuItem.name {
+            case "Sync":
+                syncDetailView()
             case "Store Explorer":
                 storeExplorerTabView()
-            case "Query":
-                queryTabView()
-            case "Observer":
-                observeDetailView()
+            case "Observers":
+                observersDetailView()
             case "Ditto Tools":
                 dittoToolsDetailView()
             case "MongoDb":
                 mongoDBDetailView()
             default:
-                queryDetailView()
+                storeExplorerTabView()
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
-        .onChange(of: viewModel.selectedMenuItem) { oldValue, newValue in
-            // When switching to Query menu item, open or switch to a blank query tab
-            if newValue.name == "Query" {
-                viewModel.ensureBlankQueryTab()
-            }
-        }
         .sheet(
             isPresented: isSheetPresented
         ) {
@@ -161,14 +175,6 @@ struct MainStudioView: View {
             ImportDataView(isPresented: $showingImportView)
                 .environmentObject(appState)
         }
-        .sheet(isPresented: $showingRegisterCollectionView) {
-            RegisterCollectionModal(
-                isPresented: $showingRegisterCollectionView,
-                onRegister: { collectionName in
-                    await registerCollection(collectionName)
-                }
-            )
-        }
         .onAppear {
             // No longer needed - using DittoManager state directly
         }
@@ -179,22 +185,24 @@ struct MainStudioView: View {
             }
         #endif
         .onKeyPress(.init("n"), phases: .down) { keyPress in
-            // Create new query tab if we're in Query or Store Explorer and Cmd is pressed
-            if keyPress.modifiers.contains(.command) &&
-               (viewModel.selectedMenuItem.name == "Query" || viewModel.selectedMenuItem.name == "Store Explorer") {
+            // Create new query tab when Cmd+N is pressed from any view
+            if keyPress.modifiers.contains(.command) {
                 viewModel.openQueryTab("", uniqueID: nil, reuseExisting: false)
                 return .handled
             }
             return .ignored
         }
-    }
-    
-    private func registerCollection(_ collectionName: String) async {
-        do {
-            try await CollectionsRepository.shared.registerCollection(name: collectionName)
-            // Collections will update automatically via the observer
-        } catch {
-            appState.setError(error)
+        .onKeyPress(.init("w"), phases: .down) { keyPress in
+            // Close active tab if Cmd+W is pressed and we're in a tabbed view
+            if keyPress.modifiers.contains(.command) &&
+               viewModel.selectedMenuItem.name == "Store Explorer" {
+                if let activeTabId = viewModel.activeTabId,
+                   let activeTab = viewModel.openTabs.first(where: { $0.id == activeTabId }) {
+                    viewModel.closeTab(activeTab)
+                }
+                return .handled
+            }
+            return .ignored
         }
     }
 
@@ -296,207 +304,212 @@ extension MainStudioView {
         }
     }
 
-    func querySidebarView() -> some View {
+    func syncSidebarView() -> some View {
         return VStack(alignment: .leading, spacing: 0) {
-            // History Section control at top
-            HStack(spacing: 4) {
-                Spacer()
+            headerView(title: "Sync")
 
-                // Clear History menu
-                Menu {
-                    Button("Clear History", systemImage: "trash", role: .destructive) {
-                        Task {
-                            try await HistoryService.shared.clearAllHistory()
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                }
-                .fixedSize()
-                .buttonStyle(.plain)
-                .menuStyle(.borderlessButton)
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-
-            // Favorites Section (Collapsible)
-            CollapsibleSection(
-                title: "Favorites",
-                count: viewModel.favorites.count,
-                isExpanded: $viewModel.isFavoritesExpanded
-            ) {
-                if viewModel.favorites.isEmpty {
-                    Text("No favorites")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(viewModel.favorites) { query in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(query.query)
-                                        .lineLimit(3)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .font(.system(size: 12, design: .monospaced))
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 4)
-                            .hoverableCard(isSelected: false)
-                            .padding(.horizontal, 4)
-                            .onTapGesture {
-                                viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                            }
-                            #if os(macOS)
-                                .contextMenu {
-                                    FavoriteQueryContextMenu(query: query, appState: appState)
-                                }
-                            #endif
-                        }
+            // Subscriptions Section
+            VStack(alignment: .leading, spacing: 0) {
+                CollapsibleSection(
+                    title: "Subscriptions",
+                    count: viewModel.subscriptions.count,
+                    isExpanded: $viewModel.isSubscriptionsExpanded
+                ) {
+                    subscriptionsContent
+                } contextMenu: {
+                    Button("Add Subscription", systemImage: "arrow.trianglehead.2.clockwise") {
+                        viewModel.editorSubscription = DittoSubscription.new()
+                        viewModel.actionSheetMode = .subscription
                     }
                 }
+                .padding(.bottom, viewModel.isSubscriptionsExpanded ? 8 : 2)
             }
-
-            // History Section (Collapsible)
-            CollapsibleSection(
-                title: "History",
-                count: viewModel.history.count,
-                isExpanded: $viewModel.isHistoryExpanded
-            ) {
-                if viewModel.isLoading {
-                    ProgressView("Loading...")
-                        .font(.system(size: 12))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
-                } else if viewModel.history.isEmpty {
-                    Text("No history")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(viewModel.history) { query in
-                                HistoryCard(
-                                    query: query,
-                                    appState: appState,
-                                    onTap: {
-                                        viewModel.openQueryTab(query.query, uniqueID: query.id, reuseExisting: true)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 4)
 
             Spacer()
         }
     }
 
-    func favoritesSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Favorites")
-            List(viewModel.favorites) { query in
-                VStack(alignment: .leading) {
-                    Text(query.query)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .font(.system(.body, design: .monospaced))
-                }
-                .onTapGesture {
-                    viewModel.selectedQuery = query.query
-                }
-                #if os(macOS)
-                    .contextMenu {
-                        FavoriteQueryContextMenu(query: query, appState: appState)
-                    }
-                #else
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task {
-                                try await FavoritesRepository.shared.deleteFavorite(
-                                    query.id
-                                )
-                            }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                #endif
-                Divider()
-            }
-            Spacer()
-        }
-    }
-
-    func observeSidebarView() -> some View {
-        return VStack(alignment: .leading) {
+    func observersSidebarView() -> some View {
+        return VStack(alignment: .leading, spacing: 0) {
             headerView(title: "Observers")
-            ObservablesSidebarView(
-                observables: $viewModel.observerables,
-                selectedObservable: $viewModel.selectedObservable,
-                onSelectObservable: { observer in
-                    await viewModel.loadObservedEvents()
-                },
-                onRegisterObserver: viewModel.registerStoreObserver,
-                onRemoveObserver: viewModel.removeStoreObserver,
-                onDeleteObservable: viewModel.deleteObservable
-            )
-            .environmentObject(appState)
+
+            // Observers Section
+            VStack(alignment: .leading, spacing: 0) {
+                CollapsibleSection(
+                    title: "Observers",
+                    count: viewModel.observerables.count,
+                    isExpanded: $viewModel.isObserversExpanded
+                ) {
+                    observersContent
+                } contextMenu: {
+                    Button("Add Observer", systemImage: "eye") {
+                        viewModel.editorObservable = DittoObservable.new()
+                        viewModel.actionSheetMode = .observer
+                    }
+                }
+                .padding(.bottom, viewModel.isObserversExpanded ? 8 : 2)
+            }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 4)
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var subscriptionsContent: some View {
+        if viewModel.subscriptions.isEmpty {
+            HStack {
+                Spacer()
+                VStack(spacing: 6) {
+                    Image(systemName: "arrow.trianglehead.2.clockwise")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    Text("No Subscriptions")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text("Add subscriptions to sync data between peers")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(viewModel.subscriptions, id: \.id) { subscription in
+                    SubscriptionCard(
+                        subscription: subscription,
+                        isSelected: viewModel.selectedItem == .subscription(subscription.id)
+                    )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // Open subscription query in a query editor tab
+                            viewModel.openQueryTab(subscription.query)
+                            Task {
+                                await executeQuery()
+                            }
+                        }
+                        .contextMenu {
+                            Button("Edit") {
+                                Task {
+                                    await viewModel.showSubscriptionEditor(subscription)
+                                }
+                            }
+                            Button("Delete", role: .destructive) {
+                                Task {
+                                    do {
+                                        try await viewModel.deleteSubscription(subscription)
+                                    } catch {
+                                        appState.setError(error)
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    @ViewBuilder
+    private var observersContent: some View {
+        if viewModel.observerables.isEmpty {
+            HStack {
+                Spacer()
+                VStack(spacing: 6) {
+                    Image(systemName: "eye")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    Text("No Observers")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text("Add observers to watch real-time data changes")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(viewModel.observerables, id: \.id) { observer in
+                    ObserverCard(
+                        observer: observer,
+                        isSelected: viewModel.selectedObservable?.id == observer.id
+                    )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.selectedObservable = observer
+                            Task {
+                                await viewModel.loadObservedEvents()
+                            }
+                        }
+                        .contextMenu {
+                            Button("Edit") {
+                                Task {
+                                    await viewModel.showObservableEditor(observer)
+                                }
+                            }
+
+                            if observer.storeObserver == nil {
+                                Button("Start Observing") {
+                                    Task {
+                                        do {
+                                            try await viewModel.registerStoreObserver(observer)
+                                            // Auto-select the observer after activating
+                                            viewModel.selectedObservable = observer
+                                            await viewModel.loadObservedEvents()
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                }
+                            } else {
+                                Button("Stop Observing") {
+                                    Task {
+                                        do {
+                                            try await viewModel.removeStoreObserver(observer)
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Divider()
+
+                            Button("Delete", role: .destructive) {
+                                Task {
+                                    do {
+                                        try await viewModel.deleteObservable(observer)
+                                    } catch {
+                                        appState.setError(error)
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+            .padding(.vertical, 2)
         }
     }
 
     func storeExplorerSidebarView() -> some View {
         return VStack(alignment: .leading) {
+            headerView(title: "Store Explorer")
             StoreExplorerContextMenuView(
-                subscriptions: $viewModel.subscriptions,
-                observers: $viewModel.observerables,
                 collections: $viewModel.collections,
+                favorites: $viewModel.favorites,
+                history: $viewModel.history,
+                isHistoryExpanded: $viewModel.isHistoryExpanded,
+                isFavoritesExpanded: $viewModel.isFavoritesExpanded,
                 selectedItem: $viewModel.selectedItem,
-                onSelectNetwork: {
-                    viewModel.selectedItem = .network
-                    viewModel.openTab(for: .network)
-                },
-                onSelectSubscription: { subscription in
-                    // Open subscription query in a query editor tab
-                    viewModel.openQueryTab(subscription.query)
-                    Task {
-                        await executeQuery()
-                    }
-                },
-                onEditSubscription: viewModel.showSubscriptionEditor,
-                onDeleteSubscription: viewModel.deleteSubscription,
-                onAddSubscription: {
-                    viewModel.editorSubscription = DittoSubscription.new()
-                    viewModel.actionSheetMode = .subscription
-                },
-                onEditObserver: viewModel.showObservableEditor,
-                onDeleteObserver: viewModel.deleteObservable,
-                onStartObserver: viewModel.registerStoreObserver,
-                onStopObserver: viewModel.removeStoreObserver,
-                onSelectObserver: { observable in
-                    // Open the single "Observers" tab and select the observer
-                    let observersTab = SelectedItem.observersView
-                    viewModel.selectedItem = observersTab
-                    viewModel.openTab(for: observersTab)
-                    viewModel.selectedObservable = observable
-                    Task {
-                        await viewModel.loadObservedEvents()
-                    }
-                },
-                onAddObserver: {
-                    viewModel.editorObservable = DittoObservable.new()
-                    viewModel.actionSheetMode = .observer
-                },
+                isLoading: $viewModel.isLoading,
                 onSelectCollection: { collection in
                     // Open collection query in a query editor tab with unique ID based on collection name
                     let query = "SELECT * FROM \(collection.name)"
@@ -506,8 +519,8 @@ extension MainStudioView {
                         await executeQuery()
                     }
                 },
-                onRegisterCollection: {
-                    showingRegisterCollectionView = true
+                onSelectQuery: { query, uniqueID in
+                    viewModel.openQueryTab(query, uniqueID: uniqueID, reuseExisting: true)
                 },
                 appState: appState
             )
@@ -629,134 +642,6 @@ extension MainStudioView {
     }
 
 
-    func syncDetailView() -> some View {
-        return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
-            // Header with last update time
-            HStack {
-                Text("Connected Peers")
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                if let lastUpdate = viewModel.syncStatusItems.first?.lastUpdateReceivedTime {
-                    Text("Last updated: \(Date(timeIntervalSince1970: lastUpdate / 1000.0), formatter: dateFormatter)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top)
-            
-            if viewModel.syncStatusItems.isEmpty {
-                Spacer()
-                HStack {
-                    Spacer()
-                    ContentUnavailableView(
-                        "No Sync Status Available",
-                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                        description: Text("Enable sync to see connected peers and their status")
-                    )
-                    Spacer()
-                }
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.syncStatusItems) { statusInfo in
-                            syncStatusCard(for: statusInfo)
-                        }
-                    }
-                    .padding()
-                }
-            }
-        }
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
-    }
-    
-    private func syncStatusCard(for status: SyncStatusInfo) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with peer type and connection status
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(status.peerType)
-                        .font(.headline)
-                        .bold()
-                    Text(status.id)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusColor(for: status.syncSessionStatus))
-                        .frame(width: 8, height: 8)
-                    Text(status.syncSessionStatus)
-                        .font(.subheadline)
-                        .foregroundColor(statusColor(for: status.syncSessionStatus))
-                }
-            }
-            
-            Divider()
-            
-            // Sync information
-            VStack(alignment: .leading, spacing: 8) {
-                if let commitId = status.syncedUpToLocalCommitId {
-                    HStack {
-                        Image(systemName: "checkmark.circle")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Synced to local database commit: \(commitId)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                HStack {
-                    Image(systemName: "clock")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Text("Last update: \(status.formattedLastUpdate)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(NSColor.controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-        )
-    }
-    
-    private func statusColor(for status: String) -> Color {
-        switch status {
-        case "Connected":
-            return .green
-        case "Connecting":
-            return .orange
-        case "Disconnected":
-            return .red
-        default:
-            return .gray
-        }
-    }
-    
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .medium
-        return formatter
-    }
-
     func queryDetailView() -> some View {
         return VStack(alignment: .leading) {
             #if os(macOS)
@@ -844,6 +729,42 @@ extension MainStudioView {
         #endif
     }
 
+    func syncDetailView() -> some View {
+        return SyncView(
+            syncStatusItems: $viewModel.syncStatusItems,
+            isSyncEnabled: $viewModel.isSyncEnabled
+        )
+        #if os(iOS)
+            .toolbar {
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+            }
+        #endif
+    }
+
+    func observersDetailView() -> some View {
+        return ObservablesView(
+            observables: $viewModel.observerables,
+            selectedObservable: $viewModel.selectedObservable,
+            observableEvents: $viewModel.selectedObservableEvents,
+            selectedEventId: $viewModel.selectedEventId,
+            eventMode: $viewModel.eventMode,
+            onLoadEvents: viewModel.loadObservedEvents,
+            onRegisterObserver: viewModel.registerStoreObserver,
+            onRemoveObserver: viewModel.removeStoreObserver,
+            onDeleteObservable: viewModel.deleteObservable
+        )
+        .environmentObject(appState)
+        #if os(iOS)
+            .toolbar {
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+            }
+        #endif
+    }
+
     func dittoToolsDetailView() -> some View {
         return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
             #if os(iOS)
@@ -893,8 +814,8 @@ extension MainStudioView {
 
         var isLoading = false
         var isQueryExecuting = false
-        
-        var eventMode = "items"
+
+        var eventMode = "inserted"
         let dittoToolsFeatures = [
             "Presence Viewer", "Peers List", "Permissions Health", "Disk Usage",
         ]
@@ -910,6 +831,8 @@ extension MainStudioView {
         // Collapsible section states
         var isHistoryExpanded: Bool = true
         var isFavoritesExpanded: Bool = true
+        var isSubscriptionsExpanded: Bool = true
+        var isObserversExpanded: Bool = true
 
         //query editor view
         var selectedQuery: String
@@ -939,23 +862,28 @@ extension MainStudioView {
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
-            let storeExplorerItem = MenuItem(
+            let syncItem = MenuItem(
                 id: 1,
+                name: "Sync",
+                icon: "arrow.triangle.2.circlepath"
+            )
+            let storeExplorerItem = MenuItem(
+                id: 2,
                 name: "Store Explorer",
                 icon: "cylinder.split.1x2"
             )
 
-            self.selectedMenuItem = storeExplorerItem
+            self.selectedMenuItem = syncItem
 
-            // Initialize with home tab
-            let homeTab = TabItem(title: "Home", content: .network, systemImage: "house")
-            self.openTabs = [homeTab]
-            self.activeTabId = homeTab.id
-            self.selectedItem = .network
+            // Initialize with no tabs (Sync doesn't use tabs)
+            self.openTabs = []
+            self.activeTabId = nil
+            self.selectedItem = .none
             self.mainMenuItems = [
+                syncItem,
                 storeExplorerItem,
-                MenuItem(id: 2, name: "Query", icon: "doc.text"),
-                MenuItem(id: 3, name: "Ditto Tools", icon: "gearshape"),
+                MenuItem(id: 3, name: "Observers", icon: "eye"),
+                MenuItem(id: 4, name: "Ditto Tools", icon: "gearshape"),
             ]
 
             //query section
@@ -984,16 +912,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
-            // Setup ObservableRepository callback
-            Task {
-                await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
-                    Task { @MainActor in
-                        self?.observerables = observables
-                    }
-                }
-            }
-            
+
             // Setup FavoritesRepository callback
             Task {
                 await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
@@ -1014,16 +933,63 @@ extension MainStudioView {
 
             Task {
                 isLoading = true
-                
+
+                // Setup observers callback BEFORE registering observer
+                await ObserverService.shared.setOnObservablesUpdate { [weak self] observables in
+                    print("🔍 MainStudioView: Callback received \(observables.count) observables")
+                    // Debug: Print each observer's ID and name
+                    for (index, obs) in observables.enumerated() {
+                        print("🔍   Observer[\(index)]: id=\(obs.id), name='\(obs.name)', query='\(obs.query)', hasStoreObserver=\(obs.storeObserver != nil)")
+                    }
+
+                    Task { @MainActor in
+                        print("🔍 MainStudioView: Setting observerables to \(observables.count) items")
+                        // Filter out duplicates by ID
+                        var uniqueObservables = Dictionary(grouping: observables, by: { $0.id })
+                            .compactMap { $0.value.first }
+                        print("🔍 After deduplication: \(uniqueObservables.count) unique observers")
+
+                        // Preserve storeObserver references from existing observerables
+                        if let existingObservers = self?.observerables {
+                            for i in 0..<uniqueObservables.count {
+                                if let existingObserver = existingObservers.first(where: { $0.id == uniqueObservables[i].id }) {
+                                    // Preserve the in-memory storeObserver reference
+                                    uniqueObservables[i].storeObserver = existingObserver.storeObserver
+                                    if existingObserver.storeObserver != nil {
+                                        print("🔍 Preserved storeObserver for: \(uniqueObservables[i].name)")
+                                    }
+                                }
+                            }
+                        }
+
+                        // Preserve selectedObservable reference by finding the matching one in the new array
+                        let previouslySelectedId = self?.selectedObservable?.id
+                        self?.observerables = uniqueObservables
+
+                        // Re-establish selectedObservable reference to the new instance
+                        if let selectedId = previouslySelectedId {
+                            self?.selectedObservable = uniqueObservables.first { $0.id == selectedId }
+                            print("🔍 Re-established selectedObservable: \(self?.selectedObservable?.id ?? "nil")")
+                        }
+
+                        print("🔍 MainStudioView: observerables now has \(self?.observerables.count ?? -1) items")
+                    }
+                }
+
                 await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
                     self.subscriptions = newSubscriptions
                 }
                 subscriptions = try await SubscriptionsRepository.shared.hydrateDittoSubscriptions()
 
-                await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
-                    self.collections = newCollections
+                // Setup collections callback BEFORE hydrating
+                await EdgeStudioCollectionService.shared.setOnCollectionsUpdate { [weak self] newCollections in
+                    print("🔍 MainStudioView: Collections callback received \(newCollections.count) collections")
+                    Task { @MainActor in
+                        self?.collections = newCollections
+                        print("🔍 MainStudioView: collections now has \(self?.collections.count ?? -1) items")
+                    }
                 }
-                collections = try await CollectionsRepository.shared.hydrateCollections()
+                collections = try await EdgeStudioCollectionService.shared.hydrateCollections()
 
                 history = try await HistoryService.shared.loadHistory()
 
@@ -1032,9 +998,9 @@ extension MainStudioView {
                 // Load favorites into in-memory service
                 FavoritesService.shared.loadFavorites(favorites)
 
-                // Start observing observables through repository
+                // Start observing observables through service (callback is now set)
                 do {
-                    try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
+                    try await ObserverService.shared.registerObservablesObserver(for: selectedApp._id)
                 } catch {
                     assertionFailure("Failed to register observables observer: \(error)")
                 }
@@ -1125,10 +1091,10 @@ extension MainStudioView {
                 group.addTask(priority: .utility) {
                     // Stop repository observers (now using detached tasks internally)
                     await SystemRepository.shared.stopObserver()
-                    await ObservableRepository.shared.stopObserver()
+                    await ObserverService.shared.stopObserver()
                     await FavoritesRepository.shared.stopObserver()
                     await HistoryService.shared.stopObserving()
-                    await CollectionsRepository.shared.stopObserver()
+                    await EdgeStudioCollectionService.shared.stopObserver()
                     await SubscriptionsRepository.shared.cancelAllSubscriptions()
                     await DatabaseRepository.shared.stopDatabaseConfigSubscription()
                 }
@@ -1161,22 +1127,22 @@ extension MainStudioView {
         }
 
         func deleteObservable(_ observable: DittoObservable) async throws {
-            
-            if let storeObserver = observable.storeObserver {
-                storeObserver.cancel()
-            }
-            
-            try await ObservableRepository.shared.removeDittoObservable(observable)
-            
-            //remove events for the observable
+            // Use the new ObserverService to handle deletion
+            try await ObserverService.shared.deleteObservable(observable)
+
+            // Clean up local state
             observableEvents.removeAll(where: {$0.observeId == observable.id})
-            
+
             if (selectedObservable?.id == observable.id) {
                 selectedObservable = nil
             }
             if selectedEventObject?.observeId == observable.id {
                 selectedEventId = nil
             }
+
+            // Force update the observables array by removing the deleted item
+            // This ensures immediate UI feedback even if the observer callback hasn't fired yet
+            observerables.removeAll(where: { $0.id == observable.id })
         }
 
         func deleteSubscription(_ subscription: DittoSubscription) async throws
@@ -1310,7 +1276,7 @@ extension MainStudioView {
                 }
                 Task {
                     do {
-                        try await ObservableRepository.shared.saveDittoObservable(observer)
+                        try await ObserverService.shared.saveObservable(observer)
 
                         // Update in the observerables array
                         await MainActor.run {
@@ -1346,52 +1312,40 @@ extension MainStudioView {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
             }
-            guard let ditto = await DittoManager.shared.dittoSelectedApp else {
-                throw InvalidStateError(message: "Could not get ditto reference from manager")
-            }
             if observerables[index].storeObserver != nil {
                 throw InvalidStoreState(message: "Observer already registered")
             }
-            
+
             //if you activate an observable it's instantly selected
             selectedObservable = observable
-            
-            //used for calculating the diffs
-            let dittoDiffer = DittoDiffer()
-            
-            //TODO: fix arguments serialization
-            let observer = try ditto.store.registerObserver(
-                query: observable.query,
-                arguments: [:]
-            ) { [weak self] results in
-                //required to show the end user when the event fired
-                var event = DittoObserveEvent.new(observeId: observable.id)
 
-                let diff = dittoDiffer.diff(results.items)
+            // Use the new ObserverService to register the observer
+            let observer = try await ObserverService.shared.registerStoreObserver(
+                for: observable
+            ) { [weak self] event in
+                Task { @MainActor in
+                    print("🔍 Observer event received: observeId=\(event.observeId), data count=\(event.data.count), insertions=\(event.insertIndexes.count)")
+                    self?.observableEvents.append(event)
 
-                event.eventTime = Date().ISO8601Format()
-
-                //set diff information
-                event.insertIndexes = Array(diff.insertions)
-                event.deletedIndexes = Array(diff.deletions)
-                event.updatedIndexes = Array(diff.updates)
-                event.movedIndexes = Array(diff.moves)
-
-                event.data = results.items.compactMap {
-                    let data = $0.jsonData()
-                    return String(data: data, encoding: .utf8)
-                }
-
-                self?.observableEvents.append(event)
-                
-                //if this is the selected observable, add it to the selectedEvents array too
-                if let selectedObservableId = self?.selectedObservable?.id {
-                    if (event.observeId == selectedObservableId) {
-                        self?.selectedObservableEvents.append(event)
+                    //if this is the selected observable, add it to the selectedEvents array too
+                    if let selectedObservableId = self?.selectedObservable?.id {
+                        print("🔍 Selected observable ID: \(selectedObservableId)")
+                        if (event.observeId == selectedObservableId) {
+                            print("🔍 Adding event to selectedObservableEvents (count before: \(self?.selectedObservableEvents.count ?? 0))")
+                            self?.selectedObservableEvents.append(event)
+                            print("🔍 selectedObservableEvents count after: \(self?.selectedObservableEvents.count ?? 0)")
+                        } else {
+                            print("🔍 Event observeId (\(event.observeId)) does not match selected (\(selectedObservableId))")
+                        }
+                    } else {
+                        print("🔍 No selected observable")
                     }
                 }
             }
+
+            // Update the local state (don't persist storeObserver - it's not serializable)
             observerables[index].storeObserver = observer
+            print("🔍 Observer registered. selectedObservable=\(selectedObservable?.id ?? "nil"), selectedObservableEvents count=\(selectedObservableEvents.count)")
         }
         
         func removeStoreObserver(_ observable: DittoObservable) async throws {
@@ -1638,6 +1592,8 @@ extension MainStudioView {
 
         func viewContext(for selectedItem: SelectedItem) -> ViewContext {
             switch selectedItem {
+            case .sync:
+                return .sync
             case .network:
                 return .home
             case .subscription(let id):
@@ -1661,6 +1617,8 @@ extension MainStudioView {
 
         private func tabInfo(for selectedItem: SelectedItem) -> (title: String, systemImage: String) {
             switch selectedItem {
+            case .sync:
+                return ("Sync", "arrow.triangle.2.circlepath")
             case .network:
                 return ("Home", "house")
             case .subscription(let id):
@@ -1702,16 +1660,19 @@ struct MenuItem: Identifiable, Equatable, Hashable {
 }
 
 enum SelectedItem: Equatable, Hashable {
+    case sync                  // sync/peer status view
     case subscription(String)  // subscription ID
     case observer(String)      // observer ID (deprecated - use observersView instead)
     case observersView         // single observers tab showing all events
     case collection(String)    // collection name
     case query(String)         // query ID
-    case network              // network view
+    case network              // network/home view
     case none
 
     var id: String {
         switch self {
+        case .sync:
+            return "sync"
         case .subscription(let id):
             return "subscription_\(id)"
         case .observer(let id):
@@ -1755,16 +1716,20 @@ struct HistoryCard: View {
     @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 8) {
                 Text(query.query)
                     .lineLimit(2)
+                    .truncationMode(.tail)
                     .font(.system(size: 12, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Reserve space for delete button to prevent layout shift
+                Color.clear
+                    .frame(width: 20, height: 20)
             }
 
-            Spacer(minLength: 0)
-
-            // Delete button - only visible on hover
+            // Delete button - floats above text
             if isHovering {
                 Button(action: {
                     Task {
@@ -1782,15 +1747,17 @@ struct HistoryCard: View {
                 .buttonStyle(.plain)
                 .help("Remove from history")
                 .transition(.opacity)
+                .padding(.trailing, 4)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .hoverableCard(isSelected: false)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 2)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.linear(duration: 0)) {
                 isHovering = hovering
             }
         }

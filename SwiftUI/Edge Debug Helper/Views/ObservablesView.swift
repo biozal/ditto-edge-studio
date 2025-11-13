@@ -54,8 +54,8 @@ struct ObservablesView: View {
             if selectedObservable == nil {
                 ObservableEmptyStateView(
                     title: "No Observer Selected",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: "Please select an observer from the sidebar to view events."
+                    systemImage: "eye.slash",
+                    description: "Select an observer from the sidebar to view events"
                 )
             } else {
                 ObservableEventsListView(

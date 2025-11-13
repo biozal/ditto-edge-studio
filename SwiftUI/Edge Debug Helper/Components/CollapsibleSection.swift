@@ -82,10 +82,7 @@ struct CollapsibleSection<Content: View, ContextMenu: View>: View {
             if isExpanded {
                 content()
                     .padding(.bottom, 8)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .move(edge: .top))
-                    ))
+                    .transition(.opacity)
             }
         }
     }

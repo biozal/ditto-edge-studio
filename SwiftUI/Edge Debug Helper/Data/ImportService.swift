@@ -130,7 +130,7 @@ struct ImportService {
         // Register collection in __collections if it doesn't exist (idempotent operation)
         // This ensures the collection appears in Edge Studio even if it was unregistered
         do {
-            try await CollectionsRepository.shared.registerCollection(name: collection)
+            try await EdgeStudioCollectionService.shared.registerCollection(name: collection)
         } catch {
             // Log but don't fail import if registration fails
             // The collection will still work, just might not appear in UI

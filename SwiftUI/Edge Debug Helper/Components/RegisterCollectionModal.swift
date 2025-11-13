@@ -43,7 +43,7 @@ struct RegisterCollectionModal: View {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundColor(.blue)
-                    Text("This will register the collection in Edge Studio's tracking. You can then add subscriptions and view its data.")
+                    Text("This will register the collection in Edge Studio's tracking. Collections may exist in your Ditto database without being registered in Edge Studio.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

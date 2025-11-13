@@ -9,6 +9,7 @@ import SwiftUI
 
 // MARK: - View Context Definition
 enum ViewContext: Identifiable {
+    case sync
     case home
     case query(subscription: DittoSubscription?)
     case observer(observable: DittoObservable)
@@ -18,6 +19,8 @@ enum ViewContext: Identifiable {
 
     var id: String {
         switch self {
+        case .sync:
+            return "sync"
         case .home:
             return "home"
         case .query(let subscription):
@@ -35,6 +38,8 @@ enum ViewContext: Identifiable {
 
     var title: String {
         switch self {
+        case .sync:
+            return "Sync"
         case .home:
             return "Home"
         case .query(let subscription):
@@ -52,6 +57,8 @@ enum ViewContext: Identifiable {
 
     var systemImage: String {
         switch self {
+        case .sync:
+            return "arrow.triangle.2.circlepath"
         case .home:
             return "house"
         case .query:
@@ -79,6 +86,12 @@ struct ViewContainer: View {
 
     var body: some View {
         switch context {
+        case .sync:
+            SyncView(
+                syncStatusItems: $viewModel.syncStatusItems,
+                isSyncEnabled: $viewModel.isSyncEnabled
+            )
+
         case .home:
             HomeDetailView(
                 syncStatusItems: $viewModel.syncStatusItems,

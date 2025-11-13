@@ -191,10 +191,10 @@ extension ContentView {
                 
                 // Set appState in HistoryRepository as well
                 await HistoryRepository.shared.setAppState(appState)
-                
-                // Set appState in CollectionsRepository as well
-                await CollectionsRepository.shared.setAppState(appState)
-                
+
+                // Set appState in EdgeStudioCollectionService as well
+                await EdgeStudioCollectionService.shared.setAppState(appState)
+
                 // Set appState in SubscriptionsRepository as well
                 await SubscriptionsRepository.shared.setAppState(appState)
                 

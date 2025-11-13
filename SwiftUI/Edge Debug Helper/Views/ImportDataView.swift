@@ -364,7 +364,7 @@ struct ImportDataView: View {
     private func loadExistingCollections() {
         Task {
             do {
-                let collections = try await CollectionsRepository.shared.hydrateCollections()
+                let collections = try await EdgeStudioCollectionService.shared.hydrateCollections()
                 // Deduplicate collection names using Set to avoid duplicate IDs in ForEach
                 existingCollections = Array(Set(collections.map { $0.name })).sorted()
                 if !existingCollections.isEmpty {

@@ -13,14 +13,24 @@ struct ObservableEmptyStateView: View {
     let description: String
 
     var body: some View {
-        VStack {
-            Spacer()
-            ContentUnavailableView(
-                title,
-                systemImage: systemImage,
-                description: Text(description)
-            )
+        VStack(alignment: .center, spacing: 16) {
+            Image(systemName: systemImage)
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(24)
     }
 }

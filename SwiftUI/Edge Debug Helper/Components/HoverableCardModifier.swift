@@ -21,7 +21,9 @@ struct HoverableCardModifier: ViewModifier {
             .cornerRadius(4)
             .contentShape(Rectangle())
             .onHover { hovering in
-                isHovered = hovering
+                withAnimation(.linear(duration: 0)) {
+                    isHovered = hovering
+                }
             }
             .padding(.bottom, spacing)
     }

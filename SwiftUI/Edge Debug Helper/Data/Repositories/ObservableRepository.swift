@@ -31,8 +31,12 @@ actor ObservableRepository {
                 query: query,
                 arguments: arguments
             )
-            return results.items.compactMap { DittoObservable($0.value) }
+            print("🔍 ObservableRepository.hydrateObservables: Query returned \(results.items.count) items")
+            let observables = results.items.compactMap { DittoObservable($0.value) }
+            print("🔍 ObservableRepository.hydrateObservables: Mapped to \(observables.count) DittoObservable objects")
+            return observables
         } catch {
+            print("🔍 ObservableRepository.hydrateObservables: ERROR - \(error)")
             self.appState?.setError(error)
             throw error
         }
@@ -51,8 +55,13 @@ actor ObservableRepository {
         // Hydrate initial data
         var currentObservables = try await hydrateObservables(for: selectedAppId)
 
+        print("🔍 ObservableRepository: Hydrated \(currentObservables.count) observables for appId: \(selectedAppId)")
+        print("🔍 ObservableRepository: Callback is \(onObservablesUpdate == nil ? "NOT SET" : "SET")")
+
         // Send initial data to callback
         await self.onObservablesUpdate?(currentObservables)
+
+        print("🔍 ObservableRepository: Callback invoked with \(currentObservables.count) observables")
 
         // Register observer for observables
         let query = "SELECT * FROM dittoobservations WHERE selectedApp_id = :selectedAppId ORDER BY lastUpdated"
