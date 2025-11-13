@@ -11,3 +11,8 @@ struct DittoCollection: Codable {
     let _id: String
     let name: String
 }
+
+struct DittoCollectionModel: Codable, Hashable {
+    let name: String
+    let documentCount: Int
+}

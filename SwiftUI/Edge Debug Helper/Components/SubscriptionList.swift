@@ -23,7 +23,7 @@ struct SubscriptionList: View {
                     )
                 ) {
                     ForEach(subscriptions, id: \.id) { subscription in
-                        SubscriptionCard(subscription: subscription)
+                        SubscriptionCard(subscription: subscription, isSelected: false)
                             .padding(.bottom, 16)
                             .padding(.top, 16)
                             .contentShape(Rectangle())
@@ -53,7 +53,7 @@ struct SubscriptionList: View {
         #else
             List {
                 ForEach(subscriptions, id: \.id) { subscription in
-                    SubscriptionCard(subscription: subscription)
+                    SubscriptionCard(subscription: subscription, isSelected: false)
                         .padding(.bottom, 4)
                         .padding(.top, 4)
                         .contentShape(Rectangle())
@@ -64,21 +64,13 @@ struct SubscriptionList: View {
                             }
                         }
                         .contextMenu {
-                            Button {
-                                Task {
-                                    do {
-                                        try await onDelete(subscription)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
+                            SubscriptionQueryContextMenu(
+                                subscription: subscription,
+                                appState: appState,
+                                onDelete: {
+                                    try await onDelete(subscription)
                                 }
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
+                            )
                         }
                     Divider()
                 }

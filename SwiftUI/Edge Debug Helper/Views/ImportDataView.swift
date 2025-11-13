@@ -19,16 +19,20 @@ struct ImportDataView: View {
     @State private var importSuccess: Bool = false
     @State private var successMessage: String = ""
     @State private var useInitialInsert: Bool = false
+    @State private var showCopiedConfirmation: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Fixed header
             Text("Import JSON Data")
                 .font(.title2)
                 .bold()
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 30)
-            
-            VStack(alignment: .leading, spacing: 20) {
+
+            // Scrollable content area
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Select JSON File")
                         .font(.headline)
@@ -63,12 +67,12 @@ struct ImportDataView: View {
                     .pickerStyle(.segmented)
                     
                     if useExistingCollection {
-                        if existingCollections.isEmpty {
-                            Text("No existing collections found")
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            HStack {
+                        HStack {
+                            if existingCollections.isEmpty {
+                                Text("No existing collections found")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            } else {
                                 Text("Select Collection")
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -80,6 +84,14 @@ struct ImportDataView: View {
                                 .pickerStyle(.menu)
                                 .labelsHidden()
                             }
+
+                            Button(action: {
+                                loadExistingCollections()
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Refresh collections list")
                         }
                     } else {
                         TextField("New collection name", text: $collectionName)
@@ -174,14 +186,40 @@ struct ImportDataView: View {
                                 .fill(Color.blue.opacity(0.1))
                         )
                     } else if let error = importError {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                                .font(.system(size: 14))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .textSelection(.enabled)
+                                Spacer()
+                                Button(action: {
+                                    copyToClipboard(error)
+                                }) {
+                                    ZStack {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                            .opacity(showCopiedConfirmation ? 0 : 1)
+                                        if showCopiedConfirmation {
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(systemName: "doc.on.doc")
+                                                    .font(.system(size: 12))
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.system(size: 8))
+                                                    .offset(x: 2, y: -2)
+                                            }
+                                            .foregroundColor(.green)
+                                        }
+                                    }
+                                    .frame(width: 16, height: 16)
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(showCopiedConfirmation ? .green : .red)
+                            }
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,13 +228,39 @@ struct ImportDataView: View {
                                 .fill(Color.red.opacity(0.1))
                         )
                     } else if importSuccess {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 14))
-                            Text(successMessage)
-                                .font(.caption)
-                                .foregroundColor(.green)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 14))
+                                Text(successMessage)
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .textSelection(.enabled)
+                                Spacer()
+                                Button(action: {
+                                    copyToClipboard(successMessage)
+                                }) {
+                                    ZStack {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                            .opacity(showCopiedConfirmation ? 0 : 1)
+                                        if showCopiedConfirmation {
+                                            ZStack(alignment: .topTrailing) {
+                                                Image(systemName: "doc.on.doc")
+                                                    .font(.system(size: 12))
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.system(size: 8))
+                                                    .offset(x: 2, y: -2)
+                                            }
+                                            .foregroundColor(.green)
+                                        }
+                                    }
+                                    .frame(width: 16, height: 16)
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(showCopiedConfirmation ? .green : .green.opacity(0.8))
+                            }
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,9 +275,13 @@ struct ImportDataView: View {
                 .animation(.easeInOut(duration: 0.3), value: importError)
                 .animation(.easeInOut(duration: 0.3), value: importSuccess)
             }
-            
-            Spacer()
-            
+            }
+            // End ScrollView
+
+            Divider()
+                .padding(.vertical, 12)
+
+            // Fixed footer with buttons
             HStack {
                 Button("Cancel") {
                     isPresented = false
@@ -258,6 +326,21 @@ struct ImportDataView: View {
         .onAppear {
             loadExistingCollections()
         }
+        .onChange(of: selectedFileURL) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: useExistingCollection) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: selectedCollection) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: collectionName) { _, _ in
+            resetSuccessState()
+        }
+        .onChange(of: useInitialInsert) { _, _ in
+            resetSuccessState()
+        }
     }
     
     private var canImport: Bool {
@@ -270,10 +353,20 @@ struct ImportDataView: View {
         }
     }
     
+    private func resetSuccessState() {
+        if importSuccess {
+            importSuccess = false
+            importError = nil
+            successMessage = ""
+        }
+    }
+
     private func loadExistingCollections() {
         Task {
             do {
-                existingCollections = try await CollectionsRepository.shared.hydrateCollections()
+                let collections = try await EdgeStudioCollectionService.shared.hydrateCollections()
+                // Deduplicate collection names using Set to avoid duplicate IDs in ForEach
+                existingCollections = Array(Set(collections.map { $0.name })).sorted()
                 if !existingCollections.isEmpty {
                     selectedCollection = existingCollections[0]
                 }
@@ -335,7 +428,8 @@ struct ImportDataView: View {
                         importSuccess = true
                         successMessage = "Successfully imported \(result.successCount) document(s) to \(targetCollection)"
                     } else {
-                        importSuccess = true
+                        // Partial success - show warning but keep Import button available
+                        importSuccess = false
                         successMessage = "Imported \(result.successCount) document(s) with \(result.failureCount) failure(s)"
                         if !result.errors.isEmpty {
                             // Show first error
@@ -343,18 +437,40 @@ struct ImportDataView: View {
                         }
                     }
                     
-                    // Refresh collections if we created a new one
-                    if !useExistingCollection {
-                        loadExistingCollections()
-                    }
+                    // Refresh collections list after import
+                    // This ensures newly created collections appear in the list
+                    // and existing collections are up-to-date
+                    loadExistingCollections()
                 }
             } catch {
                 await MainActor.run {
                     isImporting = false
                     importProgress = nil
                     currentImportStatus = ""
+                    importSuccess = false
                     importError = error.localizedDescription
                 }
+            }
+        }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        #if os(macOS)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        #else
+            UIPasteboard.general.string = text
+        #endif
+
+        // Show copied feedback
+        withAnimation {
+            showCopiedConfirmation = true
+        }
+
+        // Reset after 500ms
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation {
+                showCopiedConfirmation = false
             }
         }
     }

@@ -12,7 +12,8 @@ struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
     @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
-    
+    @State private var showingSettings = false
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -37,6 +38,9 @@ struct Ditto_Edge_StudioApp: App {
                         Text( appState.error?.localizedDescription ?? "Unknown Error")
                     }
                 }
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView()
+                }
                 .environmentObject(appState)
         }
         .windowResizability(.contentMinSize)
@@ -44,6 +48,13 @@ struct Ditto_Edge_StudioApp: App {
                 .commands {
                     CommandGroup(replacing: .newItem) {
                         // Leave empty to remove New Window command
+                    }
+
+                    CommandGroup(after: .appInfo) {
+                        Button("Settings...") {
+                            showingSettings = true
+                        }
+                        .keyboardShortcut(",", modifiers: .command)
                     }
                 }
         .onChange(of: scenePhase) { newPhase, oldPhase in

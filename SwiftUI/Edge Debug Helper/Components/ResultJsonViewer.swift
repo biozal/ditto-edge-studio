@@ -10,33 +10,73 @@ import SwiftUI
 
 struct ResultJsonViewer: View {
     @Binding var resultText: [String]
+    let parsedItems: [[String: Any]]   // Pre-parsed from parent
+    let allKeys: [String]               // Pre-computed from parent
+    let viewMode: QueryResultViewMode
+    let attachmentFields: [String]
+    var collectionName: String?
+    var onDelete: ((String, String) -> Void)?
+    var hasExecutedQuery: Bool = false
+    var autoFetchAttachments: Bool = false
 
-    @State private var currentPage = 1
-    @State private var pageSize = 10
+    // Pagination state - can be provided as bindings or use default state
+    @Binding var currentPage: Int
+    @Binding var pageSize: Int
+
     @State private var isExporting = false
 
     private var pageSizes: [Int] {
         switch resultCount {
         case 0...10: return [10]
-        case 11...25: return [25]
-        case 26...50: return [25, 50]
-        case 51...100: return [25, 50, 100]
-        case 101...200: return [25, 50, 100, 200]
-        case 201...250: return [25, 50, 100, 200, 250]
-        default: return [10, 25, 50, 100, 200, 250]
+        case 11...25: return [10, 25]
+        case 26...50: return [10, 25, 50]
+        case 51...100: return [10, 25, 50, 100]
+        case 101...250: return [10, 25, 50, 100, 250]
+        default: return [10, 25, 50, 100, 250]
         }
     }
     private var resultCount: Int {
         resultText.count
     }
 
-    init(resultText: Binding<[String]>) {
+    init(
+        resultText: Binding<[String]>,
+        parsedItems: [[String: Any]],
+        allKeys: [String],
+        currentPage: Binding<Int>,
+        pageSize: Binding<Int>,
+        viewMode: QueryResultViewMode = .raw,
+        attachmentFields: [String] = [],
+        collectionName: String? = nil,
+        onDelete: ((String, String) -> Void)? = nil,
+        hasExecutedQuery: Bool = false,
+        autoFetchAttachments: Bool = false
+    ) {
         self._resultText = resultText
+        self.parsedItems = parsedItems
+        self.allKeys = allKeys
+        self._currentPage = currentPage
+        self._pageSize = pageSize
+        self.viewMode = viewMode
+        self.attachmentFields = attachmentFields
+        self.collectionName = collectionName
+        self.onDelete = onDelete
+        self.hasExecutedQuery = hasExecutedQuery
+        self.autoFetchAttachments = autoFetchAttachments
     }
 
-    // Convenience initializer for static arrays
-    init(resultText: [String]) {
+    // Convenience initializer for static arrays (e.g., previews)
+    init(resultText: [String], viewMode: QueryResultViewMode = .raw, attachmentFields: [String] = []) {
         self._resultText = .constant(resultText)
+        self.parsedItems = []
+        self.allKeys = []
+        self._currentPage = .constant(1)
+        self._pageSize = .constant(10)
+        self.viewMode = viewMode
+        self.attachmentFields = attachmentFields
+        self.collectionName = nil
+        self.onDelete = nil
+        self.autoFetchAttachments = false
     }
     
     private var pageCount: Int {
@@ -44,15 +84,60 @@ struct ResultJsonViewer: View {
     }
 
     private var pagedItems: [String] {
+        guard !resultText.isEmpty else { return [] }
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
+        guard start < end && start < resultText.count else { return [] }
         return Array(resultText[start..<end])
     }
 
+    private var pagedParsedItems: [[String: Any]] {
+        guard !parsedItems.isEmpty else { return [] }
+        let start = (currentPage - 1) * pageSize
+        let end = min(start + pageSize, parsedItems.count)
+        guard start < end && start < parsedItems.count else { return [] }
+        return Array(parsedItems[start..<end])
+    }
+
+    private var globalRowOffset: Int {
+        (currentPage - 1) * pageSize
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ResultsList(items: pagedItems)
-            Spacer()
+        let pagedItemsComputed = pagedItems
+        let pagedParsedItemsComputed = pagedParsedItems
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // Main content area based on view mode
+            GeometryReader { geometry in
+                ScrollView([.horizontal, .vertical]) {
+                    switch viewMode {
+                    case .table:
+                        ResultTableView(
+                            items: pagedItemsComputed,
+                            parsedItems: pagedParsedItemsComputed,
+                            allKeys: allKeys,
+                            attachmentFields: attachmentFields,
+                            onDelete: collectionName != nil && onDelete != nil ? { docId, _ in
+                                onDelete?(docId, collectionName!)
+                            } : nil,
+                            hasExecutedQuery: hasExecutedQuery,
+                            autoFetchAttachments: autoFetchAttachments,
+                            globalRowOffset: globalRowOffset
+                        )
+                        .id("\(currentPage)-\(pageSize)")  // Force view recreation only when pagination changes
+                        .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                    case .raw:
+                        ResultsList(items: pagedItemsComputed, hasExecutedQuery: hasExecutedQuery)
+                            .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                    case .map:
+                        EmptyView() // Map view is handled by MapResultView in QueryResultsView
+                            .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                    }
+                }
+            }
+
+            // Footer with pagination and export
             HStack {
                 Spacer()
                 PaginationControls(
@@ -69,6 +154,7 @@ struct ResultJsonViewer: View {
                         self.currentPage = 1
                     }
                 )
+                .background(Color(NSColor.controlBackgroundColor))  // PERFORMANCE: Isolate picker with background
                 Spacer()
                 Button {
                     isExporting = true
@@ -89,7 +175,9 @@ struct ResultJsonViewer: View {
             }
             .padding(.bottom, 10)
             .padding(.trailing, 20)
+            .background(Color(NSColor.controlBackgroundColor))  // PERFORMANCE: Separate layer
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onChange(of: pageSize) { _, _ in
             currentPage = max(1, min(currentPage, pageCount))
         }
@@ -125,19 +213,141 @@ struct ResultsHeader: View {
 // Separate component for the list
 struct ResultsList: View {
     let items: [String]
+    var hasExecutedQuery: Bool = false
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(items.indices, id: \.self) { index in
-                    ResultItem(jsonString: items[index])
-                        .padding(.horizontal)
-                }
+        // Handle empty state properly
+        if items.isEmpty {
+            if !hasExecutedQuery {
+                return AnyView(
+                    Text("Run a query for results")
+                        .foregroundColor(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
+            } else {
+                return AnyView(
+                    Text("[]")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
             }
-            .padding(.vertical)
+        }
+
+        // Check if this is a single scalar value (like COUNT result)
+        if items.count == 1 {
+            let item = items[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !item.hasPrefix("{") && !item.hasPrefix("[") {
+                return AnyView(
+                    Text(item)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                )
+            }
+        }
+
+        // Build and render using native text view for proper selection and performance
+        let jsonString = buildJsonString()
+
+        return AnyView(
+            NativeTextView(text: jsonString)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        )
+    }
+
+    private func buildJsonString() -> String {
+        if items.isEmpty {
+            return "[]"
+        }
+
+        var result = ""
+        result.reserveCapacity(items.count * 500)
+
+        result.append("[\n")
+        for (index, item) in items.enumerated() {
+            let lines = item.split(separator: "\n", omittingEmptySubsequences: false)
+            for line in lines {
+                result.append("  ")
+                result.append(String(line))
+                result.append("\n")
+            }
+            if index < items.count - 1 {
+                result.removeLast()
+                result.append(",\n")
+            }
+        }
+        result.append("]")
+
+        return result
+    }
+}
+
+// MARK: - Native Text View for Performance and Selection
+
+#if os(macOS)
+struct NativeTextView: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = false
+
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.allowsUndo = false
+        textView.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        textView.textColor = NSColor.labelColor
+        textView.backgroundColor = NSColor.textBackgroundColor
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.autoresizingMask = []
+
+        scrollView.documentView = textView
+
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let textView = nsView.documentView as? NSTextView {
+            if textView.string != text {
+                textView.string = text
+            }
         }
     }
 }
+#else
+struct NativeTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = true
+        textView.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.textColor = UIColor.label
+        textView.backgroundColor = UIColor.systemBackground
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        return textView
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+    }
+}
+#endif
 
 struct ResultItem: View {
     let jsonString: String
@@ -198,7 +408,7 @@ struct ResultItem: View {
 
 #Preview {
     ResultJsonViewer(
-        resultText: .constant([
+        resultText: [
             "{\n  \"id\": 1,\n  \"name\": \"Test\"\n}",
             "{\n  \"id\": 2,\n  \"name\": \"Sample\"\n}",
             "{\n  \"id\": 3,\n  \"name\": \"Example\"\n}",
@@ -227,7 +437,7 @@ struct ResultItem: View {
             "{\n  \"id\": 26,\n  \"name\": \"Chi\"\n}",
             "{\n  \"id\": 27,\n  \"name\": \"Psi\"\n}",
             "{\n  \"id\": 28,\n  \"name\": \"Omega\"\n}",
-        ])
+        ]
     )
     .frame(width: 400, height: 300)
 }

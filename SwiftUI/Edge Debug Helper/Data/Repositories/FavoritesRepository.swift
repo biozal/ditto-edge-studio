@@ -72,7 +72,12 @@ actor FavoritesRepository {
                             return nil
                         }
                     }
-                    
+
+                    // Update the in-memory service
+                    await MainActor.run {
+                        FavoritesService.shared.loadFavorites(historyItems)
+                    }
+
                     // Call the callback to update the ViewModel's published property
                     await self.onFavoritesUpdate?(historyItems)
                 }
@@ -85,12 +90,38 @@ actor FavoritesRepository {
         }
     }
     
+    func isFavorited(query: String) async throws -> Bool {
+        guard let ditto = await dittoManager.dittoLocal,
+              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
+            return false
+        }
+
+        let checkQuery = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId AND query = :query LIMIT 1"
+        let arguments: [String: Any] = [
+            "selectedAppId": selectedAppConfig._id,
+            "query": query
+        ]
+
+        do {
+            let results = try await ditto.store.execute(query: checkQuery, arguments: arguments)
+            return !results.items.isEmpty
+        } catch {
+            return false
+        }
+    }
+
     func saveFavorite(_ favorite: DittoQueryHistory) async throws {
         guard let ditto = await dittoManager.dittoLocal,
               let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
             throw InvalidStateError(message: "No Ditto local database or selected app available")
         }
-        
+
+        // Check if already favorited
+        let isFav = try await isFavorited(query: favorite.query)
+        if isFav {
+            return // Already favorited, skip
+        }
+
         let query = "INSERT INTO dittoqueryfavorites DOCUMENTS (:queryHistory)"
         let arguments: [String: Any] = [
             "queryHistory": [
@@ -100,9 +131,29 @@ actor FavoritesRepository {
                 "selectedApp_id": selectedAppConfig._id
             ]
         ]
-        
+
         do {
             let _ = try await ditto.store.execute(query: query, arguments: arguments)
+        } catch {
+            self.appState?.setError(error)
+            throw error
+        }
+    }
+
+    func removeFavoriteByQuery(query: String) async throws {
+        guard let ditto = await dittoManager.dittoLocal,
+              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
+            throw InvalidStateError(message: "No Ditto local database or selected app available")
+        }
+
+        let deleteQuery = "DELETE FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId AND query = :query"
+        let arguments: [String: Any] = [
+            "selectedAppId": selectedAppConfig._id,
+            "query": query
+        ]
+
+        do {
+            let _ = try await ditto.store.execute(query: deleteQuery, arguments: arguments)
         } catch {
             self.appState?.setError(error)
             throw error

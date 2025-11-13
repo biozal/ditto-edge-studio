@@ -55,12 +55,6 @@
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
 		};
-		0D0266822E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-			);
-			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
-		};
 		0D026A212E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug Helper" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -82,6 +76,7 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
+				ResultViewersUITests.swift,
 			);
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
 		};
@@ -90,6 +85,7 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
+				ResultViewersUITests.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
 		};
@@ -100,7 +96,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */,
-				0D0266822E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */,
 			);
 			path = "Edge Debug Helper";
 			sourceTree = "<group>";

@@ -6,6 +6,9 @@ import CodeEditor
 //  Created by Aaron LaBeau on 5/23/25.
 //
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct QueryEditorView: View {
     @Binding var queryText: String
@@ -13,7 +16,14 @@ struct QueryEditorView: View {
     @Binding var selectedExecuteMode: String
     @Binding var isLoading: Bool
     var onExecuteQuery: () async -> Void
-    
+    var onAddToFavorites: (() async -> Void)?
+
+    @AppStorage("autoFetchAttachments") private var autoFetchAttachments = false
+
+    private var hasAttachments: Bool {
+        !AttachmentQueryParser.extractAttachmentFields(from: queryText).isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
@@ -47,7 +57,7 @@ struct QueryEditorView: View {
 
                     }
                 }.disabled(isLoading)
-                
+
                 if isLoading {
                 #if os(macOS)
                     HStack {
@@ -69,15 +79,62 @@ struct QueryEditorView: View {
                     .shadow(radius: 5)
                 #endif
                 }
+
                 Spacer()
-            }.padding(.top, 8)
-                .padding(.trailing, 16)
+
+                // Favorite star button
+                if let addToFavorites = onAddToFavorites, !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    FavoriteButton(
+                        query: queryText,
+                        onAddToFavorites: addToFavorites,
+                        onRemoveFromFavorites: {
+                            // Remove from favorites by query
+                            let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            do {
+                                try await FavoritesRepository.shared.removeFavoriteByQuery(query: trimmedQuery)
+                                FavoritesService.shared.removeFromFavorites(trimmedQuery)
+                            } catch {
+                                // Silently fail - could show error in UI if needed
+                                print("Failed to remove from favorites: \(error)")
+                            }
+                        }
+                    )
+                    .padding(.trailing, 8)
+                }
+
+                // Auto-fetch toggle (only show if query has attachments)
+                if hasAttachments {
+                    Toggle(isOn: $autoFetchAttachments) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Auto-fetch")
+                        }
+                        .font(.caption)
+                    }
+                    .toggleStyle(.button)
+                    .help("Automatically fetch attachment data when query executes")
+                    .padding(.trailing, 8)
+                }
+            }
+            .padding(.top, 8)
+            .padding(.horizontal, 16)
             CodeEditor(
                 source: $queryText,
                 language: .sql,
                 theme: .atelierSavannaDark
             )
         }
+        #if os(macOS)
+        .onKeyPress(phases: .down) { press in
+            if press.key == KeyEquivalent(Character(UnicodeScalar(NSF5FunctionKey)!)) && !isLoading {
+                Task {
+                    await onExecuteQuery()
+                }
+                return .handled
+            }
+            return .ignored
+        }
+        #endif
     }
 }
 

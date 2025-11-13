@@ -1,0 +1,489 @@
+//
+//  ResultTableView.swift
+//  Edge Studio
+//
+
+import SwiftUI
+
+struct ResultTableView: View {
+    let items: [String]
+    let parsedItems: [[String: Any]]  // Pre-parsed from parent
+    let allKeys: [String]              // Pre-computed from parent
+    let attachmentFields: [String]
+    var onDelete: ((String, String) -> Void)?
+    var hasExecutedQuery: Bool = false
+    var autoFetchAttachments: Bool = false
+    var globalRowOffset: Int = 0  // Offset for global row numbering across pages
+
+    @State private var modalRecord: ModalRecord?
+    @State private var columnWidths: [String: CGFloat] = [:]
+
+    struct ModalRecord: Identifiable {
+        let id = UUID()
+        let jsonString: String
+        let index: Int?
+    }
+
+    private func getColumnWidth(_ key: String) -> CGFloat {
+        columnWidths[key] ?? 200
+    }
+
+    private func setColumnWidth(_ key: String, width: CGFloat) {
+        columnWidths[key] = max(50, min(width, 800))
+    }
+
+    // Compute column widths as a cached property
+    private var columnWidthsDict: [String: CGFloat] {
+        allKeys.reduce(into: [:]) { result, key in
+            result[key] = getColumnWidth(key)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if parsedItems.isEmpty && items.isEmpty {
+                if hasExecutedQuery {
+                    // Show record count for executed query with no results
+                    Text("0 records found")
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    // Show message when no query has been executed
+                    Text("Run a query for data")
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+            } else if parsedItems.isEmpty && !items.isEmpty {
+                // Data exists but couldn't be parsed for table view
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text("Invalid data format for table view")
+                        .font(.headline)
+                    Text("Table view requires structured data with fields. Try using Raw view instead.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                // Header row
+                HStack(alignment: .top, spacing: 0) {
+                    // Row number column
+                    Text("#")
+                        .font(.system(.caption, design: .monospaced))
+                        .fontWeight(.bold)
+                        .frame(width: 50, alignment: .leading)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.1))
+
+                    ForEach(allKeys, id: \.self) { key in
+                        ResizableTableHeaderCell(
+                            title: key,
+                            width: getColumnWidth(key),
+                            onWidthChange: { newWidth in
+                                setColumnWidth(key, width: newWidth)
+                            }
+                        )
+                    }
+                }
+
+                Divider()
+
+                // Data rows - LazyVStack with improved performance
+                // PERFORMANCE: Extract item data once per row instead of passing entire arrays
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                        ForEach(parsedItems.indices, id: \.self) { index in
+                            let parsedItem = parsedItems[index]
+                            let item = items[index]
+                            let documentId = parsedItem["_id"] as? String
+
+                            OptimizedTableRow(
+                                index: index,
+                                globalIndex: globalRowOffset + index,
+                                allKeys: allKeys,
+                                parsedItem: parsedItem,
+                                item: item,
+                                documentId: documentId,
+                                columnWidths: columnWidthsDict,
+                                onDelete: onDelete,
+                                onRowTap: { rowIndex in
+                                    if rowIndex < items.count {
+                                        let record = items[rowIndex]
+                                        modalRecord = ModalRecord(jsonString: record, index: rowIndex)
+                                    }
+                                },
+                                onCopyRow: copyRowToClipboard
+                            )
+                            .id(index)
+
+                            if index < parsedItems.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .sheet(item: $modalRecord) { record in
+            RecordDetailModal(
+                jsonString: record.jsonString,
+                index: record.index,
+                attachmentFields: attachmentFields,
+                autoFetchAttachments: autoFetchAttachments,
+                isPresented: Binding(
+                    get: { modalRecord != nil },
+                    set: { if !$0 { modalRecord = nil } }
+                )
+            )
+        }
+    }
+
+    private func copyRowToClipboard(index: Int) {
+        guard index < items.count else { return }
+        let jsonString = items[index]
+
+        #if os(macOS)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(jsonString, forType: .string)
+        #else
+            UIPasteboard.general.string = jsonString
+        #endif
+    }
+}
+
+// PERFORMANCE: Optimized version that only takes single item data
+struct OptimizedTableRow: View {
+    let index: Int
+    let globalIndex: Int
+    let allKeys: [String]
+    let parsedItem: [String: Any]  // Single item instead of array
+    let item: String  // Single item JSON string
+    let documentId: String?
+    let columnWidths: [String: CGFloat]
+    let onDelete: ((String, String) -> Void)?
+    let onRowTap: (Int) -> Void
+    let onCopyRow: (Int) -> Void
+
+    @State private var isHovered = false
+
+    // Pre-compute the even/odd background color
+    private var baseBackground: Color {
+        index % 2 == 0 ? Color.clear : Color.primary.opacity(0.03)
+    }
+
+    private var hoverBackground: Color {
+        Color.accentColor.opacity(0.15)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Row number
+            Text("\(globalIndex + 1)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 50, alignment: .leading)
+                .padding(8)
+
+            ForEach(allKeys, id: \.self) { key in
+                TableCell(
+                    value: parsedItem[key],
+                    isEvenRow: index % 2 == 0,
+                    isHovered: false,
+                    width: columnWidths[key] ?? 200
+                )
+            }
+        }
+        .background(isHovered ? hoverBackground : baseBackground)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onRowTap(index)
+        }
+        .contextMenu {
+            Button {
+                onCopyRow(index)
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+
+            if let docId = documentId, let deleteHandler = onDelete {
+                Divider()
+                Button(role: .destructive) {
+                    deleteHandler(docId, "")
+                } label: {
+                    Label("Delete Document", systemImage: "trash")
+                }
+            }
+        }
+    }
+}
+
+struct TableRow: View, Equatable {
+    let index: Int
+    let globalIndex: Int  // Global row number across all pages
+    let allKeys: [String]
+    let parsedItems: [[String: Any]]
+    let items: [String]
+    let documentId: String?
+    let columnWidths: [String: CGFloat]
+    let onDelete: ((String, String) -> Void)?
+    let onRowTap: (Int) -> Void
+    let onCopyRow: (Int) -> Void
+
+    @State private var isHovered = false
+
+    // PERFORMANCE: Implement Equatable to avoid unnecessary re-renders
+    static func == (lhs: TableRow, rhs: TableRow) -> Bool {
+        return lhs.index == rhs.index &&
+               lhs.globalIndex == rhs.globalIndex &&
+               lhs.allKeys == rhs.allKeys &&
+               lhs.documentId == rhs.documentId &&
+               lhs.columnWidths == rhs.columnWidths &&
+               lhs.items[lhs.index] == rhs.items[rhs.index]
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Row number - use global index for correct numbering across pages
+            Text("\(globalIndex + 1)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 50, alignment: .leading)
+                .padding(8)
+
+            ForEach(allKeys, id: \.self) { key in
+                TableCell(
+                    value: parsedItems[index][key],
+                    isEvenRow: index % 2 == 0,
+                    isHovered: false,  // Pass false since background is on row now
+                    width: columnWidths[key] ?? 200
+                )
+            }
+        }
+        .background(rowBackground)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onTapGesture {
+            onRowTap(index)
+        }
+        .help("Click to view full record")
+        .contextMenu {
+            Button {
+                onCopyRow(index)
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+
+            if let docId = documentId, let deleteHandler = onDelete {
+                Divider()
+                Button(role: .destructive) {
+                    deleteHandler(docId, "")
+                } label: {
+                    Label("Delete Document", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private var rowBackground: Color {
+        if isHovered {
+            return Color.accentColor.opacity(0.15)
+        } else if index % 2 == 0 {
+            return Color.clear
+        } else {
+            return Color.primary.opacity(0.03)
+        }
+    }
+}
+
+struct TableHeaderCell: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(.caption, design: .monospaced))
+            .fontWeight(.bold)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: 200, alignment: .leading)
+            .padding(8)
+            .background(Color.primary.opacity(0.1))
+            .help(title)
+    }
+}
+
+struct TableCell: View {
+    let value: Any?
+    let isEvenRow: Bool
+    var isHovered: Bool = false
+    var width: CGFloat = 200
+
+    private var displayValue: String {
+        guard let value = value else {
+            return ""
+        }
+
+        if let string = value as? String {
+            return string
+        } else if let number = value as? NSNumber {
+            return number.stringValue
+        } else if let bool = value as? Bool {
+            return bool ? "true" : "false"
+        } else if value is NSNull {
+            return "null"
+        } else if let array = value as? [Any] {
+            if let jsonData = try? JSONSerialization.data(withJSONObject: array),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                return jsonString
+            }
+            return "[\(array.count)]"
+        } else if let dict = value as? [String: Any] {
+            if let jsonData = try? JSONSerialization.data(withJSONObject: dict),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                return jsonString
+            }
+            return "{\(dict.count)}"
+        }
+        return "\(value)"
+    }
+
+    private var truncatedValue: String {
+        let maxLength = 80
+        if displayValue.count > maxLength {
+            return String(displayValue.prefix(maxLength)) + "..."
+        }
+        return displayValue
+    }
+
+    var body: some View {
+        Text(truncatedValue)
+            .font(.system(.body, design: .monospaced))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: width, alignment: .topLeading)
+            .textSelection(.enabled)
+            .padding(8)
+            // Only compute help text for truncated values to avoid expensive hover computations
+            .help(truncatedValue != displayValue ? displayValue : "")
+    }
+}
+
+struct ResizableTableHeaderCell: View {
+    let title: String
+    let width: CGFloat
+    let onWidthChange: (CGFloat) -> Void
+
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            // Header cell content
+            Text(title)
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.bold)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: width + dragOffset, alignment: .topLeading)
+                .padding(8)
+                .background(Color.primary.opacity(0.1))
+                .help(title)
+
+            // Resize handle
+            VStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(isDragging ? Color.accentColor : Color.secondary.opacity(0.5))
+                        .frame(width: 3, height: 3)
+                }
+            }
+            .frame(width: 8)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle().inset(by: -4))
+            // Cursor management is expensive - only set once on hover enter/exit
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    NSCursor.resizeLeftRight.push()
+                case .ended:
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                        }
+                        dragOffset = value.translation.width
+                    }
+                    .onEnded { value in
+                        isDragging = false
+                        let newWidth = width + value.translation.width
+                        onWidthChange(newWidth)
+                        dragOffset = 0
+                    }
+            )
+        }
+    }
+}
+
+#Preview {
+    let items = [
+        """
+        {
+          "_id": "123abc",
+          "name": "John Doe",
+          "email": "john@example.com",
+          "age": 30,
+          "active": true
+        }
+        """,
+        """
+        {
+          "_id": "456def",
+          "name": "Jane Smith",
+          "email": "jane@example.com",
+          "age": 28,
+          "active": false,
+          "city": "New York"
+        }
+        """,
+        """
+        {
+          "_id": "789ghi",
+          "name": "Bob Johnson",
+          "age": 35,
+          "active": true
+        }
+        """
+    ]
+
+    // Parse items for preview
+    var parsedItems: [[String: Any]] = []
+    var allKeys = Set<String>()
+    for jsonString in items {
+        if let data = jsonString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            parsedItems.append(json)
+            allKeys.formUnion(json.keys)
+        }
+    }
+
+    return ResultTableView(
+        items: items,
+        parsedItems: parsedItems,
+        allKeys: Array(allKeys).sorted(),
+        attachmentFields: []
+    )
+    .frame(width: 800, height: 400)
+}

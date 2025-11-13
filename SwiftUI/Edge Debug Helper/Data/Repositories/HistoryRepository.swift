@@ -107,13 +107,13 @@ actor HistoryRepository {
               let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
             throw InvalidStateError(message: "No Ditto local database or selected app available")
         }
-        
+
         do {
             // Check if we already have the query; if so, update the date, otherwise insert new record
             let queryCheck = "SELECT * FROM dittoqueryhistory WHERE query = :query"
             let argumentsCheck: [String: Any] = ["query": history.query]
             let resultsCheck = try await ditto.store.execute(query: queryCheck, arguments: argumentsCheck)
-            
+
             if resultsCheck.items.count > 0 {
                 let decoder = JSONDecoder()
                 guard let item = resultsCheck.items.first else {
@@ -138,6 +138,31 @@ actor HistoryRepository {
                 ]
                 let _ = try await ditto.store.execute(query: query, arguments: arguments)
             }
+        } catch {
+            self.appState?.setError(error)
+            throw error
+        }
+    }
+
+    /// Inserts a query history entry without checking for duplicates
+    /// Use this to record every query execution
+    func insertQueryHistory(_ history: DittoQueryHistory) async throws {
+        guard let ditto = await dittoManager.dittoLocal,
+              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
+            throw InvalidStateError(message: "No Ditto local database or selected app available")
+        }
+
+        do {
+            let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
+            let arguments: [String: Any] = [
+                "queryHistory": [
+                    "_id": history.id,
+                    "query": history.query,
+                    "createdDate": history.createdDate,
+                    "selectedApp_id": selectedAppConfig._id
+                ]
+            ]
+            let _ = try await ditto.store.execute(query: query, arguments: arguments)
         } catch {
             self.appState?.setError(error)
             throw error

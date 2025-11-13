@@ -21,17 +21,24 @@ struct PaginationControls: View {
         HStack (alignment: .center) {
             Text("Total: \(totalCount)")
             Spacer()
-            Picker("Page Size", selection: $pageSize) {
+
+            Menu {
                 ForEach(pageSizes, id: \.self) { size in
-                    Text("\(size)").tag(size)
+                    Button("\(size)") {
+                        pageSize = size
+                        onPageSizeChange(size)
+                    }
                 }
+            } label: {
+                HStack {
+                    Text("\(pageSize)")
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                }
+                .frame(minWidth: 60)
             }
             .frame(minWidth: 100, idealWidth: 150, maxWidth: 200)
-            .pickerStyle(DefaultPickerStyle())
             .padding(.horizontal)
-            .onChange(of: pageSize) { _, newValue in
-                onPageSizeChange(newValue)
-            }
 
             Button(action: {
                 onPageChange(currentPage - 1)

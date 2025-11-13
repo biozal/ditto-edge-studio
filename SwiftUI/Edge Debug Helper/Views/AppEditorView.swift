@@ -37,7 +37,10 @@ struct AppEditorView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
-    
+    @State private var showWipeConfirmation = false
+    @State private var wipeStatus: String?
+    @State private var showWipeStatus = false
+
     init(isPresented: Binding<Bool>, dittoAppConfig: DittoAppConfig) {
         self._isPresented = isPresented
         self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
@@ -99,6 +102,33 @@ struct AppEditorView: View {
                     )
                 }
             }
+            .alert("Wipe Database", isPresented: $showWipeConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Wipe Database", role: .destructive) {
+                    Task {
+                        await wipeDatabase()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to wipe the database for '\(viewModel.name)'? This will delete all local data and cannot be undone. Data will be resynced from other peers if available.")
+            }
+            .alert("Database Wipe Status", isPresented: $showWipeStatus) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(wipeStatus ?? "")
+            }
+        }
+    }
+
+    private func wipeDatabase() async {
+        do {
+            let appConfig = viewModel.toDittoAppConfig()
+            try await DittoManager.shared.wipeDatabaseForApp(appConfig)
+            wipeStatus = "Database wiped successfully for '\(viewModel.name)'"
+            showWipeStatus = true
+        } catch {
+            wipeStatus = "Failed to wipe database: \(error.localizedDescription)"
+            showWipeStatus = true
         }
     }
 
@@ -243,7 +273,7 @@ extension AppEditorView {
             do {
                 // Trim whitespace from appId
                 let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
-                
+
                 let appConfig = DittoAppConfig(_id,
                                                name: name,
                                                appId: trimmedAppId,
@@ -263,6 +293,21 @@ extension AppEditorView {
             } catch {
                 appState.setError(error)
             }
+        }
+
+        func toDittoAppConfig() -> DittoAppConfig {
+            let trimmedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
+            return DittoAppConfig(_id,
+                                  name: name,
+                                  appId: trimmedAppId,
+                                  authToken: authToken.trimmingCharacters(in: .whitespacesAndNewlines),
+                                  authUrl: authUrl,
+                                  websocketUrl: websocketUrl,
+                                  httpApiUrl: httpApiUrl,
+                                  httpApiKey: httpApiKey,
+                                  mode: mode,
+                                  allowUntrustedCerts: allowUntrustedCerts,
+                                  secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 }

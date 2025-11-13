@@ -20,9 +20,8 @@ struct MongoSidebarView: View {
                 List(mongoCollections, id: \.self){ collection in
                     Text(collection)
                         .onTapGesture {
-                            
+
                         }
-                    Divider()
                 }
             }
         }

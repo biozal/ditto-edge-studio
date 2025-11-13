@@ -62,16 +62,6 @@ actor DittoManager {
                 )[0]
                 .appendingPathComponent("ditto_appconfig")
 
-                // Ensure directory exists
-                if !FileManager.default.fileExists(
-                    atPath: localDirectoryPath.path
-                ) {
-                    try FileManager.default.createDirectory(
-                        at: localDirectoryPath,
-                        withIntermediateDirectories: true
-                    )
-                }
-
                 //validate that the dittoConfig.plist file is valid
                 if appState.appConfig.appId.isEmpty
                     || appState.appConfig.appId == "put appId here"
@@ -82,10 +72,13 @@ actor DittoManager {
                     throw error
                 }
                 
+                // Note: We can't reliably pre-check for lock files because Ditto manages its own locking.
+                // Instead, we'll rely on catching the error after initialization attempt.
+
                 //https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
                 // Use Objective-C exception handler to catch NSException from Ditto initialization
                 var dittoInstance: Ditto?
-                
+
                 let error = ExceptionCatcher.perform {
                     let identity = self.createIdentity(from: appState.appConfig)
                     dittoInstance = Ditto(
@@ -93,12 +86,26 @@ actor DittoManager {
                         persistenceDirectory: localDirectoryPath
                     )
                 }
-                
+
                 if let error = error {
                     let errorMessage = error.localizedDescription
+
+                    // Check if this is a lock error
+                    if errorMessage.contains("persistenceDirectoryLocked") || errorMessage.contains("File already locked") {
+                        await MainActor.run {
+                            appState.setError(AppError.error(message: """
+                                Cannot open database - Another instance of this app is already using this database.
+
+                                Please close any other instances of this app or use a different app configuration.
+
+                                Error: \(errorMessage)
+                                """))
+                        }
+                    }
+
                     throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
                 }
-                
+
                 guard let ditto = dittoInstance else {
                     throw AppError.error(message: "Failed to create Ditto instance")
                 }
@@ -117,7 +124,7 @@ actor DittoManager {
                 })
 
                 // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
-                // 
+                //
                 try await dittoLocal?.store.execute(
                     query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
                 )
@@ -137,13 +144,120 @@ actor DittoManager {
         }
         dittoSelectedApp = nil
     }
-    
+
+    /// Checks if an error indicates database corruption
+    private func isDatabaseCorruptionError(_ error: Error) -> Bool {
+        let errorMessage = error.localizedDescription.lowercased()
+        return errorMessage.contains("no such table: __ditto_internal__") ||
+               errorMessage.contains("sqlite") ||
+               errorMessage.contains("database corruption") ||
+               errorMessage.contains("failed to get tx_id")
+    }
+
+    /// Wipes the corrupted database directory for recovery
+    private func clearCorruptedDatabase(at persistenceDirectory: URL) async throws {
+        // Check if directory exists
+        guard FileManager.default.fileExists(atPath: persistenceDirectory.path) else {
+            return
+        }
+
+        // Delete the entire directory
+        try FileManager.default.removeItem(at: persistenceDirectory)
+
+        // Recreate the directory
+        try FileManager.default.createDirectory(
+            at: persistenceDirectory,
+            withIntermediateDirectories: true
+        )
+    }
+
+    /// Safely initializes a Ditto instance with automatic corruption recovery
+    /// Returns the initialized Ditto instance or throws an error
+    private func safeInitializeDitto(
+        appConfig: DittoAppConfig,
+        persistenceDirectory: URL,
+        maxRetries: Int = 2
+    ) async throws -> Ditto {
+        var lastError: Error?
+
+        for _ in 1...maxRetries {
+            // Ensure directory exists
+            if !FileManager.default.fileExists(atPath: persistenceDirectory.path) {
+                try FileManager.default.createDirectory(
+                    at: persistenceDirectory,
+                    withIntermediateDirectories: true
+                )
+            }
+
+            // Try to initialize Ditto
+            var dittoInstance: Ditto?
+            let error = ExceptionCatcher.perform {
+                let identity = self.createIdentity(from: appConfig)
+                dittoInstance = Ditto(
+                    identity: identity,
+                    persistenceDirectory: persistenceDirectory
+                )
+            }
+
+            // Check for initialization errors
+            if let error = error {
+                lastError = error
+
+                // Check if this is a corruption error
+                if isDatabaseCorruptionError(error) {
+                    try await clearCorruptedDatabase(at: persistenceDirectory)
+                    continue
+                } else {
+                    // Non-corruption error, don't retry
+                    throw AppError.error(message: "Failed to initialize Ditto: \(error.localizedDescription)")
+                }
+            }
+
+            guard let ditto = dittoInstance else {
+                throw AppError.error(message: "Failed to create Ditto instance (nil)")
+            }
+
+            // Successfully initialized
+            return ditto
+        }
+
+        // All retries exhausted
+        let errorMessage = lastError?.localizedDescription ?? "Unknown error"
+        throw AppError.error(message: "Failed to initialize Ditto after \(maxRetries) attempts: \(errorMessage)")
+    }
+
+    func wipeDatabaseForApp(_ appConfig: DittoAppConfig) async throws {
+        // If this is the currently selected app, close it first
+        if let selectedConfig = dittoSelectedAppConfig, selectedConfig._id == appConfig._id {
+            await closeDittoSelectedApp()
+        }
+
+        // Calculate the directory path (same logic as in hydrateDittoSelectedApp)
+        let dbname = appConfig.name.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).lowercased()
+        let localDirectoryPath = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+            .appendingPathComponent("ditto_apps")
+            .appendingPathComponent("\(dbname)-\(appConfig.appId)")
+
+        // Check if directory exists
+        guard FileManager.default.fileExists(atPath: localDirectoryPath.path) else {
+            return
+        }
+
+        // Delete the directory
+        try FileManager.default.removeItem(at: localDirectoryPath)
+    }
+
     func hydrateDittoSelectedApp(_ appConfig: DittoAppConfig) async throws
     -> Bool {
         var isSuccess: Bool = false
         do {
             await closeDittoSelectedApp()
-            
+
             // setup the new selected app
             // need to calculate the directory path so each app has it's own
             // unique directory
@@ -156,16 +270,7 @@ actor DittoManager {
             )[0]
                 .appendingPathComponent("ditto_apps")
                 .appendingPathComponent("\(dbname)-\(appConfig.appId)")
-            
-            // Ensure directory exists
-            if !FileManager.default.fileExists(atPath: localDirectoryPath.path)
-            {
-                try FileManager.default.createDirectory(
-                    at: localDirectoryPath,
-                    withIntermediateDirectories: true
-                )
-            }
-            
+
             // Validate inputs before trying to create Ditto
             guard !appConfig.appId.isEmpty, !appConfig.authToken.isEmpty else {
                 throw AppError.error(message: "Invalid app configuration - missing appId or token")
@@ -209,15 +314,16 @@ actor DittoManager {
                 )
                 config.enableAllPeerToPeer()
             })
-            
-            
-            try ditto.disableSyncWithV3()
-            
+
+            // IMPORTANT: Execute ALTER SYSTEM commands BEFORE disableSyncWithV3()
+            // This ensures the internal database schema is fully initialized
             // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
-            //
             try await ditto.store.execute(
                 query: "ALTER SYSTEM SET DQL_STRICT_MODE = false"
             )
+
+            // Now it's safe to disable v3 sync after the database is properly initialized
+            try ditto.disableSyncWithV3()
             
             self.dittoSelectedAppConfig = appConfig
             
