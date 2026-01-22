@@ -1,0 +1,100 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "hidden" : false,
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "cloud_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
+          "name" : "cloud_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24",
+          "position" : {
+            "scale" : 9.5,
+            "translation-in-points" : [
+              0,
+              -340
+            ]
+          }
+        },
+        {
+          "glass" : false,
+          "image-name" : "data_table_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
+          "name" : "data_table_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24",
+          "position" : {
+            "scale" : 8,
+            "translation-in-points" : [
+              -285,
+              300
+            ]
+          }
+        },
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "database_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
+          "name" : "database_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24",
+          "position" : {
+            "scale" : 8,
+            "translation-in-points" : [
+              300,
+              302
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "ditto_mark-white.svg",
+          "name" : "ditto_mark-white",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

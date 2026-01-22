@@ -45,7 +45,7 @@ actor DittoManager {
             if !isStoreInitialized {
                 // Clean up any existing local instance first
                 if let existingDitto = dittoLocal {
-                    try? existingDitto.sync.stop()
+                    existingDitto.sync.stop()
                     dittoLocal = nil
                 }
                 // setup logging
@@ -306,10 +306,6 @@ actor DittoManager {
                 enableDittoCloudSync: false,
                 customAuthURL: URL(string: appConfig.authUrl)
             )
-            
-        default:
-            // This should not be possible. Here as to future-proof.
-            fatalError("Unknown mode: '\(appConfig.mode)'. Expected .onlinePlayground, .offlinePlayground, or .sharedKey")
         }
     }
 }

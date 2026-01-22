@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <objc/objc-exception.h>
 #include <setjmp.h>
+#include <stdint.h>
 #include "NSExceptionHandler.h"
 
 static jmp_buf exception_buf;
@@ -23,7 +24,7 @@ int try_objective_c_block(void (^block)(void)) {
     exception_caught = 0;
     
     // Set up the exception handler
-    void *token = objc_addExceptionHandler(exception_handler, NULL);
+    uintptr_t token = objc_addExceptionHandler(exception_handler, NULL);
     
     // Set up the jump buffer
     if (setjmp(exception_buf) == 0) {
