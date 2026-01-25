@@ -1,10 +1,3 @@
-//
-//  AppConfigTests.swift
-//  Edge Debug Helper Tests
-//
-//  Created by Claude Code
-//
-
 import Testing
 import Foundation
 @testable import Edge_Debug_Helper

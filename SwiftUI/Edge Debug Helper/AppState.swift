@@ -1,9 +1,3 @@
-//
-//  DittoApp.swift
-//  Ditto Edge Studio
-//
-//  Created by Aaron LaBeau on 5/18/25.
-//
 import Foundation
 enum AppError : Error {
     case error(message: String)

@@ -1,10 +1,3 @@
-//
-//  Ditto_Edge_StudioUITests.swift
-//  Ditto Edge StudioUITests
-//
-//  Created by Aaron LaBeau on 5/18/25.
-//
-
 import XCTest
 
 final class Ditto_Edge_StudioUITests: XCTestCase {

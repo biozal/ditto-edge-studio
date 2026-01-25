@@ -70,6 +70,9 @@ actor ObservableRepository {
                     if index < results.items.count && index < currentObservables.count {
                         let item = results.items[index]
                         currentObservables[index] = DittoObservable(item.value)
+                        
+                        //free memory
+                        item.dematerialize()
                     }
                 }
                 

@@ -1,10 +1,3 @@
-//
-//  CollectionsRepository.swift
-//  Edge Studio
-//
-//  Created by Assistant on 8/23/25.
-//
-
 import DittoSwift
 import Foundation
 
@@ -38,10 +31,11 @@ actor CollectionsRepository {
             let results = try await ditto.store.execute(query: query)
             let items = results.items.compactMap { item in
                 do {
-                    return try decoder.decode(
+                    let decodedItem = try decoder.decode(
                         DittoCollection.self,
-                        from: item.jsonData()
-                    )
+                        from: item.jsonData())
+                    item.dematerialize()
+                    return decodedItem
                 } catch {
                     appState.setError(error)
                     return nil
@@ -57,10 +51,12 @@ actor CollectionsRepository {
                     
                     let items = results.items.compactMap { item in
                         do {
-                            return try decoder.decode(
+                            let decodedItem = try decoder.decode(
                                 DittoCollection.self,
                                 from: item.jsonData()
                             )
+                            item.dematerialize()
+                            return decodedItem
                         } catch {
                             appState.setError(error)
                             return nil

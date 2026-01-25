@@ -1,10 +1,3 @@
-//
-//  PaginationControls.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/9/25.
-//
-
 import Foundation
 import SwiftUI
 
