@@ -114,11 +114,6 @@ actor CollectionsRepository {
                     countsByCollection[collection.name] = count
                     firstItem.dematerialize()
                 }
-
-                // Dematerialize any remaining items
-                for item in results.items.dropFirst() {
-                    item.dematerialize()
-                }
             } catch {
                 // Continue with other collections even if one fails
             }
@@ -127,10 +122,49 @@ actor CollectionsRepository {
         return countsByCollection
     }
     
+    func refreshDocumentCounts() async throws -> [DittoCollection] {
+        guard let ditto = await dittoManager.dittoSelectedApp,
+              let appState = self.appState else {
+            throw InvalidStateError(message: "No Ditto selected app or app state available")
+        }
+
+        // Fetch current collections from the database
+        let query = "SELECT * FROM __collections"
+        let results = try await ditto.store.execute(query: query)
+
+        var collections = results.items.compactMap { item -> DittoCollection? in
+            do {
+                let decodedItem = try decoder.decode(
+                    DittoCollection.self,
+                    from: item.jsonData())
+                item.dematerialize()
+                return decodedItem
+            } catch {
+                item.dematerialize()
+                appState.setError(error)
+                return nil
+            }
+        }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
+
+        // Fetch fresh document counts
+        let counts = try await fetchDocumentCounts(for: collections)
+
+        // Enrich collections with updated counts
+        for i in collections.indices {
+            let collectionName = collections[i].name
+            collections[i].documentCount = counts[collectionName]
+        }
+
+        // Trigger the update callback to refresh UI
+        self.onCollectionsUpdate?(collections)
+
+        return collections
+    }
+
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
-    
+
     func setOnCollectionsUpdate(_ callback: @escaping ([DittoCollection]) -> Void) {
         self.onCollectionsUpdate = callback
     }

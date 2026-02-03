@@ -61,7 +61,7 @@ actor QueryService {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"];
         }
         
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/store/execute"
+        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
         let authorization = "Bearer \(appConfig.httpApiKey)"
         
         guard let url = URL(string: urlString) else {
