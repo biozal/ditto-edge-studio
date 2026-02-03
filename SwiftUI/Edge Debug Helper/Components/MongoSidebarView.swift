@@ -1,10 +1,3 @@
-//
-//  MongoSidebarView.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/11/25.
-//
-
 import SwiftUI
 
 struct MongoSidebarView: View {

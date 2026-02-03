@@ -49,7 +49,9 @@ actor FavoritesRepository {
             let historyResults = try await ditto.store.execute(query: query, arguments: arguments)
             let historyItems = historyResults.items.compactMap { item in
                 do {
-                    return try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                    let decodedItem = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                    item.dematerialize()
+                    return decodedItem
                 } catch {
                     appStateRef?.setError(error)
                     return nil
@@ -66,7 +68,9 @@ actor FavoritesRepository {
                     
                     let historyItems = results.items.compactMap { item in
                         do {
-                            return try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                            let decodedItem = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                            item.dematerialize()
+                            return decodedItem
                         } catch {
                             appStateRef?.setError(error)
                             return nil

@@ -1,10 +1,3 @@
-//
-//  QueryArgumentEditor.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/2/25.
-//
-
 import CodeEditor
 import SwiftUI
 

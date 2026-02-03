@@ -9,7 +9,7 @@ struct ImportDataView: View {
     @State private var selectedFileName: String = "No file selected"
     @State private var collectionName: String = ""
     @State private var useExistingCollection: Bool = true
-    @State private var existingCollections: [String] = []
+    @State private var existingCollections: [DittoCollection] = []
     @State private var selectedCollection: String = ""
     @State private var isImporting: Bool = false
     @State private var showingFilePicker: Bool = false
@@ -73,8 +73,8 @@ struct ImportDataView: View {
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Picker("", selection: $selectedCollection) {
-                                    ForEach(existingCollections, id: \.self) { collection in
-                                        Text(collection).tag(collection)
+                                    ForEach(existingCollections, id: \._id) { collection in
+                                        Text(collection.name).tag(collection.name)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -275,7 +275,7 @@ struct ImportDataView: View {
             do {
                 existingCollections = try await CollectionsRepository.shared.hydrateCollections()
                 if !existingCollections.isEmpty {
-                    selectedCollection = existingCollections[0]
+                    selectedCollection = existingCollections[0].name
                 }
             } catch {
                 appState.setError(error)

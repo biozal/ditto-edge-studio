@@ -1,10 +1,3 @@
-//
-//  Pill.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/5/25.
-//
-
 import SwiftUI
 
 struct Pill: View {

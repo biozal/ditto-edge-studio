@@ -66,7 +66,9 @@ actor HistoryRepository {
             let historyResults = try await ditto.store.execute(query: query, arguments: arguments)
             let historyItems = historyResults.items.compactMap { item in
                 do {
-                    return try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                    let result = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                    item.dematerialize()
+                    return result
                 } catch {
                     appStateRef?.setError(error)
                     return nil
@@ -83,7 +85,9 @@ actor HistoryRepository {
                     
                     let historyItems = results.items.compactMap { item in
                         do {
-                            return try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                            let result =  try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
+                            item.dematerialize()
+                            return result
                         } catch {
                             appStateRef?.setError(error)
                             return nil
@@ -110,8 +114,11 @@ actor HistoryRepository {
         
         do {
             // Check if we already have the query; if so, update the date, otherwise insert new record
-            let queryCheck = "SELECT * FROM dittoqueryhistory WHERE query = :query"
-            let argumentsCheck: [String: Any] = ["query": history.query]
+            let queryCheck = "SELECT * FROM dittoqueryhistory WHERE query = :query AND selectedApp_id = :selectedAppId"
+            let argumentsCheck: [String: Any] = [
+                "query": history.query,
+                "selectedAppId": selectedAppConfig._id
+            ]
             let resultsCheck = try await ditto.store.execute(query: queryCheck, arguments: argumentsCheck)
             
             if resultsCheck.items.count > 0 {
@@ -126,6 +133,7 @@ actor HistoryRepository {
                     "createdDate": Date().ISO8601Format()
                 ]
                 let _ = try await ditto.store.execute(query: query, arguments: arguments)
+                item.dematerialize()
             } else {
                 let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
                 let arguments: [String: Any] = [

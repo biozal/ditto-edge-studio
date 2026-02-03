@@ -1,10 +1,3 @@
-//
-//  DittoSubscriptionCard.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/11/25.
-//
-
 import SwiftUI
 
 struct SubscriptionCard: View {
@@ -39,9 +32,9 @@ struct SubscriptionCard: View {
         .background(Color(.secondarySystemBackground))
 #else
         .background(
-            RoundedRectangle(cornerRadius: 16).fill(
-                Color(NSColor.windowBackgroundColor)
-            ).shadow(radius: 4)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
         )
 #endif
         .cornerRadius(16)

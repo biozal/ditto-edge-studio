@@ -1,8 +1,3 @@
-//
-//  MainStudioView.swift
-//  Ditto Edge Studio
-//
-//  Created by Aaron LaBeau on 5/18/25.
 import SwiftUI
 import Combine
 import DittoSwift
@@ -12,6 +7,7 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @State private var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
+    @State private var showingImportSubscriptionsView = false
 
 
 
@@ -63,8 +59,6 @@ struct MainStudioView: View {
                     observeSidebarView()
                 case "Ditto Tools":
                     dittoToolsSidebarView()
-                case "MongoDb":
-                    mongoDbSidebarView()
                 default:
                     subscriptionSidebarView()
                 }
@@ -84,6 +78,15 @@ struct MainStudioView: View {
                         Button("Add Observer", systemImage: "eye") {
                             viewModel.editorObservable = DittoObservable.new()
                             viewModel.actionSheetMode = .observer
+                        }
+
+                        // Only show Import from Server when HTTP API is configured
+                        if viewModel.selectedMenuItem.name == "Subscriptions" &&
+                           !viewModel.selectedApp.httpApiUrl.isEmpty &&
+                           !viewModel.selectedApp.httpApiKey.isEmpty {
+                            Button("Import from Server", systemImage: "arrow.down.circle") {
+                                showingImportSubscriptionsView = true
+                            }
                         }
                     } label: {
                         Image(systemName: "plus.circle")
@@ -122,8 +125,6 @@ struct MainStudioView: View {
                 observeDetailView()
             case "Ditto Tools":
                 dittoToolsDetailView()
-            case "MongoDb":
-                mongoDBDetailView()
             default:
                 syncDetailView()
             }
@@ -158,6 +159,14 @@ struct MainStudioView: View {
         .sheet(isPresented: $showingImportView) {
             ImportDataView(isPresented: $showingImportView)
                 .environmentObject(appState)
+        }
+        .sheet(isPresented: $showingImportSubscriptionsView) {
+            ImportSubscriptionsView(
+                isPresented: $showingImportSubscriptionsView,
+                existingSubscriptions: viewModel.subscriptions,
+                selectedAppId: viewModel.selectedApp._id
+            )
+            .environmentObject(appState)
         }
         .onAppear {
             // No longer needed - using DittoManager state directly
@@ -252,9 +261,40 @@ extension MainStudioView {
         }
     }
 
+    private func collectionsHeaderView() -> some View {
+        HStack {
+            Spacer()
+
+            Text("Ditto Collections")
+                .padding(.top, 4)
+
+            Spacer()
+
+            Button {
+                Task {
+                    await viewModel.refreshCollectionCounts()
+                }
+            } label: {
+                if viewModel.isRefreshingCollections {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14))
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isRefreshingCollections)
+            .help("Refresh document counts")
+            .padding(.trailing, 8)
+            .padding(.top, 4)
+        }
+    }
+
     func collectionsSidebarView() -> some View {
         return VStack(alignment: .leading) {
-            headerView(title: "Ditto Collections")
+            collectionsHeaderView()
             if viewModel.isLoading {
                 Spacer()
                 AnyView(
@@ -276,12 +316,28 @@ extension MainStudioView {
                 )
                 Spacer()
             } else {
-                List(viewModel.collections, id: \.self) { collection in
-                    Text(collection)
-                        .onTapGesture {
-                            viewModel.selectedQuery =
-                                "SELECT * FROM \(collection)"
+                List(viewModel.collections, id: \._id) { collection in
+                    HStack {
+                        Text(collection.name)
+
+                        Spacer()
+
+                        // Badge showing document count (like Mail.app)
+                        if let count = collection.documentCount {
+                            Text("\(count)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.2))
+                                .cornerRadius(10)
                         }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.selectedQuery =
+                            "SELECT * FROM \(collection.name)"
+                    }
                     Divider()
                 }
                 Spacer()
@@ -568,38 +624,6 @@ extension MainStudioView {
         }
     }
 
-    func mongoDbSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "MongoDB Collections")
-            if viewModel.isLoading {
-                AnyView(
-                    ProgressView("Loading Collections...")
-                        .progressViewStyle(.circular)
-                )
-            } else if viewModel.subscriptions.isEmpty {
-                AnyView(
-                    ContentUnavailableView(
-                        "No Collections Found",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No collections returned from the MongoDB API. Check your MongoDB connection string in your app configuration and try again."
-                        )
-                    )
-                )
-            } else {
-                List(viewModel.mongoCollections, id: \.self) { collection in
-                    Text(collection)
-                        .onTapGesture {
-
-                        }
-                    Divider()
-                }
-            }
-            Spacer()
-        }
-    }
-    
     private func observerCard(observer: DittoObservable) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
@@ -696,18 +720,32 @@ extension MainStudioView {
             // Header with peer type and connection status
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(status.peerType)
+                    // Show device name if available, otherwise peer type
+                    Text(status.deviceName ?? status.peerType)
                         .font(.headline)
                         .bold()
+
+                    // Show OS info if available
+                    if let osInfo = status.osInfo {
+                        HStack(spacing: 4) {
+                            Image(systemName: osIconName(for: osInfo))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(osInfo.displayName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
                     Text(status.id)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 6) {
                     Circle()
                         .fill(statusColor(for: status.syncSessionStatus))
@@ -717,22 +755,93 @@ extension MainStudioView {
                         .foregroundColor(statusColor(for: status.syncSessionStatus))
                 }
             }
-            
+
             Divider()
-            
-            // Sync information
+
+            // Peer information (new enrichment fields)
             VStack(alignment: .leading, spacing: 8) {
+                // SDK Version
+                if let sdkVersion = status.dittoSDKVersion {
+                    HStack {
+                        Image(systemName: "apps.iphone")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                        Text("Ditto SDK: \(sdkVersion)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                // Connection address
+                if let addressInfo = status.addressInfo {
+                    HStack {
+                        Image(systemName: connectionIcon(for: addressInfo.connectionType))
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                        Text(addressInfo.displayText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+
+                // Identity metadata (collapsible with chevron)
+                if let metadata = status.identityMetadata {
+                    DisclosureGroup {
+                        ScrollView {
+                            Text(metadata)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                                .padding(.vertical, 4)
+                        }
+                        .frame(maxHeight: 150)
+                    } label: {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text("Identity Metadata")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                // Active connections (collapsible with chevron)
+                if let connections = status.connections, !connections.isEmpty {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(connections) { connection in
+                                connectionBadge(for: connection, currentPeerId: status.id)
+                            }
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        HStack {
+                            Image(systemName: "link.circle")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text("Active Connections (\(connections.count))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                // Existing sync information
                 if let commitId = status.syncedUpToLocalCommitId {
                     HStack {
                         Image(systemName: "checkmark.circle")
                             .foregroundColor(.green)
                             .font(.caption)
-                        Text("Synced to local database commit: \(commitId)")
+                        Text("Synced to commit: \(commitId)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
-                
+
                 HStack {
                     Image(systemName: "clock")
                         .foregroundColor(.secondary)
@@ -768,6 +877,65 @@ extension MainStudioView {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
         return formatter
+    }
+
+    private func osIconName(for os: PeerOS) -> String {
+        switch os {
+        case .iOS:
+            return "iphone"
+        case .android:
+            return "circle.filled.iphone"
+        case .macOS:
+            return "laptopcomputer"
+        case .linux:
+            return "server.rack"
+        case .windows:
+            return "pc"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
+
+    private func connectionIcon(for connectionType: String) -> String {
+        let type = connectionType.lowercased()
+        if type.contains("wifi") || type.contains("wireless") {
+            return "wifi"
+        } else if type.contains("bluetooth") || type.contains("ble") {
+            return "bluetooth"
+        } else if type.contains("websocket") || type.contains("internet") {
+            return "network"
+        } else if type.contains("lan") || type.contains("ethernet") {
+            return "cable.connector"
+        } else {
+            return "antenna.radiowaves.left.and.right"
+        }
+    }
+
+    private func connectionBadge(for connection: ConnectionInfo, currentPeerId: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: connection.type.iconName)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(connection.type.displayName)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+
+                if let distance = connection.displayDistance {
+                    Text("Distance: \(distance)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        )
     }
 
     func queryDetailView() -> some View {
@@ -860,19 +1028,6 @@ extension MainStudioView {
                     closeToolbarButton()
                 }
             #endif
-    }
-
-    func mongoDBDetailView() -> some View {
-        return VStack(alignment: .trailing) {
-            Text("MongoDb Details View")
-        }
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
     }
 
 }
@@ -1006,7 +1161,8 @@ extension MainStudioView {
 
         var isLoading = false
         var isQueryExecuting = false
-        
+        var isRefreshingCollections = false
+
         var eventMode = "items"
         let dittoToolsFeatures = [
             "Presence Viewer", "Peers List", "Permissions Health", "Disk Usage",
@@ -1014,11 +1170,10 @@ extension MainStudioView {
         var subscriptions: [DittoSubscription] = []
         var history: [DittoQueryHistory] = []
         var favorites: [DittoQueryHistory] = []
-        var collections: [String] = []
+        var collections: [DittoCollection] = []
         var observerables: [DittoObservable] = []
         var observableEvents: [DittoObserveEvent] = []
         var selectedObservableEvents: [DittoObserveEvent] = []
-        var mongoCollections: [String] = []
 
         //query editor view
         var selectedQuery: String
@@ -1127,11 +1282,11 @@ extension MainStudioView {
                 } catch {
                     assertionFailure("Failed to register observables observer: \(error)")
                 }
-                
+
                 if collections.isEmpty {
                     selectedQuery = subscriptions.first?.query ?? ""
                 } else {
-                    selectedQuery = "SELECT * FROM \(collections.first ?? "")"
+                    selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
                 }
 
                 // Start observing sync status
@@ -1164,6 +1319,21 @@ extension MainStudioView {
                 } catch {
                     appState.setError(error)
                 }
+            }
+        }
+
+        @MainActor
+        func refreshCollectionCounts() async {
+            guard !isRefreshingCollections else { return } // Prevent concurrent refreshes
+
+            isRefreshingCollections = true
+            defer { isRefreshingCollections = false }
+
+            do {
+                collections = try await CollectionsRepository.shared.refreshDocumentCounts()
+            } catch {
+                // Error will be set in repository via appState
+                print("Failed to refresh collection counts: \(error)")
             }
         }
 
@@ -1428,7 +1598,6 @@ enum ActionSheetMode: String {
     case none = "none"
     case subscription = "subscription"
     case observer = "observer"
-    case mongoDB = "mongoDB"
 }
 
 struct MenuItem: Identifiable, Equatable, Hashable {

@@ -61,7 +61,7 @@ actor QueryService {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"];
         }
         
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/store/execute"
+        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
         let authorization = "Bearer \(appConfig.httpApiKey)"
         
         guard let url = URL(string: urlString) else {
@@ -130,5 +130,28 @@ actor QueryService {
             return [jsonString]
         }
         return ["No results found"]
+    }
+
+    // MARK: Small Peer Info
+    func fetchSmallPeerInfo() async throws -> [SmallPeerInfo] {
+        let query = "SELECT * FROM __small_peer_info"
+        let jsonResults = try await executeSelectedAppQueryHttp(query: query)
+
+        let decoder = JSONDecoder()
+        var peerInfos: [SmallPeerInfo] = []
+
+        for jsonString in jsonResults {
+            if let data = jsonString.data(using: .utf8) {
+                do {
+                    let peerInfo = try decoder.decode(SmallPeerInfo.self, from: data)
+                    peerInfos.append(peerInfo)
+                } catch {
+                    // Skip items that fail to decode
+                    continue
+                }
+            }
+        }
+
+        return peerInfos
     }
 }

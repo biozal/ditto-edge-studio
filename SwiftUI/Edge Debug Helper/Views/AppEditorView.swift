@@ -1,10 +1,3 @@
-//
-//  AddAppView.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 5/18/25.
-//
-
 import SwiftUI
 
 // View modifier to handle paste trimming

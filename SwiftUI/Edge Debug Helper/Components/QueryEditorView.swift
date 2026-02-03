@@ -1,10 +1,4 @@
 import CodeEditor
-//
-//  QueryEditorView.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 5/23/25.
-//
 import SwiftUI
 
 struct QueryEditorView: View {

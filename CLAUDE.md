@@ -13,14 +13,11 @@ Note: The "Edge Bot" (codename Grimlock) mentioned in documentation refers to fu
 ## Development Environment Setup
 
 ### Xcode Version Requirements
-This project requires **Xcode 26.0 beta** (or later) with Swift 6.2 for proper dependency compatibility.
+This project requires **Xcode 26.2** (or later) with Swift 6.2 for proper dependency compatibility.
 
-**To switch to Xcode beta:**
+**To verify your Xcode version:**
 ```bash
-# Switch active developer tools to Xcode beta
-sudo xcode-select -s /Applications/Xcode-beta.app/Contents/Developer
-
-# Verify the switch worked
+# Verify Xcode version
 xcode-select -p
 xcodebuild -version
 xcrun swift --version
@@ -178,7 +175,7 @@ Configuration in `rust/src-tauri/tauri.conf.json`:
 ## Platform Requirements
 
 ### SwiftUI
-- macOS 15+ with Xcode 26.0+ (beta) or Xcode 16.5+ with Swift 6.2
+- macOS 15+ with Xcode 26.2+ or Xcode 16.5+ with Swift 6.2
 - iPadOS 18.0+
 - App sandbox enabled with entitlements for network, Bluetooth, and file access
 
@@ -210,9 +207,9 @@ The QueryService now provides enhanced mutation tracking:
 ### Swift Version Compatibility Issues
 If you encounter "module compiled with Swift 6.2 cannot be imported by the Swift 6.1.2 compiler" errors:
 
-1. **Switch to Xcode beta** (recommended):
+1. **Ensure Xcode 26.2+ is active**:
    ```bash
-   sudo xcode-select -s /Applications/Xcode-beta.app/Contents/Developer
+   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
    ```
 
 2. **Clean build environment**:
@@ -228,5 +225,5 @@ If you encounter "module compiled with Swift 6.2 cannot be imported by the Swift
 
 ### Build Issues
 - Use ARM64-only builds to avoid multiple destination warnings
-- Ensure Xcode beta is active for Swift 6.2 compatibility
+- Ensure Xcode 26.2+ is active for Swift 6.2 compatibility
 - Clean derived data if dependencies seem out of sync

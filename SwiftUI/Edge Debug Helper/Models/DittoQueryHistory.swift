@@ -1,10 +1,3 @@
-//
-//  DittoQuery.swift
-//  Edge Studio
-//
-//  Created by Aaron LaBeau on 6/6/25.
-//
-
 import Foundation
 
 struct DittoQueryHistory

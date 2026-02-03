@@ -85,9 +85,11 @@ actor DatabaseRepository {
                 let configs = results.items.compactMap { item in
                     do {
                         // Use loader to handle both current and legacy formats
-                        return try DittoAppConfigLoader.loadConfig(
+                        let result = try DittoAppConfigLoader.loadConfig(
                             from: item.jsonData()
                         )
+                        item.dematerialize()
+                        return result
                     } catch {
                         // Handle error
                         if let appStateRef {

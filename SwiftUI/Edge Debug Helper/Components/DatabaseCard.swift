@@ -1,10 +1,3 @@
-//
-//  DittoAppCard.swift
-//  Ditto Edge Studio
-//
-//  Created by Aaron LaBeau on 5/18/25.
-//
-
 import SwiftUI
 import Combine
 
@@ -54,9 +47,9 @@ struct DatabaseCard: View {
         .background(Color(.secondarySystemBackground))
 #else
         .background(
-            RoundedRectangle(cornerRadius: 16).fill(
-                Color(NSColor.windowBackgroundColor)
-            ).shadow(radius: 4)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
         )
 #endif
         .cornerRadius(16)
