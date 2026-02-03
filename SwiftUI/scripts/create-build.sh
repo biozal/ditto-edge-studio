@@ -10,7 +10,7 @@ cp -R "Edge Debug Helper.app" ../dmg_temp/
 ln -s /Applications ../dmg_temp/Applications
 
 # Get the version from the tag
-VERSION="0.2.2"
+VERSION="0.2.4"
 
 hdiutil create -volname "Edge Debug Helper $VERSION" \
           -srcfolder ../dmg_temp \
