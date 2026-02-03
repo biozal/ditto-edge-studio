@@ -110,12 +110,6 @@ actor DittoManager {
                 
                 dittoLocal = ditto
 
-                dittoLocal?.updateTransportConfig(block: { config in
-                    config.connect.webSocketURLs.insert(
-                        appState.appConfig.websocketUrl
-                    )
-                })
-
                 // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
                 // 
                 try await dittoLocal?.store.execute(
@@ -209,7 +203,6 @@ actor DittoManager {
                 )
                 config.enableAllPeerToPeer()
             })
-            
             
             try ditto.disableSyncWithV3()
             

@@ -41,12 +41,13 @@ actor SubscriptionsRepository {
                 query: query,
                 arguments: arguments
             )
-            
+
             // Setup the subscription now - need to make it mutable, register the subscription
             var sub = subscription
-            sub.syncSubscription = try await dittoManager.dittoSelectedApp?.sync
+            let syncSub = try await dittoManager.dittoSelectedApp?.sync
                 .registerSubscription(query: subscription.query)
-            
+            sub.syncSubscription = syncSub
+
             // Refresh subscriptions list after save
             try await refreshSubscriptions()
         } catch {
