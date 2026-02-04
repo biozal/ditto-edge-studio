@@ -70,7 +70,7 @@ struct QueryToolbarView: View {
                         
                         Button(role: .destructive) {
                             Task {
-                                try await DittoManager.shared.deleteQueryHistory(query.id)
+                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")

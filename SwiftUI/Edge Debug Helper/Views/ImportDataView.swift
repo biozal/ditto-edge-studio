@@ -174,14 +174,46 @@ struct ImportDataView: View {
                                 .fill(Color.blue.opacity(0.1))
                         )
                     } else if let error = importError {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                                .font(.system(size: 14))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                                Text("Error")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.red)
+                                Spacer()
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(error, forType: .string)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 12))
+                                        Text("Copy")
+                                            .font(.caption2)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.red.opacity(0.8))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.red.opacity(0.1))
+                                )
+                                .help("Click to copy error message to clipboard")
+                            }
+
+                            ScrollView {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 150)
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,7 +270,7 @@ struct ImportDataView: View {
         }
         .padding(30)
         .frame(width: 550)
-        .frame(minHeight: 500, maxHeight: 600)
+        .frame(minHeight: 500, maxHeight: 800)
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [UTType.json],
