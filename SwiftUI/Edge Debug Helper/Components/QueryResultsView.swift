@@ -4,24 +4,25 @@ import SwiftUI
 enum ResultViewTab: String, CaseIterable {
     case raw = "Raw"
     case table = "Table"
-    case map = "Map"
 
     var icon: String {
         switch self {
         case .raw: return "doc.plaintext"
         case .table: return "tablecells"
-        case .map: return "map"
         }
     }
 }
 
 struct QueryResultsView: View {
     @Binding var jsonResults: [String]
+    var onGetLastQuery: (() -> String)? = nil
+    var onInsertQuery: ((String) -> Void)? = nil
 
     @State private var selectedTab: ResultViewTab = .raw
     @State private var currentPage = 1
     @State private var pageSize = 10
     @State private var isExporting = false
+    @State private var copiedDQLNotification: String? = nil
 
     private var pageSizes: [Int] {
         switch resultCount {
@@ -43,8 +44,10 @@ struct QueryResultsView: View {
         max(1, Int(ceil(Double(jsonResults.count) / Double(pageSize))))
     }
 
-    init(jsonResults: Binding<[String]>) {
+    init(jsonResults: Binding<[String]>, onGetLastQuery: (() -> String)? = nil, onInsertQuery: ((String) -> Void)? = nil) {
         _jsonResults = jsonResults
+        self.onGetLastQuery = onGetLastQuery
+        self.onInsertQuery = onInsertQuery
     }
 
     var body: some View {
@@ -74,13 +77,6 @@ struct QueryResultsView: View {
                     Label("Table", systemImage: "tablecells")
                 }
                 .tag(ResultViewTab.table)
-
-                // Map View Placeholder
-                mapPlaceholder
-                    .tabItem {
-                        Label("Map", systemImage: "map")
-                    }
-                    .tag(ResultViewTab.map)
             }
             #if os(macOS)
             .background(Color(NSColor.controlBackgroundColor))
@@ -101,6 +97,17 @@ struct QueryResultsView: View {
             currentPage = 1
             if !pageSizes.contains(pageSize) {
                 pageSize = pageSizes.first ?? 25
+            }
+        }
+        .overlay(alignment: .top) {
+            if let message = copiedDQLNotification {
+                Text(message)
+                    .padding()
+                    .background(Color.green.opacity(0.9))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    .padding(.top, 20)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
     }
@@ -128,6 +135,9 @@ struct QueryResultsView: View {
 
             Spacer()
 
+            // Generate DQL Button
+            generateDQLButton
+
             Button {
                 isExporting = true
             } label: {
@@ -150,20 +160,89 @@ struct QueryResultsView: View {
         .padding(.bottom, 4)
     }
 
-    // MARK: - Map Placeholder
+    // MARK: - Generate DQL Button
 
-    private var mapPlaceholder: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "map")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-            Text("Map View")
-                .font(.headline)
-            Text("Coming Soon")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+    private var generateDQLButton: some View {
+        Menu {
+            Button("SELECT with all fields") { generateAndInsert(.select) }
+            Button("INSERT template") { generateAndInsert(.insert) }
+            Button("UPDATE template") { generateAndInsert(.update) }
+            Button("DELETE template") { generateAndInsert(.delete) }
+            Button("EVICT template") { generateAndInsert(.evict) }
+        } label: {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(jsonResults.isEmpty)
+        .help("Generate DQL statement templates based on query results")
+        .padding(.trailing, 8)
+    }
+
+    // MARK: - DQL Generation
+
+    private enum DQLStatementType {
+        case select, insert, update, delete, evict
+    }
+
+    private func generateAndInsert(_ type: DQLStatementType) {
+        // 1. Get last executed query
+        guard let lastQuery = onGetLastQuery?() else {
+            showNotification("No query available")
+            return
+        }
+
+        // 2. Extract collection name
+        let queryInfo = QueryInfo(query: lastQuery)
+        guard let collectionName = queryInfo.collectionName else {
+            showNotification("Could not extract collection name from query")
+            return
+        }
+
+        // 3. Get field names from first JSON result
+        let fieldNames = extractFieldNamesFromJSON()
+
+        // 4. Generate DQL
+        let dql: String
+        switch type {
+        case .select:
+            dql = DQLGenerator.generateSelect(collection: collectionName, fields: fieldNames)
+        case .insert:
+            dql = DQLGenerator.generateInsert(collection: collectionName, fields: fieldNames)
+        case .update:
+            dql = DQLGenerator.generateUpdate(collection: collectionName, fields: fieldNames)
+        case .delete:
+            dql = DQLGenerator.generateDelete(collection: collectionName)
+        case .evict:
+            dql = DQLGenerator.generateEvict(collection: collectionName)
+        }
+
+        // 5. Insert into editor
+        onInsertQuery?(dql)
+    }
+
+    private func extractFieldNamesFromJSON() -> [String] {
+        guard let firstResult = jsonResults.first,
+              let jsonData = firstResult.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            return []
+        }
+
+        // Sort: _id first, then alphabetically
+        var keys = Array(jsonObject.keys).sorted()
+        if let idIndex = keys.firstIndex(of: "_id") {
+            keys.remove(at: idIndex)
+            keys.insert("_id", at: 0)
+        }
+        return keys
+    }
+
+    private func showNotification(_ message: String) {
+        copiedDQLNotification = message
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                copiedDQLNotification = nil
+            }
+        }
     }
 
     // MARK: - Helper Methods

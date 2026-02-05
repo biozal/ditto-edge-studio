@@ -953,7 +953,11 @@ extension MainStudioView {
 
                     //bottom half
                     QueryResultsView(
-                        jsonResults: $viewModel.jsonResults
+                        jsonResults: $viewModel.jsonResults,
+                        onGetLastQuery: { viewModel.selectedQuery },
+                        onInsertQuery: { dql in
+                            viewModel.selectedQuery = dql
+                        }
                     )
                 }
             #else
@@ -970,7 +974,11 @@ extension MainStudioView {
 
                     //bottom half
                     QueryResultsView(
-                        jsonResults: $viewModel.jsonResults
+                        jsonResults: $viewModel.jsonResults,
+                        onGetLastQuery: { viewModel.selectedQuery },
+                        onInsertQuery: { dql in
+                            viewModel.selectedQuery = dql
+                        }
                     )
                 }
                 .navigationBarTitleDisplayMode(.inline)

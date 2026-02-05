@@ -17,7 +17,6 @@ struct QueryResultsViewTests {
     func paginationStateSharedBetweenTabs() {
         // Test that changing page on one tab affects the other
         var currentPage = 1
-        let pageSize = 10
 
         // Simulate page change
         currentPage = 3
@@ -42,7 +41,6 @@ struct QueryResultsViewTests {
     @Test("Result changes reset to page 1")
     func resultChangesResetToPage1() {
         var currentPage = 3
-        let results = ["result1", "result2", "result3"]
 
         // Simulate result change
         let newResults = ["new1", "new2"]
@@ -105,17 +103,15 @@ struct QueryResultsViewTests {
     @Test("Tab enumeration")
     func tabEnumeration() {
         let tabs = ResultViewTab.allCases
-        #expect(tabs.count == 3)
+        #expect(tabs.count == 2)
         #expect(tabs.contains(.raw))
         #expect(tabs.contains(.table))
-        #expect(tabs.contains(.map))
     }
 
     @Test("Tab icons")
     func tabIcons() {
         #expect(ResultViewTab.raw.icon == "doc.plaintext")
         #expect(ResultViewTab.table.icon == "tablecells")
-        #expect(ResultViewTab.map.icon == "map")
     }
 
     @Test("Flatten JSON results single object")

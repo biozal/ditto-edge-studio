@@ -61,6 +61,7 @@
 			membershipExceptions = (
 				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
+				DQLGeneratorTests.swift,
 				QueryResultsViewTests.swift,
 				ResultJsonViewerRegressionTests.swift,
 				ResultTableViewerTests.swift,
@@ -73,6 +74,11 @@
 			membershipExceptions = (
 				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
+				DQLGeneratorTests.swift,
+				QueryResultsViewTests.swift,
+				ResultJsonViewerRegressionTests.swift,
+				ResultTableViewerTests.swift,
+				TableResultsParserTests.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
 		};

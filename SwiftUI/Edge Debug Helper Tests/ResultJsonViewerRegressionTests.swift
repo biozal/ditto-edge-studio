@@ -60,11 +60,8 @@ struct ResultJsonViewerRegressionTests {
     @Test("Page size change resets behavior")
     func pageSizeChangeResetsBehavior() {
         var currentPage = 5
-        let pageCount = 10
-        var pageSize = 10
 
         // Change page size
-        pageSize = 25
         currentPage = 1  // Should reset to 1
 
         #expect(currentPage == 1)
@@ -133,7 +130,7 @@ struct ResultJsonViewerRegressionTests {
         ]
 
         // Test convenience initializer for static arrays
-        let viewer = ResultJsonViewer(resultText: staticResults)
+        let _ = ResultJsonViewer(resultText: staticResults)
 
         // Verify the viewer was created (can't directly test @State)
         // The important part is that it compiles

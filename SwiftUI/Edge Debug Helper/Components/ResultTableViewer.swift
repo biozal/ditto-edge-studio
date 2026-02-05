@@ -9,6 +9,8 @@ struct ResultTableViewer: View {
     @State private var isLoading = false
     @State private var selectedRowId: UUID?
     @State private var copiedRowId: UUID?
+    
+    private let defaultColumnWidth: CGFloat = 200
 
     private var pagedItems: [String] {
         let start = (currentPage - 1) * pageSize
@@ -142,6 +144,7 @@ struct ResultTableViewer: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     #endif
 
@@ -220,6 +223,7 @@ struct ResultTableViewer: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     #endif
 
