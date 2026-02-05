@@ -145,6 +145,7 @@ struct ResultItem: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
 
                 if isCopied {
                     Image(systemName: "checkmark.circle.fill")
