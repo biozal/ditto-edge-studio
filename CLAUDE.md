@@ -10,6 +10,16 @@ Edge Debug Helper is a comprehensive development toolset for working with Ditto 
 
 Note: The "Edge Bot" (codename Grimlock) mentioned in documentation refers to future CLI functionality, but currently the rust folder contains a Tauri desktop application.
 
+## Testing Requirements
+
+**CRITICAL RULE: All tests MUST be runnable in Xcode.**
+
+- Tests must be properly configured to compile and run in the Xcode test target
+- Tests must NOT be moved to temporary directories or locations outside the project
+- If tests produce warnings about being in the wrong target, fix the Xcode project configuration (using `membershipExceptions` in project.pbxproj for File System Synchronized targets)
+- Tests that cannot be run in Xcode are not acceptable and the configuration must be fixed
+- Use Swift Testing framework (`import Testing`) for all new tests, not XCTest
+
 ## Development Environment Setup
 
 ### Xcode Version Requirements
