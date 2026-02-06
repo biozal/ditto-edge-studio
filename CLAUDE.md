@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when worki:wng with code in this repository.
 
 ## Project Overview
 
@@ -9,6 +9,10 @@ Edge Debug Helper is a comprehensive development toolset for working with Ditto 
 - **Rust/Tauri App** (in development): Cross-platform desktop application built with Tauri, React, and TypeScript
 
 Note: The "Edge Bot" (codename Grimlock) mentioned in documentation refers to future CLI functionality, but currently the rust folder contains a Tauri desktop application.
+## Screenshots
+
+From time to time to debug or design new features screenshots or design mock ups will always be stored in the screens folder of the repository.  If you are told
+there is a screenshot named and then a filename always asssume it's in the screens folder.
 
 ## Testing Requirements
 
