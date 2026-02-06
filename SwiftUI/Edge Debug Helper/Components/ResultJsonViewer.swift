@@ -4,41 +4,69 @@ import SwiftUI
 struct ResultJsonViewer: View {
     @Binding var resultText: [String]
 
-    @State private var currentPage = 1
-    @State private var pageSize = 10
+    // Internal state (used if no external bindings provided)
+    @State private var internalCurrentPage = 1
+    @State private var internalPageSize = 10
     @State private var isExporting = false
+
+    // Optional external state for shared pagination
+    var externalCurrentPage: Binding<Int>?
+    var externalPageSize: Binding<Int>?
+    var showPaginationControls: Bool = true
+    var showExportButton: Bool = true
+
+    // Use external or internal state
+    private var currentPage: Binding<Int> {
+        externalCurrentPage ?? $internalCurrentPage
+    }
+
+    private var pageSize: Binding<Int> {
+        externalPageSize ?? $internalPageSize
+    }
 
     private var pageSizes: [Int] {
         switch resultCount {
         case 0...10: return [10]
-        case 11...25: return [25]
-        case 26...50: return [25, 50]
-        case 51...100: return [25, 50, 100]
-        case 101...200: return [25, 50, 100, 200]
-        case 201...250: return [25, 50, 100, 200, 250]
+        case 11...25: return [10, 25]
+        case 26...50: return [10, 25, 50]
+        case 51...100: return [10, 25, 50, 100]
+        case 101...200: return [10, 25, 50, 100, 200]
+        case 201...250: return [10, 25, 50, 100, 200, 250]
         default: return [10, 25, 50, 100, 200, 250]
         }
     }
+
     private var resultCount: Int {
         resultText.count
     }
 
-    init(resultText: Binding<[String]>) {
+    init(
+        resultText: Binding<[String]>,
+        externalCurrentPage: Binding<Int>? = nil,
+        externalPageSize: Binding<Int>? = nil,
+        showPaginationControls: Bool = true,
+        showExportButton: Bool = true
+    ) {
         self._resultText = resultText
+        self.externalCurrentPage = externalCurrentPage
+        self.externalPageSize = externalPageSize
+        self.showPaginationControls = showPaginationControls
+        self.showExportButton = showExportButton
     }
 
     // Convenience initializer for static arrays
     init(resultText: [String]) {
         self._resultText = .constant(resultText)
     }
-    
+
     private var pageCount: Int {
-        max(1, Int(ceil(Double(resultText.count) / Double(pageSize))))
+        max(1, Int(ceil(Double(resultText.count) / Double(pageSize.wrappedValue))))
     }
 
     private var pagedItems: [String] {
-        let start = (currentPage - 1) * pageSize
-        let end = min(start + pageSize, resultText.count)
+        let start = (currentPage.wrappedValue - 1) * pageSize.wrappedValue
+        let end = min(start + pageSize.wrappedValue, resultText.count)
+        guard start < resultText.count else { return [] }
         return Array(resultText[start..<end])
     }
 
@@ -46,50 +74,59 @@ struct ResultJsonViewer: View {
         VStack(alignment: .leading, spacing: 0) {
             ResultsList(items: pagedItems)
             Spacer()
-            HStack {
-                Spacer()
-                PaginationControls(
-                    totalCount: resultCount,
-                    currentPage: $currentPage,
-                    pageCount: pageCount,
-                    pageSize: $pageSize,
-                    pageSizes: pageSizes,
-                    onPageChange: { newPage in
-                        self.currentPage = max(1, min(newPage, pageCount))
-                    },
-                    onPageSizeChange: { newSize in
-                        self.pageSize = newSize
-                        self.currentPage = 1
+
+            if showPaginationControls || showExportButton {
+                HStack {
+                    Spacer()
+
+                    if showPaginationControls {
+                        PaginationControls(
+                            totalCount: resultCount,
+                            currentPage: currentPage,
+                            pageCount: pageCount,
+                            pageSize: pageSize,
+                            pageSizes: pageSizes,
+                            onPageChange: { newPage in
+                                currentPage.wrappedValue = max(1, min(newPage, pageCount))
+                            },
+                            onPageSizeChange: { newSize in
+                                pageSize.wrappedValue = newSize
+                                currentPage.wrappedValue = 1
+                            }
+                        )
+                        Spacer()
                     }
-                )
-                Spacer()
-                Button {
-                    isExporting = true
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
+
+                    if showExportButton {
+                        Button {
+                            isExporting = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                        .help("Export query results to JSON file")
+                        .padding(.trailing, 8)
+                        .disabled(resultCount == 0)
+                        .fileExporter(
+                            isPresented: $isExporting,
+                            document: QueryResultsDocument(
+                                jsonData: flattenJsonResults()
+                            ),
+                            contentType: .json,
+                            defaultFilename: "query_results"
+                        ) { _ in }
+                    }
                 }
-                .help("Export query results to JSON file")
-                .padding(.trailing, 8)
-                .disabled(resultCount == 0)
-                .fileExporter(
-                    isPresented: $isExporting,
-                    document: QueryResultsDocument(
-                        jsonData: flattenJsonResults()
-                    ),
-                    contentType: .json,
-                    defaultFilename: "query_results"
-                ) { _ in }
+                .padding(.bottom, 10)
+                .padding(.trailing, 20)
             }
-            .padding(.bottom, 10)
-            .padding(.trailing, 20)
         }
-        .onChange(of: pageSize) { _, _ in
-            currentPage = max(1, min(currentPage, pageCount))
+        .onChange(of: pageSize.wrappedValue) { _, _ in
+            currentPage.wrappedValue = max(1, min(currentPage.wrappedValue, pageCount))
         }
         .onChange(of: resultText) { _, _ in
-            currentPage = 1
-            if !pageSizes.contains(pageSize) {
-                pageSize = pageSizes.first ?? 25
+            currentPage.wrappedValue = 1
+            if !pageSizes.contains(pageSize.wrappedValue) {
+                pageSize.wrappedValue = pageSizes.first ?? 25
             }
         }
     }
@@ -145,6 +182,7 @@ struct ResultItem: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
 
                 if isCopied {
                     Image(systemName: "checkmark.circle.fill")

@@ -98,12 +98,15 @@ struct ContentView: View {
                             .frame(
                                 minWidth: 600,
                                 idealWidth: 1000,
-                                maxWidth: 1080
+                                maxWidth: 1920,
+                                minHeight: 800,
+                                idealHeight: 1024,
+                                maxHeight: 1080
                             )
                         #elseif os(iOS)
                             .frame(
                                 minWidth: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 600 : nil,
+                                    == .pad ? 800 : nil,
                                 idealWidth: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 1000 : nil,
                                 maxWidth: UIDevice.current.userInterfaceIdiom
