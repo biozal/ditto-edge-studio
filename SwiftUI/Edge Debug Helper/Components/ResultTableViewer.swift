@@ -33,6 +33,7 @@ struct ResultTableViewer: View {
                 emptyStateView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: pagedItems.count) {
             await loadTableData()
         }
@@ -75,7 +76,7 @@ struct ResultTableViewer: View {
     private func macOSTableView(data: TableResultsData) -> some View {
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     Section {
                         // Data rows
                         ForEach(data.rows) { row in
@@ -146,6 +147,7 @@ struct ResultTableViewer: View {
                         .background(Color(NSColor.windowBackgroundColor))
                     }
                 }
+                .frame(minHeight: geometry.size.height, alignment: .top)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

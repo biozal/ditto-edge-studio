@@ -2,13 +2,17 @@
 Edge Debug Helper is a set of tools and an application that allows you to create a local Ditto Database based on a database registered in the Ditto Portal and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same DatabaseId.
 
 ## Swift UI App
-Edge Debug Helper is a SwiftUI application that allows you to create a local Ditto Database based on a database registered in the Ditto Portal and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same DatabaseId.
 
-## Rust 
-The rust folder contains Edge Bot (codename Grimlock), which is a tool that allows you to register local workflow tasks such as:
-- import data from a JSON file at a set interval
-- update data from a JSON file at a set interval
-- export data to a JSON file based on an observer firing 
+Edge Debug Helper is a SwiftUI application for macOS and iPadOS that provides comprehensive development tools for Ditto databases.
+
+**Key Features:**
+- Multi-app connection management with local storage
+- Real-time query execution with history and favorites
+- Active subscriptions and observables management
+- Connection status bar with transport-level statistics
+- Presence viewer and peer management
+- Disk usage monitoring and permissions health checking
+- Import/export functionality 
 
 ## Requirements
 
@@ -20,10 +24,6 @@ The rust folder contains Edge Bot (codename Grimlock), which is a tool that allo
 - An iPad with OS 18.0 or later installed.
 
 Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it will build and run on iOS, it has not been tested on iOS and there are known issues with the SwiftUI app on iOS.
-
-## Rust:
-- Rust 1.84.0 or later installed.
-- Cargo installed.
 
 
 ## Getting Started from Source

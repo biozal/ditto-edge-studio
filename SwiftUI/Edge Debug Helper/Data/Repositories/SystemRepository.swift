@@ -6,15 +6,19 @@ actor SystemRepository {
     
     private let dittoManager = DittoManager.shared
     private var syncStatusObserver: DittoStoreObserver?
+    private var connectionsPresenceObserver: DittoObserver?
     private var appState: AppState?
-    
+    private var dittoServerCount: Int = 0
+
     // Store the callback inside the actor
     private var onSyncStatusUpdate: (([SyncStatusInfo]) -> Void)?
+    private var onConnectionsUpdate: ((ConnectionsByTransport) -> Void)?
 
     private init() { }
     
     deinit {
         syncStatusObserver?.cancel()
+        connectionsPresenceObserver = nil
     }
 
     private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
@@ -156,6 +160,9 @@ actor SystemRepository {
                 // Build peer lookup map from presence graph
                 let peerLookup = await self.buildPeerLookupMap(ditto: ditto)
 
+                // Track Ditto Server count while building status items
+                var newDittoServerCount = 0
+
                 // Create enriched SyncStatusInfo instances
                 let statusItems: [SyncStatusInfo] = results.items.compactMap { item in
                     let jsonData = item.jsonData()
@@ -165,12 +172,34 @@ actor SystemRepository {
                         return nil
                     }
 
-                    // Look up peer enrichment data by matching peerKeyString to id
+                    // Check if this is a Ditto Server (Big Peer) connection
+                    // Big Peer doesn't appear in presence graph but is still a valid connection
+                    let isDittoServer = dict["is_ditto_server"] as? Bool ?? false
+                    if isDittoServer {
+                        newDittoServerCount += 1
+                    }
+
+                    // Look up peer enrichment data
                     let enrichment = peerLookup[peerId]
+
+                    // Filter out stale peers, BUT keep Ditto Server even if not in presence graph
+                    // This prevents showing disconnected peers when system:data_sync_info is slow to update
+                    if !isDittoServer && enrichment == nil {
+                        // Regular peer not in presence graph - they've disconnected
+                        item.dematerialize()
+                        return nil
+                    }
 
                     let syncItem = SyncStatusInfo(from: dict, peerEnrichment: enrichment)
                     item.dematerialize()
                     return syncItem
+                }
+
+                // Update Ditto Server count if changed and trigger connections update
+                let currentDittoServerCount = await self.dittoServerCount
+                if newDittoServerCount != currentDittoServerCount {
+                    await self.updateDittoServerCount(newDittoServerCount)
+                    await self.triggerConnectionsUpdate()
                 }
 
                 // Call the callback to update the ViewModel's published property
@@ -187,7 +216,72 @@ actor SystemRepository {
     func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo]) -> Void) {
         self.onSyncStatusUpdate = callback
     }
-    
+
+    private func updateDittoServerCount(_ count: Int) {
+        dittoServerCount = count
+    }
+
+    private func triggerConnectionsUpdate() async {
+        // This will be called by presence observer with current counts
+        // For now, we'll rely on presence observer to include dittoServerCount
+    }
+
+    func registerConnectionsPresenceObserver() async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw InvalidStateError(message: "No selected app available")
+        }
+
+        // Register presence observer for real-time connection updates
+        connectionsPresenceObserver = ditto.presence.observe { [weak self] presenceGraph in
+            Task { [weak self] in
+                guard let self else { return }
+
+                // Initialize counters for each transport type
+                var totalAccessPoint = 0
+                var totalBluetooth = 0
+                var totalP2PWiFi = 0
+                var totalWebSocket = 0
+
+                // Iterate through all remote peers in the presence graph
+                for peer in presenceGraph.remotePeers {
+                    // Count connections by type for this peer
+                    for connection in peer.connections {
+                        let connectionType = await self.convertConnectionType(connection.type)
+
+                        switch connectionType {
+                        case .bluetooth:
+                            totalBluetooth += 1
+                        case .accessPoint:
+                            totalAccessPoint += 1
+                        case .p2pWiFi:
+                            totalP2PWiFi += 1
+                        case .webSocket:
+                            totalWebSocket += 1
+                        case .unknown:
+                            break
+                        }
+                    }
+                }
+
+                // Create aggregated result including Ditto Server count
+                let aggregated = ConnectionsByTransport(
+                    accessPoint: totalAccessPoint,
+                    bluetooth: totalBluetooth,
+                    dittoServer: await self.dittoServerCount,
+                    p2pWiFi: totalP2PWiFi,
+                    webSocket: totalWebSocket
+                )
+
+                // Call the callback to update the ViewModel's published property
+                await self.onConnectionsUpdate?(aggregated)
+            }
+        }
+    }
+
+    func setOnConnectionsUpdate(_ callback: @escaping (ConnectionsByTransport) -> Void) {
+        self.onConnectionsUpdate = callback
+    }
+
     func stopObserver() {
         // Use Task to ensure observer cleanup runs on appropriate background queue
         // This prevents priority inversion when called from main thread
@@ -199,6 +293,8 @@ actor SystemRepository {
     private func performObserverCleanup() {
         syncStatusObserver?.cancel()
         syncStatusObserver = nil
+        connectionsPresenceObserver = nil
+        dittoServerCount = 0
     }
 }
 

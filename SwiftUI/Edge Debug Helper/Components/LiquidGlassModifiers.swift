@@ -1,10 +1,3 @@
-//
-//  LiquidGlassModifiers.swift
-//  Edge Debug Helper
-//
-//  Liquid Glass design system matching Xcode's modern aesthetic
-//
-
 import SwiftUI
 
 // MARK: - Spacing System

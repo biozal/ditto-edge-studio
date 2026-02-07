@@ -139,6 +139,7 @@ struct MainStudioView: View {
             .padding(.leading, 16)
             .padding(.trailing, 16)
             .padding(.top, 12)
+            .padding(.bottom, 16)  // Add padding for status bar height
 
         } detail: {
             switch viewModel.selectedMenuItem.name {
@@ -200,6 +201,12 @@ struct MainStudioView: View {
                 closeToolbarButton()
             }
         #endif
+        .overlay(alignment: .bottom) {
+            ConnectionStatusBar(
+                connections: viewModel.connectionsByTransport,
+                isSyncEnabled: viewModel.isSyncEnabled
+            )
+        }
     }
     
     func appNameToolbarLabel() -> some ToolbarContent {
@@ -724,11 +731,36 @@ extension MainStudioView {
                         ForEach(viewModel.syncStatusItems) { statusInfo in
                             syncStatusCard(for: statusInfo)
                         }
+
+                        // Separator section
+                        if let deviceName = viewModel.localPeerDeviceName,
+                           let sdkLanguage = viewModel.localPeerSDKLanguage,
+                           let sdkPlatform = viewModel.localPeerSDKPlatform,
+                           let sdkVersion = viewModel.localPeerSDKVersion {
+
+                            Spacer()
+                                .frame(height: 20)
+
+                            Divider()
+                                .padding(.horizontal)
+
+                            Spacer()
+                                .frame(height: 20)
+
+                            // Local Peer Info Card
+                            LocalPeerInfoCard(
+                                deviceName: deviceName,
+                                sdkLanguage: sdkLanguage,
+                                sdkPlatform: sdkPlatform,
+                                sdkVersion: sdkVersion
+                            )
+                        }
                     }
                     .padding()
                 }
             }
         }
+        .padding(.bottom, 28)  // Add padding for status bar height
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
@@ -737,7 +769,7 @@ extension MainStudioView {
             }
         #endif
     }
-    
+
     private func syncStatusCard(for status: SyncStatusInfo) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with peer type and connection status
@@ -751,9 +783,7 @@ extension MainStudioView {
                     // Show OS info if available
                     if let osInfo = status.osInfo {
                         HStack(spacing: 4) {
-                            Image(systemName: osIconName(for: osInfo))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            FontAwesomeText(icon: osIcon(for: osInfo), size: 12, color: .secondary)
                             Text(osInfo.displayName)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -786,9 +816,7 @@ extension MainStudioView {
                 // SDK Version
                 if let sdkVersion = status.dittoSDKVersion {
                     HStack {
-                        Image(systemName: "apps.iphone")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
+                        FontAwesomeText(icon: SystemIcon.sdk, size: 12, color: .secondary)
                         Text("Ditto SDK: \(sdkVersion)")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -798,9 +826,7 @@ extension MainStudioView {
                 // Connection address
                 if let addressInfo = status.addressInfo {
                     HStack {
-                        Image(systemName: connectionIcon(for: addressInfo.connectionType))
-                            .foregroundColor(.secondary)
-                            .font(.caption)
+                        FontAwesomeText(icon: connectionIcon(for: addressInfo.connectionType), size: 12, color: .secondary)
                         Text(addressInfo.displayText)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -822,9 +848,7 @@ extension MainStudioView {
                         .frame(maxHeight: 150)
                     } label: {
                         HStack {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
+                            FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .secondary)
                             Text("Identity Metadata")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -843,9 +867,7 @@ extension MainStudioView {
                         .padding(.top, 4)
                     } label: {
                         HStack {
-                            Image(systemName: "link.circle")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
+                            FontAwesomeText(icon: SystemIcon.link, size: 12, color: .secondary)
                             Text("Active Connections (\(connections.count))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -856,9 +878,7 @@ extension MainStudioView {
                 // Existing sync information
                 if let commitId = status.syncedUpToLocalCommitId {
                     HStack {
-                        Image(systemName: "checkmark.circle")
-                            .foregroundColor(.green)
-                            .font(.caption)
+                        FontAwesomeText(icon: SystemIcon.circleCheck, size: 12, color: .green)
                         Text("Synced to commit: \(commitId)")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -866,9 +886,7 @@ extension MainStudioView {
                 }
 
                 HStack {
-                    Image(systemName: "clock")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
+                    FontAwesomeText(icon: SystemIcon.clock, size: 12, color: .secondary)
                     Text("Last update: \(status.formattedLastUpdate)")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -902,35 +920,35 @@ extension MainStudioView {
         return formatter
     }
 
-    private func osIconName(for os: PeerOS) -> String {
+    private func osIcon(for os: PeerOS) -> FAIcon {
         switch os {
         case .iOS:
-            return "iphone"
+            return PlatformIcon.iOS
         case .android:
-            return "circle.filled.iphone"
+            return PlatformIcon.android
         case .macOS:
-            return "laptopcomputer"
+            return PlatformIcon.apple
         case .linux:
-            return "server.rack"
+            return PlatformIcon.linux
         case .windows:
-            return "pc"
+            return PlatformIcon.windows
         case .unknown:
-            return "questionmark.circle"
+            return SystemIcon.question
         }
     }
 
-    private func connectionIcon(for connectionType: String) -> String {
+    private func connectionIcon(for connectionType: String) -> FAIcon {
         let type = connectionType.lowercased()
         if type.contains("wifi") || type.contains("wireless") {
-            return "wifi"
+            return ConnectivityIcon.wifi
         } else if type.contains("bluetooth") || type.contains("ble") {
-            return "bluetooth"
+            return ConnectivityIcon.bluetooth
         } else if type.contains("websocket") || type.contains("internet") {
-            return "network"
+            return ConnectivityIcon.network
         } else if type.contains("lan") || type.contains("ethernet") {
-            return "cable.connector"
+            return ConnectivityIcon.ethernet
         } else {
-            return "antenna.radiowaves.left.and.right"
+            return ConnectivityIcon.broadcastTower
         }
     }
 
@@ -1007,6 +1025,7 @@ extension MainStudioView {
                 .navigationBarTitleDisplayMode(.inline)
             #endif
         }
+        .padding(.bottom, 28)  // Add padding for status bar height
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
@@ -1041,6 +1060,7 @@ extension MainStudioView {
             }
 #endif
         }
+        .padding(.bottom, 28)  // Add padding for status bar height
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
@@ -1052,6 +1072,7 @@ extension MainStudioView {
 
     func dittoToolsDetailView() -> some View {
         return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
+            .padding(.bottom, 28)  // Add padding for status bar height
             #if os(iOS)
                 .toolbar {
                     appNameToolbarLabel()
@@ -1189,6 +1210,13 @@ extension MainStudioView {
         // Sync status properties
         var syncStatusItems: [SyncStatusInfo] = []
         var isSyncEnabled = true  // Track sync status here
+        var connectionsByTransport: ConnectionsByTransport = .empty
+
+        // Local peer info
+        var localPeerDeviceName: String?
+        var localPeerSDKLanguage: String?
+        var localPeerSDKPlatform: String?
+        var localPeerSDKVersion: String?
 
         var isLoading = false
         var isQueryExecuting = false
@@ -1262,6 +1290,15 @@ extension MainStudioView {
                     }
                 }
             }
+
+            // Setup connections callback
+            Task {
+                await SystemRepository.shared.setOnConnectionsUpdate { [weak self] connections in
+                    Task { @MainActor in
+                        self?.connectionsByTransport = connections
+                    }
+                }
+            }
             
             // Setup ObservableRepository callback
             Task {
@@ -1327,6 +1364,32 @@ extension MainStudioView {
                     assertionFailure("Failed to register sync status observer: \(error)")
                 }
 
+                // Start observing connections via presence graph
+                do {
+                    try await SystemRepository.shared.registerConnectionsPresenceObserver()
+                } catch {
+                    assertionFailure("Failed to register connections presence observer: \(error)")
+                }
+
+                // Fetch local peer info via local query
+                do {
+                    let query = "SELECT device_name, ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
+                    let jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
+
+                    // Parse first result (should only be one - local peer)
+                    if let firstResult = jsonResults.first,
+                       let data = firstResult.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        localPeerDeviceName = json["device_name"] as? String
+                        localPeerSDKLanguage = json["ditto_sdk_language"] as? String
+                        localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
+                        localPeerSDKVersion = json["ditto_sdk_version"] as? String
+                    }
+                } catch {
+                    // Fail silently - not critical to app functionality
+                    print("Failed to fetch local peer info: \(error)")
+                }
+
                 isLoading = false
             }
         }
@@ -1374,7 +1437,7 @@ extension MainStudioView {
             editorSubscription = nil
             selectedEventId = nil
             selectedObservable = nil
-            
+
             subscriptions = []
             collections = []
             history = []
@@ -1382,8 +1445,15 @@ extension MainStudioView {
             observerables = []
             observableEvents = []
             syncStatusItems = []
+            connectionsByTransport = .empty
             isSyncEnabled = false
-            
+
+            // Clear peer info
+            localPeerDeviceName = nil
+            localPeerSDKLanguage = nil
+            localPeerSDKPlatform = nil
+            localPeerSDKVersion = nil
+
             // Perform heavy cleanup operations on background queue to avoid priority inversion
             await performCleanupOperations()
         }
@@ -1421,21 +1491,55 @@ extension MainStudioView {
         
         func toggleSync() async throws {
             if isSyncEnabled {
+                // Disable sync
                 await DittoManager.shared.selectedAppStopSync()
+
+                // Stop observers to prevent stale data updates
+                await SystemRepository.shared.stopObserver()
+
+                // Reset connection counts
+                connectionsByTransport = .empty
+                syncStatusItems = []
+
                 isSyncEnabled = false
             } else {
+                // Enable sync
                 try await DittoManager.shared.selectedAppStartSync()
                 isSyncEnabled = true
+
+                // Restart observers with fresh connections
+                do {
+                    try await SystemRepository.shared.registerSyncStatusObserver()
+                    try await SystemRepository.shared.registerConnectionsPresenceObserver()
+                } catch {
+                    assertionFailure("Failed to restart observers: \(error)")
+                }
             }
         }
         
         func startSync() async throws {
             try await DittoManager.shared.selectedAppStartSync()
             isSyncEnabled = true
+
+            // Restart observers with fresh connections
+            do {
+                try await SystemRepository.shared.registerSyncStatusObserver()
+                try await SystemRepository.shared.registerConnectionsPresenceObserver()
+            } catch {
+                assertionFailure("Failed to restart observers: \(error)")
+            }
         }
         
         func stopSync() async {
             await DittoManager.shared.selectedAppStopSync()
+
+            // Stop observers to prevent stale data updates
+            await SystemRepository.shared.stopObserver()
+
+            // Reset connection counts
+            connectionsByTransport = .empty
+            syncStatusItems = []
+
             isSyncEnabled = false
         }
 
