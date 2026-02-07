@@ -1794,20 +1794,22 @@ extension MainStudioView {
     @ViewBuilder
     private func inspectorView() -> some View {
         VStack(spacing: 0) {
-            // Tab picker using native NSSegmentedControl
-            IconSegmentedControl(
-                items: InspectorTab.allCases,
-                selection: $selectedInspectorTab,
-                iconForItem: { $0.systemIcon },
-                nameForItem: { $0.title }
-            )
+            // Tab picker using standard SwiftUI segmented picker
+            Picker("", selection: $selectedInspectorTab) {
+                ForEach(InspectorTab.allCases) { tab in
+                    Image(systemName: tab.systemIcon)
+                        .tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(height: 28)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .liquidGlassToolbar()
-            
+
             Divider()
-            
+
             // Inspector content
             ScrollView {
                 switch selectedInspectorTab {

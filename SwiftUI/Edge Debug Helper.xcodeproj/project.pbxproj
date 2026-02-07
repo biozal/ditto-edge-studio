@@ -89,7 +89,6 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
-				IconSegmentedControlUITests.swift,
 			);
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
 		};
@@ -98,7 +97,6 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
-				IconSegmentedControlUITests.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
 		};
