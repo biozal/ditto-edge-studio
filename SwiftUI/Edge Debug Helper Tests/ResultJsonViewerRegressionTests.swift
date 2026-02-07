@@ -1,11 +1,3 @@
-//
-//  ResultJsonViewerRegressionTests.swift
-//  Edge Debug Helper Tests
-//
-//  Created by Claude Code
-//  Regression tests to ensure ResultJsonViewer backward compatibility using Swift Testing
-//
-
 import Testing
 import SwiftUI
 @testable import Edge_Debug_Helper

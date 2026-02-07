@@ -7,11 +7,18 @@ struct Pill: View {
     var body: some View {
         Text(text)
             .font(.footnote)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(color.opacity(0.2))
+            .fontWeight(.medium)
+            .padding(.horizontal, 16)  // Increased from 12
+            .padding(.vertical, 8)     // Increased from 6
+            .background(.ultraThinMaterial)
+            .background(color.opacity(0.15))  // Subtle tint
             .foregroundColor(color)
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(color.opacity(0.3), lineWidth: 0.5)
+            )
+            .subtleShadow()
     }
 }
 

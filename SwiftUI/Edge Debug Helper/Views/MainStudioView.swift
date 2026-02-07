@@ -34,20 +34,43 @@ struct MainStudioView: View {
     var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading) {
-                HStack {
-                    Spacer()
-                    Picker("", selection: $viewModel.selectedMenuItem) {
-                        ForEach(viewModel.mainMenuItems, id: \.id) { item in
-                            Label(item.name, systemImage: item.icon)
-                                .labelStyle(.iconOnly)
-                                .tag(item)
+                HStack(spacing: 0) {
+                    ForEach(Array(viewModel.mainMenuItems.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Spacer()  // Distribute spacing between icons like Xcode
+                        }
+
+                        Button {
+                            viewModel.selectedMenuItem = item
+                        } label: {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 13))  // Much smaller to match Xcode
+                                .foregroundColor(viewModel.selectedMenuItem == item ? .primary : .secondary)
+                                .frame(width: 28, height: 28)  // Smaller frame matching Xcode
+                                .background(
+                                    Circle()  // Circular highlight like Xcode
+                                        .fill(viewModel.selectedMenuItem == item ? Color.secondary.opacity(0.15) : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(item.name)
+
+                        // Add divider after each icon except the last
+                        // Hide divider if current or next icon is selected (Xcode behavior)
+                        if index < viewModel.mainMenuItems.count - 1 {
+                            let nextItem = viewModel.mainMenuItems[index + 1]
+                            let shouldHideDivider = viewModel.selectedMenuItem == item || viewModel.selectedMenuItem == nextItem
+
+                            Divider()
+                                .frame(height: 20)
+                                .padding(.horizontal, 4)
+                                .opacity(shouldHideDivider ? 0 : 1)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 250)
-                    .animation(.default, value: viewModel.selectedMenuItem)
-                    Spacer()
                 }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)  // Small padding on both sides
+                .liquidGlassToolbar()
                 switch viewModel.selectedMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
@@ -110,12 +133,12 @@ struct MainStudioView: View {
                         }
                     }
                 }
-                .padding(.leading, 4)
-                .padding(.bottom, 6)
+                .padding(.leading, 12)
+                .padding(.bottom, 12)
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 8)
-            .padding(.top, 4)
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
+            .padding(.top, 12)
 
         } detail: {
             switch viewModel.selectedMenuItem.name {

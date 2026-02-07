@@ -79,7 +79,7 @@ struct QueryResultsView: View {
                 .tag(ResultViewTab.table)
             }
             #if os(macOS)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(.regularMaterial)
             #endif
 
             Divider()
@@ -102,10 +102,17 @@ struct QueryResultsView: View {
         .overlay(alignment: .top) {
             if let message = copiedDQLNotification {
                 Text(message)
-                    .padding()
-                    .background(Color.green.opacity(0.9))
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial)
+                    .background(Color.green.opacity(0.2))
+                    .foregroundColor(.primary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.green.opacity(0.4), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                    .subtleShadow()
                     .padding(.top, 20)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -155,9 +162,10 @@ struct QueryResultsView: View {
                 defaultFilename: "query_results"
             ) { _ in }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 12)
         .padding(.horizontal, 20)
-        .padding(.bottom, 4)
+        .padding(.bottom, 8)
+        .liquidGlassToolbar()
     }
 
     // MARK: - Generate DQL Button

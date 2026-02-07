@@ -11,7 +11,7 @@ struct DatabaseCard: View {
     @State private var showWebsocketUrl = false
     
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .top, spacing: 32) {
             // Left VStack: Icon and Name
             VStack(spacing: 12) {
                 Image(systemName: "app.fill")
@@ -42,16 +42,21 @@ struct DatabaseCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
+        .padding(20)
 #if os(iOS)
         .background(Color(.secondarySystemBackground))
+        .cornerRadius(20)
 #else
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(NSColor.controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.regularMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
+                )
         )
+        .cornerRadius(20)
+        .elevatedShadow()
 #endif
-        .cornerRadius(16)
     }
 }

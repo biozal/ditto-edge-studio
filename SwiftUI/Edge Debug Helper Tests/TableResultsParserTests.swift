@@ -1,10 +1,3 @@
-//
-//  TableResultsParserTests.swift
-//  Edge Debug Helper Tests
-//
-//  Created by Claude Code
-//  Unit tests for TableResultsParser using Swift Testing
-//
 
 import Testing
 @testable import Edge_Debug_Helper

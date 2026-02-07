@@ -45,7 +45,10 @@ actor DittoManager {
             if !isStoreInitialized {
                 // Clean up any existing local instance first
                 if let existingDitto = dittoLocal {
-                    existingDitto.sync.stop()
+                    // Use detached task with utility priority to prevent threading priority inversion
+                    await Task.detached(priority: .utility) {
+                        existingDitto.sync.stop()
+                    }.value
                     dittoLocal = nil
                 }
                 // setup logging

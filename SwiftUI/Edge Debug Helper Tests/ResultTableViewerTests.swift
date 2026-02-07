@@ -1,10 +1,3 @@
-//
-//  ResultTableViewerTests.swift
-//  Edge Debug Helper Tests
-//
-//  Created by Claude Code
-//  Unit tests for ResultTableViewer component using Swift Testing
-//
 
 import Testing
 import SwiftUI

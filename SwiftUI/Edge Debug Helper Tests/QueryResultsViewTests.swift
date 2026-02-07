@@ -1,11 +1,3 @@
-//
-//  QueryResultsViewTests.swift
-//  Edge Debug Helper Tests
-//
-//  Created by Claude Code
-//  Integration tests for QueryResultsView using Swift Testing
-//
-
 import Testing
 import SwiftUI
 @testable import Edge_Debug_Helper
