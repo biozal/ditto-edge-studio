@@ -148,7 +148,7 @@ struct QueryResultsView: View {
             Button {
                 isExporting = true
             } label: {
-                Image(systemName: "square.and.arrow.down")
+                FontAwesomeText(icon: ActionIcon.download, size: 14)
             }
             .help("Export query results to JSON file")
             .padding(.trailing, 8)
@@ -178,7 +178,7 @@ struct QueryResultsView: View {
             Button("DELETE template") { generateAndInsert(.delete) }
             Button("EVICT template") { generateAndInsert(.evict) }
         } label: {
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
+            FontAwesomeText(icon: DataIcon.code, size: 14)
         }
         .disabled(jsonResults.isEmpty)
         .help("Generate DQL statement templates based on query results")

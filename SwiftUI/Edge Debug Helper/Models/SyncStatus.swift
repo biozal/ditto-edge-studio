@@ -50,18 +50,18 @@ enum ConnectionType: Equatable, Codable {
         }
     }
 
-    var iconName: String {
+    var icon: FAIcon {
         switch self {
         case .bluetooth:
-            return "dot.radiowaves.forward"
+            return ConnectivityIcon.bluetooth
         case .accessPoint:
-            return "wifi.router"
+            return ConnectivityIcon.broadcastTower
         case .p2pWiFi:
-            return "antenna.radiowaves.left.and.right"
+            return ConnectivityIcon.wifi
         case .webSocket:
-            return "network"
+            return ConnectivityIcon.network
         case .unknown:
-            return "questionmark.circle"
+            return SystemIcon.question
         }
     }
 }

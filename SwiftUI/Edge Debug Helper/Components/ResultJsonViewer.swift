@@ -101,7 +101,7 @@ struct ResultJsonViewer: View {
                         Button {
                             isExporting = true
                         } label: {
-                            Image(systemName: "square.and.arrow.down")
+                            FontAwesomeText(icon: ActionIcon.download, size: 14)
                         }
                         .help("Export query results to JSON file")
                         .padding(.trailing, 8)
@@ -185,8 +185,7 @@ struct ResultItem: View {
                     .textSelection(.enabled)
 
                 if isCopied {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                    FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
                         .transition(.opacity)
                 }
             }

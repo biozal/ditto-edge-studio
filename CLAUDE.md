@@ -91,7 +91,10 @@ Located in the `SwiftUI/` directory:
   
 - **Views** (`Views/` folder):
   - `ContentView.swift`: Root view with app selection
-  - `MainStudioView.swift`: Primary tabbed interface with threading optimizations for cleanup operations
+  - `MainStudioView.swift`: Primary interface with navigation sidebar and detail views
+    - Sync detail view uses native TabView with three tabs: Peers List, Presence Viewer, Settings
+    - Tab selection persists when navigating between menu items
+    - Threading optimizations for cleanup operations using TaskGroup
   - `AppEditorView.swift`: App configuration editor
   - **Tabs/**: Tab-specific views like `ObserversTabView.swift`
   - **Tools/**: Utility views (presence, disk usage, peers, permissions)
@@ -100,6 +103,9 @@ Located in the `SwiftUI/` directory:
   - Query editor and results viewers
   - App and subscription cards/lists
   - Pagination controls and secure input fields
+  - `ConnectedPeersView.swift`: Extracted sync status view showing connected peers (used in Peers List tab)
+  - `PresenceViewerTab.swift`: Wrapper for DittoPresenceViewer with connection handling
+  - `TransportConfigView.swift`: Placeholder for future transport configuration settings
 
 ## Configuration Requirements
 Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
@@ -119,6 +125,122 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 - Disk usage monitoring
 - Import/export functionality
 - Permissions health checking
+- Font Debug window for visualizing all Font Awesome icons (Help menu → Font Debug or ⌘⇧D)
+
+## Font Awesome Icons
+
+### Icon System
+The app uses Font Awesome 7 Pro for all icons instead of SF Symbols for better cross-platform consistency and design flexibility.
+
+**Key Files:**
+- `Utilities/FontAwesome.swift` - Icon alias enums and helper functions
+- `Utilities/FontAwesomeIcons.swift` - Auto-generated enum with 4,245 icons
+- `Views/Tools/FontDebugWindow.swift` - Debug window showing all icons in use
+- `generate_icons.swift` - Script to regenerate icons from font files
+
+**Icon Categories:**
+- **PlatformIcon**: OS icons (Linux, macOS, Android, iOS, Windows)
+- **ConnectivityIcon**: Network/transport icons (WiFi, Bluetooth, Ethernet, etc.)
+- **SystemIcon**: System UI icons (Link, Info, Clock, Gear, Question, SDK)
+- **NavigationIcon**: Navigation controls (Chevrons, Play, Refresh, Sync)
+- **ActionIcon**: User actions (Plus, Download, Copy, Close)
+- **DataIcon**: Data display (Code, Table, Database, Layers)
+- **StatusIcon**: Status indicators (Check, Info, Warning, Question)
+- **UIIcon**: Interface elements (Star, Eye, Clock, Nodes)
+
+### Adding New Icons
+
+**CRITICAL: When adding a new icon to any category, you MUST update the Font Debug Window.**
+
+1. **Add icon to FontAwesome.swift:**
+   ```swift
+   enum NavigationIcon {
+       static let newIcon: FAIcon = .icon_f123  // fa-icon-name
+   }
+   ```
+
+2. **Update FontDebugWindow.swift** in the `allIcons` computed property:
+   ```swift
+   // Navigation Icons section
+   icons.append(contentsOf: [
+       // ... existing icons ...
+       IconDebugInfo(icon: NavigationIcon.newIcon, aliasName: "NavigationIcon.newIcon",
+                    category: "Navigation Icons", unicode: "f123",
+                    fontFamily: "FontAwesome7Pro-Solid"),
+   ])
+   ```
+
+3. **Use the icon in views:**
+   ```swift
+   FontAwesomeText(icon: NavigationIcon.newIcon, size: 14)
+   ```
+
+**Finding Unicode Values:**
+- Use Font Book.app to inspect font glyphs
+- Check Font Awesome website (fontawesome.com)
+- Search FontAwesomeIcons.swift for icon codes
+- Unicode format in Swift: `\u{XXXX}` (e.g., `\u{f2f1}`)
+
+**Font Families:**
+- `FontAwesome7Pro-Solid` (900 weight) - Most icons (3,725 icons)
+- `FontAwesome7Pro-Regular` (400 weight) - Lighter variant of Solid icons
+- `FontAwesome7Pro-Light` (300 weight) - Light weight for subtle UI elements
+- `FontAwesome7Pro-Thin` (100 weight) - Thinnest weight for large icons or minimal designs
+- `FontAwesome7Brands-Regular` - Brand/platform icons (526 icons)
+
+### Font Weights
+
+The app supports multiple font weights for the same icon unicode value using the `WeightedFAIcon` system.
+
+**When to Use Different Weights:**
+- **Solid (900)**: Default weight for most icons, provides best visibility at small sizes
+- **Regular (400)**: Lighter appearance, better for large icons (64pt+) or when visual weight needs to be reduced
+- **Light (300)**: Very subtle appearance, ideal for toolbar icons and non-primary actions
+- **Thin (100)**: Extremely light weight, best for very large icons (80pt+) or minimalist designs
+
+**Creating Weighted Icons:**
+```swift
+// In icon alias enums
+enum DataIcon {
+    static let database: FAIcon = .icon_f1c0                      // Solid (default)
+    static let databaseRegular: WeightedFAIcon = WeightedFAIcon(.icon_f1c0, weight: .regular)
+}
+
+enum NavigationIcon {
+    static let sync: FAIcon = .icon_f2f1                          // Solid (default)
+    static let syncLight: WeightedFAIcon = WeightedFAIcon(.icon_f2f1, weight: .light)
+}
+```
+
+**Usage Examples:**
+```swift
+// Solid database icon (default) for small size
+FontAwesomeText(icon: DataIcon.database, size: 14)
+
+// Regular database icon for large size (less visual weight)
+FontAwesomeText(icon: DataIcon.databaseRegular, size: 64)
+
+// Light sync icon for toolbar (subtle appearance)
+FontAwesomeText(icon: NavigationIcon.syncLight, size: 20)
+```
+
+**Current Weighted Variants:**
+- `DataIcon.databaseRegular` - Database icon in Regular (400) weight
+- `DataIcon.databaseThin` - Database icon in Thin (100) weight (used for main screen)
+- `NavigationIcon.syncLight` - Sync/rotate icon in Light (300) weight
+- `ActionIcon.circleXmarkLight` - Close icon in Light (300) weight
+
+### Font Debug Window
+Access via **Help → Font Debug** or **⌘⇧D**
+
+Features:
+- Visual display of all 47+ icons currently in use (including weighted variants)
+- Search by alias name or unicode value
+- Category filtering (8 categories)
+- Copy icon alias names to clipboard
+- Shows: icon rendering, alias name, unicode value, font family, font weight
+
+**Purpose:** Quick reference for developers and visual verification that all icons render correctly. The weight column shows which font weight each icon uses (Solid 900, Regular 400, Light 300, or Brands).
 
 ## Testing
 

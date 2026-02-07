@@ -31,12 +31,10 @@ struct QueryEditorView: View {
                     }
                 } label: {
                     if (isLoading) {
-                        Image(systemName: "play.fill")
-                            .foregroundColor(.gray)
+                        FontAwesomeText(icon: NavigationIcon.play, size: 14, color: .gray)
                             .accessibilityLabel("Execute Query")
                     } else {
-                        Image(systemName: "play.fill")
-                            .foregroundColor(.green)
+                        FontAwesomeText(icon: NavigationIcon.play, size: 14, color: .green)
                             .accessibilityLabel("Execute Query")
 
                     }

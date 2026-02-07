@@ -58,9 +58,7 @@ struct ResultTableViewer: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "tablecells")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
+            FontAwesomeText(icon: DataIcon.table, size: 48, color: .secondary)
             Text("No Results")
                 .font(.headline)
             Text("Execute a query to see results in table format")

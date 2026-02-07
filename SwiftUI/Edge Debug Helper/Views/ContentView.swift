@@ -66,7 +66,7 @@ struct ContentView: View {
                                         DittoAppConfig.new()
                                     )
                                 } label: {
-                                    Image(systemName: "plus")
+                                    FontAwesomeText(icon: ActionIcon.plus, size: 14)
                                 }
                             }
                         #else
@@ -76,7 +76,7 @@ struct ContentView: View {
                                         DittoAppConfig.new()
                                     )
                                 } label: {
-                                    Image(systemName: "plus")
+                                    FontAwesomeText(icon: ActionIcon.plus, size: 14)
                                 }
                             }
                         #endif

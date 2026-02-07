@@ -53,9 +53,7 @@ struct ConnectionStatusBar: View {
 
             // Right: Total connections count
             HStack(spacing: 6) {
-                Image(systemName: "link")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                FontAwesomeText(icon: SystemIcon.link, size: 10, color: .secondary)
 
                 Text("\(connections.totalConnections)")
                     .font(.system(size: 11, design: .monospaced))

@@ -14,11 +14,8 @@ struct DatabaseCard: View {
         HStack(alignment: .top, spacing: 32) {
             // Left VStack: Icon and Name
             VStack(spacing: 12) {
-                Image(systemName: "app.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .foregroundColor(.accentColor)
+                FontAwesomeText(icon: DataIcon.databaseThin, size: 56, color: .accentColor)
+                    .frame(width: 56, height: 56)
                 Text(dittoApp.name)
                     .font(.title3)
                     .multilineTextAlignment(.center)

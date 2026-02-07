@@ -108,9 +108,7 @@ struct ImportDataView: View {
                     
                     if useInitialInsert {
                         HStack(spacing: 4) {
-                            Image(systemName: "info.circle")
-                                .font(.caption)
-                                .foregroundColor(.blue)
+                            FontAwesomeText(icon: StatusIcon.circleInfo, size: 12, color: .blue)
                             Text("Initial insert is designed for loading data for the first time and has special optimizations.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -176,9 +174,7 @@ struct ImportDataView: View {
                     } else if let error = importError {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.red)
-                                    .font(.system(size: 14))
+                                FontAwesomeText(icon: StatusIcon.triangleExclamation, size: 14, color: .red)
                                 Text("Error")
                                     .font(.caption)
                                     .fontWeight(.semibold)
@@ -189,8 +185,7 @@ struct ImportDataView: View {
                                     NSPasteboard.general.setString(error, forType: .string)
                                 }) {
                                     HStack(spacing: 4) {
-                                        Image(systemName: "doc.on.doc")
-                                            .font(.system(size: 12))
+                                        FontAwesomeText(icon: ActionIcon.copy, size: 12)
                                         Text("Copy")
                                             .font(.caption2)
                                     }
@@ -223,9 +218,7 @@ struct ImportDataView: View {
                         )
                     } else if importSuccess {
                         HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.system(size: 14))
+                            FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
                             Text(successMessage)
                                 .font(.caption)
                                 .foregroundColor(.green)

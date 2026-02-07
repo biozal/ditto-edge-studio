@@ -29,7 +29,7 @@ struct PaginationControls: View {
             Button(action: {
                 onPageChange(currentPage - 1)
             }) {
-                Image(systemName: "chevron.left")
+                FontAwesomeText(icon: NavigationIcon.chevronLeft, size: 12)
             }
             .disabled(currentPage <= 1)
 
@@ -40,7 +40,7 @@ struct PaginationControls: View {
             Button(action: {
                 onPageChange(currentPage + 1)
             }) {
-                Image(systemName: "chevron.right")
+                FontAwesomeText(icon: NavigationIcon.chevronRight, size: 12)
             }
             .disabled(currentPage >= pageCount)
             Spacer()

@@ -8,6 +8,7 @@ struct MainStudioView: View {
     @State private var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
+    @State private var selectedSyncTab = 0  // Persists tab selection
 
 
 
@@ -43,9 +44,8 @@ struct MainStudioView: View {
                         Button {
                             viewModel.selectedMenuItem = item
                         } label: {
-                            Image(systemName: item.icon)
-                                .font(.system(size: 13))  // Much smaller to match Xcode
-                                .foregroundColor(viewModel.selectedMenuItem == item ? .primary : .secondary)
+                            FontAwesomeText(icon: item.icon, size: 13,
+                                color: viewModel.selectedMenuItem == item ? .primary : .secondary)
                                 .frame(width: 28, height: 28)  // Smaller frame matching Xcode
                                 .background(
                                     Circle()  // Circular highlight like Xcode
@@ -112,8 +112,7 @@ struct MainStudioView: View {
                             }
                         }
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.title2)
+                        FontAwesomeText(icon: ActionIcon.circlePlus, size: 20)
                             .padding(4)
                     }
                     Spacer()
@@ -150,7 +149,7 @@ struct MainStudioView: View {
             case "Ditto Tools":
                 dittoToolsDetailView()
             default:
-                syncDetailView()
+                syncTabsDetailView()
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
@@ -226,8 +225,8 @@ struct MainStudioView: View {
                     }
                 }
             } label: {
-                Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
-                    .foregroundColor(viewModel.isSyncEnabled ? .green : .red)
+                FontAwesomeText(icon: NavigationIcon.syncLight, size: 20,
+                    color: viewModel.isSyncEnabled ? .green : .red)
             }
             .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
         }
@@ -241,8 +240,7 @@ struct MainStudioView: View {
                     isMainStudioViewPresented = false
                 }
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
+                FontAwesomeText(icon: ActionIcon.circleXmarkLight, size: 20, color: .red)
             }
             .help("Close App")
         }
@@ -310,8 +308,7 @@ extension MainStudioView {
                         .scaleEffect(0.7)
                         .frame(width: 16, height: 16)
                 } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14))
+                    FontAwesomeText(icon: NavigationIcon.refresh, size: 14)
                 }
             }
             .buttonStyle(.plain)
@@ -696,7 +693,46 @@ extension MainStudioView {
 //MARK: Detail Views
 extension MainStudioView {
 
-    func syncDetailView() -> some View {
+    func syncTabsDetailView() -> some View {
+        return VStack(spacing: 0) {
+            // Tab selector (segmented picker with icons)
+            Picker("", selection: $selectedSyncTab) {
+                Text("Peers List")
+                .tag(0)
+
+                Text("Presence Viewer")
+                .tag(1)
+
+                Text("Settings")
+                .tag(2)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+
+            // Tab content
+            Group {
+                switch selectedSyncTab {
+                case 0:
+                    ConnectedPeersView(viewModel: viewModel)
+                case 1:
+                    PresenceViewerTab()
+                        .padding(.bottom, 28)  // Add padding for status bar
+                case 2:
+                    TransportConfigView()
+                default:
+                    ConnectedPeersView(viewModel: viewModel)
+                }
+            }
+        }
+        // Note: Toolbar buttons are already added at NavigationSplitView level (line 198)
+        // on macOS, so no need to add them here
+    }
+
+    // MARK: - Legacy Connected Peers View (extracted to ConnectedPeersView component)
+    // This function is kept for reference but no longer used
+    private func legacySyncDetailView() -> some View {
         return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
             // Header with last update time
             HStack {
@@ -954,9 +990,7 @@ extension MainStudioView {
 
     private func connectionBadge(for connection: ConnectionInfo, currentPeerId: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: connection.type.iconName)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            FontAwesomeText(icon: connection.type.icon, size: 12, color: .secondary)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.type.displayName)
@@ -1251,17 +1285,17 @@ extension MainStudioView {
             let subscriptionItem = MenuItem(
                 id: 1,
                 name: "Subscriptions",
-                icon: "arrow.trianglehead.2.clockwise"
+                icon: NavigationIcon.sync
             )
 
             self.selectedMenuItem = subscriptionItem
             self.mainMenuItems = [
                 subscriptionItem,
-                MenuItem(id: 2, name: "Collections", icon: "square.stack.fill"),
-                MenuItem(id: 3, name: "History", icon: "clock"),
-                MenuItem(id: 4, name: "Favorites", icon: "star"),
-                MenuItem(id: 5, name: "Observer", icon: "eye"),
-                MenuItem(id: 6, name: "Ditto Tools", icon: "gearshape"),
+                MenuItem(id: 2, name: "Collections", icon: DataIcon.layerGroup),
+                MenuItem(id: 3, name: "History", icon: UIIcon.clock),
+                MenuItem(id: 4, name: "Favorites", icon: UIIcon.star),
+                MenuItem(id: 5, name: "Observer", icon: UIIcon.eye),
+                MenuItem(id: 6, name: "Ditto Tools", icon: SystemIcon.gear),
             ]
 
             //query section
@@ -1738,6 +1772,6 @@ enum ActionSheetMode: String {
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
-    var icon: String
+    var icon: FAIcon
 }
 

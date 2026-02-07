@@ -10,8 +10,7 @@ struct LocalPeerInfoCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with icon and title
             HStack {
-                Image(systemName: "app.connected.to.app.below.fill")
-                    .foregroundColor(.blue)
+                FontAwesomeText(icon: UIIcon.circleNodes, size: 16, color: .blue)
                 Text("Local Peer")
                     .font(.headline)
                     .bold()

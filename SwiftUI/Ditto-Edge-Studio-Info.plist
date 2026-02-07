@@ -22,6 +22,9 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>Font Awesome 7 Pro-Solid-900.otf</string>
+		<string>Font Awesome 7 Pro-Regular-400.otf</string>
+		<string>Font Awesome 7 Pro-Light-300.otf</string>
+		<string>Font Awesome 7 Pro-Thin-100.otf</string>
 		<string>Font Awesome 7 Brands-Regular-400.otf</string>
 	</array>
 </dict>
