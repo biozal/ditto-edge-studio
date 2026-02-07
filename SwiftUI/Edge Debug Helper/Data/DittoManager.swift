@@ -201,10 +201,15 @@ actor DittoManager {
             }
             
             ditto.updateTransportConfig(block: { config in
-                config.connect.webSocketURLs.insert(
-                    appConfig.websocketUrl
-                )
-                config.enableAllPeerToPeer()
+                // Configure peer-to-peer transports from saved settings
+                config.peerToPeer.bluetoothLE.isEnabled = appConfig.isBluetoothLeEnabled
+                config.peerToPeer.lan.isEnabled = appConfig.isLanEnabled
+                config.peerToPeer.awdl.isEnabled = appConfig.isAwdlEnabled
+
+                // Configure cloud sync from saved settings
+                if appConfig.isCloudSyncEnabled && !appConfig.websocketUrl.isEmpty {
+                    config.connect.webSocketURLs.insert(appConfig.websocketUrl)
+                }
             })
             
             try ditto.disableSyncWithV3()
@@ -302,6 +307,57 @@ actor DittoManager {
                 enableDittoCloudSync: false,
                 customAuthURL: URL(string: appConfig.authUrl)
             )
+        }
+    }
+}
+
+// MARK: - Transport Configuration
+extension DittoManager {
+    /// Applies transport configuration to the currently selected Ditto app
+    ///
+    /// IMPORTANT: This function does NOT stop/start sync or manage observers.
+    /// Callers are responsible for:
+    /// 1. Stopping sync via selectedAppStopSync()
+    /// 2. Calling this function to apply config
+    /// 3. Starting sync via selectedAppStartSync()
+    /// 4. Managing observer lifecycle (stop/restart)
+    ///
+    /// - Parameters:
+    ///   - isBluetoothLeEnabled: Enable/disable Bluetooth LE transport
+    ///   - isLanEnabled: Enable/disable LAN transport
+    ///   - isAwdlEnabled: Enable/disable AWDL transport
+    ///   - isCloudSyncEnabled: Enable/disable Cloud Sync via WebSocket
+    ///
+    /// - Throws: AppError if no app is selected
+    func applyTransportConfig(
+        isBluetoothLeEnabled: Bool,
+        isLanEnabled: Bool,
+        isAwdlEnabled: Bool,
+        isCloudSyncEnabled: Bool
+    ) async throws {
+        guard let ditto = dittoSelectedApp else {
+            throw AppError.error(message: "No Ditto app is currently selected")
+        }
+
+        guard let appConfig = dittoSelectedAppConfig else {
+            throw AppError.error(message: "No app configuration available")
+        }
+
+        // Apply transport configuration changes
+        ditto.updateTransportConfig { config in
+            // Configure peer-to-peer transports
+            config.peerToPeer.bluetoothLE.isEnabled = isBluetoothLeEnabled
+            config.peerToPeer.lan.isEnabled = isLanEnabled
+            config.peerToPeer.awdl.isEnabled = isAwdlEnabled
+
+            // Configure cloud sync via WebSocket
+            if isCloudSyncEnabled {
+                if !config.connect.webSocketURLs.contains(appConfig.websocketUrl) {
+                    config.connect.webSocketURLs.insert(appConfig.websocketUrl)
+                }
+            } else {
+                config.connect.webSocketURLs.remove(appConfig.websocketUrl)
+            }
         }
     }
 }

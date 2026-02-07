@@ -1,0 +1,10 @@
+Steps to reproduct crash:
+
+1. Launch app
+2. Select first item in the list of ditto apps listed
+3. Let MainStudioView appear
+4. Resize the Sidebar
+5. Open Inspector bar
+6. Resize Sidebar
+7. Click on Sidebar navigation to nativage to a different detail view.
+8. The app crashes.

@@ -42,6 +42,10 @@ actor DatabaseRepository {
                     "mode": appConfig.mode.rawValue,
                     "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                     "secretKey": appConfig.secretKey,
+                    "isBluetoothLeEnabled": appConfig.isBluetoothLeEnabled,
+                    "isLanEnabled": appConfig.isLanEnabled,
+                    "isAwdlEnabled": appConfig.isAwdlEnabled,
+                    "isCloudSyncEnabled": appConfig.isCloudSyncEnabled,
                 ]
             ]
             try await ditto.store.execute(
@@ -164,7 +168,7 @@ actor DatabaseRepository {
         
         do {
             let query =
-            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, secretKey = :secretKey WHERE _id = :_id"
+            "UPDATE dittoappconfigs SET name = :name, appId = :appId, authToken = :authToken, authUrl = :authUrl, websocketUrl = :websocketUrl, httpApiUrl = :httpApiUrl, httpApiKey = :httpApiKey, mode = :mode, allowUntrustedCerts = :allowUntrustedCerts, secretKey = :secretKey, isBluetoothLeEnabled = :isBluetoothLeEnabled, isLanEnabled = :isLanEnabled, isAwdlEnabled = :isAwdlEnabled, isCloudSyncEnabled = :isCloudSyncEnabled WHERE _id = :_id"
             let arguments: [String: Any] = [
                 "_id": appConfig._id,
                 "name": appConfig.name,
@@ -177,6 +181,10 @@ actor DatabaseRepository {
                 "mode": appConfig.mode.rawValue,
                 "allowUntrustedCerts": appConfig.allowUntrustedCerts,
                 "secretKey": appConfig.secretKey,
+                "isBluetoothLeEnabled": appConfig.isBluetoothLeEnabled,
+                "isLanEnabled": appConfig.isLanEnabled,
+                "isAwdlEnabled": appConfig.isAwdlEnabled,
+                "isCloudSyncEnabled": appConfig.isCloudSyncEnabled,
             ]
             try await ditto.store.execute(
                 query: query,

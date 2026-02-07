@@ -14,6 +14,12 @@ class DittoAppConfig: Decodable {
     var allowUntrustedCerts: Bool
     var secretKey: String
 
+    // Transport Configuration
+    var isBluetoothLeEnabled: Bool
+    var isLanEnabled: Bool
+    var isAwdlEnabled: Bool
+    var isCloudSyncEnabled: Bool
+
     init(
         _ _id: String,
         name: String,
@@ -25,7 +31,11 @@ class DittoAppConfig: Decodable {
         httpApiKey: String,
         mode: AuthMode = .onlinePlayground,
         allowUntrustedCerts: Bool = false,
-        secretKey: String = ""
+        secretKey: String = "",
+        isBluetoothLeEnabled: Bool = true,
+        isLanEnabled: Bool = true,
+        isAwdlEnabled: Bool = true,
+        isCloudSyncEnabled: Bool = true
     ) {
 
         self._id = _id
@@ -39,6 +49,10 @@ class DittoAppConfig: Decodable {
         self.mode = mode
         self.allowUntrustedCerts = allowUntrustedCerts
         self.secretKey = secretKey
+        self.isBluetoothLeEnabled = isBluetoothLeEnabled
+        self.isLanEnabled = isLanEnabled
+        self.isAwdlEnabled = isAwdlEnabled
+        self.isCloudSyncEnabled = isCloudSyncEnabled
     }
     enum CodingKeys: String, CodingKey {
         case _id
@@ -52,6 +66,10 @@ class DittoAppConfig: Decodable {
         case mode
         case allowUntrustedCerts
         case secretKey
+        case isBluetoothLeEnabled
+        case isLanEnabled
+        case isAwdlEnabled
+        case isCloudSyncEnabled
     }
 
     required init(from decoder: Decoder) throws {
@@ -67,6 +85,12 @@ class DittoAppConfig: Decodable {
         mode = try container.decode(AuthMode.self, forKey: .mode)
         allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
         secretKey = try container.decodeIfPresent(String.self, forKey: .secretKey) ?? ""
+
+        // Transport settings with backward compatibility (default to true if missing)
+        isBluetoothLeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isBluetoothLeEnabled) ?? true
+        isLanEnabled = try container.decodeIfPresent(Bool.self, forKey: .isLanEnabled) ?? true
+        isAwdlEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAwdlEnabled) ?? true
+        isCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCloudSyncEnabled) ?? true
     }
 }
 
@@ -83,7 +107,11 @@ extension DittoAppConfig {
             httpApiKey: "",
             mode: .onlinePlayground,
             allowUntrustedCerts: false,
-            secretKey: ""
+            secretKey: "",
+            isBluetoothLeEnabled: true,
+            isLanEnabled: true,
+            isAwdlEnabled: true,
+            isCloudSyncEnabled: true
         )
     }
 }

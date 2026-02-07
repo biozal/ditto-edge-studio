@@ -61,6 +61,7 @@
 			membershipExceptions = (
 				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
+				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,
 				QueryResultsViewTests.swift,
 				ResultJsonViewerRegressionTests.swift,
@@ -74,6 +75,7 @@
 			membershipExceptions = (
 				AppConfigTests.swift,
 				Ditto_Edge_StudioTests.swift,
+				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,
 				QueryResultsViewTests.swift,
 				ResultJsonViewerRegressionTests.swift,
@@ -87,6 +89,7 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
+				IconSegmentedControlUITests.swift,
 			);
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
 		};
@@ -95,6 +98,7 @@
 			membershipExceptions = (
 				Ditto_Edge_StudioUITests.swift,
 				Ditto_Edge_StudioUITestsLaunchTests.swift,
+				IconSegmentedControlUITests.swift,
 			);
 			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
 		};
@@ -692,7 +696,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
@@ -715,7 +719,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
