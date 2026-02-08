@@ -3,6 +3,7 @@ SwiftUI/build
 SwiftUI/Ditto Edge Studio.xcodeproj/project.xcworkspace/xcuserdata
 .DS_Store
 SwiftUI/Ditto Edge Studio/dittoConfig.plist
+SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 SwiftUI/scripts/*.dmg
 SwiftUI/scripts/*.dmg.zip
 rust/.idea

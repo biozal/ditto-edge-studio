@@ -59,11 +59,21 @@ actor DittoManager {
                 self.appState =  appState
 
                 // Create directory for local database
+                // Use separate directory for UI tests to avoid contaminating production data
+                let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
+                let directoryName = isUITesting ? "ditto_appconfig_test" : "ditto_appconfig"
+                
                 let localDirectoryPath = FileManager.default.urls(
                     for: .applicationSupportDirectory,
                     in: .userDomainMask
                 )[0]
-                .appendingPathComponent("ditto_appconfig")
+                .appendingPathComponent(directoryName)
+                
+                // If in test mode, clean up any previous test data
+                if isUITesting && FileManager.default.fileExists(atPath: localDirectoryPath.path) {
+                    try? FileManager.default.removeItem(at: localDirectoryPath)
+                    print("🧪 Cleaned up previous test database directory")
+                }
 
                 // Ensure directory exists
                 if !FileManager.default.fileExists(

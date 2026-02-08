@@ -12,7 +12,6 @@ struct MainStudioView: View {
 
     // Inspector state
     @State private var showInspector = false
-    @State private var selectedInspectorTab: InspectorTab = .history
 
     // Column visibility control - keeps sidebar always visible
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -39,69 +38,29 @@ struct MainStudioView: View {
         self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
-    // MARK: - Inspector Tab Enum
 
-    enum InspectorTab: String, CaseIterable, Identifiable {
-        case history = "History"
-        case favorites = "Favorites"
-
-        var id: String { rawValue }
-        var title: String { rawValue }
-
-        var systemIcon: String {  // SF Symbol name
-            switch self {
-            case .history: return "clock"
-            case .favorites: return "bookmark"
-            }
-        }
-    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(alignment: .leading) {
-                HStack(spacing: 0) {
-                    ForEach(Array(viewModel.mainMenuItems.enumerated()), id: \.element.id) { index, item in
-                        if index > 0 {
-                            Spacer()  // Distribute spacing between icons like Xcode
-                        }
-
-                        Button {
-                            viewModel.selectedMenuItem = item
-                        } label: {
-                            FontAwesomeText(icon: item.icon, size: 13,
-                                color: viewModel.selectedMenuItem == item ? .primary : .secondary)
-                                .frame(width: 28, height: 28)  // Smaller frame matching Xcode
-                                .background(
-                                    Circle()  // Circular highlight like Xcode
-                                        .fill(viewModel.selectedMenuItem == item ? Color.secondary.opacity(0.15) : Color.clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help(item.name)
-
-                        // Add divider after each icon except the last
-                        // Hide divider if current or next icon is selected (Xcode behavior)
-                        if index < viewModel.mainMenuItems.count - 1 {
-                            let nextItem = viewModel.mainMenuItems[index + 1]
-                            let shouldHideDivider = viewModel.selectedMenuItem == item || viewModel.selectedMenuItem == nextItem
-
-                            Divider()
-                                .frame(height: 20)
-                                .padding(.horizontal, 4)
-                                .opacity(shouldHideDivider ? 0 : 1)
-                        }
+                Picker("", selection: $viewModel.selectedSidebarMenuItem) {
+                    ForEach(viewModel.sidebarMenuItems) { item in
+                        item.image
+                            .tag(item)
                     }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(height: 28)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .padding(.horizontal, 8)  // Small padding on both sides
                 .liquidGlassToolbar()
-                switch viewModel.selectedMenuItem.name {
+                .accessibilityIdentifier("NavigationSegmentedPicker")
+                switch viewModel.selectedSidebarMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
                 case "Observer":
                     observeSidebarView()
-                case "Ditto Tools":
-                    dittoToolsSidebarView()
                 default:
                     subscriptionSidebarView()
                 }
@@ -124,7 +83,7 @@ struct MainStudioView: View {
                         }
 
                         // Only show Import from Server when HTTP API is configured
-                        if viewModel.selectedMenuItem.name == "Subscriptions" &&
+                        if viewModel.selectedSidebarMenuItem.name == "Subscriptions" &&
                            !viewModel.selectedApp.httpApiUrl.isEmpty &&
                            !viewModel.selectedApp.httpApiKey.isEmpty {
                             Button("Import from Server", systemImage: "arrow.down.circle") {
@@ -136,7 +95,7 @@ struct MainStudioView: View {
                             .padding(4)
                     }
                     Spacer()
-                    if viewModel.selectedMenuItem.name == "Collections" {
+                    if viewModel.selectedSidebarMenuItem.name == "Collections" {
                         Button("Import") {
                             showingImportView = true
                         }
@@ -152,13 +111,11 @@ struct MainStudioView: View {
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
 
         } detail: {
-            switch viewModel.selectedMenuItem.name {
+            switch viewModel.selectedSidebarMenuItem.name {
             case "Collections":
                 queryDetailView()
             case "Observer":
                 observeDetailView()
-            case "Ditto Tools":
-                dittoToolsDetailView()
             default:
                 syncTabsDetailView()
             }
@@ -288,10 +245,10 @@ struct MainStudioView: View {
         columnVisibility = .all
 
         // Only Collections view has the QueryEditor now (History/Favorites are in inspector)
-        if viewModel.selectedMenuItem.name != "Collections" {
+        if viewModel.selectedSidebarMenuItem.name != "Collections" {
             // Switch to Collections to show the QueryEditor
-            if let collectionsItem = viewModel.mainMenuItems.first(where: { $0.name == "Collections" }) {
-                viewModel.selectedMenuItem = collectionsItem
+            if let collectionsItem = viewModel.sidebarMenuItems.first(where: { $0.name == "Collections" }) {
+                viewModel.selectedSidebarMenuItem = collectionsItem
             }
         }
 
@@ -686,20 +643,6 @@ extension MainStudioView {
                         #endif
                     Divider()
                 }
-            }
-            Spacer()
-        }
-    }
-
-    func dittoToolsSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Ditto Tools")
-            List(viewModel.dittoToolsFeatures, id: \.self) { tool in
-                Text(tool)
-                    .onTapGesture {
-                        viewModel.selectedDataTool = tool
-                    }
-                Divider()
             }
             Spacer()
         }
@@ -1167,20 +1110,141 @@ extension MainStudioView {
             }
         #endif
     }
+}
 
-    func dittoToolsDetailView() -> some View {
-        return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
-            .padding(.bottom, 28)  // Add padding for status bar height
-            #if os(iOS)
-                .toolbar {
-                    appNameToolbarLabel()
-                    syncToolbarButton()
-                    closeToolbarButton()
+//MARK: Inspector Views
+extension MainStudioView {
+
+    @ViewBuilder
+    private func inspectorView() -> some View {
+        VStack(spacing: 0) {
+            // Tab picker using standard SwiftUI segmented picker
+            Picker("", selection: $viewModel.selectedInspectorMenuItem) {
+                ForEach(viewModel.inspectorMenuItems) { item in
+                    item.image
+                        .tag(item)
                 }
-            #endif
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(height: 28)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .liquidGlassToolbar()
+            .accessibilityIdentifier("InspectorSegmentedPicker")
+
+            Divider()
+
+            // Inspector content
+            ScrollView {
+                switch viewModel.selectedInspectorMenuItem.name {
+                case "History":
+                    historyInspectorContent()
+                case "Favorites":
+                    favoritesInspectorContent()
+                default:
+                    historyInspectorContent()
+                }
+            }
+            .padding()
+        }
     }
 
+    @ViewBuilder
+    private func historyInspectorContent() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Query History")
+                .font(.headline)
+                .padding(.bottom, 4)
+
+            if viewModel.history.isEmpty {
+                ContentUnavailableView(
+                    "No History",
+                    systemImage: "clock",
+                    description: Text("No queries have been run yet.")
+                )
+            } else {
+                ForEach(viewModel.history) { query in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(query.query)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
+                    .onTapGesture {
+                        // KEY: Use helper method to auto-switch sidebar
+                        loadQueryFromInspector(query.query)
+                    }
+                    .contextMenu {
+                        Button("Delete") {
+                            Task {
+                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                            }
+                        }
+                        Button("Add to Favorites") {
+                            Task {
+                                try await FavoritesRepository.shared.saveFavorite(query)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func favoritesInspectorContent() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Favorite Queries")
+                .font(.headline)
+                .padding(.bottom, 4)
+
+            if viewModel.favorites.isEmpty {
+                ContentUnavailableView(
+                    "No Favorites",
+                    systemImage: "star",
+                    description: Text("No favorite queries saved yet.")
+                )
+            } else {
+                ForEach(viewModel.favorites) { query in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .top, spacing: 6) {
+                            FontAwesomeText(icon: UIIcon.star, size: 12)
+                                .foregroundColor(.yellow)
+                                .padding(.top, 2)  // Align with first line of text
+                            Text(query.query)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)  // Take full available width
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
+                    .onTapGesture {
+                        // KEY: Use helper method to auto-switch sidebar
+                        loadQueryFromInspector(query.query)
+                    }
+                    .contextMenu {
+                        Button("Remove from Favorites") {
+                            Task {
+                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
+
+
+
+
 
 //MARK: Observe functions
 extension MainStudioView {
@@ -1321,9 +1385,6 @@ extension MainStudioView {
         var isRefreshingCollections = false
 
         var eventMode = "items"
-        let dittoToolsFeatures = [
-            "Presence Viewer", "Peers List", "Permissions Health", "Disk Usage",
-        ]
         var subscriptions: [DittoSubscription] = []
         var history: [DittoQueryHistory] = []
         var favorites: [DittoQueryHistory] = []
@@ -1340,24 +1401,27 @@ extension MainStudioView {
         //results view
         var jsonResults: [String]
 
-        //MainMenu Toolbar
-        var selectedMenuItem: MenuItem
-        var mainMenuItems: [MenuItem] = []
+        //Sidebar Toolbar
+        var selectedSidebarMenuItem: MenuItem
+        var sidebarMenuItems: [MenuItem] = []
+        
+        //Inspector Toolbar
+        var selectedInspectorMenuItem: MenuItem
+        var inspectorMenuItems: [MenuItem] = []
 
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
                 id: 1,
                 name: "Subscriptions",
-                icon: NavigationIcon.sync
+                systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"
             )
 
-            self.selectedMenuItem = subscriptionItem
-            self.mainMenuItems = [
+            self.selectedSidebarMenuItem = subscriptionItem
+            self.sidebarMenuItems = [
                 subscriptionItem,
-                MenuItem(id: 2, name: "Collections", icon: DataIcon.layerGroup),
-                MenuItem(id: 5, name: "Observer", icon: UIIcon.eye),
-                MenuItem(id: 6, name: "Ditto Tools", icon: SystemIcon.gear),
+                MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
+                MenuItem(id: 3, name: "Observer", systemIcon: "eye"),
             ]
 
             //query section
@@ -1374,6 +1438,14 @@ extension MainStudioView {
 
             //query results section
             self.jsonResults = []
+            
+            // Inspector toolbar (initialize after all non-optional properties)
+            let historyItem = MenuItem(id: 4, name: "History", systemIcon: "clock")
+            self.inspectorMenuItems = [
+                historyItem,
+                MenuItem(id: 5, name: "Favorites", systemIcon: "bookmark")
+            ]
+            self.selectedInspectorMenuItem = historyItem
 
             //default the tool to presence viewer
             selectedDataTool = "Presence Viewer"
@@ -1823,133 +1895,6 @@ extension MainStudioView {
     }
 }
 
-//MARK: Inspector Views
-extension MainStudioView {
-
-    @ViewBuilder
-    private func inspectorView() -> some View {
-        VStack(spacing: 0) {
-            // Tab picker using standard SwiftUI segmented picker
-            Picker("", selection: $selectedInspectorTab) {
-                ForEach(InspectorTab.allCases) { tab in
-                    Image(systemName: tab.systemIcon)
-                        .tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(height: 28)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .liquidGlassToolbar()
-
-            Divider()
-
-            // Inspector content
-            ScrollView {
-                switch selectedInspectorTab {
-                case .history:
-                    historyInspectorContent()
-                case .favorites:
-                    favoritesInspectorContent()
-                }
-            }
-            .padding()
-        }
-    }
-
-    @ViewBuilder
-    private func historyInspectorContent() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Query History")
-                .font(.headline)
-                .padding(.bottom, 4)
-
-            if viewModel.history.isEmpty {
-                ContentUnavailableView(
-                    "No History",
-                    systemImage: "clock",
-                    description: Text("No queries have been run yet.")
-                )
-            } else {
-                ForEach(viewModel.history) { query in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(query.query)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .font(.system(.body, design: .monospaced))
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-                    .onTapGesture {
-                        // KEY: Use helper method to auto-switch sidebar
-                        loadQueryFromInspector(query.query)
-                    }
-                    .contextMenu {
-                        Button("Delete") {
-                            Task {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
-                            }
-                        }
-                        Button("Add to Favorites") {
-                            Task {
-                                try await FavoritesRepository.shared.saveFavorite(query)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func favoritesInspectorContent() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Favorite Queries")
-                .font(.headline)
-                .padding(.bottom, 4)
-
-            if viewModel.favorites.isEmpty {
-                ContentUnavailableView(
-                    "No Favorites",
-                    systemImage: "star",
-                    description: Text("No favorite queries saved yet.")
-                )
-            } else {
-                ForEach(viewModel.favorites) { query in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .top, spacing: 6) {
-                            FontAwesomeText(icon: UIIcon.star, size: 12)
-                                .foregroundColor(.yellow)
-                                .padding(.top, 2)  // Align with first line of text
-                            Text(query.query)
-                                .lineLimit(3)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .font(.system(.body, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)  // Take full available width
-                        }
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-                    .onTapGesture {
-                        // KEY: Use helper method to auto-switch sidebar
-                        loadQueryFromInspector(query.query)
-                    }
-                    .contextMenu {
-                        Button("Remove from Favorites") {
-                            Task {
-                                try await FavoritesRepository.shared.deleteFavorite(query.id)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 //MARK: Helpers
 
 enum ActionSheetMode: String {
@@ -1961,6 +1906,13 @@ enum ActionSheetMode: String {
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
-    var icon: FAIcon
+    var systemIcon: String  // SF Symbol name (e.g., "clock", "bookmark")
+
+    // Computed property for rendering in pickers
+    @ViewBuilder
+    var image: some View {
+        Image(systemName: systemIcon)
+            .font(.system(size: 14))
+    }
 }
 

@@ -68,6 +68,7 @@ struct ContentView: View {
                                 } label: {
                                     FontAwesomeText(icon: ActionIcon.plus, size: 14)
                                 }
+                                .accessibilityIdentifier("AddDatabaseButton")
                             }
                         #else
                             ToolbarItem(placement: .automatic) {
@@ -78,6 +79,7 @@ struct ContentView: View {
                                 } label: {
                                     FontAwesomeText(icon: ActionIcon.plus, size: 14)
                                 }
+                                .accessibilityIdentifier("AddDatabaseButton")
                             }
                         #endif
                     }
