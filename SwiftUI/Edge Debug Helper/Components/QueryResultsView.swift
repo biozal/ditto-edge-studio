@@ -162,9 +162,9 @@ struct QueryResultsView: View {
                 defaultFilename: "query_results"
             ) { _ in }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)      // Reduced from 12pt to 8pt for more compact footer
         .padding(.horizontal, 20)
-        .padding(.bottom, 8)
+        .padding(.bottom, 4)        // Reduced from 8pt to 4pt for tighter spacing
         .liquidGlassToolbar()
     }
 

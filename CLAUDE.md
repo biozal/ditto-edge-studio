@@ -12,13 +12,128 @@ there is a screenshot named and then a filename always asssume it's in the scree
 
 ## Testing Requirements
 
-**CRITICAL RULE: All tests MUST be runnable in Xcode.**
+**CRITICAL RULE: All tests MUST be runnable in Xcode and MUST pass after any code changes.**
 
+### General Testing Rules
 - Tests must be properly configured to compile and run in the Xcode test target
 - Tests must NOT be moved to temporary directories or locations outside the project
 - If tests produce warnings about being in the wrong target, fix the Xcode project configuration (using `membershipExceptions` in project.pbxproj for File System Synchronized targets)
 - Tests that cannot be run in Xcode are not acceptable and the configuration must be fixed
-- Use Swift Testing framework (`import Testing`) for all new tests, not XCTest
+- Use Swift Testing framework (`import Testing`) for all new unit tests, not XCTest
+- Use XCTest for UI tests (XCUITest framework)
+
+### Running Tests After Changes
+
+**CRITICAL: Always run tests after making changes to validate the app still works.**
+
+```bash
+# Run all tests (unit + UI tests)
+cd SwiftUI
+./run_ui_tests.sh
+
+# Or run via Xcode
+# Product → Test (⌘U)
+
+# Or run via command line
+xcodebuild test -project "Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -destination "platform=macOS,arch=arm64"
+```
+
+### UI Tests
+
+Comprehensive UI tests validate:
+- App launches successfully
+- Database list screen displays correctly
+- App selection opens MainStudioView
+- All navigation menu items (Subscriptions, Collections, Observer, Ditto Tools) work
+- Each sidebar and detail view renders properly
+
+**Note:** Navigation tests will skip if no apps are configured (expected behavior).
+
+**Test Files:**
+- `Edge Debugg Helper UITests/Ditto_Edge_StudioUITests.swift` - Main UI test suite
+- `SwiftUI/run_ui_tests.sh` - Automated test runner script
+
+### Screenshot-Based Visual Validation
+
+**CRITICAL: For visual layout bugs, screenshots are REQUIRED for validation.**
+
+UI tests can capture screenshots using `XCUIApplication().screenshot()` to validate visual behavior that cannot be detected by compilation or element existence checks alone.
+
+**When to use screenshot validation:**
+- Layout issues (views not appearing, overlapping, or positioned incorrectly)
+- NavigationSplitView + Inspector layout conflicts
+- Split view sizing problems
+- Any bug that requires "seeing" the UI to validate
+
+**How to implement screenshot-based UI tests:**
+
+```swift
+import XCTest
+
+class VisualLayoutTests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
+    }
+
+    func testNavigationSplitViewInspectorLayout() {
+        // 1. Capture initial state
+        let screenshot1 = app.screenshot()
+        let attachment1 = XCTAttachment(screenshot: screenshot1)
+        attachment1.name = "01-initial-state"
+        attachment1.lifetime = .keepAlways
+        add(attachment1)
+
+        // 2. Navigate to Collections
+        app.buttons["Collections"].tap()
+        sleep(1) // Allow layout to settle
+
+        let screenshot2 = app.screenshot()
+        let attachment2 = XCTAttachment(screenshot: screenshot2)
+        attachment2.name = "02-collections-selected"
+        attachment2.lifetime = .keepAlways
+        add(attachment2)
+
+        // 3. Open inspector
+        app.buttons["Toggle Inspector"].tap()
+        sleep(1) // Allow layout to settle
+
+        let screenshot3 = app.screenshot()
+        let attachment3 = XCTAttachment(screenshot: screenshot3)
+        attachment3.name = "03-inspector-opened"
+        attachment3.lifetime = .keepAlways
+        add(attachment3)
+
+        // 4. Validate sidebar still visible (element check + visual screenshot)
+        XCTAssertTrue(app.buttons["Subscriptions"].exists, "Sidebar should remain visible")
+        XCTAssertTrue(app.buttons["Collections"].exists, "Sidebar should remain visible")
+        XCTAssertTrue(app.buttons["Observer"].exists, "Sidebar should remain visible")
+
+        // Screenshot serves as visual proof of layout correctness
+    }
+}
+```
+
+**Viewing screenshots:**
+- Screenshots are attached to test results in Xcode Test Navigator
+- Click on test result → View attachments
+- Screenshots saved with `.lifetime = .keepAlways` are always available
+- Use screenshots to debug visual issues that aren't caught by element assertions
+
+**Best practices:**
+- Always capture screenshots AFTER allowing layout to settle (`sleep(1)`)
+- Name screenshots descriptively (e.g., "03-inspector-opened-sidebar-visible")
+- Use `.lifetime = .keepAlways` for debugging, `.deleteOnSuccess` for CI
+- Combine element assertions with screenshots for complete validation
+- Create feedback loops: Test → Screenshot → Analyze → Fix → Test again
+
+**Reference:**
+- Apple Documentation: https://developer.apple.com/documentation/xcuiautomation/xcuiscreenshot
+- XCTAttachment: https://developer.apple.com/documentation/xctest/xctattachment
 
 ## Development Environment Setup
 

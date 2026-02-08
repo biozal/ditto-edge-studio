@@ -259,6 +259,120 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
         }
     }
 
+    // MARK: - Visual Layout Tests with Screenshots
+
+    /// **CRITICAL TEST**: Validates that Collections view + Inspector layout works correctly.
+    ///
+    /// This test addresses a specific bug where opening the inspector while viewing Collections
+    /// (which contains a VSplitView) causes the sidebar to disappear. Screenshots are captured
+    /// at each step to provide visual validation.
+    ///
+    /// **Bug Description:**
+    /// - User navigates to Collections view (contains VSplitView with query editor/results)
+    /// - User opens inspector
+    /// - **Expected:** Sidebar remains visible, 3-pane layout (Sidebar | Detail | Inspector)
+    /// - **Actual (bug):** Sidebar disappears, only showing Detail | Inspector
+    ///
+    /// **Root Cause:** Incorrect frame modifiers on VSplitView children causing constraint conflicts
+    @MainActor
+    func testCollectionsViewInspectorLayoutWithScreenshots() throws {
+        try ensureMainStudioViewIsOpen()
+
+        // STEP 1: Initial state - capture starting layout
+        let screenshot1 = app.screenshot()
+        let attachment1 = XCTAttachment(screenshot: screenshot1)
+        attachment1.name = "01-main-studio-initial"
+        attachment1.lifetime = .keepAlways
+        add(attachment1)
+
+        let navigationPicker = app.segmentedControls["NavigationSegmentedPicker"]
+        XCTAssertTrue(navigationPicker.exists, "Navigation picker should exist")
+
+        // STEP 2: Navigate to Collections view
+        let collectionsButton = navigationPicker.buttons.element(boundBy: 1)
+        collectionsButton.tap()
+        sleep(2) // Allow layout to settle
+
+        let screenshot2 = app.screenshot()
+        let attachment2 = XCTAttachment(screenshot: screenshot2)
+        attachment2.name = "02-collections-view-NO-inspector"
+        attachment2.lifetime = .keepAlways
+        add(attachment2)
+
+        // STEP 3: Open inspector - THIS IS THE CRITICAL STEP
+        let inspectorToggle = app.buttons["Toggle Inspector"]
+
+        if inspectorToggle.exists {
+            print("🔍 Opening inspector while Collections view is displayed...")
+            inspectorToggle.tap()
+            sleep(2) // Allow layout to settle
+
+            let screenshot3 = app.screenshot()
+            let attachment3 = XCTAttachment(screenshot: screenshot3)
+            attachment3.name = "03-CRITICAL-collections-WITH-inspector"
+            attachment3.lifetime = .keepAlways
+            add(attachment3)
+
+            // STEP 4: CRITICAL VALIDATION - Check if sidebar is still visible
+            // Try multiple ways to detect sidebar visibility
+            let sidebarButton1 = app.buttons["Subscriptions"]
+            let sidebarButton2 = app.staticTexts["Subscriptions"]
+            let sidebarButton3 = navigationPicker.buttons.element(boundBy: 0)
+
+            let sidebarVisible = sidebarButton1.exists || sidebarButton2.exists || sidebarButton3.exists
+
+            // Log the state for debugging
+            print("🔍 Sidebar visibility check:")
+            print("  - app.buttons['Subscriptions'].exists: \(sidebarButton1.exists)")
+            print("  - app.staticTexts['Subscriptions'].exists: \(sidebarButton2.exists)")
+            print("  - navigationPicker.buttons[0].exists: \(sidebarButton3.exists)")
+            print("  - Overall sidebar visible: \(sidebarVisible)")
+
+            if !sidebarVisible {
+                // Screenshot shows the bug!
+                print("❌ BUG DETECTED: Sidebar disappeared when inspector opened!")
+                print("📸 Check screenshot '03-CRITICAL-collections-WITH-inspector' to see the layout issue")
+                print("Expected: Sidebar (left) | Collections VSplitView (center) | Inspector (right)")
+                print("Actual: Sidebar MISSING - only showing Collections VSplitView | Inspector")
+            } else {
+                print("✅ SUCCESS: Sidebar remained visible when inspector opened")
+            }
+
+            XCTAssertTrue(
+                sidebarVisible,
+                """
+                CRITICAL BUG: Sidebar disappeared when inspector opened in Collections view!
+
+                Check screenshot '03-CRITICAL-collections-WITH-inspector' for visual evidence.
+
+                Expected layout: Sidebar (200-300px) | Collections Detail with VSplitView | Inspector (250-500px)
+                Actual layout: Sidebar HIDDEN | Collections Detail with VSplitView | Inspector
+
+                This indicates the NavigationSplitView + Inspector + VSplitView layout is broken.
+                Root cause: Incorrect frame modifiers on VSplitView children causing constraint conflicts.
+                """
+            )
+
+            // STEP 5: Close inspector and verify sidebar still visible
+            inspectorToggle.tap()
+            sleep(1)
+
+            let screenshot4 = app.screenshot()
+            let attachment4 = XCTAttachment(screenshot: screenshot4)
+            attachment4.name = "04-collections-inspector-CLOSED"
+            attachment4.lifetime = .keepAlways
+            add(attachment4)
+
+            let sidebarStillVisible = sidebarButton1.exists || sidebarButton2.exists || sidebarButton3.exists
+            XCTAssertTrue(
+                sidebarStillVisible,
+                "Sidebar should remain visible after closing inspector"
+            )
+        } else {
+            XCTFail("Inspector toggle button not found - check MainStudioView toolbar configuration")
+        }
+    }
+
     // MARK: - Helper Methods
 
     /// Ensures MainStudioView is open, either by verifying it's already open

@@ -29,9 +29,10 @@ PROJECT="Edge Debug Helper.xcodeproj"
 SCHEME="Edge Studio"
 DESTINATION="platform=macOS,arch=arm64"
 
-# Clean derived data for fresh build
-echo "🧹 Cleaning derived data..."
-rm -rf ~/Library/Developer/Xcode/DerivedData/*Edge*Debug*Helper*
+# Optional: Clean derived data for fresh build (commented out to avoid package resolution issues)
+# Uncomment if you need a truly clean build
+# echo "🧹 Cleaning derived data..."
+# rm -rf ~/Library/Developer/Xcode/DerivedData/*Edge*Debug*Helper*
 
 # Build the app
 echo ""

@@ -9,10 +9,13 @@ struct MainStudioView: View {
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
     @State private var selectedSyncTab = 0  // Persists tab selection
-    
+
     // Inspector state
     @State private var showInspector = false
     @State private var selectedInspectorTab: InspectorTab = .history
+
+    // Column visibility control - keeps sidebar always visible
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
 
 
@@ -35,17 +38,16 @@ struct MainStudioView: View {
         self._isMainStudioViewPresented = isMainStudioViewPresented
         self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
-    
+
     // MARK: - Inspector Tab Enum
-    
+
     enum InspectorTab: String, CaseIterable, Identifiable {
         case history = "History"
         case favorites = "Favorites"
-        // Future: transport, settings, etc.
-        
+
         var id: String { rawValue }
         var title: String { rawValue }
-        
+
         var systemIcon: String {  // SF Symbol name
             switch self {
             case .history: return "clock"
@@ -55,36 +57,53 @@ struct MainStudioView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(alignment: .leading) {
-                Picker("", selection: $viewModel.selectedMenuItem) {
-                    ForEach(viewModel.mainMenuItems) { item in
-                        Image(systemName: item.systemIcon)
-                            .tag(item)
-                            .accessibilityIdentifier("MenuItem_\(item.name)")
+                HStack(spacing: 0) {
+                    ForEach(Array(viewModel.mainMenuItems.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Spacer()  // Distribute spacing between icons like Xcode
+                        }
+
+                        Button {
+                            viewModel.selectedMenuItem = item
+                        } label: {
+                            FontAwesomeText(icon: item.icon, size: 13,
+                                color: viewModel.selectedMenuItem == item ? .primary : .secondary)
+                                .frame(width: 28, height: 28)  // Smaller frame matching Xcode
+                                .background(
+                                    Circle()  // Circular highlight like Xcode
+                                        .fill(viewModel.selectedMenuItem == item ? Color.secondary.opacity(0.15) : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(item.name)
+
+                        // Add divider after each icon except the last
+                        // Hide divider if current or next icon is selected (Xcode behavior)
+                        if index < viewModel.mainMenuItems.count - 1 {
+                            let nextItem = viewModel.mainMenuItems[index + 1]
+                            let shouldHideDivider = viewModel.selectedMenuItem == item || viewModel.selectedMenuItem == nextItem
+
+                            Divider()
+                                .frame(height: 20)
+                                .padding(.horizontal, 4)
+                                .opacity(shouldHideDivider ? 0 : 1)
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .frame(height: 28)
-                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
+                .padding(.horizontal, 8)  // Small padding on both sides
                 .liquidGlassToolbar()
-                .accessibilityIdentifier("NavigationSegmentedPicker")
                 switch viewModel.selectedMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
-                        .accessibilityIdentifier("CollectionsSidebar")
                 case "Observer":
                     observeSidebarView()
-                        .accessibilityIdentifier("ObserverSidebar")
                 case "Ditto Tools":
                     dittoToolsSidebarView()
-                        .accessibilityIdentifier("DittoToolsSidebar")
                 default:
                     subscriptionSidebarView()
-                        .accessibilityIdentifier("SubscriptionsSidebar")
                 }
                 Spacer()
 
@@ -130,32 +149,24 @@ struct MainStudioView: View {
             .padding(.trailing, 16)
             .padding(.top, 12)
             .padding(.bottom, 16)  // Add padding for status bar height
-            .frame(minWidth: 200, idealWidth: 250, maxWidth: 300)
-            .layoutPriority(1)  // Give sidebar priority in layout calculations
-            .navigationSplitViewColumnWidth(ideal: 250)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
 
         } detail: {
             switch viewModel.selectedMenuItem.name {
             case "Collections":
                 queryDetailView()
-                    .frame(minWidth: 400)
-                    .accessibilityIdentifier("CollectionsDetailView")
             case "Observer":
                 observeDetailView()
-                    .accessibilityIdentifier("ObserverDetailView")
             case "Ditto Tools":
                 dittoToolsDetailView()
-                    .accessibilityIdentifier("DittoToolsDetailView")
             default:
                 syncTabsDetailView()
-                    .accessibilityIdentifier("SubscriptionsDetailView")
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
         .inspector(isPresented: $showInspector) {
             inspectorView()
-                .frame(minWidth: 250, idealWidth: 350, maxWidth: 500)
-                .inspectorColumnWidth(ideal: 350)
+                .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
         }
         .sheet(
             isPresented: isSheetPresented
@@ -250,7 +261,7 @@ struct MainStudioView: View {
             .help("Close App")
         }
     }
-    
+
     func inspectorToggleButton() -> some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -267,24 +278,30 @@ struct MainStudioView: View {
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
     }
-    
+
     // MARK: - Inspector Helper Methods
-    
+
     /// Loads a query from the inspector and automatically switches to Collections view if needed
     /// to ensure the QueryEditor is visible.
     private func loadQueryFromInspector(_ query: String) {
-        // Check if current view supports QueryEditor
-        let queryEditorViews = ["Collections", "History", "Favorites"]
-        
-        if !queryEditorViews.contains(viewModel.selectedMenuItem.name) {
-            // Switch to Collections if current view doesn't have QueryEditor
+        // CRITICAL: Force sidebar to stay visible BEFORE any state changes
+        columnVisibility = .all
+
+        // Only Collections view has the QueryEditor now (History/Favorites are in inspector)
+        if viewModel.selectedMenuItem.name != "Collections" {
+            // Switch to Collections to show the QueryEditor
             if let collectionsItem = viewModel.mainMenuItems.first(where: { $0.name == "Collections" }) {
                 viewModel.selectedMenuItem = collectionsItem
             }
         }
-        
+
         // Load the query
         viewModel.selectedQuery = query
+
+        // Double-check sidebar stays visible after state changes
+        DispatchQueue.main.async { [self] in
+            self.columnVisibility = .all
+        }
     }
 
 }
@@ -918,7 +935,6 @@ extension MainStudioView {
                                 .textSelection(.enabled)
                                 .padding(.vertical, 4)
                         }
-                        .frame(maxHeight: 150)
                     } label: {
                         HStack {
                             FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .secondary)
@@ -1051,31 +1067,38 @@ extension MainStudioView {
     }
 
     func queryDetailView() -> some View {
-        return VStack(alignment: .leading) {
+        return VStack(alignment: .leading, spacing: 0) {
             #if os(macOS)
-                VSplitView {
-                    //top half
-                    QueryEditorView(
-                        queryText: $viewModel.selectedQuery,
-                        executeModes: $viewModel.executeModes,
-                        selectedExecuteMode: $viewModel.selectedExecuteMode,
-                        isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
-                    )
-                    .frame(minHeight: 200)
+                // 50/50 split: 50% editor, 50% results
+                // GeometryReader provides exact percentage heights
+                GeometryReader { geometry in
+                    VStack(spacing: 0) {
+                        // Top section - Query Editor (50% of available height)
+                        QueryEditorView(
+                            queryText: $viewModel.selectedQuery,
+                            executeModes: $viewModel.executeModes,
+                            selectedExecuteMode: $viewModel.selectedExecuteMode,
+                            isLoading: $viewModel.isQueryExecuting,
+                            onExecuteQuery: executeQuery
+                        )
+                        .frame(height: geometry.size.height * 0.5)
 
-                    //bottom half
-                    QueryResultsView(
-                        jsonResults: $viewModel.jsonResults,
-                        onGetLastQuery: { viewModel.selectedQuery },
-                        onInsertQuery: { dql in
-                            viewModel.selectedQuery = dql
-                        }
-                    )
-                    .frame(minHeight: 200)
+                        // Visual divider
+                        Divider()
+
+                        // Bottom section - Query Results (50% of available height)
+                        QueryResultsView(
+                            jsonResults: $viewModel.jsonResults,
+                            onGetLastQuery: { viewModel.selectedQuery },
+                            onInsertQuery: { dql in
+                                viewModel.selectedQuery = dql
+                            }
+                        )
+                        .frame(height: geometry.size.height * 0.5)
+                    }
                 }
             #else
-                VStack {
+                VStack(spacing: 0) {
                     //top half
                     QueryEditorView(
                         queryText: $viewModel.selectedQuery,
@@ -1084,7 +1107,9 @@ extension MainStudioView {
                         isLoading: $viewModel.isQueryExecuting,
                         onExecuteQuery: executeQuery
                     )
-                    .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
+                    .frame(maxHeight: .infinity)
+
+                    Divider()
 
                     //bottom half
                     QueryResultsView(
@@ -1094,10 +1119,12 @@ extension MainStudioView {
                             viewModel.selectedQuery = dql
                         }
                     )
+                    .frame(maxHeight: .infinity)
                 }
                 .navigationBarTitleDisplayMode(.inline)
             #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 28)  // Add padding for status bar height
         #if os(iOS)
             .toolbar {
@@ -1114,11 +1141,9 @@ extension MainStudioView {
             VSplitView {
                 if viewModel.selectedObservable == nil {
                     observableDetailNoContent()
-                        .frame(minHeight: 200)
 
                 } else {
                     observableEventsList()
-                        .frame(minHeight: 200)
                 }
                 observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
             }
@@ -1324,15 +1349,15 @@ extension MainStudioView {
             let subscriptionItem = MenuItem(
                 id: 1,
                 name: "Subscriptions",
-                systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"
+                icon: NavigationIcon.sync
             )
 
             self.selectedMenuItem = subscriptionItem
             self.mainMenuItems = [
                 subscriptionItem,
-                MenuItem(id: 2, name: "Collections", systemIcon: "document.on.document"),
-                MenuItem(id: 5, name: "Observer", systemIcon: "eye"),
-                MenuItem(id: 6, name: "Ditto Tools", systemIcon: "gear"),
+                MenuItem(id: 2, name: "Collections", icon: DataIcon.layerGroup),
+                MenuItem(id: 5, name: "Observer", icon: UIIcon.eye),
+                MenuItem(id: 6, name: "Ditto Tools", icon: SystemIcon.gear),
             ]
 
             //query section
@@ -1800,7 +1825,7 @@ extension MainStudioView {
 
 //MARK: Inspector Views
 extension MainStudioView {
-    
+
     @ViewBuilder
     private func inspectorView() -> some View {
         VStack(spacing: 0) {
@@ -1832,14 +1857,14 @@ extension MainStudioView {
             .padding()
         }
     }
-    
+
     @ViewBuilder
     private func historyInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Query History")
                 .font(.headline)
                 .padding(.bottom, 4)
-            
+
             if viewModel.history.isEmpty {
                 ContentUnavailableView(
                     "No History",
@@ -1877,14 +1902,14 @@ extension MainStudioView {
             }
         }
     }
-    
+
     @ViewBuilder
     private func favoritesInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Favorite Queries")
                 .font(.headline)
                 .padding(.bottom, 4)
-            
+
             if viewModel.favorites.isEmpty {
                 ContentUnavailableView(
                     "No Favorites",
@@ -1936,6 +1961,6 @@ enum ActionSheetMode: String {
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
-    var systemIcon: String  // SF Symbol name
+    var icon: FAIcon
 }
 

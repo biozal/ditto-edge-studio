@@ -1,84 +1,117 @@
-# Three-Pane Layout POC
+# POC Directory: NavigationSplitView + Inspector + VSplitView
 
-## Purpose
-This proof-of-concept demonstrates how to create an Xcode-like 3-pane layout:
-- **Left**: Sidebar with navigation
-- **Center**: Main detail/content view
-- **Right**: Inspector panel (like Xcode's inspector)
+## Overview
 
-## Key Finding
-SwiftUI's `.inspector()` modifier is the correct solution for creating a right-side panel that mimics Xcode's inspector behavior.
+This directory contains proof-of-concept implementations demonstrating proper layout patterns for SwiftUI's NavigationSplitView with Inspector and VSplitView.
 
-## Files
-- `ThreePaneLayoutPOC.swift` - Complete POC implementation with comments
+## Latest POC: VSplitView + Inspector Fix
 
-## How to Test
+**NavigationSplitViewWithVSplitViewPOC.swift** (691 lines) - **MOST IMPORTANT**
 
-### Option 1: Quick Preview in Xcode
-1. Open `ThreePaneLayoutPOC.swift` in Xcode
-2. Use the Canvas preview (⌥⌘↵)
-3. The preview is configured with a reasonable window size (1200x800)
+This POC solves the critical layout issue where the Sidebar disappears when Inspector opens in MainStudioView.
 
-### Option 2: Standalone App (Recommended for full testing)
-1. Create a new macOS App target in Xcode:
-   - File → New → Target
-   - Choose "App" template
-   - Name it "ThreePanePOC"
-   - Platform: macOS
+**Problem**: VSplitView children with `.frame(maxWidth: .infinity)` create constraint conflicts
+**Solution**: Only apply `.frame(maxWidth: .infinity, maxHeight: .infinity)` to the detail view container
 
-2. Replace the ContentView with:
-   ```swift
-   import SwiftUI
+**Documentation**:
+- `VSPLITVIEW_INSPECTOR_FIX.md` - Detailed fix instructions for MainStudioView
+- `LAYOUT_COMPARISON.md` - Visual comparison of broken vs. working patterns
+- `QUICK_REFERENCE.md` - One-page quick reference guide
 
-   @main
-   struct ThreePanePOCApp: App {
-       var body: some Scene {
-           WindowGroup {
-               ThreePaneLayoutPOC()
-           }
-       }
-   }
-   ```
+## Other POCs
 
-3. Add `ThreePaneLayoutPOC.swift` to the target
-4. Run the app (⌘R)
+### NavigationSplitViewInspectorTest.swift
+Earlier POC demonstrating NavigationSplitView + Inspector (without VSplitView). Validates the basic pattern of view switching triggered from inspector clicks.
 
-### Option 3: Integrate into Edge Debug Helper (Temporary)
-1. Add a menu item or keyboard shortcut to show the POC
-2. Present it as a new window or replace MainStudioView temporarily
+### ThreePaneLayoutPOC.swift
+Original exploration of three-pane layout using `.inspector()` modifier.
 
-## What to Test
+## The Solution (TL;DR)
 
-### Layout Verification
-- [ ] Three distinct panes visible
-- [ ] Inspector appears on the RIGHT side (not middle)
-- [ ] Toolbar button toggles inspector visibility
-- [ ] Inspector is resizable by dragging the divider
-- [ ] Inspector width constrained to min=250, ideal=350, max=500
+### Problem
+In MainStudioView, when Inspector opens, the Sidebar disappears. This is caused by `.frame(maxWidth: .infinity)` on VSplitView children creating rigid constraints that conflict with Inspector width requirements.
 
-### Interaction Testing
-- [ ] Sidebar items selectable
-- [ ] Detail view responds to sidebar selection
-- [ ] Inspector tabs (History, Favorites, Settings) switchable
-- [ ] Inspector content updates per tab
-- [ ] Inspector state persists when changing sidebar items
+### Solution
+Remove `.frame(maxWidth: .infinity)` from VSplitView children and only apply `.frame(maxWidth: .infinity, maxHeight: .infinity)` to the detail view container.
 
-### Adaptive Behavior (Optional - iPad testing)
-- [ ] Inspector becomes a sheet in compact width
-- [ ] Toggle button works in all size classes
+**Before (Broken)**:
+```swift
+VSplitView {
+    QueryEditorView(...).frame(maxWidth: .infinity)    // ❌ Remove
+    QueryResultsView(...).frame(maxWidth: .infinity)   // ❌ Remove
+}
+```
 
-## Key Questions to Answer
-1. ✅ Does this match Xcode's inspector behavior?
-2. ✅ Is the inspector positioned on the RIGHT as expected?
-3. ✅ Can we easily move History and Favorites to the inspector?
-4. ✅ Will this integrate well with MainStudioView?
-5. ✅ Is the inspector resizable and user-friendly?
+**After (Fixed)**:
+```swift
+VStack {
+    VSplitView {
+        QueryEditorView(...)  // ✅ No frame modifier
+        QueryResultsView(...) // ✅ No frame modifier
+    }
+}
+.frame(maxWidth: .infinity, maxHeight: .infinity)  // ✅ Only on container
+```
 
-## Integration Plan (If POC succeeds)
-See the main implementation plan in the plan file.
+## How to Use This POC
 
-## SwiftUI Version Requirements
-- macOS 14+ (Sonoma)
-- iOS 17+
+### Step 1: Test the Working POC
+1. Open `NavigationSplitViewWithVSplitViewPOC.swift` in Xcode
+2. Run in Preview or simulator
+3. Test all functionality:
+   - Click sidebar items
+   - Toggle inspector open/closed
+   - Drag VSplitView divider
+   - Click queries in inspector
+   - Resize window from 800px to 1400px
+4. Verify all three panes work together ✅
 
-Edge Debug Helper targets macOS 15+ and iPadOS 18+, so we're good! ✅
+### Step 2: Review Documentation
+1. Read `LAYOUT_COMPARISON.md` - Visual diagrams showing why it breaks and how to fix it
+2. Read `VSPLITVIEW_INSPECTOR_FIX.md` - Step-by-step fix instructions
+3. Keep `QUICK_REFERENCE.md` handy for future reference
+
+### Step 3: Apply the Fix to MainStudioView
+1. Open `SwiftUI/Edge Debug Helper/Views/MainStudioView.swift`
+2. Find `queryDetailView()` function (lines 1069-1116)
+3. Remove `.frame(maxWidth: .infinity)` from lines 1081 and 1091
+4. Add `.frame(maxWidth: .infinity, maxHeight: .infinity)` at line 1116 (before `.padding(.bottom, 28)`)
+5. Build and test
+
+### Step 4: Verify the Fix
+1. Run the app
+2. Select Collections in sidebar
+3. Toggle inspector open/closed
+4. Verify sidebar STAYS VISIBLE ✅
+5. Run tests: `cd SwiftUI && ./run_ui_tests.sh`
+
+## Success Criteria
+
+The fix works when:
+- [ ] Sidebar remains visible when inspector is open
+- [ ] VSplitView divider can be dragged to resize panes
+- [ ] Inspector can toggle without breaking layout
+- [ ] No constraint loop errors in console
+- [ ] Layout works at window widths 800px - 1400px
+- [ ] All UI tests pass
+
+## Key Principle
+
+**Only the outermost container in the detail view should have `.frame(maxWidth: .infinity, maxHeight: .infinity)`**
+
+Never apply `.frame(maxWidth: .infinity)` to individual children inside split views. The container's frame modifier cascades flexibility down the view hierarchy naturally.
+
+## Files in This Directory
+
+- `NavigationSplitViewWithVSplitViewPOC.swift` - **Complete working POC** (691 lines)
+- `VSPLITVIEW_INSPECTOR_FIX.md` - **Detailed fix instructions**
+- `LAYOUT_COMPARISON.md` - **Visual diagrams and analysis**
+- `QUICK_REFERENCE.md` - **One-page quick reference**
+- `NavigationSplitViewInspectorTest.swift` - Earlier POC without VSplitView
+- `ThreePaneLayoutPOC.swift` - Original layout exploration
+- `README.md` - This file
+
+## References
+
+- **Issue Screenshot**: `/Users/labeaaa/Developer/ditto-edge-studio/screens/edge-studio-broke.png`
+- **MainStudioView**: `/Users/labeaaa/Developer/ditto-edge-studio/SwiftUI/Edge Debug Helper/Views/MainStudioView.swift`
