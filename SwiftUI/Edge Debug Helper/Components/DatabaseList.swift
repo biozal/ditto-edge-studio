@@ -63,8 +63,10 @@ struct DatabaseList: View {
                   }
               }
             }
+            .accessibilityIdentifier("AppCard_\(dittoApp.name)")
         }
       }
+      .accessibilityIdentifier("DatabaseList")
     #endif
   }
 }

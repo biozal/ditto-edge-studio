@@ -61,6 +61,7 @@ struct MainStudioView: View {
                     ForEach(viewModel.mainMenuItems) { item in
                         Image(systemName: item.systemIcon)
                             .tag(item)
+                            .accessibilityIdentifier("MenuItem_\(item.name)")
                     }
                 }
                 .pickerStyle(.segmented)
@@ -70,15 +71,20 @@ struct MainStudioView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .liquidGlassToolbar()
+                .accessibilityIdentifier("NavigationSegmentedPicker")
                 switch viewModel.selectedMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
+                        .accessibilityIdentifier("CollectionsSidebar")
                 case "Observer":
                     observeSidebarView()
+                        .accessibilityIdentifier("ObserverSidebar")
                 case "Ditto Tools":
                     dittoToolsSidebarView()
+                        .accessibilityIdentifier("DittoToolsSidebar")
                 default:
                     subscriptionSidebarView()
+                        .accessibilityIdentifier("SubscriptionsSidebar")
                 }
                 Spacer()
 
@@ -133,12 +139,16 @@ struct MainStudioView: View {
             case "Collections":
                 queryDetailView()
                     .frame(minWidth: 400)
+                    .accessibilityIdentifier("CollectionsDetailView")
             case "Observer":
                 observeDetailView()
+                    .accessibilityIdentifier("ObserverDetailView")
             case "Ditto Tools":
                 dittoToolsDetailView()
+                    .accessibilityIdentifier("DittoToolsDetailView")
             default:
                 syncTabsDetailView()
+                    .accessibilityIdentifier("SubscriptionsDetailView")
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
