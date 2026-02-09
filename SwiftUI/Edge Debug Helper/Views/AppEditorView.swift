@@ -44,10 +44,12 @@ struct AppEditorView: View {
                                         }
                                     }
                                     .pickerStyle(.segmented)
+                                .accessibilityIdentifier("AuthModePicker")
                 Section("Basic Information") {
                     TextField("Name", text: $viewModel.name)
                         .lineLimit(1)
                         .padding(.bottom, 10)
+                        .accessibilityIdentifier("NameTextField")
                 }
 
                 Section("Authorization Information") {
@@ -57,6 +59,7 @@ struct AppEditorView: View {
                         .lineLimit(1)
                         .trimOnPaste($viewModel.appId)
                         .padding(.bottom, 5)
+                        .accessibilityIdentifier("AppIdTextField")
 
                     authTokenField(for: viewModel.mode)
                 }
@@ -77,6 +80,7 @@ struct AppEditorView: View {
                     } label: {
                         Label("Cancel", systemImage: "xmark")
                     }
+                    .accessibilityIdentifier("CancelButton")
                 }
                 ToolbarItem(placement: .confirmationAction){
                     Button ("Save"){
@@ -90,6 +94,7 @@ struct AppEditorView: View {
                         viewModel.name.isEmpty ||
                         viewModel.authToken.isEmpty
                     )
+                    .accessibilityIdentifier("SaveButton")
                 }
             }
         }
@@ -106,12 +111,14 @@ struct AppEditorView: View {
                 .lineLimit(1)
                 .trimOnPaste($viewModel.authToken)
                 .padding(.bottom, 10)
+                .accessibilityIdentifier("AuthTokenTextField")
         case .sharedKey:
             TextField("Offline License Token", text: $viewModel.authToken)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1)
                 .trimOnPaste($viewModel.authToken)
                 .padding(.bottom, 5)
+                .accessibilityIdentifier("AuthTokenTextField")
 
             Text("Required for sync activation in shared key mode. Obtain from https://portal.ditto.live")
                 .font(.caption2)
@@ -140,6 +147,7 @@ struct AppEditorView: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1)
                 .padding(.bottom, 5)
+                .accessibilityIdentifier("SecretKeyTextField")
 
             Text("Optional secret key for shared key identity encryption. Leave empty if not required.")
                 .font(.caption2)
@@ -154,11 +162,13 @@ struct AppEditorView: View {
             TextField("Auth URL", text: $viewModel.authUrl)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1)
+                .accessibilityIdentifier("AuthUrlTextField")
 
             TextField("Websocket URL", text: $viewModel.websocketUrl)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1)
                 .padding(.bottom, 10)
+                .accessibilityIdentifier("WebsocketUrlTextField")
         }
     }
 
@@ -170,14 +180,17 @@ struct AppEditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1)
                     .padding(.bottom, 8)
+                    .accessibilityIdentifier("HttpApiUrlTextField")
 
                 TextField("HTTP API Key", text: $viewModel.httpApiKey)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1)
                     .padding(.bottom, 10)
+                    .accessibilityIdentifier("HttpApiKeyTextField")
 
                 Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
                     .padding(.bottom, 5)
+                    .accessibilityIdentifier("AllowUntrustedCertsToggle")
 
                 Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
                     .font(.caption2)

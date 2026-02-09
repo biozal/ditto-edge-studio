@@ -257,6 +257,801 @@ if window.exists {
 }
 ```
 
+### UI Testing Best Practices (Learned from testSelectFirstApp Refactor)
+
+**CRITICAL: These patterns are based on Apple's official recommendations and industry best practices.**
+
+#### Data Setup Pattern (Production-Ready)
+
+✅ **Your current implementation is correct:**
+- Load test data in `AppState.init()` when `UI-TESTING` launch argument is detected
+- Use `testDatabaseConfig.plist` for test database configurations
+- Repository observer pattern automatically updates SwiftUI `@Published` properties
+- No manual data loading in test setUp() needed - app handles it
+
+**Implementation:**
+```swift
+// In AppState.init()
+if ProcessInfo.processInfo.arguments.contains("UI-TESTING") {
+    Task {
+        await AppState.loadTestDatabases()
+    }
+}
+
+// In test setUp
+app.launchArguments = ["UI-TESTING"]
+app.launch()
+```
+
+#### Waiting for Async Operations
+
+✅ **Prefer `waitForExistence(timeout:)` over `sleep()`**
+
+```swift
+// ✅ CORRECT - Returns immediately if element exists
+let navigationPicker = app.segmentedControls["NavigationSegmentedPicker"]
+guard navigationPicker.waitForExistence(timeout: 10) else {
+    XCTFail("Navigation picker did not appear")
+    return
+}
+
+// ⚠️ Use sleep() ONLY for animations/transitions
+button.tap()
+sleep(1)  // Allow animation to complete
+```
+
+**When to use each:**
+- `waitForExistence()` - Element appearance, loading states, async data
+- `sleep()` - UI animations, layout transitions, window activation delays
+
+**For Ditto Operations:**
+- Wait for **resulting UI elements** (e.g., navigation picker), not internal state
+- Use 30+ second timeouts for slow operations (Ditto connections)
+
+#### Dynamic Validation from Test Config
+
+✅ **Read testDatabaseConfig.plist to get expected counts**
+
+```swift
+// Helper method in test file
+private func getExpectedDatabaseCount() -> Int? {
+    guard let appBundle = Bundle(identifier: "io.ditto.EdgeStudio"),
+          let path = appBundle.path(forResource: "testDatabaseConfig", ofType: "plist") else {
+        return nil
+    }
+
+    let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+    let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+
+    return (plist?["databases"] as? [[String: Any]])?.count
+}
+
+// In test
+let expectedCount = getExpectedDatabaseCount()
+XCTAssertEqual(actualDatabaseCount, expectedCount, "Database count mismatch")
+```
+
+**Why this is better:**
+- No hardcoded expectations - adapts to changing test config
+- Validates data loading pipeline end-to-end
+- Catches discrepancies between config and UI
+
+#### Accessibility Identifiers
+
+✅ **Add to all testable elements:**
+
+```swift
+// In SwiftUI views
+Button("Sync") { /* action */ }
+    .accessibilityIdentifier("SyncButton")
+
+Picker("", selection: $selectedTab) { /* options */ }
+    .pickerStyle(.segmented)
+    .accessibilityIdentifier("SyncTabPicker")
+```
+
+**Best Practices:**
+- ✅ Use **descriptive, stable names** ("SyncButton" not "button1")
+- ✅ Apply to buttons, pickers, tabs, containers
+- ✅ Access in tests via `app.buttons["SyncButton"]`
+- ✅ Never rely on localized text - always use accessibility IDs
+
+#### Alert Dialog Checks
+
+✅ **Always check for alerts on failure:**
+
+```swift
+guard element.waitForExistence(timeout: 10) else {
+    // Check for alerts before failing
+    if app.alerts.count > 0 {
+        let alert = app.alerts.firstMatch
+        XCTFail("Element not found - Alert detected: \(alert.label)")
+    } else {
+        XCTFail("Element not found")
+    }
+    throw XCTSkip("Test cannot continue")
+}
+```
+
+**Why this is critical:**
+- Alert dialogs indicate app errors (invalid credentials, connection failures)
+- Provides actionable debugging info (alert message)
+- Prevents confusing test failures ("element not found" when real issue is auth error)
+
+#### Screenshot Best Practices
+
+✅ **Use screenshots for visual validation:**
+
+```swift
+let screenshot = app.screenshot()
+let attachment = XCTAttachment(screenshot: screenshot)
+attachment.name = "02-main-studio-loaded"
+attachment.lifetime = .deleteOnSuccess  // CI-friendly
+add(attachment)
+```
+
+**Screenshot Lifetime:**
+- `.deleteOnSuccess` - For CI/automated testing (saves space)
+- `.keepAlways` - For debugging failing tests only
+
+**When to capture:**
+- ✅ Every major state transition (list → detail → list)
+- ✅ After validation steps (to prove UI rendered correctly)
+- ✅ On test failure (always use `.keepAlways` for failure screenshots)
+- ✅ Always `sleep(1)` before screenshot to allow animations to settle
+
+**Naming convention:**
+- Use descriptive, sequential names: `"01-initial-state"`, `"02-after-action"`, `"FAIL-error-state"`
+- Prefix failures with `"FAIL-"` for easy identification
+
+#### Test Structure (AAA Pattern)
+
+✅ **Use Arrange-Act-Assert pattern with clear sections:**
+
+```swift
+func testFeature() throws {
+    // ========================================
+    // ARRANGE: Set up preconditions
+    // ========================================
+    waitForAppToFinishLoading()
+    let expectedCount = getExpectedDatabaseCount()
+
+    // ========================================
+    // ACT: Perform the action being tested
+    // ========================================
+    firstAppCard.tap()
+
+    // ========================================
+    // ASSERT: Verify the expected outcome
+    // ========================================
+    XCTAssertTrue(navigationPicker.waitForExistence(timeout: 30))
+    XCTAssertEqual(actualCount, expectedCount)
+}
+```
+
+**Why AAA pattern:**
+- Clear separation of test phases
+- Easy to understand test intent
+- Easier to debug when tests fail
+
+#### Comprehensive Element Validation
+
+✅ **Validate multiple aspects of UI state:**
+
+```swift
+// Don't just check picker exists
+XCTAssertTrue(syncTabPicker.exists)
+
+// ALSO check content is correct
+let peersListText = syncTabPicker.staticTexts["Peers List"]
+XCTAssertTrue(peersListText.exists, "'Peers List' text should be visible")
+```
+
+**Why this is better:**
+- Catches partial rendering bugs (element exists but content missing)
+- Validates actual user-visible state, not just internal UI hierarchy
+- More thorough validation = fewer production bugs
+
+#### Error Messages That Help Debug
+
+✅ **Write actionable error messages:**
+
+```swift
+// ❌ BAD
+XCTAssertTrue(button.exists, "Button not found")
+
+// ✅ GOOD
+XCTAssertTrue(
+    button.waitForExistence(timeout: 5),
+    """
+    Sync button not found in MainStudioView toolbar.
+
+    MainStudioView loaded but toolbar buttons are missing.
+    Check that .accessibilityIdentifier("SyncButton") was added to syncToolbarButton().
+    Screenshot saved: 'FAIL-sync-button-not-found'
+    """
+)
+```
+
+**Good error messages include:**
+- What failed (specific element and location)
+- What was expected vs actual
+- How to fix it (which file, what to check)
+- Reference to screenshots for visual debugging
+
+#### Example: Complete Test Flow
+
+```swift
+func testSelectFirstApp() throws {
+    // ARRANGE: Wait and validate initial state
+    waitForAppToFinishLoading()
+    let expectedCount = getExpectedDatabaseCount()
+    XCTAssertTrue(addDatabaseButton.waitForExistence(timeout: 5))
+
+    // ASSERT: Validate database list loaded correctly
+    guard databaseList.waitForExistence(timeout: 10) else {
+        if app.alerts.count > 0 {
+            XCTFail("Alert detected: \(app.alerts.firstMatch.label)")
+        }
+        throw XCTSkip("No database list")
+    }
+
+    let actualCount = databaseList.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).count
+    XCTAssertEqual(actualCount, expectedCount, "Database count mismatch")
+
+    // Screenshot for visual validation
+    let screenshot1 = app.screenshot()
+    let attachment1 = XCTAttachment(screenshot: screenshot1)
+    attachment1.name = "01-database-list"
+    attachment1.lifetime = .deleteOnSuccess
+    add(attachment1)
+
+    // ACT: Select first database
+    let firstCard = databaseList.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).firstMatch
+    firstCard.tap()
+
+    // ASSERT: Validate MainStudioView loaded
+    let navigationPicker = app.segmentedControls["NavigationSegmentedPicker"]
+    guard navigationPicker.waitForExistence(timeout: 30) else {
+        if app.alerts.count > 0 {
+            XCTFail("MainStudioView failed to load - Alert: \(app.alerts.firstMatch.label)")
+        }
+        throw XCTSkip("MainStudioView not loaded")
+    }
+
+    // Validate UI elements
+    XCTAssertTrue(app.buttons["SyncButton"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["CloseButton"].waitForExistence(timeout: 5))
+
+    let syncTabPicker = app.segmentedControls["SyncTabPicker"]
+    XCTAssertTrue(syncTabPicker.waitForExistence(timeout: 5))
+    XCTAssertTrue(syncTabPicker.staticTexts["Peers List"].exists)
+
+    // ACT: Close MainStudioView
+    app.buttons["CloseButton"].tap()
+    sleep(2)
+
+    // ASSERT: Validate returned to list with same database count
+    XCTAssertTrue(addDatabaseButton.waitForExistence(timeout: 5))
+    let finalCount = databaseList.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).count
+    XCTAssertEqual(finalCount, expectedCount, "Database count changed")
+}
+```
+
+#### Reference Documentation
+
+- [Apple: waitForExistence(timeout:)](https://developer.apple.com/documentation/xctest/xcuielement/2879412-waitforexistence)
+- [Apple: accessibility(identifier:)](https://developer.apple.com/documentation/swiftui/view/accessibility(identifier:))
+- [Apple: XCUIScreenshot](https://developer.apple.com/documentation/xctest/xcuiscreenshot)
+- [Waiting in XCTest | Masilotti.com](https://masilotti.com/xctest-waiting/)
+- [Configuring UI tests with launch arguments](https://www.polpiella.dev/configuring-ui-tests-with-launch-arguments)
+
+### Established UI Testing Patterns (2026-02)
+
+**CRITICAL: These patterns were established through comprehensive testing and are required for reliable UI tests.**
+
+#### Pattern 1: Database Setup via Form Automation
+
+**Problem:** Programmatic database loading during app initialization is unreliable due to sandboxing, race conditions, and timing issues.
+
+**Solution:** Use XCUITest to automate the actual UI workflow (Add Database button → fill form → save).
+
+**Implementation:**
+
+```swift
+/// Reads testDatabaseConfig.plist and adds all databases via UI automation
+@MainActor
+private func addDatabasesFromPlist() throws {
+    guard let appBundle = Bundle(identifier: "io.ditto.EdgeStudio"),
+          let path = appBundle.path(forResource: "testDatabaseConfig", ofType: "plist") else {
+        throw XCTSkip("testDatabaseConfig.plist not found")
+    }
+
+    let data = try Data(contentsOf: URL(fileURLWithPath: path))
+    let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+
+    guard let databases = plist?["databases"] as? [[String: Any]] else {
+        throw XCTSkip("testDatabaseConfig.plist missing 'databases' array")
+    }
+
+    print("📋 Found \(databases.count) database(s) to add")
+
+    for (index, config) in databases.enumerated() {
+        let name = config["name"] as? String ?? "Unknown"
+        print("\n📦 Adding database \(index + 1)/\(databases.count): '\(name)'")
+        try addSingleDatabase(config: config)
+    }
+
+    print("\n✅ All databases added successfully")
+}
+
+/// Adds a single database by automating the AppEditorView form
+@MainActor
+private func addSingleDatabase(config: [String: Any]) throws {
+    let name = config["name"] as? String ?? ""
+    let appId = config["appId"] as? String ?? ""
+    let authToken = config["authToken"] as? String ?? ""
+
+    // 1. Tap Add Database button (use .firstMatch for nested buttons)
+    let addButton = app.buttons["AddDatabaseButton"].firstMatch
+    guard addButton.waitForExistence(timeout: 5) else {
+        XCTFail("Add Database button not found")
+        return
+    }
+    addButton.tap()
+    sleep(2)  // Wait for sheet animation
+
+    // 2. Wait for form (use text field, NOT picker - see Pattern 2)
+    let nameField = app.textFields["NameTextField"]
+    guard nameField.waitForExistence(timeout: 10) else {
+        XCTFail("Form not found")
+        return
+    }
+
+    // 3. Fill required fields
+    nameField.tap()
+    sleep(1)  // CRITICAL: Allow focus to register
+    nameField.typeText(name)
+
+    let appIdField = app.textFields["AppIdTextField"]
+    appIdField.tap()
+    sleep(1)
+    appIdField.typeText(appId)
+
+    let authTokenField = app.textFields["AuthTokenTextField"]
+    authTokenField.tap()
+    sleep(1)
+    authTokenField.typeText(authToken)
+
+    // 4. Save
+    let saveButton = app.buttons["SaveButton"]
+    saveButton.tap()
+    sleep(2)  // Wait for save
+
+    // 5. Wait for sheet to dismiss (active monitoring)
+    let sheets = app.sheets
+    if sheets.count > 0 {
+        for _ in 0..<10 {
+            if !sheets.firstMatch.exists { break }
+            usleep(500000)  // 0.5s
+        }
+    }
+    sleep(2)  // Additional wait for database to save
+
+    // 6. Validate database appeared
+    let cardIdentifier = "AppCard_\(name)"
+    let card = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier == %@", cardIdentifier))
+        .firstMatch
+
+    guard card.waitForExistence(timeout: 20) else {
+        XCTFail("Database '\(name)' not added")
+        return
+    }
+
+    print("✅ Database '\(name)' added successfully")
+}
+```
+
+**Usage in tests:**
+
+```swift
+func testFeature() throws {
+    waitForAppToFinishLoading(timeout: 20)
+
+    // Add databases via UI automation (required for fresh sandbox)
+    try addDatabasesFromPlist()
+
+    // Now databases are available for testing
+    let firstCard = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'"))
+        .firstMatch
+    firstCard.tap()
+
+    // ... rest of test
+}
+```
+
+**Benefits:**
+- ✅ Works reliably with sandboxing
+- ✅ Tests the real user experience
+- ✅ Easy to debug visually
+- ✅ No app initialization changes needed
+
+**Documentation:** See `ADDBUTTON_FIRSTMATCH_FIX.md`, `SHEET_TIMING_FIX.md`, `PICKER_WORKAROUND_FIX.md`, `SHEET_DISMISS_TIMING_FIX.md`
+
+#### Pattern 2: SwiftUI Picker Accessibility Issues
+
+**CRITICAL LIMITATION: SwiftUI Pickers with `.pickerStyle(.segmented)` DO NOT expose as segmented controls in XCUITest.**
+
+**Problem:**
+```swift
+// This WILL FAIL - picker not accessible
+let picker = app.segmentedControls["MyPicker"]
+guard picker.waitForExistence(timeout: 10) else {
+    // This will always timeout
+}
+```
+
+**Why it fails:**
+- SwiftUI Picker implementation doesn't expose accessibility correctly
+- `app.segmentedControls["MyPicker"]` returns empty query
+- This affects ALL SwiftUI Pickers on macOS, regardless of identifiers added
+
+**Solution: Use Alternative Validation Elements**
+
+**Example 1: AuthModePicker in AppEditorView**
+```swift
+// ❌ DOESN'T WORK
+let modePicker = app.segmentedControls["AuthModePicker"]
+
+// ✅ WORKS - Validate form readiness with text field instead
+let nameField = app.textFields["NameTextField"]
+guard nameField.waitForExistence(timeout: 10) else {
+    XCTFail("Form not found")
+    return
+}
+// Form is ready, mode defaults to first option
+```
+
+**Example 2: NavigationSegmentedPicker in MainStudioView**
+```swift
+// ❌ DOESN'T WORK
+let navigationPicker = app.segmentedControls["NavigationSegmentedPicker"]
+
+// ✅ WORKS - Validate MainStudioView loaded with toolbar button
+let closeButton = app.buttons["CloseButton"].firstMatch
+guard closeButton.waitForExistence(timeout: 60) else {
+    XCTFail("MainStudioView not loaded")
+    return
+}
+```
+
+**Example 3: SyncTabPicker in MainStudioView**
+```swift
+// ❌ DOESN'T WORK
+let syncTabPicker = app.segmentedControls["SyncTabPicker"]
+
+// ✅ WORKS - Validate sync detail view with static text
+let connectedPeers = app.staticTexts["Connected Peers"]
+guard connectedPeers.waitForExistence(timeout: 10) else {
+    XCTFail("Sync detail view not loaded")
+    return
+}
+```
+
+**Making Pickers Testable:**
+
+For pickers where you need to interact with segments (not just validate they loaded), you must make them accessible:
+
+**Option 1: Add Accessibility to Picker Segments** (Partial solution)
+```swift
+// In SwiftUI view
+Picker("", selection: $selectedItem) {
+    ForEach(items) { item in
+        item.image
+            .tag(item)
+            .accessibilityIdentifier("PickerItem_\(item.name)")
+            .accessibilityLabel(item.name)
+    }
+}
+```
+
+⚠️ **NOTE:** This only works if picker segments use **text labels**. Pickers with **SF Symbol images** (no text) remain inaccessible even with identifiers.
+
+**Option 2: Use Text Labels** (Recommended)
+```swift
+// Replace SF Symbol images with text
+Picker("", selection: $selectedItem) {
+    ForEach(items) { item in
+        Text(item.name)  // Use text instead of image
+            .tag(item)
+            .accessibilityIdentifier("PickerItem_\(item.name)")
+    }
+}
+```
+
+**Option 3: Custom Button-Based Control** (Most reliable)
+```swift
+// Replace Picker with buttons
+HStack(spacing: 0) {
+    ForEach(items) { item in
+        Button(action: { selectedItem = item }) {
+            item.image
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("PickerItem_\(item.name)")
+    }
+}
+```
+
+**Tests should handle inaccessible pickers gracefully:**
+
+```swift
+let navigationButton = app.buttons["NavigationItem_Collections"]
+
+guard navigationButton.waitForExistence(timeout: 2) else {
+    print("⚠️ Navigation button not accessible")
+    print("   Picker uses SF Symbol images which don't expose to XCUITest")
+    throw XCTSkip("""
+        Navigation requires picker segments to be accessible.
+        Update picker to use Text labels or custom buttons.
+        """)
+}
+```
+
+#### Pattern 3: Nested Button Structures (.firstMatch)
+
+**Problem:** FontAwesomeText and other custom button labels create nested button hierarchies.
+
+```
+↳Button, identifier: 'AddDatabaseButton', label: ''
+  ↳Button, identifier: 'AddDatabaseButton', label: ''  (nested child)
+```
+
+**Solution:** Always use `.firstMatch` for buttons with custom labels.
+
+```swift
+// ❌ FAILS - Multiple matching elements
+let button = app.buttons["AddDatabaseButton"]
+button.tap()  // Error: Multiple matching elements found
+
+// ✅ WORKS - Gets the parent button
+let button = app.buttons["AddDatabaseButton"].firstMatch
+button.tap()
+```
+
+**Apply to ALL buttons with custom labels:**
+```swift
+let addDatabaseButton = app.buttons["AddDatabaseButton"].firstMatch
+let closeButton = app.buttons["CloseButton"].firstMatch
+let syncButton = app.buttons["SyncButton"].firstMatch
+```
+
+**Documentation:** See `ADDBUTTON_FIRSTMATCH_FIX.md`
+
+#### Pattern 4: Timing Patterns
+
+**CRITICAL: Proper timing is essential for reliable tests.**
+
+**Rule 1: Use `sleep()` after `tap()` for animations**
+```swift
+button.tap()
+sleep(1)  // Wait for animation to complete
+```
+
+**Rule 2: Use `waitForExistence()` for async content**
+```swift
+guard element.waitForExistence(timeout: 10) else {
+    XCTFail("Element did not appear")
+    return
+}
+```
+
+**Rule 3: macOS Sheet Timing**
+```swift
+// After tapping button that opens sheet
+button.tap()
+sleep(2)  // Wait for sheet animation
+
+// Wait for sheet content to render
+let sheets = app.sheets
+sleep(2)  // Additional wait for content rendering
+```
+
+**Rule 4: Database Save Operations**
+```swift
+saveButton.tap()
+sleep(2)  // Initial wait for tap to register
+
+// Actively monitor sheet dismissal
+for _ in 0..<10 {
+    if !sheet.exists { break }
+    usleep(500000)  // Poll every 0.5s
+}
+
+sleep(2)  // Wait for database save + UI update
+```
+
+**Rule 5: MainStudioView Initialization (Slow!)**
+```swift
+// MainStudioView initialization is SLOW (Ditto connections, subscriptions, observers)
+let closeButton = app.buttons["CloseButton"].firstMatch
+guard closeButton.waitForExistence(timeout: 60) else {  // 60s!
+    XCTFail("MainStudioView did not load")
+    return
+}
+```
+
+**Documentation:** See `SHEET_TIMING_FIX.md`, `SHEET_DISMISS_TIMING_FIX.md`
+
+#### Pattern 5: Helper Function Pattern
+
+**ensureMainStudioViewIsOpen() - Standard helper for navigation tests**
+
+```swift
+/// Ensures MainStudioView is open by checking for CloseButton
+/// If not open, selects first database from list
+@MainActor
+private func ensureMainStudioViewIsOpen() throws {
+    // Use CloseButton to validate MainStudioView (NOT navigationPicker)
+    let closeButton = app.buttons["CloseButton"].firstMatch
+
+    // Already in MainStudioView?
+    if closeButton.exists {
+        print("✅ Already in MainStudioView")
+        return
+    }
+
+    // Not in MainStudioView - open first database
+    print("📋 Not in MainStudioView, opening first database...")
+
+    let addDatabaseButton = app.buttons["AddDatabaseButton"].firstMatch
+    guard addDatabaseButton.waitForExistence(timeout: 5) else {
+        throw XCTSkip("Not on ContentView")
+    }
+
+    // Find and tap first database
+    let predicate = NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")
+    let firstCard = app.descendants(matching: .any)
+        .matching(predicate)
+        .firstMatch
+
+    guard firstCard.waitForExistence(timeout: 5) else {
+        throw XCTSkip("No databases found")
+    }
+
+    firstCard.tap()
+    sleep(2)  // Wait for transition
+
+    // Wait for MainStudioView (validate with CloseButton, NOT navigationPicker)
+    guard closeButton.waitForExistence(timeout: 30) else {
+        XCTFail("MainStudioView did not open")
+        throw XCTSkip("MainStudioView failed to open")
+    }
+
+    print("✅ MainStudioView opened successfully")
+}
+```
+
+#### Pattern 6: Complete Test Template
+
+**Standard test structure following all established patterns:**
+
+```swift
+@MainActor
+func testNavigationToView() throws {
+    // ARRANGE: Wait for app to finish loading
+    waitForAppToFinishLoading(timeout: 20)
+
+    // Add databases via UI automation (required for fresh sandbox)
+    try addDatabasesFromPlist()
+
+    // Open MainStudioView
+    try ensureMainStudioViewIsOpen()
+
+    // ACT: Navigate to view (if navigation button accessible)
+    let navigationButton = app.buttons["NavigationItem_Collections"]
+
+    guard navigationButton.waitForExistence(timeout: 5) else {
+        print("⚠️ Navigation button not accessible")
+        throw XCTSkip("Navigation requires accessible picker segments")
+    }
+
+    print("📍 Tapping navigation button...")
+    navigationButton.tap()
+    sleep(2)  // Wait for view transition
+
+    // ASSERT: Validate view loaded
+    let headerText = app.staticTexts["Ditto Collections"]
+    XCTAssertTrue(
+        headerText.waitForExistence(timeout: 5),
+        """
+        View header not found after navigation.
+        View may not have rendered correctly.
+        """
+    )
+    print("✅ View loaded successfully")
+
+    // Capture screenshot
+    let screenshot = app.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "view-loaded"
+    attachment.lifetime = .deleteOnSuccess
+    add(attachment)
+}
+```
+
+#### Pattern 7: Test Documentation
+
+**Required documentation in test files:**
+
+```swift
+/// Tests navigation to Collections view
+///
+/// **Setup:**
+/// - Requires testDatabaseConfig.plist with at least one database
+/// - Uses UI form automation to add databases (fresh sandbox)
+///
+/// **Test Flow:**
+/// 1. Wait for app to finish loading
+/// 2. Add databases via form automation
+/// 3. Open first database (MainStudioView)
+/// 4. Navigate to Collections view
+/// 5. Validate Collections sidebar and detail view
+///
+/// **Known Limitations:**
+/// - Navigation button may not be accessible if picker uses SF Symbol images
+/// - Test will skip with clear message if navigation not possible
+///
+/// **See Also:**
+/// - NAVIGATION_TESTS_UPDATE_SUMMARY.md
+/// - PICKER_WORKAROUND_FIX.md
+@MainActor
+func testNavigationToCollections() throws {
+    // ... implementation
+}
+```
+
+#### Pattern 8: Skip Messages
+
+**When tests must skip due to accessibility limitations, provide clear guidance:**
+
+```swift
+guard navigationButton.waitForExistence(timeout: 2) else {
+    print("⚠️ Navigation button not accessible in UI tests")
+    print("   SwiftUI Picker with SF Symbol images doesn't expose segments to XCUITest")
+    print("")
+    print("   TO FIX: Update picker to use text labels:")
+    print("   Replace: item.image.tag(item)")
+    print("   With: Text(item.name).tag(item)")
+    print("")
+    throw XCTSkip("""
+        Navigation requires picker segments to be accessible.
+
+        Current picker uses SF Symbol images which aren't exposed in XCUITest.
+        Update picker to use Text labels or custom buttons for testability.
+
+        See NAVIGATION_TESTS_UPDATE_SUMMARY.md for details.
+        """)
+}
+```
+
+### UI Testing Documentation Files
+
+Comprehensive documentation created during UI test development:
+
+- **`NAVIGATION_TESTS_UPDATE_SUMMARY.md`** - Complete summary of all navigation test updates, patterns, and solutions
+- **`ADDBUTTON_FIRSTMATCH_FIX.md`** - Nested button structure fix (.firstMatch pattern)
+- **`SHEET_TIMING_FIX.md`** - macOS sheet timing patterns and workarounds
+- **`PICKER_WORKAROUND_FIX.md`** - SwiftUI Picker accessibility issues and workarounds
+- **`SHEET_DISMISS_TIMING_FIX.md`** - Sheet dismissal and database save timing patterns
+
+**Refer to these documents for detailed explanations and examples.**
+
 ## Development Environment Setup
 
 ### Xcode Version Requirements

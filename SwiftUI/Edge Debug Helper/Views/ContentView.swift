@@ -174,36 +174,36 @@ extension ContentView {
                 try await DittoManager.shared.initializeStore(
                     appState: appState
                 )
-                
+
                 //setup the local database subscription for registered apps
                 await databaseRepository.setAppState(appState)
                 try await databaseRepository.setupDatabaseConfigSubscriptions()
-                
+
                 // Set appState in SystemRepository as well
                 await SystemRepository.shared.setAppState(appState)
-                
+
                 // Set appState in ObservableRepository as well
                 await ObservableRepository.shared.setAppState(appState)
-                
+
                 // Set appState in FavoritesRepository as well
                 await FavoritesRepository.shared.setAppState(appState)
-                
+
                 // Set appState in HistoryRepository as well
                 await HistoryRepository.shared.setAppState(appState)
-                
+
                 // Set appState in CollectionsRepository as well
                 await CollectionsRepository.shared.setAppState(appState)
-                
+
                 // Set appState in SubscriptionsRepository as well
                 await SubscriptionsRepository.shared.setAppState(appState)
-                
+
                 // Set up callback using the new setter method (now requires await)
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
                     Task { @MainActor [weak self] in
                         self?.dittoApps = configs
                     }
                 }
-                
+
                 // Register observers after setting up callback (requires await)
                 try await databaseRepository.registerLocalObservers()
             } catch {

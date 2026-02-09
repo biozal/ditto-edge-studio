@@ -25,7 +25,7 @@ actor DatabaseRepository {
     func addDittoAppConfig(_ appConfig: DittoAppConfig) async throws {
         let ditto = await dittoManager.dittoLocal
         guard let ditto = ditto else { return }
-        
+
         do {
             let query =
             "INSERT INTO dittoappconfigs INITIAL DOCUMENTS (:newConfig)"

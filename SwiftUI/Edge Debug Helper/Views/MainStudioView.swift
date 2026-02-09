@@ -47,6 +47,8 @@ struct MainStudioView: View {
                     ForEach(viewModel.sidebarMenuItems) { item in
                         item.image
                             .tag(item)
+                            .accessibilityIdentifier("NavigationItem_\(item.name)")
+                            .accessibilityLabel(item.name)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -202,6 +204,7 @@ struct MainStudioView: View {
                     color: viewModel.isSyncEnabled ? .green : .red)
             }
             .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
+            .accessibilityIdentifier("SyncButton")
         }
     }
     
@@ -216,6 +219,7 @@ struct MainStudioView: View {
                 FontAwesomeText(icon: ActionIcon.circleXmarkLight, size: 20, color: .red)
             }
             .help("Close App")
+            .accessibilityIdentifier("CloseButton")
         }
     }
 
@@ -707,6 +711,7 @@ extension MainStudioView {
             .padding(.horizontal)
             .padding(.top, 8)
             .padding(.bottom, 8)
+            .accessibilityIdentifier("SyncTabPicker")
 
             // Tab content
             Group {
