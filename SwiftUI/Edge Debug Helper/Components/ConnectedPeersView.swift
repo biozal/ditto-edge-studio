@@ -1,7 +1,19 @@
 import SwiftUI
 
+/// Displays connected peers in a responsive grid layout (2-3 columns based on window width).
+///
+/// **Layout**:
+/// - < 900px width: 2 columns
+/// - >= 900px width: 3 columns
+/// - Uses LazyVGrid for efficient rendering of large peer lists
+///
+/// **Backpressure**: Observer updates throttled to match UI render capacity (see SystemRepository).
+///
+/// **Stable Ordering**: Peers appear in consistent order (no ORDER BY in DQL query).
 struct ConnectedPeersView: View {
     @Bindable var viewModel: MainStudioView.ViewModel
+    @State private var availableWidth: CGFloat = 0
+    @State private var columnCount: Int = 2
 
     var body: some View {
         VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
@@ -33,37 +45,37 @@ struct ConnectedPeersView: View {
                 }
                 Spacer()
             } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.syncStatusItems) { statusInfo in
-                            syncStatusCard(for: statusInfo)
+                GeometryReader { geometry in
+                    ScrollView {
+                        LazyVGrid(
+                            columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
+                            spacing: 16
+                        ) {
+                            ForEach(viewModel.syncStatusItems) { statusInfo in
+                                syncStatusCard(for: statusInfo)
+                            }
+
+                            // Local Peer Info Card (included in same grid)
+                            if let deviceName = viewModel.localPeerDeviceName,
+                               let sdkLanguage = viewModel.localPeerSDKLanguage,
+                               let sdkPlatform = viewModel.localPeerSDKPlatform,
+                               let sdkVersion = viewModel.localPeerSDKVersion {
+                                LocalPeerInfoCard(
+                                    deviceName: deviceName,
+                                    sdkLanguage: sdkLanguage,
+                                    sdkPlatform: sdkPlatform,
+                                    sdkVersion: sdkVersion
+                                )
+                            }
                         }
-
-                        // Separator section
-                        if let deviceName = viewModel.localPeerDeviceName,
-                           let sdkLanguage = viewModel.localPeerSDKLanguage,
-                           let sdkPlatform = viewModel.localPeerSDKPlatform,
-                           let sdkVersion = viewModel.localPeerSDKVersion {
-
-                            Spacer()
-                                .frame(height: 20)
-
-                            Divider()
-                                .padding(.horizontal)
-
-                            Spacer()
-                                .frame(height: 20)
-
-                            // Local Peer Info Card
-                            LocalPeerInfoCard(
-                                deviceName: deviceName,
-                                sdkLanguage: sdkLanguage,
-                                sdkPlatform: sdkPlatform,
-                                sdkVersion: sdkVersion
-                            )
-                        }
+                        .padding()
                     }
-                    .padding()
+                    .onAppear {
+                        updateColumnCount(for: geometry.size.width)
+                    }
+                    .onChange(of: geometry.size.width) { oldValue, newValue in
+                        updateColumnCount(for: newValue)
+                    }
                 }
             }
         }
@@ -158,21 +170,18 @@ struct ConnectedPeersView: View {
                     }
                 }
 
-                // Active connections (collapsible with chevron)
+                // Active connections (always visible)
                 if let connections = status.connections, !connections.isEmpty {
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(connections) { connection in
-                                connectionBadge(for: connection, currentPeerId: status.id)
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             FontAwesomeText(icon: SystemIcon.link, size: 12, color: .secondary)
                             Text("Active Connections (\(connections.count))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                        }
+
+                        ForEach(connections) { connection in
+                            connectionBadge(for: connection, currentPeerId: status.id)
                         }
                     }
                 }
@@ -194,8 +203,11 @@ struct ConnectedPeersView: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            Spacer(minLength: 0)
         }
         .padding()
+        .frame(minHeight: 280, alignment: .top)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(NSColor.controlBackgroundColor))
@@ -247,6 +259,22 @@ struct ConnectedPeersView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
         return formatter
+    }
+
+    private func updateColumnCount(for width: CGFloat) {
+        let newColumnCount: Int
+
+        // Breakpoint: < 900px = 2 columns, >= 900px = 3 columns
+        // Minimum comfortable card width: ~350px
+        if width < 900 {
+            newColumnCount = 2
+        } else {
+            newColumnCount = 3
+        }
+
+        if columnCount != newColumnCount {
+            columnCount = newColumnCount
+        }
     }
 
     private func osIcon(for os: PeerOS) -> FAIcon {

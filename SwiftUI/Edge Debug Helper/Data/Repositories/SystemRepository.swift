@@ -3,15 +3,20 @@ import Foundation
 
 actor SystemRepository {
     static let shared = SystemRepository()
-    
+
     private let dittoManager = DittoManager.shared
     private var syncStatusObserver: DittoStoreObserver?
     private var connectionsPresenceObserver: DittoObserver?
     private var appState: AppState?
     private var dittoServerCount: Int = 0
 
+    // Backpressure handling
+    private var isProcessingUpdate = false
+    private var hasPendingUpdate = false
+    private var pendingStatusItems: [SyncStatusInfo]?
+
     // Store the callback inside the actor
-    private var onSyncStatusUpdate: (([SyncStatusInfo]) -> Void)?
+    private var onSyncStatusUpdate: (([SyncStatusInfo], @escaping () -> Void) -> Void)?
     private var onConnectionsUpdate: ((ConnectionsByTransport) -> Void)?
 
     private init() { }
@@ -141,17 +146,30 @@ actor SystemRepository {
         }.value
     }
 
+    /// Registers an observer for sync status with manual backpressure handling.
+    ///
+    /// Implements backpressure by tracking whether a UI update is in progress and queuing
+    /// only the most recent update. This prevents observer callback queue buildup when UI
+    /// updates are slower than Ditto sync rate.
+    ///
+    /// **Backpressure Strategy**: If an update arrives while processing, it's queued as
+    /// pending. Only the latest pending update is kept (intermediate updates are dropped).
+    /// When the UI signals completion, the pending update is processed if available.
+    ///
+    /// **First Usage in Codebase**: This is the first repository to implement backpressure.
+    /// Pattern can be replicated to other high-frequency observers (e.g., ObservableRepository).
+    ///
+    /// - Throws: InvalidStateError if no selected app available
     func registerSyncStatusObserver() async throws {
         guard let ditto = await dittoManager.dittoSelectedApp else {
             throw InvalidStateError(message: "No selected app available")
         }
-        
+
         // Register observer for sync status
         syncStatusObserver = try ditto.store.registerObserver(
             query: """
                 SELECT *
                 FROM system:data_sync_info
-                ORDER BY documents.sync_session_status, documents.last_update_received_time desc
                 """
         ) { [weak self] results in
             Task { [weak self] in
@@ -208,9 +226,46 @@ actor SystemRepository {
                     await self.triggerConnectionsUpdate()
                 }
 
-                // Call the callback to update the ViewModel's published property
-                await self.onSyncStatusUpdate?(filteredStatusItems)
+                // Backpressure: Check if already processing an update
+                await self.processSyncStatusUpdate(filteredStatusItems)
             }
+        }
+    }
+
+    /// Processes sync status updates with backpressure handling
+    private func processSyncStatusUpdate(_ statusItems: [SyncStatusInfo]) async {
+        if isProcessingUpdate {
+            // Already processing - queue this update as pending (drops any previous pending)
+            hasPendingUpdate = true
+            pendingStatusItems = statusItems
+            return
+        }
+
+        // Mark as processing and send to UI
+        isProcessingUpdate = true
+
+        self.onSyncStatusUpdate?(statusItems, { [weak self] in
+            Task {
+                guard let self else { return }
+
+                // Update complete - check for pending updates
+                await self.handleUpdateComplete()
+            }
+        })
+    }
+
+    /// Handles completion of a UI update and processes any pending updates
+    private func handleUpdateComplete() async {
+        if hasPendingUpdate, let pending = pendingStatusItems {
+            // Clear pending state
+            hasPendingUpdate = false
+            pendingStatusItems = nil
+
+            // Process the pending update (recursive call)
+            await processSyncStatusUpdate(pending)
+        } else {
+            // No pending updates - mark as not processing
+            isProcessingUpdate = false
         }
     }
     
@@ -219,7 +274,7 @@ actor SystemRepository {
     }
     
     // Function to set the callback from outside the actor
-    func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo]) -> Void) {
+    func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo], @escaping () -> Void) -> Void) {
         self.onSyncStatusUpdate = callback
     }
 

@@ -1516,9 +1516,16 @@ extension MainStudioView {
             
             // Setup SystemRepository callback
             Task {
-                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems in
+                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
                     Task { @MainActor in
                         self?.syncStatusItems = statusItems
+
+                        // CRITICAL: Signal completion AFTER UI update dispatches
+                        Task {
+                            // 50ms delay allows SwiftUI LazyVGrid rendering to complete
+                            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                            completion()
+                        }
                     }
                 }
             }

@@ -23,8 +23,11 @@ struct LocalPeerInfoCard: View {
             InfoRow(label: "SDK Language", value: sdkLanguage)
             InfoRow(label: "SDK Platform", value: sdkPlatform)
             InfoRow(label: "SDK Version", value: sdkVersion)
+
+            Spacer(minLength: 0)
         }
         .padding(16)
+        .frame(minHeight: 280, alignment: .top)
         .liquidGlassCard()
     }
 }
