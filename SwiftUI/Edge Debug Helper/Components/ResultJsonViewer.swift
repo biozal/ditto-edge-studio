@@ -15,6 +15,9 @@ struct ResultJsonViewer: View {
     var showPaginationControls: Bool = true
     var showExportButton: Bool = true
 
+    // Callback for JSON selection (opens in inspector)
+    var onJsonSelected: ((String) -> Void)?
+
     // Use external or internal state
     private var currentPage: Binding<Int> {
         externalCurrentPage ?? $internalCurrentPage
@@ -45,13 +48,15 @@ struct ResultJsonViewer: View {
         externalCurrentPage: Binding<Int>? = nil,
         externalPageSize: Binding<Int>? = nil,
         showPaginationControls: Bool = true,
-        showExportButton: Bool = true
+        showExportButton: Bool = true,
+        onJsonSelected: ((String) -> Void)? = nil
     ) {
         self._resultText = resultText
         self.externalCurrentPage = externalCurrentPage
         self.externalPageSize = externalPageSize
         self.showPaginationControls = showPaginationControls
         self.showExportButton = showExportButton
+        self.onJsonSelected = onJsonSelected
     }
 
     // Convenience initializer for static arrays
@@ -72,7 +77,7 @@ struct ResultJsonViewer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ResultsList(items: pagedItems)
+            ResultsList(items: pagedItems, onJsonSelected: onJsonSelected)
             Spacer()
 
             if showPaginationControls || showExportButton {
@@ -155,12 +160,13 @@ struct ResultsHeader: View {
 // Separate component for the list
 struct ResultsList: View {
     let items: [String]
+    var onJsonSelected: ((String) -> Void)?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 ForEach(items.indices, id: \.self) { index in
-                    ResultItem(jsonString: items[index])
+                    ResultItem(jsonString: items[index], onJsonSelected: onJsonSelected)
                         .padding(.horizontal)
                 }
             }
@@ -171,6 +177,7 @@ struct ResultsList: View {
 
 struct ResultItem: View {
     let jsonString: String
+    var onJsonSelected: ((String) -> Void)?
     @State private var isCopied = false
 
     var body: some View {
@@ -195,6 +202,7 @@ struct ResultItem: View {
         .contentShape(Rectangle())
         .onTapGesture {
             copyToClipboard()
+            onJsonSelected?(jsonString)
         }
         .background(
             RoundedRectangle(cornerRadius: 4)

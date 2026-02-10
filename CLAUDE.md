@@ -1168,24 +1168,28 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 Both use this exact pattern:
 
 ```swift
-Picker("", selection: $selectedItem) {
-    ForEach(items) { item in
-        item.image  // 14pt SF Symbol
-            .tag(item)
+HStack {
+    Spacer()
+    Picker("", selection: $selectedItem) {
+        ForEach(items) { item in
+            item.image  // 48pt SF Symbol
+                .tag(item)
+        }
     }
+    .pickerStyle(.segmented)
+    .labelsHidden()
+    .liquidGlassToolbar()
+    .accessibilityIdentifier("NavigationSegmentedPicker") // or "InspectorSegmentedPicker"
+    Spacer()
 }
-.pickerStyle(.segmented)
-.labelsHidden()
-.frame(height: 28)
 .padding(.horizontal, 12)
 .padding(.vertical, 6)
-.liquidGlassToolbar()
-.accessibilityIdentifier("NavigationSegmentedPicker") // or "InspectorSegmentedPicker"
 ```
 
 **Standards:**
-- Navigation icons: **14pt** SF Symbols only (not Font Awesome)
-- Picker height: **28pt** (Xcode standard)
+- Navigation icons: **48pt** SF Symbols only (not Font Awesome)
+- Picker height: **Auto-sized** (no fixed height constraint - allows picker to grow with icon size)
+- Picker alignment: **Centered** using HStack with Spacers
 - Both use MenuItem struct with `systemIcon: String`
 - Both use `.accessibilityIdentifier()` for UI tests
 - If styling changes in one, MUST change in the other
@@ -1204,7 +1208,7 @@ struct MenuItem: Identifiable, Equatable, Hashable {
     @ViewBuilder
     var image: some View {
         Image(systemName: systemIcon)
-            .font(.system(size: 14))
+            .font(.system(size: 48))
     }
 }
 ```

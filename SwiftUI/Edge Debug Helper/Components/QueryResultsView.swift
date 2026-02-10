@@ -17,6 +17,7 @@ struct QueryResultsView: View {
     @Binding var jsonResults: [String]
     var onGetLastQuery: (() -> String)? = nil
     var onInsertQuery: ((String) -> Void)? = nil
+    var onJsonSelected: ((String) -> Void)? = nil
 
     @State private var selectedTab: ResultViewTab = .raw
     @State private var currentPage = 1
@@ -44,10 +45,11 @@ struct QueryResultsView: View {
         max(1, Int(ceil(Double(jsonResults.count) / Double(pageSize))))
     }
 
-    init(jsonResults: Binding<[String]>, onGetLastQuery: (() -> String)? = nil, onInsertQuery: ((String) -> Void)? = nil) {
+    init(jsonResults: Binding<[String]>, onGetLastQuery: (() -> String)? = nil, onInsertQuery: ((String) -> Void)? = nil, onJsonSelected: ((String) -> Void)? = nil) {
         _jsonResults = jsonResults
         self.onGetLastQuery = onGetLastQuery
         self.onInsertQuery = onInsertQuery
+        self.onJsonSelected = onJsonSelected
     }
 
     var body: some View {
@@ -60,7 +62,8 @@ struct QueryResultsView: View {
                     externalCurrentPage: $currentPage,
                     externalPageSize: $pageSize,
                     showPaginationControls: false,
-                    showExportButton: false
+                    showExportButton: false,
+                    onJsonSelected: onJsonSelected
                 )
                 .tabItem {
                     Label("Raw", systemImage: "doc.plaintext")
@@ -71,7 +74,8 @@ struct QueryResultsView: View {
                 ResultTableViewer(
                     resultText: $jsonResults,
                     currentPage: $currentPage,
-                    pageSize: $pageSize
+                    pageSize: $pageSize,
+                    onJsonSelected: onJsonSelected
                 )
                 .tabItem {
                     Label("Table", systemImage: "tablecells")

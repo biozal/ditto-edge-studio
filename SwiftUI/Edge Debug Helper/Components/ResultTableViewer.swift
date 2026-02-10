@@ -9,7 +9,10 @@ struct ResultTableViewer: View {
     @State private var isLoading = false
     @State private var selectedRowId: UUID?
     @State private var copiedRowId: UUID?
-    
+
+    // Callback for JSON selection (opens in inspector)
+    var onJsonSelected: ((String) -> Void)?
+
     private let defaultColumnWidth: CGFloat = 200
 
     private var pagedItems: [String] {
@@ -251,6 +254,9 @@ struct ResultTableViewer: View {
         #else
         UIPasteboard.general.string = row.originalJson
         #endif
+
+        // Trigger inspector callback
+        onJsonSelected?(row.originalJson)
 
         // Visual feedback
         withAnimation {

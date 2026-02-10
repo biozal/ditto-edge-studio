@@ -195,6 +195,12 @@ actor SystemRepository {
                     return syncItem
                 }
 
+                // Filter out Ditto Server entries that are not connected
+                // Keep all items EXCEPT those that are Ditto Server AND Not Connected
+                let filteredStatusItems = statusItems.filter { item in
+                    !(item.isDittoServer && item.syncSessionStatus == "Not Connected")
+                }
+
                 // Update Ditto Server count if changed and trigger connections update
                 let currentDittoServerCount = await self.dittoServerCount
                 if newDittoServerCount != currentDittoServerCount {
@@ -203,7 +209,7 @@ actor SystemRepository {
                 }
 
                 // Call the callback to update the ViewModel's published property
-                await self.onSyncStatusUpdate?(statusItems)
+                await self.onSyncStatusUpdate?(filteredStatusItems)
             }
         }
     }

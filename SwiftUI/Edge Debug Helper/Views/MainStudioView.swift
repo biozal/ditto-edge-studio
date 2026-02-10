@@ -43,21 +43,24 @@ struct MainStudioView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(alignment: .leading) {
-                Picker("", selection: $viewModel.selectedSidebarMenuItem) {
-                    ForEach(viewModel.sidebarMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .accessibilityIdentifier("NavigationItem_\(item.name)")
-                            .accessibilityLabel(item.name)
+                HStack {
+                    Spacer()
+                    Picker("", selection: $viewModel.selectedSidebarMenuItem) {
+                        ForEach(viewModel.sidebarMenuItems) { item in
+                            item.image
+                                .tag(item)
+                                .accessibilityIdentifier("NavigationItem_\(item.name)")
+                                .accessibilityLabel(item.name)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .liquidGlassToolbar()
+                    .accessibilityIdentifier("NavigationSegmentedPicker")
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(height: 28)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .liquidGlassToolbar()
-                .accessibilityIdentifier("NavigationSegmentedPicker")
                 switch viewModel.selectedSidebarMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
@@ -706,6 +709,9 @@ extension MainStudioView {
 
                 Text("Settings")
                 .tag(2)
+
+                Text("Viewer")
+                .tag(3)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -723,6 +729,9 @@ extension MainStudioView {
                         .padding(.bottom, 28)  // Add padding for status bar
                 case 2:
                     TransportConfigView()
+                case 3:
+                    PresenceViewerSK()
+                        .padding(.bottom, 28)  // Add padding for status bar
                 default:
                     ConnectedPeersView(viewModel: viewModel)
                 }
@@ -1040,6 +1049,10 @@ extension MainStudioView {
                             onGetLastQuery: { viewModel.selectedQuery },
                             onInsertQuery: { dql in
                                 viewModel.selectedQuery = dql
+                            },
+                            onJsonSelected: { json in
+                                viewModel.showJsonInInspector(json)
+                                showInspector = true  // Auto-open inspector
                             }
                         )
                         .frame(height: geometry.size.height * 0.5)
@@ -1065,6 +1078,10 @@ extension MainStudioView {
                         onGetLastQuery: { viewModel.selectedQuery },
                         onInsertQuery: { dql in
                             viewModel.selectedQuery = dql
+                        },
+                        onJsonSelected: { json in
+                            viewModel.showJsonInInspector(json)
+                            showInspector = true  // Auto-open inspector
                         }
                     )
                     .frame(maxHeight: .infinity)
@@ -1124,19 +1141,22 @@ extension MainStudioView {
     private func inspectorView() -> some View {
         VStack(spacing: 0) {
             // Tab picker using standard SwiftUI segmented picker
-            Picker("", selection: $viewModel.selectedInspectorMenuItem) {
-                ForEach(viewModel.inspectorMenuItems) { item in
-                    item.image
-                        .tag(item)
+            HStack {
+                Spacer()
+                Picker("", selection: $viewModel.selectedInspectorMenuItem) {
+                    ForEach(viewModel.inspectorMenuItems) { item in
+                        item.image
+                            .tag(item)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .liquidGlassToolbar()
+                .accessibilityIdentifier("InspectorSegmentedPicker")
+                Spacer()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(height: 28)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .liquidGlassToolbar()
-            .accessibilityIdentifier("InspectorSegmentedPicker")
 
             Divider()
 
@@ -1147,10 +1167,13 @@ extension MainStudioView {
                     historyInspectorContent()
                 case "Favorites":
                     favoritesInspectorContent()
+                case "JSON":
+                    jsonInspectorContent()
                 default:
                     historyInspectorContent()
                 }
             }
+            .scrollIndicators(.hidden)
             .padding()
         }
     }
@@ -1171,10 +1194,16 @@ extension MainStudioView {
             } else {
                 ForEach(viewModel.history) { query in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(query.query)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .font(.system(.body, design: .monospaced))
+                        HStack(alignment: .top, spacing: 6) {
+                            FontAwesomeText(icon: UIIcon.clock, size: 12)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 2)  // Align with first line of text
+                            Text(query.query)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)  // Take full available width
+                        }
                     }
                     .padding(8)
                     .background(Color.secondary.opacity(0.1))
@@ -1242,6 +1271,32 @@ extension MainStudioView {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func jsonInspectorContent() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("JSON Viewer")
+                .font(.headline)
+                .padding(.bottom, 4)
+
+            if let json = viewModel.selectedJsonForInspector {
+                JsonSyntaxView(jsonString: json)
+                    .id(json)  // Force recreation when JSON changes
+            } else {
+                // Empty state: centered message
+                VStack(spacing: 12) {
+                    Spacer()
+                    FontAwesomeText(icon: DataIcon.code, size: 48, color: .secondary)
+                    Text("Select a JSON result to view it here")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -1414,6 +1469,9 @@ extension MainStudioView {
         var selectedInspectorMenuItem: MenuItem
         var inspectorMenuItems: [MenuItem] = []
 
+        // JSON Inspector State
+        var selectedJsonForInspector: String?
+
         init(_ dittoAppConfig: DittoAppConfig) {
             self.selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
@@ -1448,7 +1506,8 @@ extension MainStudioView {
             let historyItem = MenuItem(id: 4, name: "History", systemIcon: "clock")
             self.inspectorMenuItems = [
                 historyItem,
-                MenuItem(id: 5, name: "Favorites", systemIcon: "bookmark")
+                MenuItem(id: 5, name: "Favorites", systemIcon: "bookmark"),
+                MenuItem(id: 6, name: "JSON", systemIcon: "text.document.fill")
             ]
             self.selectedInspectorMenuItem = historyItem
 
@@ -1564,6 +1623,14 @@ extension MainStudioView {
                 }
 
                 isLoading = false
+            }
+        }
+
+        /// Shows JSON in the inspector panel
+        func showJsonInInspector(_ json: String) {
+            selectedJsonForInspector = json
+            if let jsonTab = inspectorMenuItems.first(where: { $0.name == "JSON" }) {
+                selectedInspectorMenuItem = jsonTab
             }
         }
 
@@ -1917,7 +1984,7 @@ struct MenuItem: Identifiable, Equatable, Hashable {
     @ViewBuilder
     var image: some View {
         Image(systemName: systemIcon)
-            .font(.system(size: 14))
+            .font(.system(size: 48))
     }
 }
 
