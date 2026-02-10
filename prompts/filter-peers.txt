@@ -1,0 +1,7 @@
+I would like to add in a new feature to the Peers List that draws in the MainStudioView syntTabsDetailView UI code.  Currently today we display all peers that are connected to the presence graph - or any device that shows up in the data_sync_info virtual collection.  This is useful information for developers - but a lot of times I only want to see the current connected peers.  So because of this I would like to build a feature to allow the user to filter out devices that are "Not Connected". 
+
+What I would like is a new UI that allows the users to either show All Peers or Connected Peers.  The filtering out of Peers I want done at the ViewModel level - so basically we always know all the peers and if they only want the Connected Peers the viewModel calculates what this should be vs changing our SystemRepository code.  Swapping out between filtering peers or showing all should not require any changes to how the SystemRepository handles getting the peer information from the database.
+
+The UI for this should be on the right side of the window with some padding from the right edge of the window and should be above the last updated time.  Also the last updated time is not correct.  Can you check on how we cacluate that beause it tells me it was last updated at 4:35:22 PM which is wrong - it's only 11:41 AM here. 
+
+The current UI of the peers list can be found in connected-peers.png image in the screens folder.  Make a plan on how you can change out the code to do this and then let me see it so I can review.

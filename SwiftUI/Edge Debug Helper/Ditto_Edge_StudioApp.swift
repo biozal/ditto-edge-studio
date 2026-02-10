@@ -14,6 +14,10 @@ class WindowController {
         // Send notification to open window
         NotificationCenter.default.post(name: NSNotification.Name("OpenFontDebugWindow"), object: nil)
     }
+
+    static func openHelpWindow() {
+        NotificationCenter.default.post(name: NSNotification.Name("OpenHelpWindow"), object: nil)
+    }
 }
 
 @main
@@ -22,6 +26,7 @@ struct Ditto_Edge_StudioApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
     @State private var showFontDebugWindow = false
+    @State private var showHelpWindow = false
 
     init() {
         // Register Font Awesome fonts programmatically
@@ -30,6 +35,15 @@ struct Ditto_Edge_StudioApp: App {
         // Set up notification observer for opening Font Debug window
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("OpenFontDebugWindow"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            // This will be handled by updating state
+        }
+
+        // Set up notification observer for opening Help window
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("OpenHelpWindow"),
             object: nil,
             queue: .main
         ) { _ in
@@ -65,9 +79,16 @@ struct Ditto_Edge_StudioApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
                     showFontDebugWindow = true
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenHelpWindow"))) { _ in
+                    showHelpWindow = true
+                }
                 .sheet(isPresented: $showFontDebugWindow) {
                     FontDebugWindow()
                         .frame(width: 600, height: 700)
+                }
+                .sheet(isPresented: $showHelpWindow) {
+                    HelpDocumentationWindow()
+                        .frame(width: 800, height: 700)
                 }
         }
         .windowResizability(.contentMinSize)
@@ -79,6 +100,13 @@ struct Ditto_Edge_StudioApp: App {
 
                     // MARK: - Help Menu with Font Debug
                     CommandGroup(replacing: .help) {
+                        Button("User Guide") {
+                            WindowController.openHelpWindow()
+                        }
+                        .keyboardShortcut("h", modifiers: .command)
+
+                        Divider()
+
                         Button("Ditto Docs") {
                             // Open help documentation
                             if let url = URL(string: "https://docs.ditto.live") {
@@ -86,6 +114,7 @@ struct Ditto_Edge_StudioApp: App {
                             }
                         }
                         .keyboardShortcut("?", modifiers: .command)
+
                         Button("Ditto Portal"){
                             // Open help documentation
                             if let url = URL(string: "https://portal.ditto.live") {

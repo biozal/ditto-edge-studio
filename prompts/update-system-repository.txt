@@ -1,0 +1,23 @@
+Go into plan mode.  Today we do the following:
+
+When we want to get the list of peers we call registerSyncStatusObserver in the System Repository.  This does a observer on the DQL statement:
+
+"SELECT * FROM system:data_sync_info"
+
+This give us status updates about commits from that peer.   The problem is this is too slow for updates - the presence graph gives us real time updates and detailed updates about each peer.  So in the registerSyncStatusObserver after we get the information from the observer we call the presence graph and pull the information about each peer from it and the merge the information from the observer on system:data_sync_info and the info from the presence graph.  
+
+This brings up a bigger issue though, because system:data_sync_info is too slow we could loose a connection to a node but it will still say we are connected.  That's not right.  
+
+So what I would like to do is flip this around. Rather than running the observer on system:data_sync_info we run an observer on the presence graph.  Now the good news is we already do this in registerConnectionsPresenceObserver where we do the observer so we can make the counts to draw on the status bar.
+
+So I would like to change registerSyncStatusObserver to do an observer on the presence graph. When that fires it should do a DQL query:
+
+SELECT _id, documents.synced_up_to_local_commit_id, documents.last_update_received_time FROM system:data_sync_info
+
+This will return the synced_up_to_local_commit_id and last updated received time which really is the only field we need from this for the cards we draw.  Anything else we have in the SyncStatusInfo comes from the presence graph.  A reminder we know that the _id from the DQL is the peerId taht we use to match the information in the presence graph.
+
+This also means we will only ever draw connected peers - so we can remove the code and UI that filters out Connected vs All Peers.  Finally this observer that caculates all this really is only needed when we are on the Peers Listing tab.  When we aren't on this tab we don't necessarly need all this and if it's running in the background it's just going to cause performance issues in the app.  So we should only start the observer when we are on that tab and we should stop the observer when we leave that tab. 
+
+ Make sure you walk through all the code so you undersatnd the current flow before you build new stuff so you don't cause regression bugs.  This doesn't need UI Testing, but it needs regular tests to vallidate things still work.  There should be no need to replace out the  SyncStatusInfo model.  All we are doing is replacing out how we get the values to put in it.  
+
+Create a plan that goes through all this and report back to me when you have it on how we can accomplish this.

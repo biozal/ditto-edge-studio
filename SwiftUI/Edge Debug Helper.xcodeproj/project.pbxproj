@@ -21,6 +21,7 @@
 		0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */; };
 		0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284D2DDA0EC1004A69D1 /* DittoObjC */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
+		0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 0DEBB4512F3BDD1700C11449 /* Textual */; };
 		0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0DHIGHLT2E10000000000003 /* HighlightSwift */; };
 /* End PBXBuildFile section */
 
@@ -67,6 +68,7 @@
 				QueryResultsViewTests.swift,
 				ResultJsonViewerRegressionTests.swift,
 				ResultTableViewerTests.swift,
+				SystemRepositoryTests.swift,
 				TableResultsParserTests.swift,
 			);
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
@@ -81,6 +83,7 @@
 				QueryResultsViewTests.swift,
 				ResultJsonViewerRegressionTests.swift,
 				ResultTableViewerTests.swift,
+				SystemRepositoryTests.swift,
 				TableResultsParserTests.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
@@ -159,6 +162,7 @@
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
 				0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */,
 				0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */,
+				0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */,
 				0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -244,6 +248,7 @@
 				0D3F284D2DDA0EC1004A69D1 /* DittoObjC */,
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
 				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
+				0DEBB4512F3BDD1700C11449 /* Textual */,
 			);
 			productName = "Ditto Edge Studio";
 			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */;
@@ -326,6 +331,7 @@
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
 				0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */,
+				0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -791,6 +797,14 @@
 				minimumVersion = 4.14.2;
 			};
 		};
+		0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/textual";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.1;
+			};
+		};
 		0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/appstefan/highlightswift.git";
@@ -871,6 +885,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */;
 			productName = DittoSwift;
+		};
+		0DEBB4512F3BDD1700C11449 /* Textual */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */;
+			productName = Textual;
 		};
 		0DHIGHLT2E10000000000003 /* HighlightSwift */ = {
 			isa = XCSwiftPackageProductDependency;

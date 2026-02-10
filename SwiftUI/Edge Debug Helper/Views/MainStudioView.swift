@@ -737,6 +737,35 @@ extension MainStudioView {
                 }
             }
         }
+        .onAppear {
+            // Only start observer if Peers List tab (tab 0) is selected
+            if selectedSyncTab == 0 {
+                Task {
+                    do {
+                        try await SystemRepository.shared.registerSyncStatusObserver()
+                    } catch {
+                        print("Failed to register sync status observer: \(error)")
+                    }
+                }
+            }
+        }
+        .onChange(of: selectedSyncTab) { oldValue, newValue in
+            Task {
+                // Stop observer when leaving Peers List tab (tab 0)
+                if oldValue == 0 && newValue != 0 {
+                    await SystemRepository.shared.stopObserver()
+                }
+
+                // Start observer when entering Peers List tab (tab 0)
+                if newValue == 0 && oldValue != 0 {
+                    do {
+                        try await SystemRepository.shared.registerSyncStatusObserver()
+                    } catch {
+                        print("Failed to register sync status observer: \(error)")
+                    }
+                }
+            }
+        }
         // Note: Toolbar buttons are already added at NavigationSplitView level (line 198)
         // on macOS, so no need to add them here
     }
@@ -1440,6 +1469,9 @@ extension MainStudioView {
         var localPeerSDKPlatform: String?
         var localPeerSDKVersion: String?
 
+        // Note: PeerFilter enum removed in favor of presence-first architecture
+        // syncStatusItems now always contains only connected peers (filtered at source)
+
         var isLoading = false
         var isQueryExecuting = false
         var isRefreshingCollections = false
@@ -1596,12 +1628,8 @@ extension MainStudioView {
                     selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
                 }
 
-                // Start observing sync status
-                do {
-                    try await SystemRepository.shared.registerSyncStatusObserver()
-                } catch {
-                    assertionFailure("Failed to register sync status observer: \(error)")
-                }
+                // Note: Sync status observer is now started conditionally when Peers List tab is selected
+                // See .onAppear and .onChange(of: selectedSyncTab) modifiers in syncTabsDetailView()
 
                 // Start observing connections via presence graph
                 do {
@@ -1741,9 +1769,6 @@ extension MainStudioView {
                 // Disable sync
                 await DittoManager.shared.selectedAppStopSync()
 
-                // Stop observers to prevent stale data updates
-                await SystemRepository.shared.stopObserver()
-
                 // Reset connection counts
                 connectionsByTransport = .empty
                 syncStatusItems = []
@@ -1753,43 +1778,9 @@ extension MainStudioView {
                 // Enable sync
                 try await DittoManager.shared.selectedAppStartSync()
                 isSyncEnabled = true
-
-                // Restart observers with fresh connections
-                do {
-                    try await SystemRepository.shared.registerSyncStatusObserver()
-                    try await SystemRepository.shared.registerConnectionsPresenceObserver()
-                } catch {
-                    assertionFailure("Failed to restart observers: \(error)")
-                }
             }
         }
         
-        func startSync() async throws {
-            try await DittoManager.shared.selectedAppStartSync()
-            isSyncEnabled = true
-
-            // Restart observers with fresh connections
-            do {
-                try await SystemRepository.shared.registerSyncStatusObserver()
-                try await SystemRepository.shared.registerConnectionsPresenceObserver()
-            } catch {
-                assertionFailure("Failed to restart observers: \(error)")
-            }
-        }
-        
-        func stopSync() async {
-            await DittoManager.shared.selectedAppStopSync()
-
-            // Stop observers to prevent stale data updates
-            await SystemRepository.shared.stopObserver()
-
-            // Reset connection counts
-            connectionsByTransport = .empty
-            syncStatusItems = []
-
-            isSyncEnabled = false
-        }
-
         func deleteObservable(_ observable: DittoObservable) async throws {
             
             if let storeObserver = observable.storeObserver {

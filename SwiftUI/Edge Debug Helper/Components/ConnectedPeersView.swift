@@ -18,15 +18,22 @@ struct ConnectedPeersView: View {
     var body: some View {
         VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
             // Header with last update time
-            HStack {
+            HStack(alignment: .top, spacing: 12) {
+                // Left: Title
                 Text("Connected Peers")
                     .font(.title2)
                     .bold()
+
                 Spacer()
-                if let lastUpdate = viewModel.syncStatusItems.first?.lastUpdateReceivedTime {
-                    Text("Last updated: \(Date(timeIntervalSince1970: lastUpdate / 1000.0), formatter: dateFormatter)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                // Right: Timestamp only (filter removed - always shows connected peers)
+                VStack(alignment: .trailing, spacing: 4) {
+                    // Timestamp
+                    if let statusInfo = viewModel.syncStatusItems.first {
+                        Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(.horizontal)
@@ -253,12 +260,6 @@ struct ConnectedPeersView: View {
         default:
             return .gray
         }
-    }
-
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .medium
-        return formatter
     }
 
     private func updateColumnCount(for width: CGFloat) {

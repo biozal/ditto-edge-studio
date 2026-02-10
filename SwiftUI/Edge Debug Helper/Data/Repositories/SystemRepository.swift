@@ -5,7 +5,7 @@ actor SystemRepository {
     static let shared = SystemRepository()
 
     private let dittoManager = DittoManager.shared
-    private var syncStatusObserver: DittoStoreObserver?
+    private var syncStatusObserver: DittoObserver?
     private var connectionsPresenceObserver: DittoObserver?
     private var appState: AppState?
     private var dittoServerCount: Int = 0
@@ -22,7 +22,7 @@ actor SystemRepository {
     private init() { }
     
     deinit {
-        syncStatusObserver?.cancel()
+        syncStatusObserver = nil
         connectionsPresenceObserver = nil
     }
 
@@ -146,18 +146,25 @@ actor SystemRepository {
         }.value
     }
 
-    /// Registers an observer for sync status with manual backpressure handling.
+    /// Registers a presence-based observer for sync status with manual backpressure handling.
     ///
-    /// Implements backpressure by tracking whether a UI update is in progress and queuing
-    /// only the most recent update. This prevents observer callback queue buildup when UI
-    /// updates are slower than Ditto sync rate.
+    /// **Architecture Change (2026-02)**: Flipped from DQL-first to presence-first for real-time updates.
+    ///
+    /// **New Flow**:
+    /// 1. Presence observer fires on connection changes (real-time)
+    /// 2. Extract connected peer IDs from presence graph
+    /// 3. Query DQL for sync metrics (synced_up_to_local_commit_id, last_update_received_time)
+    /// 4. Merge DQL metrics with presence peer data
+    /// 5. Return ONLY connected peers to UI
     ///
     /// **Backpressure Strategy**: If an update arrives while processing, it's queued as
     /// pending. Only the latest pending update is kept (intermediate updates are dropped).
     /// When the UI signals completion, the pending update is processed if available.
     ///
-    /// **First Usage in Codebase**: This is the first repository to implement backpressure.
-    /// Pattern can be replicated to other high-frequency observers (e.g., ObservableRepository).
+    /// **Benefits**:
+    /// - Real-time peer connection updates (no DQL lag)
+    /// - Accurate connection status (presence graph is source of truth)
+    /// - Improved performance (no continuous DQL observer)
     ///
     /// - Throws: InvalidStateError if no selected app available
     func registerSyncStatusObserver() async throws {
@@ -165,69 +172,133 @@ actor SystemRepository {
             throw InvalidStateError(message: "No selected app available")
         }
 
-        // Register observer for sync status
-        syncStatusObserver = try ditto.store.registerObserver(
-            query: """
-                SELECT *
-                FROM system:data_sync_info
-                """
-        ) { [weak self] results in
+        // Register presence observer for real-time peer connection changes
+        syncStatusObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
                 guard let self else { return }
 
-                // Build peer lookup map from presence graph
-                let peerLookup = await self.buildPeerLookupMap(ditto: ditto)
+                // Step 1: Extract connected peers from presence graph (source of truth)
+                let connectedPeers = presenceGraph.remotePeers
 
-                // Track Ditto Server count while building status items
-                var newDittoServerCount = 0
+                // Step 2: Query DQL for sync metrics (all peers with full documents object)
+                let query = """
+                    SELECT *
+                    FROM system:data_sync_info
+                    """
 
-                // Create enriched SyncStatusInfo instances
-                let statusItems: [SyncStatusInfo] = results.items.compactMap { item in
-                    let jsonData = item.jsonData()
-                    guard let dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                let jsonResults: [String]
+                do {
+                    jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
+                } catch {
+                    // Query failed - skip this update (log error if needed)
+                    print("Failed to query system:data_sync_info: \(error)")
+                    return
+                }
+
+                // Step 3: Build sync metrics lookup map from DQL results
+                var syncMetricsLookup: [String: [String: Any]] = [:]
+                for jsonString in jsonResults {
+                    guard let data = jsonString.data(using: .utf8),
+                          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                           let peerId = dict["_id"] as? String else {
-                        item.dematerialize()
-                        return nil
+                        continue
                     }
-
-                    // Check if this is a Ditto Server (Big Peer) connection
-                    // Big Peer doesn't appear in presence graph but is still a valid connection
-                    let isDittoServer = dict["is_ditto_server"] as? Bool ?? false
-                    if isDittoServer {
-                        newDittoServerCount += 1
-                    }
-
-                    // Look up peer enrichment data
-                    let enrichment = peerLookup[peerId]
-
-                    // Filter out stale peers, BUT keep Ditto Server even if not in presence graph
-                    // This prevents showing disconnected peers when system:data_sync_info is slow to update
-                    if !isDittoServer && enrichment == nil {
-                        // Regular peer not in presence graph - they've disconnected
-                        item.dematerialize()
-                        return nil
-                    }
-
-                    let syncItem = SyncStatusInfo(from: dict, peerEnrichment: enrichment)
-                    item.dematerialize()
-                    return syncItem
+                    syncMetricsLookup[peerId] = dict
                 }
 
-                // Filter out Ditto Server entries that are not connected
-                // Keep all items EXCEPT those that are Ditto Server AND Not Connected
-                let filteredStatusItems = statusItems.filter { item in
-                    !(item.isDittoServer && item.syncSessionStatus == "Not Connected")
+                // Step 4: Build status items for ALL connected peers (presence is source of truth)
+                var newDittoServerCount = 0
+                var statusItems: [SyncStatusInfo] = []
+                var processedPeerIds = Set<String>()
+
+                // First: Add all peers from presence graph
+                for peer in connectedPeers {
+                    let peerId = peer.peerKeyString
+
+                    // Extract peer enrichment data from presence
+                    let enrichment = await self.extractPeerEnrichment(from: peer)
+
+                    // Look up sync metrics for this peer (may not exist)
+                    var dict: [String: Any]
+                    if let syncMetrics = syncMetricsLookup[peerId] {
+                        // Peer has sync metrics - use them
+                        dict = syncMetrics
+
+                        // Check if this is a Ditto Server (Big Peer)
+                        let isDittoServer = dict["is_ditto_server"] as? Bool ?? false
+                        if isDittoServer {
+                            newDittoServerCount += 1
+                        }
+                    } else {
+                        // Peer connected but no sync metrics yet - create minimal dict
+                        dict = [
+                            "_id": peerId,
+                            "is_ditto_server": false
+                        ]
+                    }
+
+                    // Set syncSessionStatus to "Connected" in the documents object
+                    if var documents = dict["documents"] as? [String: Any] {
+                        documents["sync_session_status"] = "Connected"
+                        dict["documents"] = documents
+                    } else {
+                        // No documents object - create one with just the status
+                        dict["documents"] = ["sync_session_status": "Connected"]
+                    }
+
+                    let statusInfo = SyncStatusInfo(from: dict, peerEnrichment: enrichment)
+                    statusItems.append(statusInfo)
+                    processedPeerIds.insert(peerId)
                 }
 
-                // Update Ditto Server count if changed and trigger connections update
+                // Second: Add any Ditto Cloud Server peers from DQL that weren't in presence graph
+                // (Cloud Servers may appear in system:data_sync_info but not in presence graph)
+                for (peerId, syncMetrics) in syncMetricsLookup {
+                    // Skip if already processed from presence graph
+                    if processedPeerIds.contains(peerId) {
+                        continue
+                    }
+
+                    // Only include Ditto Cloud Servers
+                    let isDittoServer = syncMetrics["is_ditto_server"] as? Bool ?? false
+                    guard isDittoServer else {
+                        continue
+                    }
+
+                    newDittoServerCount += 1
+
+                    // Create dict with sync metrics
+                    var dict = syncMetrics
+
+                    // Check sync_session_status from documents object
+                    let syncSessionStatus = (dict["documents"] as? [String: Any])?["sync_session_status"] as? String
+                    let isNotConnected = syncSessionStatus == "Not Connected"
+                    guard !isNotConnected else {
+                        continue
+                    }
+
+                    // Set syncSessionStatus to "Connected" in the documents object
+                    if var documents = dict["documents"] as? [String: Any] {
+                        documents["sync_session_status"] = "Connected"
+                        dict["documents"] = documents
+                    } else {
+                        dict["documents"] = ["sync_session_status": "Connected"]
+                    }
+
+                    // Cloud Server won't have presence enrichment data
+                    let statusInfo = SyncStatusInfo(from: dict, peerEnrichment: nil)
+                    statusItems.append(statusInfo)
+                }
+
+                // Step 5: Update Ditto Server count and trigger connections update
                 let currentDittoServerCount = await self.dittoServerCount
                 if newDittoServerCount != currentDittoServerCount {
                     await self.updateDittoServerCount(newDittoServerCount)
                     await self.triggerConnectionsUpdate()
                 }
 
-                // Backpressure: Check if already processing an update
-                await self.processSyncStatusUpdate(filteredStatusItems)
+                // Step 6: Backpressure handling (unchanged)
+                await self.processSyncStatusUpdate(statusItems)
             }
         }
     }
@@ -352,7 +423,6 @@ actor SystemRepository {
     }
     
     private func performObserverCleanup() {
-        syncStatusObserver?.cancel()
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
         dittoServerCount = 0
