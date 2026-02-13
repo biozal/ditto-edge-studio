@@ -1,0 +1,17 @@
+I would like to update the UI in the Peer List.   Instead of a list of cards, I would like it to be a grid of cards with each row having multiple cards.   The grids should be dynamic but I'm guessing 2 cards should be able to draw per row if not 3 cards.  Each card should be the same width and the UI should look attractive.  
+
+This will involve udpating the code in syncTabsDetailView in the MainStudioView file.  Before making suggestions review the Apple documentation for the best implementation of Grids that will be performant.  Remember the contents of the cards updates on a regular basis - so having the cards drawing based on the last sync time is going to cause the cards to disappear and reappear often which is anoying because then you can't see the card long enough.  Because of this - the DQL query that orders the cards should probably be removed.  Also the chevron that hides the Active connections should be removed and it should just always show which connections are active.  I've noticed this screen refreshes all the time because of the observer, we need to look at way to make this so it's not constantly bouncing the cards around.  The new Observers API for dealing with back pressure is available in Swift:
+
+https://docs.ditto.live/sdk/v5/crud/observing-data-changes
+
+registerObserverWithSignalNext - this should allow us to tell it to only fire an observation again when we are done and ready for it, so we don't have back pressure issues.  Only when we are done drawing the UI update from the observer change do we call  the signalNext() function.  This helps with peformance.  While the documentation says it's only v5 in the link I sent you, the API is available in v4.  
+
+https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Other%20Typealiases.html#/s:10DittoSwift0A37StoreObservationHandlerWithSignalNexta
+https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Other%20Typealiases.html#/s:10DittoSwift0A10SignalNexta
+
+I've confirmed in Xcode the API is available:
+ditto.store.registerObserver(query: <#T##String#>, handlerWithSignalNext: <#T##DittoStoreObservationHandlerWithSignalNext##DittoStoreObservationHandlerWithSignalNext##(_ result: DittoQueryResult, _ signalNext: @escaping DittoSignalNext) -> Void#>)
+
+We probably need to swap out the syncStatusObserver observer in the SystemRepository to this in the registerSyncStatusObserver function.  
+
+Please make a plan on how to update the app for this UI change and let me know what you find out.  Make sure you do a lot of research on SwiftUI and performance with grids before making this change.   

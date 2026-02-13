@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when worki:wng with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -9,6 +9,55 @@ Edge Debug Helper is a comprehensive SwiftUI application for macOS and iPadOS, p
 
 From time to time to debug or design new features screenshots or design mock ups will always be stored in the screens folder of the repository.  If you are told
 there is a screenshot named and then a filename always asssume it's in the screens folder.
+
+## File Management with Xcode MCP Server
+
+**CRITICAL WORKFLOW REQUIREMENT: When adding or modifying files in this project, ALWAYS use the Xcode MCP server.**
+
+### Why Use Xcode MCP Server
+
+The Xcode MCP server ensures proper integration with the Xcode project structure:
+- Automatically adds new files to the correct build targets
+- Maintains proper file references in the `.xcodeproj` structure
+- Prevents "file not in target" compilation errors
+- Handles File System Synchronized directories correctly
+- Updates `project.pbxproj` with proper membership settings
+
+### When to Use Xcode MCP Server
+
+Use the Xcode MCP server for:
+- ✅ Creating new Swift files (Views, ViewModels, Utilities, etc.)
+- ✅ Creating new test files (unit tests, UI tests)
+- ✅ Adding new resource files (images, fonts, plists)
+- ✅ Moving or renaming files within the project
+- ✅ Any operation that modifies the Xcode project structure
+
+### How to Use
+
+Before creating or modifying files that need to be part of the Xcode project:
+
+1. **Check available Xcode MCP tools:**
+   ```
+   Use ToolSearch to find xcode-related tools
+   ```
+
+2. **Use appropriate Xcode MCP commands** for file operations instead of standard file tools
+
+3. **Verify the file appears in Xcode** after creation/modification
+
+### Standard File Operations vs. Xcode Operations
+
+| Operation | Use Standard Tools | Use Xcode MCP Server |
+|-----------|-------------------|---------------------|
+| Read existing files | ✅ Read tool | - |
+| Edit existing files | ✅ Edit tool | - |
+| Create documentation (`.md` files) | ✅ Write tool | - |
+| Create Swift source files | ❌ | ✅ Xcode MCP |
+| Create test files | ❌ | ✅ Xcode MCP |
+| Add resources to bundle | ❌ | ✅ Xcode MCP |
+| Move files in project | ❌ | ✅ Xcode MCP |
+
+**Important:** Only use the Xcode MCP server for files that need to be compiled or bundled with the app. Documentation, scripts, and configuration files outside the Xcode project can use standard file tools.
 
 ## Testing Requirements
 

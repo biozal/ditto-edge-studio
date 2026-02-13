@@ -203,6 +203,7 @@ enum NavigationIcon {
 /// Action icon aliases for convenience
 enum ActionIcon {
     static let plus: FAIcon = .icon_f067           // fa-plus
+    static let minus: FAIcon = .icon_f068          // fa-minus
     static let circlePlus: FAIcon = .icon_f055     // fa-circle-plus
     static let circleXmark: FAIcon = .icon_f057    // fa-circle-xmark
     static let download: FAIcon = .icon_f019       // fa-download

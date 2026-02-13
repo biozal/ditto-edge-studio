@@ -52,7 +52,7 @@ actor DittoManager {
                     dittoLocal = nil
                 }
                 // setup logging
-                DittoLogger.isEnabled = true
+                DittoLogger.isEnabled = false
                 DittoLogger.minimumLogLevel = .debug
 
                 //cache state for future use

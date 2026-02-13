@@ -1,0 +1,62 @@
+Go into deep plan moode.  To start out:
+
+- remove all the sprites you created for iphone, tablet, laptop, cloud, and server.  That should be all the         
+  sprites.  
+
+- we will focus on devices instead linking to each other.
+
+We want to simulate a dynamic network diagram of devices that are connected to each other.  The current presence viewer was written in Javascript.  I can't find the original code and I would like to do this in Javascript instead.  
+
+I have a few screenshots for you to look at:
+- viewer1.png
+- viewer2.png
+- viewer3.png
+
+This presence diagram is a dynamic diagram from the Ditto Precense Graph API.  How it works is:
+- It registers an observer on the presence graph for changes (https://docs.ditto.live/sdk/latest/sync/using-mesh-presence#observing-presence-graph-modifications)
+
+- When it finds changes - it looks at all the peers you are connected to via the Remote Peer collection (https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Structs/DittoPresenceGraph.html)
+
+- The peer information is here:  (https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Structs/DittoPeer.html)
+What we care about is how the peers are connected so we can draw a network diagram.  This is in the connections property:
+https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Structs/DittoConnection.html
+
+You can see the type of the connection from the Connection Type:
+https://software.ditto.live/cocoa/DittoSwift/4.14.2/api-reference/Enums/DittoConnectionType.html
+
+If isConnectedToDittoCloud is set on the Peer - we know this is a connection to the Ditto Portal which we should draw then as Ditto Cloud.  Otherwise we should use the deviceName property name.  
+
+You can see in the screenshots we have four network connection types:
+bluetooth
+accessPoint
+p2pWiFi
+webSocket
+
+This maps directly to the ConnectionType.  Each one of these has a color associated with it based on the Ditto Rainbow Connection examples:
+https://docs.ditto.live/key-concepts/mesh-networking#rainbow-connection
+
+bluetooth - blue (label: Bluetooth)
+accessPoint - green (label: LAN)
+p2pWiFi - pink (label P2P WiFi)
+webSocket - orange (Label: WebSocket)
+cloud - purple (Label: Cloud)
+
+As stated before a connection that has isConnectedToDittoCloud set is considered a cloud connection.
+
+Our goal is to draw a dynamic network diagram with lines connecting to the various peers based on the network connections that show up in the Peer.  Tehre is a flaw in the current presence viewer:  colors.  People that are color blind wouldn't be able to see the differences between the network connections.  Because of this I want to change this so that the lines are drawn with unique dash patterns based on the network type.  One way to do this is to use shorter vs longer dashes.  For example since bluetooth can only send small amounts of data those dashes could be smalller.  accessPoint is LAN which is really fast and has a lot of bandwidth so those dashes could be longer.  Cloud is unique so we could have a pattern of longer dash and then a circle and then another longer dash and then circle.  I think you get the idea of the pattern.  The local peer is the device running - that shows up as Me in the center of the diagram.  I would like to instead have that print the local peer device name.  
+
+The goal of this is to have a dynamic network diagram and as peers are no longer in the presence graph based on the observerable we are listen to we remove then from the diagram.  I would like a cool animation that happens when they are no longer available like they disappear.  When a new device is discovered it should have an animation when it appears and the lines should animate from the me to the device.  No lines should ever cross each other, which is the hard part and why the circle kind of design is in play.  
+
+We need two modes:  a test mode and a real live production data mode.  To test how we draw devices and connections - we need a test mode that uses mock data to draw 30 devices on the screen with at least 1 network with some of them having two different network connections and one cloud connection.  This will allow us to test the ability for this to scale.  
+
+The entier diagram can be zoomed in and out which is why I had you add in the + and - keys.  In the javascript version the mouse scroll wheel can also be used to zoom in and out.  We should allow this.  
+
+You can also click on any peer and drag it to a different location and let it go and the lines will stay connected.  This allows you to move different peers around in the diagram, including the "me" local peer.  You can click anywhere on the diagram and hold down the mouse and move the diagram around in any direction.  
+
+The device name for each peer should be drawn and the current shape is dnyamic enough so that the full name can fit into it.  We need to keep this feature.  I don't like the current shape and the UI doesn't look very modern.  I would like it to look a little more modern and polished with animations.  
+
+ For now let's make checkbox that is for test mode.  If you check the box instead of getting the information from the ditto presence graph we use mock data so we can test the rendering engine of peers and the line connections between them. I would like you to make a plan to implemnt the new version of the presence graph viewer based on all the information I've given to you.  
+
+
+
+
