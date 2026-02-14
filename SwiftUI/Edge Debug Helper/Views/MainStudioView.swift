@@ -1640,14 +1640,14 @@ extension MainStudioView {
 
                 // Fetch local peer info via local query
                 do {
-                    let query = "SELECT device_name, ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
+                    let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
                     let jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
 
                     // Parse first result (should only be one - local peer)
                     if let firstResult = jsonResults.first,
                        let data = firstResult.data(using: .utf8),
                        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        localPeerDeviceName = json["device_name"] as? String
+                        localPeerDeviceName =  "Edge Studio"
                         localPeerSDKLanguage = json["ditto_sdk_language"] as? String
                         localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
                         localPeerSDKVersion = json["ditto_sdk_version"] as? String

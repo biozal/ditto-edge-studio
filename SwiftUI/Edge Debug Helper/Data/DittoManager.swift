@@ -209,8 +209,12 @@ actor DittoManager {
             guard let ditto = dittoSelectedApp else {
                 throw AppError.error(message: "Failed to create Ditto instance")
             }
-            
+
+            // Update Device Name to show in presence graph
+            try ditto.presence.setPeerMetadata(["deviceName": "Edge Studio"]);
+
             ditto.updateTransportConfig(block: { config in
+
                 // Configure peer-to-peer transports from saved settings
                 config.peerToPeer.bluetoothLE.isEnabled = appConfig.isBluetoothLeEnabled
                 config.peerToPeer.lan.isEnabled = appConfig.isLanEnabled

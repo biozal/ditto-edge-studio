@@ -23,6 +23,7 @@ struct PresenceViewerSK: View {
                 // SpriteKit scene
                 SpriteKitSceneView(scene: $scene, viewModel: viewModel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusable() // Allow view to receive keyboard and scroll events
 
                 // Zoom controls overlay (bottom-right)
                 zoomControls
@@ -185,13 +186,23 @@ struct LegendRow: View {
 
 // MARK: - SpriteKit Scene View (NSViewRepresentable)
 
-/// NSViewRepresentable wrapper for SKView
+/// Custom SKView subclass that properly forwards scroll events to the scene
+class ScrollableSKView: SKView {
+    override var acceptsFirstResponder: Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        // Forward scroll events to the scene
+        scene?.scrollWheel(with: event)
+    }
+}
+
+/// NSViewRepresentable wrapper for SKView with scroll event handling
 struct SpriteKitSceneView: NSViewRepresentable {
     @Binding var scene: PresenceNetworkScene?
     let viewModel: PresenceViewerViewModel
 
-    func makeNSView(context: Context) -> SKView {
-        let skView = SKView()
+    func makeNSView(context: Context) -> ScrollableSKView {
+        let skView = ScrollableSKView()
         skView.ignoresSiblingOrder = true
         skView.showsFPS = false // Set to true for debugging
         skView.showsNodeCount = false // Set to true for debugging
@@ -201,10 +212,15 @@ struct SpriteKitSceneView: NSViewRepresentable {
             skView.presentScene(scene)
         }
 
+        // Ensure view can become first responder and receive scroll events
+        DispatchQueue.main.async {
+            skView.window?.makeFirstResponder(skView)
+        }
+
         return skView
     }
 
-    func updateNSView(_ nsView: SKView, context: Context) {
+    func updateNSView(_ nsView: ScrollableSKView, context: Context) {
         if let scene = scene, nsView.scene !== scene {
             nsView.presentScene(scene)
         }

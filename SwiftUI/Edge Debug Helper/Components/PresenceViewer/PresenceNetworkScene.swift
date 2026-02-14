@@ -44,6 +44,8 @@ class PresenceNetworkScene: SKScene {
     private var isPanning: Bool = false
     private var lastPanLocation: CGPoint = .zero
     private var hoveredNode: PeerNode?
+    private var isUserInteracting: Bool = false // Tracks if user is actively dragging/panning
+    private var needsLayoutAfterInteraction: Bool = false // Defer layout until interaction completes
     
     // Layout
     private let centerPosition = CGPoint.zero
@@ -162,8 +164,15 @@ class PresenceNetworkScene: SKScene {
         let connectionsChanged = currentConnections != lastConnectionsSnapshot
 
         if peersChanged || connectionsChanged {
-            // Something changed, recalculate layout
-            recalculateLayout()
+            // Check if user is currently interacting with the scene
+            if isUserInteracting {
+                // Defer layout until interaction completes
+                needsLayoutAfterInteraction = true
+                print("📍 User is interacting, deferring layout animation")
+            } else {
+                // Something changed, recalculate layout immediately
+                recalculateLayout()
+            }
 
             // Update snapshots
             lastPeerKeysSnapshot = currentPeerKeys
@@ -470,6 +479,9 @@ class PresenceNetworkScene: SKScene {
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
 
+        // Mark that user is actively interacting
+        isUserInteracting = true
+
         // Check if we touched a peer node (cloud is treated as a regular peer)
         if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
             selectedNode = peerNode
@@ -495,17 +507,10 @@ class PresenceNetworkScene: SKScene {
             // Update connected lines in real-time
             updateConnectionsForNode(node)
         } else if isPanning {
-            // Pan the camera
-            let delta = CGPoint(
-                x: location.x - lastPanLocation.x,
-                y: location.y - lastPanLocation.y
-            )
-
-            // Move camera in opposite direction
-            cameraNode.position.x -= delta.x
-            cameraNode.position.y -= delta.y
-
-            lastPanLocation = location
+            // Pan the camera using event delta for smooth, accurate movement
+            // Note: event.deltaX/deltaY provide raw mouse movement, immune to coordinate system changes
+            cameraNode.position.x -= event.deltaX
+            cameraNode.position.y += event.deltaY // Y is inverted in AppKit
         }
     }
     
@@ -519,6 +524,16 @@ class PresenceNetworkScene: SKScene {
         selectedNode = nil
         isDraggingNode = false
         isPanning = false
+
+        // Mark that user interaction has ended
+        isUserInteracting = false
+
+        // If layout was deferred during interaction, trigger it now
+        if needsLayoutAfterInteraction {
+            needsLayoutAfterInteraction = false
+            print("📍 User interaction ended, running deferred layout animation")
+            recalculateLayout()
+        }
     }
     
     override func mouseMoved(with event: NSEvent) {
