@@ -15,8 +15,13 @@ class PresenceNetworkScene: SKScene {
     
     // MARK: - Properties
     
-    /// Reference to the view model for bidirectional communication
-    weak var viewModel: PresenceViewerViewModel?
+    // Configuration
+    /// Initial zoom level to apply when scene first appears
+    var initialZoomLevel: CGFloat = 1.0
+    
+    // Callbacks
+    /// Called when user changes zoom level via scroll wheel or gestures
+    var onZoomChanged: ((CGFloat) -> Void)?
     
     // Scene layers
     private var backgroundLayer: FloatingSquaresLayer?
@@ -64,10 +69,8 @@ class PresenceNetworkScene: SKScene {
         setupLayers()
         setupBackground()
 
-        // Apply initial zoom level from ViewModel
-        if let viewModel = viewModel {
-            cameraNode.setScale(viewModel.zoomLevel)
-        }
+        // Apply initial zoom level from configuration
+        cameraNode.setScale(initialZoomLevel)
     }
     
     // MARK: - Setup
@@ -584,9 +587,9 @@ class PresenceNetworkScene: SKScene {
         scaleAction.timingMode = .easeOut
         camera.run(scaleAction, withKey: "scrollZoom")
         
-        // Notify ViewModel to update zoom UI
+        // Notify via callback to update zoom UI
         DispatchQueue.main.async { [weak self] in
-            self?.viewModel?.updateZoomLevel(newScale)
+            self?.onZoomChanged?(newScale)
         }
     }
     
