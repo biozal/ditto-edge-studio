@@ -24,7 +24,7 @@ struct HelpDocumentationWindow: View {
                 HelpContentView(markdownContent: markdownContent)
             }
         }
-        .frame(width: 800, height: 700)
+        .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         .onAppear {
             loadHelpContent()
         }
@@ -39,7 +39,7 @@ struct HelpDocumentationWindow: View {
             Spacer()
 
             Button {
-                dismiss()
+                NSApplication.shared.keyWindow?.close()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 20))

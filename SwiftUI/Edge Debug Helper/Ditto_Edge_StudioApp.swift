@@ -24,31 +24,12 @@ class WindowController {
 struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
     @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
-    @State private var showFontDebugWindow = false
-    @State private var showHelpWindow = false
 
     init() {
         // Register Font Awesome fonts programmatically
         FontAwesomeRegistration.registerFonts()
-
-        // Set up notification observer for opening Font Debug window
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("OpenFontDebugWindow"),
-            object: nil,
-            queue: .main
-        ) { _ in
-            // This will be handled by updating state
-        }
-
-        // Set up notification observer for opening Help window
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("OpenHelpWindow"),
-            object: nil,
-            queue: .main
-        ) { _ in
-            // This will be handled by updating state
-        }
     }
 
     var body: some Scene {
@@ -77,24 +58,34 @@ struct Ditto_Edge_StudioApp: App {
                 }
                 .environmentObject(appState)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
-                    showFontDebugWindow = true
+                    openWindow(id: "font-debug-window")
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenHelpWindow"))) { _ in
-                    showHelpWindow = true
-                }
-                .sheet(isPresented: $showFontDebugWindow) {
-                    FontDebugWindow()
-                        .frame(width: 600, height: 700)
-                }
-                .sheet(isPresented: $showHelpWindow) {
-                    HelpDocumentationWindow()
-                        .frame(width: 800, height: 700)
+                    openWindow(id: "help-window")
                 }
         }
         .windowResizability(.contentMinSize)
-                .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
-                .commands {
-                    CommandGroup(replacing: .newItem) {
+        .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
+
+        // MARK: - Utility Windows
+
+        // Help Documentation Window
+        WindowGroup(id: "help-window") {
+            HelpDocumentationWindow()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 800, height: 700)
+
+        // Font Debug Window
+        WindowGroup(id: "font-debug-window") {
+            FontDebugWindow()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 600, height: 700)
+        .commands {
+            CommandGroup(replacing: .newItem) {
                         // Leave empty to remove New Window command
                     }
 

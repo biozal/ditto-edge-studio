@@ -244,7 +244,7 @@ struct FontDebugWindow: View {
                     Spacer()
 
                     Button {
-                        dismiss()
+                        NSApplication.shared.keyWindow?.close()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 20))
@@ -296,7 +296,7 @@ struct FontDebugWindow: View {
                 }
             }
         }
-        .frame(width: 600, height: 700)
+        .frame(minWidth: 600, maxWidth: .infinity, minHeight: 500, maxHeight: .infinity)
     }
 
     // MARK: - View Builders
