@@ -1,24 +1,24 @@
 import Foundation
 
-/// Loads DittoAppConfig from various sources and handles legacy formats
+/// Loads DittoConfigForDatabase from various sources and handles legacy formats
 enum DittoAppConfigLoader {
 
     /// Converts mode string values to AuthMode enum, supporting legacy formats
     static func parseMode(from string: String) -> AuthMode? {
         switch string.lowercased() {
         // Current format - direct mappings
-        case "onlineplayground":
-            return .onlinePlayground
-        case "offlineplayground":
-            return .offlinePlayground
-        case "sharedkey":
-            return .sharedKey
+        case "server":
+            return .server
+        case "smallpeersonly":
+            return .smallPeersOnly
 
         // Legacy format mappings
-        case "online":
-            return .onlinePlayground
-        case "offline":
-            return .offlinePlayground
+        case "onlineplayground", "online":
+            return .server
+        case "offlineplayground", "offline":
+            return .server  // Deprecated mode, default to server
+        case "sharedkey":
+            return .smallPeersOnly
 
         default:
             return nil
@@ -38,12 +38,12 @@ enum DittoAppConfigLoader {
         // Add any other legacy field handling here in the future
     }
 
-    /// Loads DittoAppConfig from Data, handling both current and legacy formats
-    static func loadConfig(from data: Data) throws -> DittoAppConfig {
+    /// Loads DittoConfigForDatabase from Data, handling both current and legacy formats
+    static func loadConfig(from data: Data) throws -> DittoConfigForDatabase {
         // First try to decode directly (for current format)
         do {
             let decoder = JSONDecoder()
-            return try decoder.decode(DittoAppConfig.self, from: data)
+            return try decoder.decode(DittoConfigForDatabase.self, from: data)
         } catch {
             // If direct decoding fails, try handling legacy format
             guard var jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -56,7 +56,7 @@ enum DittoAppConfigLoader {
             // Convert back to Data and decode
             let preparedData = try JSONSerialization.data(withJSONObject: jsonObject)
             let decoder = JSONDecoder()
-            return try decoder.decode(DittoAppConfig.self, from: preparedData)
+            return try decoder.decode(DittoConfigForDatabase.self, from: preparedData)
         }
     }
 }

@@ -1,0 +1,39 @@
+Go into Plan mode.  I would like to refactor the DittoAppConfig.swift file.  Currently the class name is DittoAppConfig.  Ditto has updated there API and now I would like to match there naming convention.  
+
+You can read more about it here:
+https://docs.ditto.live/sdk/latest/ditto-config#online-playground
+
+With this the DittoAppConfig should now be called DittoConfigForDatabase.  We need to make sure that all locations that use this are updated from DittoAppConfig to DittoConfigForDatabase.
+
+As part of this we need to rename the following fields:
+
+appId renamed to databaseId
+authToken renamed to token
+
+The enum AuthMode needs to be refactored to the following options:
+
+.onlinePlayground is now .server. The text for it should be "Server"
+
+.sharedKey is now .smallPeersOnly.  The text for it should be "Small Peers Only"
+
+.offlineplayground should be removed.
+
+We need to update the UI for this.  The AppEditorView now needs to be renamed to DatabaseEditorView.  
+
+We need to change out the UI based on the changes in the SDK on this screen.  
+
+Just like with AuthMode the Mode "Online Playground" should now be listed as "Server".
+
+On this we should update the App ID label to state "Database ID".  When saving this should be saved into the dabaseId field.
+
+The Playground Token should be renamed to "Token".  When saving, this should be saved into the token field.
+
+The "Offline Playground" option should be removed.
+
+"Shared Key" should now be called "Small Peers Only" to match AuthMode.  On here the "App ID" label should be updated to "Database ID". When saving this should be saved into the dabaseId field.   
+
+The message below it Offline License Token that states "Required for sync activation in shared key mode", but that text should be now "Required for sync activation in Small Peers Only mode.  Obtain from https://portal.ditto.live".  
+
+Update the Ditto Manager createIdentiy function to remove the option for offlinePlayground.  DO NOT update the code to use DittoConfig, keep the current identity code in check, just use the new class name DittoConfigForDatabase and the renamed fields - I will manually update the code to use the new DittoConfig class it's a bit tricky.  
+
+Your job in the plan is to refactor the class name, enum, and update the UI.  You should do a build to make sure that the app still functions.  Let me know when you have a plan in place I can review.  

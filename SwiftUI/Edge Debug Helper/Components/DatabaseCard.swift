@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 struct DatabaseCard: View {
-    let dittoApp: DittoAppConfig
+    let dittoApp: DittoConfigForDatabase
     var onEdit: () -> Void
     
     @State private var showAppId = false
@@ -27,13 +27,13 @@ struct DatabaseCard: View {
             // Right VStack: Secure fields
             VStack(alignment: .leading, spacing: 12) {
                 SecureField(
-                    label: "App ID",
-                    value: dittoApp.appId,
+                    label: "Database ID",
+                    value: dittoApp.databaseId,
                     isRevealed: $showAppId
                 )
                 SecureField(
-                    label: "Auth Token",
-                    value: dittoApp.authToken,
+                    label: "Token",
+                    value: dittoApp.token,
                     isRevealed: $showAuthToken
                 )
             }

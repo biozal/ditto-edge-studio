@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if viewModel.isMainStudioViewPresented,
-                let selectedApp = viewModel.selectedDittoAppConfig
+                let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
                 MainStudioView(
                     isMainStudioViewPresented: Binding(
@@ -40,16 +40,7 @@ struct ContentView: View {
                                     .progressViewStyle(.circular)
                             )
                         } else if viewModel.dittoApps.isEmpty {
-                            AnyView(
-                                ContentUnavailableView(
-                                    "No Database Configurations",
-                                    systemImage:
-                                        "exclamationmark.triangle.fill",
-                                    description: Text(
-                                        "No databases have been added yet. Click the plus button above to add your first app."
-                                    )
-                                )
-                            )
+                            AnyView(NoDatabaseConfigurationView())
                         } else {
                             DatabaseList(
                                 viewModel: viewModel,
@@ -57,13 +48,13 @@ struct ContentView: View {
                             )
                         }
                     }
-                    .navigationTitle(Text("Ditto Apps"))
+                    .navigationTitle(Text("Registered Ditto Databases"))
                     .toolbar {
                         #if os(iOS)
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button {
                                     viewModel.showAppEditor(
-                                        DittoAppConfig.new()
+                                        DittoConfigForDatabase.new()
                                     )
                                 } label: {
                                     FontAwesomeText(icon: ActionIcon.plus, size: 14)
@@ -74,7 +65,7 @@ struct ContentView: View {
                             ToolbarItem(placement: .automatic) {
                                 Button {
                                     viewModel.showAppEditor(
-                                        DittoAppConfig.new()
+                                        DittoConfigForDatabase.new()
                                     )
                                 } label: {
                                     FontAwesomeText(icon: ActionIcon.plus, size: 14)
@@ -89,7 +80,7 @@ struct ContentView: View {
                             set: { viewModel.isPresented = $0 }
                         )
                     ) {
-                        AppEditorView(
+                        DatabaseEditorView(
                             isPresented: Binding(
                                 get: { viewModel.isPresented },
                                 set: { viewModel.isPresented = $0 }
@@ -101,9 +92,9 @@ struct ContentView: View {
                                 minWidth: 600,
                                 idealWidth: 1000,
                                 maxWidth: 1920,
-                                minHeight: 800,
-                                idealHeight: 1024,
-                                maxHeight: 1080
+                                minHeight: 600,
+                                idealHeight: 600,
+                                maxHeight: 650
                             )
                         #elseif os(iOS)
                             .frame(
@@ -114,11 +105,11 @@ struct ContentView: View {
                                 maxWidth: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 1080 : nil,
                                 minHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 800 : nil,
+                                    == .pad ? 600 : nil,
                                 idealHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 800 : nil,
+                                    == .pad ? 680 : nil,
                                 maxHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 1000 : nil
+                                    == .pad ? 850 : nil
                             )
                         #endif
                         .environmentObject(appState)
@@ -142,23 +133,23 @@ extension ContentView {
         @ObservationIgnored private var cancellables = Set<AnyCancellable>()
         private let databaseRepository = DatabaseRepository.shared
 
-        var dittoApps: [DittoAppConfig] = []
+        var dittoApps: [DittoConfigForDatabase] = []
         var isLoading = false
         var isMainStudioLoaded = false
 
         //used for editor
         var isPresented = false
-        var dittoAppToEdit: DittoAppConfig?
+        var dittoAppToEdit: DittoConfigForDatabase?
 
         //used for MainStudioView
         var isMainStudioViewPresented = false
-        var selectedDittoAppConfig: DittoAppConfig?
+        var selectedDittoConfigForDatabase: DittoConfigForDatabase?
 
         init() {
             // Repository callback will be set up when loadApps is called
         }
 
-        func deleteApp(_ dittoApp: DittoAppConfig, appState: AppState) async {
+        func deleteApp(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
@@ -170,60 +161,66 @@ extension ContentView {
         func loadApps(appState: AppState) async {
             isLoading = true
             do {
-                // Initialize DittoManager first
-                try await DittoManager.shared.initializeStore(
-                    appState: appState
-                )
+                // 1. Check for legacy data and show warning if needed
+                let cleanupService = LegacyDataCleanupService.shared
+                if await cleanupService.hasLegacyData() {
+                    let userApprovedCleanup = await cleanupService.showBreakingChangeWarning()
 
-                //setup the local database subscription for registered apps
+                    if !userApprovedCleanup {
+                        // User chose to cancel - exit app
+                        #if os(macOS)
+                        NSApplication.shared.terminate(nil)
+                        #else
+                        exit(0)
+                        #endif
+                        return
+                    }
+
+                    // User approved - delete old data
+                    try await cleanupService.cleanupLegacyData()
+                }
+
+                // 2. Set appState in DittoManager
+                await DittoManager.shared.setAppState(appState)
+
+                // 3. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
-                try await databaseRepository.setupDatabaseConfigSubscriptions()
+                let configs = try await databaseRepository.loadDatabaseConfigs()
+                self.dittoApps = configs
 
-                // Set appState in SystemRepository as well
-                await SystemRepository.shared.setAppState(appState)
-
-                // Set appState in ObservableRepository as well
-                await ObservableRepository.shared.setAppState(appState)
-
-                // Set appState in FavoritesRepository as well
-                await FavoritesRepository.shared.setAppState(appState)
-
-                // Set appState in HistoryRepository as well
-                await HistoryRepository.shared.setAppState(appState)
-
-                // Set appState in CollectionsRepository as well
-                await CollectionsRepository.shared.setAppState(appState)
-
-                // Set appState in SubscriptionsRepository as well
-                await SubscriptionsRepository.shared.setAppState(appState)
-
-                // Set up callback using the new setter method (now requires await)
+                // 4. Set up callback for future updates
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
                     Task { @MainActor [weak self] in
                         self?.dittoApps = configs
                     }
                 }
 
-                // Register observers after setting up callback (requires await)
-                try await databaseRepository.registerLocalObservers()
+                // 5. Set appState in other repositories
+                await SystemRepository.shared.setAppState(appState)
+                await ObservableRepository.shared.setAppState(appState)
+                await FavoritesRepository.shared.setAppState(appState)
+                await HistoryRepository.shared.setAppState(appState)
+                await CollectionsRepository.shared.setAppState(appState)
+                await SubscriptionsRepository.shared.setAppState(appState)
+
             } catch {
                 appState.setError(error)
             }
             isLoading = false
         }
 
-        func showAppEditor(_ dittoApp: DittoAppConfig) {
+        func showAppEditor(_ dittoApp: DittoConfigForDatabase) {
             dittoAppToEdit = dittoApp
             isPresented = true
         }
 
-        func showMainStudio(_ dittoApp: DittoAppConfig, appState: AppState)
+        func showMainStudio(_ dittoApp: DittoConfigForDatabase, appState: AppState)
             async
         {
             do {
-                selectedDittoAppConfig = dittoApp
+                selectedDittoConfigForDatabase = dittoApp
                 let didSetupDitto = try await DittoManager.shared
-                    .hydrateDittoSelectedApp(
+                    .hydrateDittoSelectedDatabase(
                         dittoApp
                     )
                 if didSetupDitto {
@@ -238,5 +235,5 @@ extension ContentView {
 
 #Preview {
     ContentView()
-        .environment(DittoAppConfig.new())
+        .environment(DittoConfigForDatabase.new())
 }

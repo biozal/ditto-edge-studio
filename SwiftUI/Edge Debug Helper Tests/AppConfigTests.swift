@@ -4,139 +4,138 @@ import Foundation
 
 struct AppConfigTests {
 
-    // MARK: - DittoAppConfig Tests
+    // MARK: - DittoConfigForDatabase Tests
 
-    @Test("DittoAppConfig initializes with all required fields")
-    func testDittoAppConfigInitialization() async throws {
-        let config = DittoAppConfig(
+    @Test("DittoConfigForDatabase initializes with all required fields")
+    func testDittoConfigForDatabaseInitialization() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "test-token",
+            databaseId: "test-database-id",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key",
-            mode: .onlinePlayground,
+            mode: .server,
             allowUntrustedCerts: false,
             secretKey: ""
         )
 
         #expect(config._id == "test-id")
         #expect(config.name == "Test App")
-        #expect(config.appId == "test-app-id")
-        #expect(config.authToken == "test-token")
+        #expect(config.databaseId == "test-database-id")
+        #expect(config.token == "test-token")
         #expect(config.authUrl == "https://auth.example.com")
         #expect(config.websocketUrl == "wss://sync.example.com")
         #expect(config.httpApiUrl == "https://api.example.com")
         #expect(config.httpApiKey == "test-api-key")
-        #expect(config.mode == .onlinePlayground)
+        #expect(config.mode == .server)
         #expect(config.allowUntrustedCerts == false)
         #expect(config.secretKey == "")
     }
 
-    @Test("DittoAppConfig initializes with default values")
-    func testDittoAppConfigDefaultValues() async throws {
-        let config = DittoAppConfig(
+    @Test("DittoConfigForDatabase initializes with default values")
+    func testDittoConfigForDatabaseDefaultValues() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "test-token",
+            databaseId: "test-database-id",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
 
-        #expect(config.mode == .onlinePlayground)
+        #expect(config.mode == .server)
         #expect(config.allowUntrustedCerts == false)
         #expect(config.secretKey == "")
     }
 
-    @Test("DittoAppConfig.new() creates empty config")
-    func testDittoAppConfigNew() async throws {
-        let config = DittoAppConfig.new()
+    @Test("DittoConfigForDatabase.new() creates empty config")
+    func testDittoConfigForDatabaseNew() async throws {
+        let config = DittoConfigForDatabase.new()
 
         #expect(!config._id.isEmpty) // UUID should be generated
         #expect(config.name == "")
-        #expect(config.appId == "")
-        #expect(config.authToken == "")
+        #expect(config.databaseId == "")
+        #expect(config.token == "")
         #expect(config.authUrl == "")
         #expect(config.websocketUrl == "")
         #expect(config.httpApiUrl == "")
         #expect(config.httpApiKey == "")
-        #expect(config.mode == .onlinePlayground)
+        #expect(config.mode == .server)
         #expect(config.allowUntrustedCerts == false)
         #expect(config.secretKey == "")
     }
 
-    // MARK: - DittoAppConfig Decodable Tests
+    // MARK: - DittoConfigForDatabase Decodable Tests
 
-    @Test("DittoAppConfig decodes from valid JSON with all fields")
-    func testDittoAppConfigDecodingComplete() async throws {
+    @Test("DittoConfigForDatabase decodes from valid JSON with all fields")
+    func testDittoConfigForDatabaseDecodingComplete() async throws {
         let json = """
         {
             "_id": "test-id",
             "name": "Test App",
-            "appId": "test-app-id",
-            "authToken": "test-token",
+            "databaseId": "test-database-id",
+            "token": "test-token",
             "authUrl": "https://auth.example.com",
             "websocketUrl": "wss://sync.example.com",
             "httpApiUrl": "https://api.example.com",
             "httpApiKey": "test-api-key",
-            "mode": "onlineplayground",
+            "mode": "server",
             "allowUntrustedCerts": true,
             "secretKey": "test-secret"
         }
         """
 
         let data = json.data(using: .utf8)!
-        let config = try JSONDecoder().decode(DittoAppConfig.self, from: data)
+        let config = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
         #expect(config._id == "test-id")
         #expect(config.name == "Test App")
-        #expect(config.appId == "test-app-id")
-        #expect(config.authToken == "test-token")
+        #expect(config.databaseId == "test-database-id")
+        #expect(config.token == "test-token")
         #expect(config.authUrl == "https://auth.example.com")
         #expect(config.websocketUrl == "wss://sync.example.com")
         #expect(config.httpApiUrl == "https://api.example.com")
         #expect(config.httpApiKey == "test-api-key")
-        #expect(config.mode == .onlinePlayground)
+        #expect(config.mode == .server)
         #expect(config.allowUntrustedCerts == true)
         #expect(config.secretKey == "test-secret")
     }
 
-    @Test("DittoAppConfig decodes with optional fields missing")
-    func testDittoAppConfigDecodingOptionalFields() async throws {
+    @Test("DittoConfigForDatabase decodes with optional fields missing")
+    func testDittoConfigForDatabaseDecodingOptionalFields() async throws {
         let json = """
         {
             "_id": "test-id",
             "name": "Test App",
-            "appId": "test-app-id",
-            "authToken": "test-token",
+            "databaseId": "test-database-id",
+            "token": "test-token",
             "authUrl": "https://auth.example.com",
             "websocketUrl": "wss://sync.example.com",
             "httpApiUrl": "https://api.example.com",
             "httpApiKey": "test-api-key",
-            "mode": "offlineplayground"
+            "mode": "smallpeersonly"
         }
         """
 
         let data = json.data(using: .utf8)!
-        let config = try JSONDecoder().decode(DittoAppConfig.self, from: data)
+        let config = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
         #expect(config._id == "test-id")
-        #expect(config.mode == .offlinePlayground)
+        #expect(config.mode == .smallPeersOnly)
         #expect(config.allowUntrustedCerts == false) // Should default to false
         #expect(config.secretKey == "") // Should default to empty string
     }
 
-    @Test("DittoAppConfig decodes all auth modes correctly")
-    func testDittoAppConfigAuthModes() async throws {
+    @Test("DittoConfigForDatabase decodes all auth modes correctly")
+    func testDittoConfigForDatabaseAuthModes() async throws {
         let modes: [(String, AuthMode)] = [
-            ("onlineplayground", .onlinePlayground),
-            ("offlineplayground", .offlinePlayground),
-            ("sharedkey", .sharedKey)
+            ("server", .server),
+            ("smallpeersonly", .smallPeersOnly)
         ]
 
         for (modeString, expectedMode) in modes {
@@ -144,8 +143,8 @@ struct AppConfigTests {
             {
                 "_id": "test-id",
                 "name": "Test App",
-                "appId": "test-app-id",
-                "authToken": "test-token",
+                "databaseId": "test-database-id",
+                "token": "test-token",
                 "authUrl": "https://auth.example.com",
                 "websocketUrl": "wss://sync.example.com",
                 "httpApiUrl": "https://api.example.com",
@@ -155,14 +154,14 @@ struct AppConfigTests {
             """
 
             let data = json.data(using: .utf8)!
-            let config = try JSONDecoder().decode(DittoAppConfig.self, from: data)
+            let config = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
             #expect(config.mode == expectedMode)
         }
     }
 
-    @Test("DittoAppConfig decoding fails with missing required fields")
-    func testDittoAppConfigDecodingMissingFields() async throws {
+    @Test("DittoConfigForDatabase decoding fails with missing required fields")
+    func testDittoConfigForDatabaseDecodingMissingFields() async throws {
         let json = """
         {
             "_id": "test-id",
@@ -173,7 +172,7 @@ struct AppConfigTests {
         let data = json.data(using: .utf8)!
 
         #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(DittoAppConfig.self, from: data)
+            try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
         }
     }
 
@@ -181,30 +180,27 @@ struct AppConfigTests {
 
     @Test("AuthMode has correct raw values")
     func testAuthModeRawValues() async throws {
-        #expect(AuthMode.onlinePlayground.rawValue == "onlineplayground")
-        #expect(AuthMode.offlinePlayground.rawValue == "offlineplayground")
-        #expect(AuthMode.sharedKey.rawValue == "sharedkey")
+        #expect(AuthMode.server.rawValue == "server")
+        #expect(AuthMode.smallPeersOnly.rawValue == "smallpeersonly")
     }
 
     @Test("AuthMode has correct display names")
     func testAuthModeDisplayNames() async throws {
-        #expect(AuthMode.onlinePlayground.displayName == "Online Playground")
-        #expect(AuthMode.offlinePlayground.displayName == "Offline Playground")
-        #expect(AuthMode.sharedKey.displayName == "Shared Key")
+        #expect(AuthMode.server.displayName == "Server")
+        #expect(AuthMode.smallPeersOnly.displayName == "Small Peers Only")
     }
 
-    @Test("AuthMode default is onlinePlayground")
+    @Test("AuthMode default is server")
     func testAuthModeDefault() async throws {
-        #expect(AuthMode.default == .onlinePlayground)
+        #expect(AuthMode.default == .server)
     }
 
     @Test("AuthMode allCases contains all modes")
     func testAuthModeAllCases() async throws {
         let allModes = AuthMode.allCases
-        #expect(allModes.count == 3)
-        #expect(allModes.contains(.onlinePlayground))
-        #expect(allModes.contains(.offlinePlayground))
-        #expect(allModes.contains(.sharedKey))
+        #expect(allModes.count == 2)
+        #expect(allModes.contains(.server))
+        #expect(allModes.contains(.smallPeersOnly))
     }
 
     @Test("AuthMode encodes and decodes correctly")
@@ -230,8 +226,8 @@ struct AppConfigTests {
             "name",
             "authUrl",
             "websocketUrl",
-            "appId",
-            "authToken",
+            "databaseId",
+            "token",
             "httpApiUrl",
             "httpApiKey"
         ]
@@ -240,12 +236,12 @@ struct AppConfigTests {
         #expect(requiredFields.count == 7)
     }
 
-    @Test("loadAppConfig returns onlinePlayground mode by default")
+    @Test("loadAppConfig returns server mode by default")
     func testLoadAppConfigDefaultMode() async throws {
-        // Document that loadAppConfig always sets mode to .onlinePlayground
+        // Document that loadAppConfig always sets mode to .server
         // This is a regression test to ensure this behavior doesn't change unexpectedly
-        let expectedMode = AuthMode.onlinePlayground
-        #expect(expectedMode == .onlinePlayground)
+        let expectedMode = AuthMode.server
+        #expect(expectedMode == .server)
     }
 
     @Test("loadAppConfig sets allowUntrustedCerts to false by default")
@@ -258,143 +254,123 @@ struct AppConfigTests {
 
     // MARK: - Configuration Validation Tests
 
-    @Test("Config validation detects empty appId")
-    func testValidationEmptyAppId() async throws {
-        let config = DittoAppConfig(
+    @Test("Config validation detects empty databaseId")
+    func testValidationEmptyDatabaseId() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "",
-            authToken: "test-token",
+            databaseId: "",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
 
-        // DittoManager.initializeStore should reject empty appId
-        #expect(config.appId.isEmpty)
+        // DittoManager.initializeStore should reject empty databaseId
+        #expect(config.databaseId.isEmpty)
     }
 
-    @Test("Config validation detects placeholder appId")
-    func testValidationPlaceholderAppId() async throws {
-        let config = DittoAppConfig(
+    @Test("Config validation detects placeholder databaseId")
+    func testValidationPlaceholderDatabaseId() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "put appId here",
-            authToken: "test-token",
+            databaseId: "put appId here",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
 
-        // DittoManager.initializeStore should reject placeholder appId
-        #expect(config.appId == "put appId here")
+        // DittoManager.initializeStore should reject placeholder databaseId
+        #expect(config.databaseId == "put appId here")
     }
 
     @Test("Config validation for hydrateDittoSelectedApp requires non-empty fields")
     func testValidationHydrateSelectedApp() async throws {
-        // Test empty appId
-        let configEmptyAppId = DittoAppConfig(
+        // Test empty databaseId
+        let configEmptyDatabaseId = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "",
-            authToken: "test-token",
+            databaseId: "",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
-        #expect(configEmptyAppId.appId.isEmpty)
+        #expect(configEmptyDatabaseId.databaseId.isEmpty)
 
-        // Test empty authToken
-        let configEmptyToken = DittoAppConfig(
+        // Test empty token
+        let configEmptyToken = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "",
+            databaseId: "test-database-id",
+            token: "",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
-        #expect(configEmptyToken.authToken.isEmpty)
+        #expect(configEmptyToken.token.isEmpty)
 
         // Test valid config
-        let validConfig = DittoAppConfig(
+        let validConfig = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "test-token",
+            databaseId: "test-database-id",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key"
         )
-        #expect(!validConfig.appId.isEmpty && !validConfig.authToken.isEmpty)
+        #expect(!validConfig.databaseId.isEmpty && !validConfig.token.isEmpty)
     }
 
     // MARK: - Mode-Specific Configuration Tests
 
-    @Test("Shared key mode configuration")
-    func testSharedKeyModeConfig() async throws {
-        let config = DittoAppConfig(
+    @Test("Small Peers Only mode configuration")
+    func testSmallPeersOnlyModeConfig() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "offline-license-token",
+            databaseId: "test-database-id",
+            token: "offline-license-token",
             authUrl: "",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key",
-            mode: .sharedKey,
+            mode: .smallPeersOnly,
             allowUntrustedCerts: false,
             secretKey: "test-shared-key"
         )
 
-        #expect(config.mode == .sharedKey)
+        #expect(config.mode == .smallPeersOnly)
         #expect(!config.secretKey.isEmpty)
-        #expect(!config.authToken.isEmpty) // Used for offline license token
+        #expect(!config.token.isEmpty) // Used for offline license token
     }
 
-    @Test("Offline playground mode configuration")
-    func testOfflinePlaygroundModeConfig() async throws {
-        let config = DittoAppConfig(
+    @Test("Server mode configuration")
+    func testServerModeConfig() async throws {
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "offline-license-token",
-            authUrl: "",
-            websocketUrl: "",
-            httpApiUrl: "",
-            httpApiKey: "",
-            mode: .offlinePlayground,
-            allowUntrustedCerts: false,
-            secretKey: ""
-        )
-
-        #expect(config.mode == .offlinePlayground)
-        #expect(!config.authToken.isEmpty) // Used for offline license token
-    }
-
-    @Test("Online playground mode configuration")
-    func testOnlinePlaygroundModeConfig() async throws {
-        let config = DittoAppConfig(
-            "test-id",
-            name: "Test App",
-            appId: "test-app-id",
-            authToken: "playground-token",
+            databaseId: "test-database-id",
+            token: "playground-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key",
-            mode: .onlinePlayground,
+            mode: .server,
             allowUntrustedCerts: false,
             secretKey: ""
         )
 
-        #expect(config.mode == .onlinePlayground)
-        #expect(!config.authToken.isEmpty) // Used for playground token
+        #expect(config.mode == .server)
+        #expect(!config.token.isEmpty) // Used for playground token
         #expect(!config.authUrl.isEmpty)
     }
 
@@ -402,11 +378,11 @@ struct AppConfigTests {
 
     @Test("Config accepts valid URL formats")
     func testValidURLFormats() async throws {
-        let config = DittoAppConfig(
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "test-token",
+            databaseId: "test-database-id",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",

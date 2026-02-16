@@ -292,7 +292,7 @@ extension TransportConfigView {
 
             do {
                 // STEP 1: STOP SYNC (following MainStudioView.stopSync pattern)
-                await DittoManager.shared.selectedAppStopSync()
+                await DittoManager.shared.selectedDatabaseStopSync()
 
                 // Stop observers to prevent stale data updates
                 await SystemRepository.shared.stopObserver()
@@ -320,7 +320,7 @@ extension TransportConfigView {
                 // STEP 3: RESTART SYNC (following MainStudioView.startSync pattern)
                 currentStep = .restartingSync
 
-                try await DittoManager.shared.selectedAppStartSync()
+                try await DittoManager.shared.selectedDatabaseStartSync()
 
                 // Restart observers with fresh connections
                 do {

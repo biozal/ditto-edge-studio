@@ -54,7 +54,7 @@
 			membershipExceptions = (
 				EdgeStudioIcon.icon,
 				Models/AuthMode.swift,
-				Models/DittoAppConfig.swift,
+				Models/DittoConfigForDatabase.swift,
 			);
 			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
 		};
@@ -62,6 +62,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppConfigTests.swift,
+				DatabaseRepositoryIntegrationTests.swift,
 				Ditto_Edge_StudioTests.swift,
 				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,
@@ -77,6 +78,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppConfigTests.swift,
+				DatabaseRepositoryIntegrationTests.swift,
 				Ditto_Edge_StudioTests.swift,
 				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,

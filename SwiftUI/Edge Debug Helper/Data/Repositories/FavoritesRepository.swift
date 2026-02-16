@@ -1,137 +1,145 @@
-import DittoSwift
 import Foundation
 
+/// Repository for managing favorite queries with secure storage
+///
+/// **Storage Strategy:**
+/// - Per-database isolation (each database has its own favorites file)
+/// - In-memory cache during session
+/// - Write-through persistence to JSON cache files
+///
+/// **Lifecycle:**
+/// 1. Load: Called when database opens → loads from {databaseId}_favorites.json
+/// 2. Cache: All operations update in-memory cache first
+/// 3. Persist: Write-through to disk after every change
+/// 4. Clear: Called when database closes → clears in-memory cache
 actor FavoritesRepository {
     static let shared = FavoritesRepository()
-    
-    private let dittoManager = DittoManager.shared
+
+    private let cacheService = SecureCacheService.shared
     private var appState: AppState?
-    private var favoritesObserver: DittoStoreObserver?
-    
-    // Store the callback inside the actor
+
+    // In-memory cache for current database session
+    private var cachedFavorites: [DittoQueryHistory] = []
+    private var currentDatabaseId: String?
+
+    // Callback for UI updates
     private var onFavoritesUpdate: (([DittoQueryHistory]) -> Void)?
-    
-    private init() { }
-    
-    deinit {
-        favoritesObserver?.cancel()
-    }
-    
-    func deleteFavorite(_ id: String) async throws {
-        guard let ditto = await dittoManager.dittoLocal else {
-            throw InvalidStateError(message: "No Ditto local database available")
+
+    private init() {}
+
+    // MARK: - Public API
+
+    /// Loads favorite queries for a specific database into memory
+    /// - Parameter databaseId: Database identifier
+    /// - Returns: Array of favorite query items
+    /// - Throws: Error if load fails
+    func loadFavorites(for databaseId: String) async throws -> [DittoQueryHistory] {
+        currentDatabaseId = databaseId
+
+        // Load from cache file
+        let cacheItems = try await cacheService.loadDatabaseFavorites(databaseId)
+
+        // Convert SecureCacheService.QueryHistoryItem to DittoQueryHistory
+        let favorites = cacheItems.map { item in
+            DittoQueryHistory(
+                id: item._id,
+                query: item.query,
+                createdDate: item.createdDate
+            )
         }
-        
-        let query = "DELETE FROM dittoqueryfavorites WHERE _id = :id"
-        let arguments: [String: Any] = ["id": id]
-        
+
+        // Update in-memory cache
+        cachedFavorites = favorites
+
+        return favorites
+    }
+
+    /// Saves a query to favorites (write-through to disk)
+    /// - Parameter favorite: Favorite query item to save
+    /// - Throws: Error if save fails
+    func saveFavorite(_ favorite: DittoQueryHistory) async throws {
+        guard let databaseId = currentDatabaseId else {
+            throw InvalidStateError(message: "No database selected - call loadFavorites() first")
+        }
+
         do {
-            let _ = try await ditto.store.execute(query: query, arguments: arguments)
+            // Check if already exists (by query content)
+            if cachedFavorites.contains(where: { $0.query == favorite.query }) {
+                throw InvalidStateError(message: "Query already exists in favorites")
+            }
+
+            // Add to front of list
+            cachedFavorites.insert(favorite, at: 0)
+
+            // Persist to disk
+            try await persistFavorites(databaseId: databaseId)
+
+            // Notify UI
+            notifyFavoritesUpdate()
+
         } catch {
             self.appState?.setError(error)
             throw error
         }
     }
 
-    func hydrateQueryFavorites() async throws -> [DittoQueryHistory] {
-        guard let ditto = await dittoManager.dittoLocal,
-              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
-            throw InvalidStateError(message: "No Ditto local database or selected app available")
+    /// Deletes a favorite query
+    /// - Parameter id: Favorite item ID to delete
+    /// - Throws: Error if delete fails
+    func deleteFavorite(_ id: String) async throws {
+        guard let databaseId = currentDatabaseId else {
+            throw InvalidStateError(message: "No database selected")
         }
-        
-        let appStateRef = self.appState  // Capture reference before closure
-        let query = "SELECT * FROM dittoqueryfavorites WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
-        let arguments = ["selectedAppId": selectedAppConfig._id]
-        let decoder = JSONDecoder()
-        
+
         do {
-            // Hydrate the initial data from the database
-            let historyResults = try await ditto.store.execute(query: query, arguments: arguments)
-            let historyItems = historyResults.items.compactMap { item in
-                do {
-                    let decodedItem = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
-                    item.dematerialize()
-                    return decodedItem
-                } catch {
-                    appStateRef?.setError(error)
-                    return nil
-                }
-            }
-            
-            // Register for any changes in the database
-            favoritesObserver = try ditto.store.registerObserver(
-                query: query,
-                arguments: arguments
-            ) { [weak self] results in
-                Task { [weak self] in
-                    guard let self else { return }
-                    
-                    let historyItems = results.items.compactMap { item in
-                        do {
-                            let decodedItem = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
-                            item.dematerialize()
-                            return decodedItem
-                        } catch {
-                            appStateRef?.setError(error)
-                            return nil
-                        }
-                    }
-                    
-                    // Call the callback to update the ViewModel's published property
-                    await self.onFavoritesUpdate?(historyItems)
-                }
-            }
-            
-            return historyItems
+            // Remove from in-memory cache
+            cachedFavorites.removeAll { $0.id == id }
+
+            // Persist to disk
+            try await persistFavorites(databaseId: databaseId)
+
+            // Notify UI
+            notifyFavoritesUpdate()
+
         } catch {
             self.appState?.setError(error)
             throw error
         }
     }
-    
-    func saveFavorite(_ favorite: DittoQueryHistory) async throws {
-        guard let ditto = await dittoManager.dittoLocal,
-              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
-            throw InvalidStateError(message: "No Ditto local database or selected app available")
-        }
-        
-        let query = "INSERT INTO dittoqueryfavorites DOCUMENTS (:queryHistory)"
-        let arguments: [String: Any] = [
-            "queryHistory": [
-                "_id": UUID().uuidString,
-                "query": favorite.query,
-                "createdDate": Date().ISO8601Format(),
-                "selectedApp_id": selectedAppConfig._id
-            ]
-        ]
-        
-        do {
-            let _ = try await ditto.store.execute(query: query, arguments: arguments)
-        } catch {
-            self.appState?.setError(error)
-            throw error
-        }
+
+    /// Clears in-memory cache (called when database closes)
+    func clearCache() {
+        cachedFavorites = []
+        currentDatabaseId = nil
     }
-    
+
+    // MARK: - State Management
+
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
-    
-    // Function to set the callback from outside the actor
+
     func setOnFavoritesUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
         self.onFavoritesUpdate = callback
     }
-    
-    func stopObserver() {
-        // Use Task to ensure observer cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performObserverCleanup()
+
+    // MARK: - Private Helpers
+
+    /// Persists current in-memory cache to disk
+    private func persistFavorites(databaseId: String) async throws {
+        // Convert DittoQueryHistory to SecureCacheService.QueryHistoryItem
+        let cacheItems = cachedFavorites.map { favorite in
+            SecureCacheService.QueryHistoryItem(
+                _id: favorite.id,
+                query: favorite.query,
+                createdDate: favorite.createdDate
+            )
         }
+
+        try await cacheService.saveDatabaseFavorites(databaseId, favorites: cacheItems)
     }
-    
-    private func performObserverCleanup() {
-        favoritesObserver?.cancel()
-        favoritesObserver = nil
+
+    private func notifyFavoritesUpdate() {
+        onFavoritesUpdate?(cachedFavorites)
     }
 }

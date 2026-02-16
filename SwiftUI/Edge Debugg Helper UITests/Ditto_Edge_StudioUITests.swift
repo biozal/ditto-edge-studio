@@ -796,9 +796,9 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
     @MainActor
     private func addSingleDatabase(config: [String: Any]) throws {
         let name = config["name"] as? String ?? ""
-        let appId = config["appId"] as? String ?? ""
-        let authToken = config["authToken"] as? String ?? ""
-        let mode = config["mode"] as? String ?? "onlineplayground"
+        let appId = config["databaseId"] as? String ?? ""
+        let authToken = config["token"] as? String ?? ""
+        let mode = config["mode"] as? String ?? "server"
 
         // 1. Verify on ContentView (database list screen)
         let addDatabaseButton = app.buttons["AddDatabaseButton"].firstMatch
@@ -862,19 +862,18 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
         // NOTE: SwiftUI Picker with .pickerStyle(.segmented) doesn't always expose as
         // a segmented control in XCUITest. It might expose segments as individual buttons
         // or not be accessible at all. We'll try to find and select it, but won't fail
-        // if we can't - the form defaults to first mode (onlineplayground) anyway.
+        // if we can't - the form defaults to first mode (server) anyway.
         print("  🎚️ Selecting mode: \(mode)")
 
-        if mode != "onlineplayground" {
+        if mode != "server" {
             // Need to change from default mode
             // Try to find mode buttons by looking for buttons with mode display names
             let modeNames = [
-                "Online Playground",
-                "Offline Playground",
-                "Shared Key"
+                "Server",
+                "Small Peers Only"
             ]
 
-            let targetMode = mode == "offlineplayground" ? "Offline Playground" : "Shared Key"
+            let targetMode = mode == "smallpeersonly" ? "Small Peers Only" : "Server"
             let modeButton = app.buttons[targetMode].firstMatch
 
             if modeButton.waitForExistence(timeout: 2) {
@@ -882,13 +881,13 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
                 modeButton.tap()
                 sleep(1)  // Wait for conditional fields to appear/hide
             } else {
-                print("  ⚠️ Could not find mode button '\(targetMode)', form will use default (Online Playground)")
-                if mode == "sharedkey" || mode == "offlineplayground" {
-                    print("  ⚠️ WARNING: Test expects \(mode) but form is in onlineplayground mode")
+                print("  ⚠️ Could not find mode button '\(targetMode)', form will use default (Server)")
+                if mode == "smallpeersonly" {
+                    print("  ⚠️ WARNING: Test expects \(mode) but form is in server mode")
                 }
             }
         } else {
-            print("  ✅ Using default mode (Online Playground)")
+            print("  ✅ Using default mode (Server)")
         }
 
         // 5. Fill required fields: name, appId, authToken
@@ -898,29 +897,29 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
         sleep(1)
         nameField.typeText(name)
 
-        print("  ✏️ Filling appId: '\(appId)'")
-        let appIdField = app.textFields["AppIdTextField"]
-        guard appIdField.waitForExistence(timeout: 5) else {
-            XCTFail("App ID field not found")
+        print("  ✏️ Filling databaseId: '\(appId)'")
+        let databaseIdField = app.textFields["DatabaseIdTextField"]
+        guard databaseIdField.waitForExistence(timeout: 5) else {
+            XCTFail("Database ID field not found")
             return
         }
-        appIdField.tap()
+        databaseIdField.tap()
         sleep(1)
-        appIdField.typeText(appId)
+        databaseIdField.typeText(appId)
 
-        print("  ✏️ Filling authToken: '\(authToken.prefix(20))...'")
-        let authTokenField = app.textFields["AuthTokenTextField"]
-        guard authTokenField.waitForExistence(timeout: 5) else {
-            XCTFail("Auth Token field not found")
+        print("  ✏️ Filling token: '\(authToken.prefix(20))...'")
+        let tokenField = app.textFields["TokenTextField"]
+        guard tokenField.waitForExistence(timeout: 5) else {
+            XCTFail("Token field not found")
             return
         }
-        authTokenField.tap()
+        tokenField.tap()
         sleep(1)
-        authTokenField.typeText(authToken)
+        tokenField.typeText(authToken)
 
         // 6. Fill mode-specific optional fields
         switch mode {
-        case "onlineplayground":
+        case "server":
             // Fill optional server fields
             if let authUrl = config["authUrl"] as? String, !authUrl.isEmpty {
                 print("  ✏️ Filling authUrl: '\(authUrl)'")
@@ -973,7 +972,7 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
                 }
             }
 
-        case "sharedkey":
+        case "smallpeersonly":
             // Fill optional secret key
             if let secretKey = config["secretKey"] as? String, !secretKey.isEmpty {
                 print("  ✏️ Filling secretKey: '\(secretKey.prefix(10))...'")
@@ -984,10 +983,6 @@ final class Ditto_Edge_StudioUITests: XCTestCase {
                     secretKeyField.typeText(secretKey)
                 }
             }
-
-        case "offlineplayground":
-            // No additional fields
-            break
 
         default:
             break

@@ -29,7 +29,7 @@ struct MainStudioView: View {
 
     init(
         isMainStudioViewPresented: Binding<Bool>,
-        dittoAppConfig: DittoAppConfig
+        dittoAppConfig: DittoConfigForDatabase
     ) {
         self._isMainStudioViewPresented = isMainStudioViewPresented
         self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
@@ -242,7 +242,7 @@ extension MainStudioView {
     @Observable
     @MainActor
     class ViewModel {
-        var selectedApp: DittoAppConfig
+        var selectedApp: DittoConfigForDatabase
 
         //used for displaying action sheets
         var actionSheetMode: ActionSheetMode = ActionSheetMode.none
@@ -298,7 +298,7 @@ extension MainStudioView {
         // JSON Inspector State
         var selectedJsonForInspector: String?
 
-        init(_ dittoAppConfig: DittoAppConfig) {
+        init(_ dittoAppConfig: DittoConfigForDatabase) {
             self.selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
                 id: 1,
@@ -395,22 +395,25 @@ extension MainStudioView {
                 await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
                     self.subscriptions = newSubscriptions
                 }
-                subscriptions = try await SubscriptionsRepository.shared.hydrateDittoSubscriptions()
+                // Load subscription metadata from secure storage (sync subscriptions will be re-registered as needed)
+                subscriptions = try await SubscriptionsRepository.shared.loadSubscriptions(for: selectedApp.databaseId)
 
                 await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
                     self.collections = newCollections
                 }
                 collections = try await CollectionsRepository.shared.hydrateCollections()
 
-                history = try await HistoryRepository.shared.hydrateQueryHistory()
+                // Load per-database history, favorites, and observers from secure storage
+                history = try await HistoryRepository.shared.loadHistory(for: selectedApp.databaseId)
 
-                favorites = try await FavoritesRepository.shared.hydrateQueryFavorites()
-                
-                // Start observing observables through repository
+                favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
+
+                // Load observer metadata (without live observers - those must be re-registered)
+                // Note: Observers are managed through repository callbacks, not stored in ViewModel
                 do {
-                    try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
+                    _ = try await ObservableRepository.shared.loadObservers(for: selectedApp.databaseId)
                 } catch {
-                    assertionFailure("Failed to register observables observer: \(error)")
+                    assertionFailure("Failed to load observers: \(error)")
                 }
 
                 if collections.isEmpty {
@@ -538,19 +541,20 @@ extension MainStudioView {
                 }
                 
                 group.addTask(priority: .utility) {
-                    // Stop repository observers (now using detached tasks internally)
+                    // Clear repository caches (secure storage migration)
+                    await HistoryRepository.shared.clearCache()
+                    await FavoritesRepository.shared.clearCache()
+                    await ObservableRepository.shared.clearCache()
+                    await SubscriptionsRepository.shared.clearCache()
+
+                    // Stop other repository observers
                     await SystemRepository.shared.stopObserver()
-                    await ObservableRepository.shared.stopObserver()
-                    await FavoritesRepository.shared.stopObserver()
-                    await HistoryRepository.shared.stopObserver()
                     await CollectionsRepository.shared.stopObserver()
-                    await SubscriptionsRepository.shared.cancelAllSubscriptions()
-                    await DatabaseRepository.shared.stopDatabaseConfigSubscription()
                 }
                 
                 group.addTask(priority: .utility) {
                     // Close DittoManager selected app
-                    await DittoManager.shared.closeDittoSelectedApp()
+                    await DittoManager.shared.closeDittoSelectedDatabase()
                 }
             }
         }
@@ -558,7 +562,7 @@ extension MainStudioView {
         func toggleSync() async throws {
             if isSyncEnabled {
                 // Disable sync
-                await DittoManager.shared.selectedAppStopSync()
+                await DittoManager.shared.selectedDatabaseStopSync()
 
                 // Reset connection counts
                 connectionsByTransport = .empty
@@ -567,7 +571,7 @@ extension MainStudioView {
                 isSyncEnabled = false
             } else {
                 // Enable sync
-                try await DittoManager.shared.selectedAppStartSync()
+                try await DittoManager.shared.selectedDatabaseStartSync()
                 isSyncEnabled = true
             }
         }

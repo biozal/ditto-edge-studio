@@ -10,7 +10,7 @@ struct DittoManagerTransportConfigTests {
         let dittoManager = DittoManager.shared
 
         // Ensure no app is selected
-        await dittoManager.closeDittoSelectedApp()
+        await dittoManager.closeDittoSelectedDatabase()
 
         // Attempt to apply transport config should throw error
         await #expect(throws: (any Error).self) {
@@ -103,12 +103,12 @@ struct TransportConfigViewModelTests {
     }
 }
 
-@Suite("DittoAppConfig Transport Settings")
-struct DittoAppConfigTransportTests {
+@Suite("DittoConfigForDatabase Transport Settings")
+struct DittoConfigForDatabaseTransportTests {
 
-    @Test("DittoAppConfig includes transport settings fields")
+    @Test("DittoConfigForDatabase includes transport settings fields")
     func includesTransportFields() {
-        let config = DittoAppConfig.new()
+        let config = DittoConfigForDatabase.new()
 
         // Verify all transport fields exist with default true values
         #expect(config.isBluetoothLeEnabled == true)
@@ -119,16 +119,16 @@ struct DittoAppConfigTransportTests {
 
     @Test("Transport settings can be set to false")
     func canDisableTransports() {
-        let config = DittoAppConfig(
+        let config = DittoConfigForDatabase(
             "test-id",
             name: "Test App",
-            appId: "test-app-id",
-            authToken: "test-token",
+            databaseId: "test-app-id",
+            token: "test-token",
             authUrl: "https://auth.example.com",
             websocketUrl: "wss://sync.example.com",
             httpApiUrl: "https://api.example.com",
             httpApiKey: "test-api-key",
-            mode: .onlinePlayground,
+            mode: .server,
             allowUntrustedCerts: false,
             secretKey: "",
             isBluetoothLeEnabled: false,
@@ -161,7 +161,7 @@ struct DittoAppConfigTransportTests {
         """
 
         let data = json.data(using: .utf8)!
-        let config = try JSONDecoder().decode(DittoAppConfig.self, from: data)
+        let config = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
         // Should default to true for missing transport fields
         #expect(config.isBluetoothLeEnabled == true)

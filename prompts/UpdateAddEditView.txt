@@ -1,0 +1,13 @@
+Go into Plan mode.  I need you to generate a plan for updading the DatabaseEditorView.swift file in the Views -> Databases folder.  You can see screenshots of the current view in the screenshots folder:
+
+server.png
+smallPeersOnly.png
+
+Please make the following changes:
+The height of this screen for this data is too high.  You can see this isn't needed.  I'm assuming it's because you are using the same height for other modals that come up, but really it looks strange.  Please adjust it so that there isn't so much spacing on the top and bottom of the form.  
+
+Remove the label for mode - it's not needed.  Center the Picker so that the two options are centered in the form.  
+
+Add a Spacer between the Mode and Basic Information label so that there is spacing there.  
+
+Once you have the plan complete let me know so I can review it.  

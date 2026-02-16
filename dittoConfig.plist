@@ -4,13 +4,13 @@
 <dict>
 	<key>name</key>
 	<string>ditto-app-studio</string>
-	<key>appId</key>
+	<key>databaseId</key>
 	<string></string>
 	<key>authUrl</key>
 	<string></string>
 	<key>websocketUrl</key>
 	<string></string>
-	<key>authToken</key>
+	<key>token</key>
 	<string></string>
 	<key>httpApiUrl</key>
 	<string></string>

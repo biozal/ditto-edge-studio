@@ -5,6 +5,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Edge Debug Helper is a comprehensive SwiftUI application for macOS and iPadOS, providing a production-ready GUI for querying and managing Ditto databases.
+
+## Ditto SDK Version
+
+**CRITICAL: This project is migrating to Ditto SDK v5.**
+
+### Terminology Changes (v5)
+
+In Ditto SDK v5, the terminology has changed:
+- **Old term:** "Ditto App" (or "App")
+- **New term:** "Ditto Database" (or "Database")
+
+**Throughout this codebase:**
+- When we refer to a "Ditto App", we actually mean a **Ditto Database**
+- The model `DittoConfigForDatabase` represents a database configuration (formerly known as app config)
+- Each "database" in the UI represents a separate Ditto database instance with its own configuration
 ## Screenshots
 
 From time to time to debug or design new features screenshots or design mock ups will always be stored in the screens folder of the repository.  If you are told
@@ -92,11 +107,11 @@ xcodebuild test -project "Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -de
 Comprehensive UI tests validate:
 - App launches successfully
 - Database list screen displays correctly
-- App selection opens MainStudioView
+- Database selection opens MainStudioView
 - All navigation menu items (Subscriptions, Collections, Observer, Ditto Tools) work
 - Each sidebar and detail view renders properly
 
-**Note:** Navigation tests will skip if no apps are configured (expected behavior).
+**Note:** Navigation tests will skip if no databases are configured (expected behavior).
 
 **Test Files:**
 - `Edge Debugg Helper UITests/Ditto_Edge_StudioUITests.swift` - Main UI test suite
@@ -556,7 +571,7 @@ func testSelectFirstApp() throws {
     attachment1.lifetime = .deleteOnSuccess
     add(attachment1)
 
-    // ACT: Select first database
+    // ACT: Select first database (note: identifier uses legacy "AppCard_" naming)
     let firstCard = databaseList.descendants(matching: .any)
         .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).firstMatch
     firstCard.tap()
@@ -585,7 +600,7 @@ func testSelectFirstApp() throws {
     // ASSERT: Validate returned to list with same database count
     XCTAssertTrue(addDatabaseButton.waitForExistence(timeout: 5))
     let finalCount = databaseList.descendants(matching: .any)
-        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).count
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")).count  // Legacy identifier
     XCTAssertEqual(finalCount, expectedCount, "Database count changed")
 }
 ```
@@ -637,7 +652,7 @@ private func addDatabasesFromPlist() throws {
     print("\n✅ All databases added successfully")
 }
 
-/// Adds a single database by automating the AppEditorView form
+/// Adds a single database by automating the DatabaseEditorView form
 @MainActor
 private func addSingleDatabase(config: [String: Any]) throws {
     let name = config["name"] as? String ?? ""
@@ -716,7 +731,7 @@ func testFeature() throws {
 
     // Now databases are available for testing
     let firstCard = app.descendants(matching: .any)
-        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'"))
+        .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'"))  // Legacy identifier
         .firstMatch
     firstCard.tap()
 
@@ -728,7 +743,7 @@ func testFeature() throws {
 - ✅ Works reliably with sandboxing
 - ✅ Tests the real user experience
 - ✅ Easy to debug visually
-- ✅ No app initialization changes needed
+- ✅ No database initialization changes needed
 
 **Documentation:** See `ADDBUTTON_FIRSTMATCH_FIX.md`, `SHEET_TIMING_FIX.md`, `PICKER_WORKAROUND_FIX.md`, `SHEET_DISMISS_TIMING_FIX.md`
 
@@ -752,7 +767,7 @@ guard picker.waitForExistence(timeout: 10) else {
 
 **Solution: Use Alternative Validation Elements**
 
-**Example 1: AuthModePicker in AppEditorView**
+**Example 1: AuthModePicker in DatabaseEditorView**
 ```swift
 // ❌ DOESN'T WORK
 let modePicker = app.segmentedControls["AuthModePicker"]
@@ -880,7 +895,7 @@ let closeButton = app.buttons["CloseButton"].firstMatch
 let syncButton = app.buttons["SyncButton"].firstMatch
 ```
 
-**Documentation:** See `ADDBUTTON_FIRSTMATCH_FIX.md`
+**Note:** The "AddDatabaseButton" button opens the database editor (DatabaseEditorView) for adding new database configurations.
 
 #### Pattern 4: Timing Patterns
 
@@ -963,7 +978,7 @@ private func ensureMainStudioViewIsOpen() throws {
         throw XCTSkip("Not on ContentView")
     }
 
-    // Find and tap first database
+    // Find and tap first database (note: uses legacy "AppCard_" identifier)
     let predicate = NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")
     let firstCard = app.descendants(matching: .any)
         .matching(predicate)
@@ -1152,8 +1167,8 @@ Located in the `SwiftUI/` directory:
   - `DittoManager_Query.swift`: Query execution and results handling
   - `DittoManager_Subscription.swift`: Real-time subscription management
   - `DittoManager_Observable.swift`: Observe event handling
-  - `DittoManager_LocalSubscription.swift`: Local database subscriptions for app state
-  - `DittoManager_DittoAppConfig.swift`: App configuration management
+  - `DittoManager_LocalSubscription.swift`: Local database subscriptions for database state
+  - `DittoManager_DittoAppConfig.swift`: Database configuration management (uses DittoConfigForDatabase model)
   - `DittoManager_Import.swift`: Data import functionality
 
 - **QueryService** (`Data/QueryService.swift`): Query execution service with enhanced features:
@@ -1171,19 +1186,21 @@ Located in the `SwiftUI/` directory:
   - All repositories use Task.detached(priority: .utility) for cleanup operations to prevent threading priority inversions
   
 - **Views** (`Views/` folder):
-  - `ContentView.swift`: Root view with app selection
+  - `ContentView.swift`: Root view with database selection
   - `MainStudioView.swift`: Primary interface with navigation sidebar and detail views
     - Sync detail view uses native TabView with three tabs: Peers List, Presence Viewer, Settings
     - Tab selection persists when navigating between menu items
     - Threading optimizations for cleanup operations using TaskGroup
-  - `AppEditorView.swift`: App configuration editor
+  - `DatabaseEditorView.swift`: Database configuration editor (uses DittoConfigForDatabase model)
   - **Tabs/**: Tab-specific views like `ObserversTabView.swift`
   - **Tools/**: Utility views (presence, disk usage, peers, permissions)
   
 - **Components** (`Components/` folder): Reusable UI components
   - Query editor and results viewers
-  - App and subscription cards/lists
+  - Database and subscription cards/lists
   - Pagination controls and secure input fields
+  - `DatabaseCard.swift`: Card component for displaying database configurations
+  - `NoDatabaseConfigurationView.swift`: Empty state when no databases are configured
   - `ConnectedPeersView.swift`: Extracted sync status view showing connected peers (used in Peers List tab)
   - `PresenceViewerTab.swift`: Wrapper for DittoPresenceViewer with connection handling
   - `TransportConfigView.swift`: Placeholder for future transport configuration settings
@@ -1198,7 +1215,7 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 - `httpApiKey`: HTTP API key
 
 ## Key Features
-- Multi-app connection management with local storage
+- Multi-database connection management with local storage (using DittoConfigForDatabase model)
 - Query execution with history and favorites
 - Real-time subscriptions and observables
 - Connection status bar with real-time transport-level monitoring (WebSocket, Bluetooth, P2P WiFi, Access Point)
@@ -1388,7 +1405,7 @@ App Launch (Ditto_Edge_StudioApp.swift)
   ↓
 ContentView (root view)
   ├─ State: isMainStudioViewPresented = false (initially)
-  ├─ onAppear: loadApps() - loads database configurations
+  ├─ onAppear: loadApps() - loads database configurations (DittoConfigForDatabase models)
   │
   ├──→ DATABASE LIST SCREEN (when isMainStudioViewPresented = false)
   │    │
@@ -1396,15 +1413,15 @@ ContentView (root view)
   │    │  └─ Accessibility ID: "DatabaseList" (macOS only)
   │    │
   │    ├─ Loading State: ProgressView("Loading Database Configs...")
-  │    ├─ Empty State: ContentUnavailableView("No Database Configurations")
+  │    ├─ Empty State: NoDatabaseConfigurationView (component)
   │    │
   │    └─ Normal State: List of database cards
   │       ├─ Each card: DatabaseCard component
-  │       ├─ Accessibility ID: "AppCard_{name}" (macOS only)
+  │       ├─ Accessibility ID: "AppCard_{name}" (macOS only, legacy naming)
   │       └─ User taps card →
-  │          ├─ showMainStudio(dittoApp) called
-  │          ├─ selectedDittoAppConfig = dittoApp
-  │          ├─ hydrateDittoSelectedApp() - async setup
+  │          ├─ showMainStudio(dittoDatabase) called
+  │          ├─ selectedDittoConfigForDatabase = dittoDatabase
+  │          ├─ hydrateDittoSelectedDatabase() - async setup
   │          └─ isMainStudioViewPresented = true
   │             ↓
   │             (ContentView re-renders)
@@ -1439,10 +1456,12 @@ ContentView (root view)
 |---------|-----------|----------|---------|
 | **Add Database Button** | `"AddDatabaseButton"` | Both | **ContentView indicator** - CRITICAL for test verification |
 | Database List Container | `"DatabaseList"` | macOS only | Root container for database cards |
-| Individual Database Card | `"AppCard_{name}"` | macOS only | Each selectable database |
+| Individual Database Card | `"AppCard_{name}"` | macOS only | Each selectable database (legacy "App" naming) |
 | Sidebar Navigation Picker | `"NavigationSegmentedPicker"` | Both | Sidebar menu switcher |
 | Inspector Toggle Button | `"Toggle Inspector"` | Both | Show/hide inspector |
 | Inspector Navigation Picker | `"InspectorSegmentedPicker"` | Both | Inspector menu |
+
+**Note:** Some accessibility identifiers use legacy "App" naming (e.g., `"AppCard_{name}"`) but these refer to database configurations.
 
 ## Testing
 
@@ -1533,7 +1552,7 @@ SwiftUI/Edge Debug Helper/
        throw XCTSkip("No database list")
    }
 
-   // 3. Find and tap a database card
+   // 3. Find and tap a database card (note: uses legacy "AppCard_" identifier)
    let predicate = NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")
    let firstCard = databaseList.descendants(matching: .any)
        .matching(predicate).firstMatch
