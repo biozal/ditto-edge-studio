@@ -235,7 +235,7 @@ extension MainStudioView {
                 "No Observer Selected",
                 systemImage: "exclamationmark.triangle.fill",
                 description: Text(
-                    "Please select an observer from the siderbar to view events."
+                    "Please select an observer from the sidebar to view events."
                 )
             )
         }
