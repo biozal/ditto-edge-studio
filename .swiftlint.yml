@@ -1,0 +1,102 @@
+# SwiftLint Configuration
+# Enforces Swift style and conventions
+# Documentation: https://realm.github.io/SwiftLint/
+
+# Files to include/exclude
+included:
+  - SwiftUI/Edge Debug Helper
+
+excluded:
+  - Pods
+  - .build
+  - DerivedData
+  - SwiftUI/Edge Debug Helper/Utilities/FontAwesomeIcons.swift  # Generated file
+  - SwiftUI/POC  # Proof-of-concept files
+  - "*/Tests/*"  # Exclude test files from some rules
+
+# Disabled rules (too strict or not relevant)
+disabled_rules:
+  - trailing_whitespace  # Let SwiftFormat handle formatting
+  - opening_brace  # Let SwiftFormat handle brace formatting (conflicts with SwiftFormat's wrapping)
+  - line_length  # Can be too restrictive
+  - identifier_name  # Too opinionated
+  - type_body_length  # Some SwiftUI views are long
+  - function_body_length  # Some setup functions are long
+  - file_length  # Some files are necessarily long
+  - cyclomatic_complexity  # Can be too strict for UI code
+
+# Opt-in rules (not enabled by default but useful)
+opt_in_rules:
+  # Unused code detection (note: unused_import and unused_declaration are in analyzer_rules)
+  - unused_optional_binding
+  - unused_setter_value
+
+  # Code quality
+  - explicit_init
+  - fatal_error_message
+  - implicit_return
+  - force_unwrapping  # Warning only
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_imports
+  - unneeded_break_in_switch
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+
+  # Best practices
+  - contains_over_first_not_nil
+  - empty_count
+  - first_where
+  - flatmap_over_map_reduce
+  - last_where
+  - toggle_bool
+  - unavailable_function
+
+# Rule configurations
+force_unwrapping:
+  severity: warning  # Don't fail build, just warn
+
+force_cast:
+  severity: warning
+
+# Custom reporter (xcode format shows in Xcode GUI)
+reporter: "xcode"
+
+# Analyzer rules (requires `--compile-commands` or building via Xcode)
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+# Function parameter count
+function_parameter_count:
+  warning: 6
+  error: 8
+
+# Nesting depth
+nesting:
+  type_level:
+    warning: 3
+
+# Type name conventions
+type_name:
+  min_length: 2
+  max_length:
+    warning: 50
+    error: 60
+
+# Custom rules (project-specific)
+custom_rules:
+  # Detect TODO/FIXME comments
+  todos_fixmes:
+    name: "TODO and FIXME"
+    regex: "(TODO|FIXME):"
+    message: "TODO or FIXME comment should be resolved"
+    severity: warning
+
+  # Detect print statements (use proper logging instead)
+  no_print_statements:
+    name: "No Print Statements"
+    regex: "^\\s*print\\("
+    message: "Use proper logging instead of print()"
+    severity: warning
+    excluded: ".*Tests\\.swift"

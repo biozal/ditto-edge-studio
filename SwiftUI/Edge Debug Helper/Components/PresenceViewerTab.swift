@@ -1,5 +1,5 @@
-import SwiftUI
 import DittoSwift
+import SwiftUI
 
 struct PresenceViewerTab: View {
     var body: some View {

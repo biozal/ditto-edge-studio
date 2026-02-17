@@ -8,7 +8,7 @@ struct HelpContentView: View {
     var body: some View {
         ScrollView {
             StructuredText(markdown: markdownContent)
-                .textSelection(.enabled)  // Allow copying text
+                .textSelection(.enabled) // Allow copying text
                 .environment(\.openURL, OpenURLAction { url in
                     // Open all links in system browser
                     NSWorkspace.shared.open(url)

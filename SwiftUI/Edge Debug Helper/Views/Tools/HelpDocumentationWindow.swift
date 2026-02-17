@@ -3,7 +3,7 @@ import SwiftUI
 /// Help documentation window with Markdown content loading and error handling
 struct HelpDocumentationWindow: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var markdownContent: String = ""
+    @State private var markdownContent = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
 

@@ -4,7 +4,7 @@ import Foundation
 struct TableResultsData {
     let columns: [String]
     let rows: [TableResultRow]
-    let isMutationResult: Bool  // Flag to adjust UI if needed
+    let isMutationResult: Bool // Flag to adjust UI if needed
 }
 
 /// Actor-based parser for converting JSON strings or mutation results into table data
@@ -97,7 +97,7 @@ actor TableResultsParser {
                 }
             } catch {
                 // Skip malformed JSON silently
-                print("Warning: Skipping malformed JSON at index \(index): \(error.localizedDescription)")
+                Log.warning("Skipping malformed JSON at index \(index): \(error.localizedDescription)")
                 continue
             }
         }

@@ -1,7 +1,7 @@
-import Foundation
 import DittoSwift
+import Foundation
 
-public struct DittoObservable : Identifiable {
+public struct DittoObservable: Identifiable {
     public var id: String
     public var name: String
     public var query: String
@@ -10,27 +10,27 @@ public struct DittoObservable : Identifiable {
     public var lastUpdated: String?
     public var storeObserver: DittoStoreObserver?
     public var isLoading: Bool? = false
-    
-    init(id: String){
+
+    init(id: String) {
         self.id = id
-        self.name = ""
-        self.query = ""
-        self.args = nil
-        self.isActive = false
-        self.lastUpdated = nil
+        name = ""
+        query = ""
+        args = nil
+        isActive = false
+        lastUpdated = nil
         storeObserver = nil
     }
-    
-    init(_ value: [String: Any?]) {
-        self.id = value["_id"] as! String
-        self.name = value["name"] as! String
-        self.query = value["query"] as! String
-        self.isActive = value["isActive"] as? Bool ?? false
-        self.lastUpdated = value["lastUpdated"] as? String ?? nil
 
-        if (value.keys.contains("args")) {
+    init(_ value: [String: Any?]) {
+        id = value["_id"] as? String ?? UUID().uuidString
+        name = value["name"] as? String ?? "Unnamed Observable"
+        query = value["query"] as? String ?? ""
+        isActive = value["isActive"] as? Bool ?? false
+        lastUpdated = value["lastUpdated"] as? String
+
+        if value.keys.contains("args") {
             if let arguments = value["args"] as? String {
-                self.args =  arguments
+                args = arguments
             }
         }
         storeObserver = nil
@@ -39,8 +39,6 @@ public struct DittoObservable : Identifiable {
 
 extension DittoObservable {
     static func new() -> DittoObservable {
-        return DittoObservable(id: UUID().uuidString)
+        DittoObservable(id: UUID().uuidString)
     }
 }
-            
-

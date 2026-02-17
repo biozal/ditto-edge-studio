@@ -1,29 +1,22 @@
 import SwiftUI
 
 extension MainStudioView {
-    
     func subscriptionSidebarView() -> some View {
-        return VStack(alignment: .leading) {
+        VStack(alignment: .leading) {
             headerView(title: "Subscriptions")
             if viewModel.isLoading {
                 Spacer()
-                AnyView(
-                    ProgressView("Loading Subscriptions...")
-                        .progressViewStyle(.circular)
-                )
+                AnyView(ProgressView("Loading Subscriptions...")
+                    .progressViewStyle(.circular))
                 Spacer()
             } else if viewModel.subscriptions.isEmpty {
                 Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Subscriptions",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No apps have been added yet. Click the plus button in the bottom left corner to add your first subscription."
-                        )
-                    )
-                )
+                AnyView(ContentUnavailableView(
+                    "No Subscriptions",
+                    systemImage:
+                    "exclamationmark.triangle.fill",
+                    description: Text("No apps have been added yet. Click the plus button in the bottom left corner to add your first subscription.")
+                ))
                 Spacer()
             } else {
                 SubscriptionList(
@@ -67,27 +60,21 @@ extension MainStudioView {
     }
 
     func collectionsSidebarView() -> some View {
-        return VStack(alignment: .leading) {
+        VStack(alignment: .leading) {
             collectionsHeaderView()
             if viewModel.isLoading {
                 Spacer()
-                AnyView(
-                    ProgressView("Loading Collections...")
-                        .progressViewStyle(.circular)
-                )
+                AnyView(ProgressView("Loading Collections...")
+                    .progressViewStyle(.circular))
                 Spacer()
             } else if viewModel.collections.isEmpty {
                 Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Collections",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Collections found. Add some data or use the Import button to load data into the database."
-                        )
-                    )
-                )
+                AnyView(ContentUnavailableView(
+                    "No Collections",
+                    systemImage:
+                    "exclamationmark.triangle.fill",
+                    description: Text("No Collections found. Add some data or use the Import button to load data into the database.")
+                ))
                 Spacer()
             } else {
                 List(viewModel.collections, id: \._id) { collection in
@@ -120,16 +107,14 @@ extension MainStudioView {
     }
 
     func observeSidebarView() -> some View {
-        return VStack(alignment: .leading) {
+        VStack(alignment: .leading) {
             headerView(title: "Observers")
             if viewModel.observerables.isEmpty {
                 Spacer()
                 ContentUnavailableView(
                     "No Observers",
                     systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "No observers have been added yet. Click the plus button to add your first observers."
-                    )
+                    description: Text("No observers have been added yet. Click the plus button to add your first observers.")
                 )
             } else {
                 List(viewModel.observerables) { observer in
@@ -140,98 +125,97 @@ extension MainStudioView {
                                 await viewModel.loadObservedEvents()
                             }
                         }
-                        #if os(macOS)
-                            .contextMenu {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                                                                          
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Activate",
-                                            systemImage: "play.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Stop",
-                                            systemImage: "stop.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                }
+                    #if os(macOS)
+                        .contextMenu {
+                            if observer.storeObserver == nil {
                                 Button {
                                     Task {
                                         do {
-                                            try await viewModel.deleteObservable(observer)
-                                        }catch{
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        "Delete",
-                                        systemImage: "trash"
-                                    )
-                                    .labelStyle(.titleAndIcon)
-                                }
-                            }
-                        #else
-                            .swipeActions(edge: .trailing) {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Activate", systemImage: "play.circle")
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Stop", systemImage: "stop.circle")
-                                    }
-                                }
-                                Button(role: .destructive) {
-                                    Task {
-                                        do {
-                                            try await viewModel.deleteObservable(observer)
+                                            try await viewModel.registerStoreObserver(observer)
                                         } catch {
                                             appState.setError(error)
                                         }
                                     }
                                 } label: {
-                                    Label("Delete", systemImage: "trash")
+                                    Label(
+                                        "Activate",
+                                        systemImage: "play.circle"
+                                    )
+                                    .labelStyle(.titleAndIcon)
+                                }
+                            } else {
+                                Button {
+                                    Task {
+                                        do {
+                                            try await viewModel.removeStoreObserver(observer)
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                } label: {
+                                    Label(
+                                        "Stop",
+                                        systemImage: "stop.circle"
+                                    )
+                                    .labelStyle(.titleAndIcon)
                                 }
                             }
-                        #endif
+                            Button {
+                                Task {
+                                    do {
+                                        try await viewModel.deleteObservable(observer)
+                                    } catch {
+                                        appState.setError(error)
+                                    }
+                                }
+                            } label: {
+                                Label(
+                                    "Delete",
+                                    systemImage: "trash"
+                                )
+                                .labelStyle(.titleAndIcon)
+                            }
+                        }
+                    #else
+                        .swipeActions(edge: .trailing) {
+                            if observer.storeObserver == nil {
+                                Button {
+                                    Task {
+                                        do {
+                                            try await viewModel.registerStoreObserver(observer)
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Activate", systemImage: "play.circle")
+                                }
+                            } else {
+                                Button {
+                                    Task {
+                                        do {
+                                            try await viewModel.removeStoreObserver(observer)
+                                        } catch {
+                                            appState.setError(error)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Stop", systemImage: "stop.circle")
+                                }
+                            }
+                            Button(role: .destructive) {
+                                Task {
+                                    do {
+                                        try await viewModel.deleteObservable(observer)
+                                    } catch {
+                                        appState.setError(error)
+                                    }
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    #endif
                     Divider()
                 }
             }
@@ -242,17 +226,16 @@ extension MainStudioView {
     private func observerCard(observer: DittoObservable) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
-                .fill((observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15)))
+                .fill(observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15))
                 .shadow(radius: 1)
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(observer.name)
                         .font(.headline)
                         .bold()
-                  
                 }
                 Spacer()
-                if (observer.storeObserver == nil){
+                if observer.storeObserver == nil {
                     Text("Idle")
                         .font(.subheadline)
                         .padding(.trailing, 4)
@@ -270,7 +253,7 @@ extension MainStudioView {
     }
 
     func headerView(title: String) -> some View {
-        return HStack {
+        HStack {
             Spacer()
             Text(title)
                 .padding(.top, 4)

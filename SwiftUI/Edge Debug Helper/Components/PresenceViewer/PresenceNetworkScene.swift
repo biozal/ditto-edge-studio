@@ -6,37 +6,47 @@
 //  Phase 2: Scene Architecture - Network Diagram Scene
 //
 
-import SpriteKit
 import AppKit
 import DittoSwift
+import SpriteKit
 
 /// Main SpriteKit scene for visualizing Ditto presence graph as a network diagram
 class PresenceNetworkScene: SKScene {
-    
+    // MARK: - Nested Types
+
+    /// Information about a peer-to-peer connection
+    struct PeerConnectionInfo {
+        let connectionId: String
+        let from: String
+        let to: String
+        let type: DittoConnectionType
+        let isCloud: Bool
+    }
+
     // MARK: - Properties
-    
-    // Configuration
+
+    /// Configuration
     /// Initial zoom level to apply when scene first appears
     var initialZoomLevel: CGFloat = 1.0
-    
-    // Callbacks
+
+    /// Callbacks
     /// Called when user changes zoom level via scroll wheel or gestures
     var onZoomChanged: ((CGFloat) -> Void)?
-    
+
     // Scene layers
     private var backgroundLayer: FloatingSquaresLayer?
     private var connectionsLayer: SKNode!
     private var peerNodesLayer: SKNode!
-    
-    // Camera
+
+    /// Camera
     private var cameraNode: SKCameraNode!
-    
+
     // State
     private var peerNodes: [String: PeerNode] = [:] // Use peerKeyString as key
     private var connectionLines: [String: ConnectionLine] = [:]
     private var localPeerKey: String?
 
-    // Cloud node is treated as a regular peer with this well-known key
+    /// Cloud node is treated as a regular peer with this well-known key
     private let cloudNodeKey = "ditto-cloud-node"
 
     // Change detection to avoid unnecessary animations
@@ -45,20 +55,20 @@ class PresenceNetworkScene: SKScene {
 
     // Interaction state
     private var selectedNode: PeerNode?
-    private var isDraggingNode: Bool = false
-    private var isPanning: Bool = false
+    private var isDraggingNode = false
+    private var isPanning = false
     private var lastPanLocation: CGPoint = .zero
     private var hoveredNode: PeerNode?
-    private var isUserInteracting: Bool = false // Tracks if user is actively dragging/panning
-    private var needsLayoutAfterInteraction: Bool = false // Defer layout until interaction completes
-    
+    private var isUserInteracting = false // Tracks if user is actively dragging/panning
+    private var needsLayoutAfterInteraction = false // Defer layout until interaction completes
+
     // Layout
     private let centerPosition = CGPoint.zero
     private var layoutEngine = NetworkLayoutEngine()
     private var currentRingAssignments: [Int: [String]] = [:]
-    
+
     // MARK: - Scene Lifecycle
-    
+
     override func didMove(to view: SKView) {
         super.didMove(to: view)
 
@@ -72,29 +82,29 @@ class PresenceNetworkScene: SKScene {
         // Apply initial zoom level from configuration
         cameraNode.setScale(initialZoomLevel)
     }
-    
+
     // MARK: - Setup
-    
+
     private func setupCamera() {
         cameraNode = SKCameraNode()
         cameraNode.position = centerPosition
         addChild(cameraNode)
         camera = cameraNode
     }
-    
+
     private func setupLayers() {
         // Create layers with proper z-ordering
         connectionsLayer = SKNode()
         connectionsLayer.name = "connectionsLayer"
         connectionsLayer.zPosition = 0
         addChild(connectionsLayer)
-        
+
         peerNodesLayer = SKNode()
         peerNodesLayer.name = "peerNodesLayer"
         peerNodesLayer.zPosition = 10
         addChild(peerNodesLayer)
     }
-    
+
     private func setupBackground() {
         // Add floating squares background (stars)
         backgroundLayer = FloatingSquaresLayer()
@@ -104,17 +114,17 @@ class PresenceNetworkScene: SKScene {
             bg.addToScene(self)
         }
     }
-    
+
     // MARK: - Public API
-    
+
     /// Update the presence graph visualization
     /// Now accepts PeerProtocol to support both real DittoPeer and mock test data
     func updatePresenceGraph(localPeer: PeerProtocol, remotePeers: [PeerProtocol]) {
         // Store local peer key (use peerKeyString for dictionary lookups)
-        self.localPeerKey = localPeer.peerKeyString
+        localPeerKey = localPeer.peerKeyString
 
         // Determine which peers to add/remove/update
-        let newPeerKeys = Set([localPeer.peerKeyString] + remotePeers.map { $0.peerKeyString })
+        let newPeerKeys = Set([localPeer.peerKeyString] + remotePeers.map(\.peerKeyString))
         let existingPeerKeys = Set(peerNodes.keys)
 
         // Remove disconnected peers (with animation)
@@ -123,7 +133,7 @@ class PresenceNetworkScene: SKScene {
         for peerKey in peersToRemove {
             removePeer(key: peerKey)
         }
-        
+
         // Add or update local peer
         updatePeer(localPeer, isLocal: true)
 
@@ -134,7 +144,7 @@ class PresenceNetworkScene: SKScene {
 
         // Check if any peer is connected to cloud
         let hasCloudConnection = localPeer.isConnectedToDittoCloud ||
-                                 remotePeers.contains(where: { $0.isConnectedToDittoCloud })
+            remotePeers.contains(where: \.isConnectedToDittoCloud)
 
         // Add or remove cloud node (treated as a regular peer)
         if hasCloudConnection {
@@ -171,7 +181,7 @@ class PresenceNetworkScene: SKScene {
             if isUserInteracting {
                 // Defer layout until interaction completes
                 needsLayoutAfterInteraction = true
-                print("📍 User is interacting, deferring layout animation")
+                Log.debug("User is interacting, deferring layout animation")
             } else {
                 // Something changed, recalculate layout immediately
                 recalculateLayout()
@@ -182,15 +192,15 @@ class PresenceNetworkScene: SKScene {
             lastConnectionsSnapshot = currentConnections
         } else {
             // Nothing changed, skip animation
-            print("📍 No topology changes detected, skipping layout animation")
+            Log.debug("No topology changes detected, skipping layout animation")
         }
     }
-    
+
     // MARK: - Peer Management
-    
+
     private func updatePeer(_ peer: PeerProtocol, isLocal: Bool) {
         let peerKeyString = peer.peerKeyString
-        
+
         if let existingNode = peerNodes[peerKeyString] {
             // Update existing peer (e.g., device name changed)
             existingNode.updateDeviceName(peer.deviceName)
@@ -203,15 +213,15 @@ class PresenceNetworkScene: SKScene {
                 deviceType: deviceType,
                 isLocal: isLocal
             )
-            
+
             peerNodes[peerKeyString] = node
             peerNodesLayer.addChild(node)
-            
+
             // Animate appearance
             animatePeerAppearance(node: node)
         }
     }
-    
+
     private func removePeer(key: String) {
         guard let node = peerNodes[key] else { return }
 
@@ -264,7 +274,7 @@ class PresenceNetworkScene: SKScene {
         connectionLines.removeAll()
 
         // Group connections by peer pair (to detect bidirectional connections)
-        var peerPairConnections: [String: [(connectionId: String, from: String, to: String, type: DittoConnectionType, isCloud: Bool)]] = [:]
+        var peerPairConnections: [String: [PeerConnectionInfo]] = [:]
 
         // Collect all peer-to-peer connections
         for remotePeer in remotePeers {
@@ -280,7 +290,7 @@ class PresenceNetworkScene: SKScene {
                     peerPairConnections[pairKey] = []
                 }
 
-                peerPairConnections[pairKey]?.append((
+                peerPairConnections[pairKey]?.append(PeerConnectionInfo(
                     connectionId: connectionId,
                     from: fromKey,
                     to: toKey,
@@ -293,7 +303,7 @@ class PresenceNetworkScene: SKScene {
         // Add cloud connections if cloud exists
         if hasCloudConnection {
             let allPeers = [localPeer] + remotePeers
-            let cloudConnectedPeers = allPeers.filter { $0.isConnectedToDittoCloud }
+            let cloudConnectedPeers = allPeers.filter(\.isConnectedToDittoCloud)
 
             for peer in cloudConnectedPeers {
                 let connectionId = "cloud_\(peer.peerKeyString)"
@@ -303,7 +313,7 @@ class PresenceNetworkScene: SKScene {
                     peerPairConnections[pairKey] = []
                 }
 
-                peerPairConnections[pairKey]?.append((
+                peerPairConnections[pairKey]?.append(PeerConnectionInfo(
                     connectionId: connectionId,
                     from: peer.peerKeyString,
                     to: cloudNodeKey,
@@ -320,7 +330,8 @@ class PresenceNetworkScene: SKScene {
 
             for (index, conn) in connections.enumerated() {
                 guard let fromNode = peerNodes[conn.from],
-                      let toNode = peerNodes[conn.to] else {
+                      let toNode = peerNodes[conn.to] else
+                {
                     continue
                 }
 
@@ -353,32 +364,34 @@ class PresenceNetworkScene: SKScene {
             }
         }
     }
-    
+
     private func updateAllConnectionPaths() {
         // Update all connections (including cloud connections)
         for (_, line) in connectionLines {
             guard let fromNode = peerNodes[line.fromPeerKey],
-                  let toNode = peerNodes[line.toPeerKey] else {
+                  let toNode = peerNodes[line.toPeerKey] else
+            {
                 continue
             }
 
             line.updatePath(fromPos: fromNode.position, toPos: toNode.position)
         }
     }
-    
+
     private func updateConnectionsForNode(_ node: PeerNode) {
         // Update all connections involving this node (including cloud connections)
         for (_, line) in connectionLines {
             if line.fromPeerKey == node.peerKey || line.toPeerKey == node.peerKey {
                 guard let fromNode = peerNodes[line.fromPeerKey],
-                      let toNode = peerNodes[line.toPeerKey] else {
+                      let toNode = peerNodes[line.toPeerKey] else
+                {
                     continue
                 }
                 line.updatePath(fromPos: fromNode.position, toPos: toNode.position)
             }
         }
     }
-    
+
     // MARK: - Layout Algorithm
 
     private func recalculateLayout() {
@@ -429,55 +442,55 @@ class PresenceNetworkScene: SKScene {
             self?.updateAllConnectionPaths()
         }
     }
-    
+
     // MARK: - Animations
-    
+
     private func animatePeerAppearance(node: SKNode) {
         // Initial state: invisible, small, at center
         node.alpha = 0.0
         node.setScale(0.5)
         node.position = centerPosition
-        
+
         // Target state: visible, normal size, at final position
         let fadeIn = SKAction.fadeIn(withDuration: 0.4)
         let scaleUp = SKAction.scale(to: 1.0, duration: 0.4)
-        
+
         // Note: Position will be set by layout algorithm
         let group = SKAction.group([fadeIn, scaleUp])
         group.timingMode = .easeOut
-        
+
         node.run(group, withKey: "appearAnimation")
     }
-    
+
     private func animatePeerDisappearance(node: SKNode, completion: @escaping () -> Void) {
         // Animate to center, fade out, scale down
         let fadeOut = SKAction.fadeOut(withDuration: 0.3)
         let scaleDown = SKAction.scale(to: 0.5, duration: 0.3)
         let moveToCenter = SKAction.move(to: centerPosition, duration: 0.3)
-        
+
         let group = SKAction.group([fadeOut, scaleDown, moveToCenter])
         group.timingMode = .easeIn
-        
+
         let remove = SKAction.removeFromParent()
         let sequence = SKAction.sequence([group, remove])
-        
+
         node.run(sequence) {
             completion()
         }
     }
-    
+
     private func animateLineDrawing(line: ConnectionLine) {
         // Start with alpha 0, fade in
         line.alpha = 0.0
-        
+
         let fadeIn = SKAction.fadeIn(withDuration: 0.4)
         fadeIn.timingMode = .easeInEaseOut
-        
+
         line.run(fadeIn, withKey: "lineDrawAnimation")
     }
-    
+
     // MARK: - Mouse/Touch Handling (macOS)
-    
+
     override func mouseDown(with event: NSEvent) {
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
@@ -499,7 +512,7 @@ class PresenceNetworkScene: SKScene {
             lastPanLocation = location
         }
     }
-    
+
     override func mouseDragged(with event: NSEvent) {
         let location = event.location(in: self)
 
@@ -516,7 +529,7 @@ class PresenceNetworkScene: SKScene {
             cameraNode.position.y += event.deltaY // Y is inverted in AppKit
         }
     }
-    
+
     override func mouseUp(with event: NSEvent) {
         // Clear selection and highlighting
         if let node = selectedNode {
@@ -534,15 +547,15 @@ class PresenceNetworkScene: SKScene {
         // If layout was deferred during interaction, trigger it now
         if needsLayoutAfterInteraction {
             needsLayoutAfterInteraction = false
-            print("📍 User interaction ended, running deferred layout animation")
+            Log.debug("User interaction ended, running deferred layout animation")
             recalculateLayout()
         }
     }
-    
+
     override func mouseMoved(with event: NSEvent) {
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
-        
+
         // Find peer node under cursor
         if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
             if hoveredNode !== peerNode {
@@ -550,7 +563,7 @@ class PresenceNetworkScene: SKScene {
                 hoveredNode?.setHighlighted(false)
                 hoveredNode = peerNode
                 peerNode.setHighlighted(true)
-                
+
                 // Update cursor
                 NSCursor.pointingHand.set()
             }
@@ -563,7 +576,7 @@ class PresenceNetworkScene: SKScene {
             }
         }
     }
-    
+
     override func mouseExited(with event: NSEvent) {
         // Clear hover state when mouse leaves scene
         if let hovered = hoveredNode {
@@ -572,29 +585,29 @@ class PresenceNetworkScene: SKScene {
         }
         NSCursor.arrow.set()
     }
-    
+
     override func scrollWheel(with event: NSEvent) {
         // Zoom with scroll wheel
         guard let camera = cameraNode else { return }
-        
+
         // deltaY > 0 = scroll up = zoom out
         // deltaY < 0 = scroll down = zoom in
         let zoomDelta: CGFloat = event.deltaY > 0 ? 0.05 : -0.05
         let newScale = max(0.5, min(2.0, camera.xScale + zoomDelta))
-        
+
         // Apply zoom smoothly
         let scaleAction = SKAction.scale(to: newScale, duration: 0.1)
         scaleAction.timingMode = .easeOut
         camera.run(scaleAction, withKey: "scrollZoom")
-        
+
         // Notify via callback to update zoom UI
         DispatchQueue.main.async { [weak self] in
             self?.onZoomChanged?(newScale)
         }
     }
-    
+
     // MARK: - Helper Methods
-    
+
     private func highlightConnectionsForPeer(_ peerKey: String, highlighted: Bool) {
         for (_, line) in connectionLines {
             if line.fromPeerKey == peerKey || line.toPeerKey == peerKey {
@@ -602,23 +615,23 @@ class PresenceNetworkScene: SKScene {
             }
         }
     }
-    
+
     /// Get all peer keys currently in the scene
     func getPeerKeys() -> [String] {
-        return Array(peerNodes.keys)
+        Array(peerNodes.keys)
     }
-    
+
     /// Get the position of a peer node
     func getPeerPosition(key: String) -> CGPoint? {
-        return peerNodes[key]?.position
+        peerNodes[key]?.position
     }
-    
+
     /// Enable mouse tracking for hover effects
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
-        
+
         // Ensure view tracks mouse movement for hover effects
-        if let view = self.view {
+        if let view {
             let trackingArea = NSTrackingArea(
                 rect: view.bounds,
                 options: [.activeInActiveApp, .mouseMoved, .mouseEnteredAndExited],
@@ -635,16 +648,14 @@ class PresenceNetworkScene: SKScene {
 extension PresenceNetworkScene {
     /// Get the ring assignment for a peer (used for connection routing optimization)
     func getRingForPeer(_ peerKey: String) -> Int? {
-        for (ring, peers) in currentRingAssignments {
-            if peers.contains(peerKey) {
-                return ring
-            }
+        for (ring, peers) in currentRingAssignments where peers.contains(peerKey) {
+            return ring
         }
         return nil
     }
 
     /// Get all peers in a specific ring
     func getPeersInRing(_ ring: Int) -> [String] {
-        return currentRingAssignments[ring] ?? []
+        currentRingAssignments[ring] ?? []
     }
 }

@@ -1116,6 +1116,432 @@ Comprehensive documentation created during UI test development:
 
 **Refer to these documents for detailed explanations and examples.**
 
+## Code Quality Tools
+
+**CRITICAL: This project uses automated tools to detect unused code, enforce code quality, and maintain consistent style.**
+
+### Tool Overview
+
+| Tool | Purpose | When to Run | Configuration File |
+|------|---------|-------------|-------------------|
+| **Periphery** | Detects unused Swift code | Monthly or before releases | `.periphery.yml` |
+| **SwiftLint** | Enforces style and detects issues | During development | `.swiftlint.yml` |
+| **SwiftFormat** | Auto-formats code | Before committing | `.swiftformat` |
+
+### Installation (Required for Contributors)
+
+All tools installed via Homebrew:
+
+```bash
+# Install all three tools
+brew install peripheryapp/periphery/periphery
+brew install swiftlint
+brew install swiftformat
+
+# Verify installations
+periphery version  # Should show 2.21.2+
+swiftlint version  # Should show 0.63.2+
+swiftformat --version  # Should show 0.59.1+
+```
+
+### Periphery - Unused Code Detection
+
+**What it does:**
+- Scans entire project to find unused Swift code
+- Detects unused classes, structs, enums, protocols, functions, properties
+- Analyzes build graph to understand actual usage patterns
+- Generates reports of dead code candidates
+
+**When to run:**
+- Monthly code cleanup sessions
+- Before major releases
+- When preparing for refactoring
+- After removing features
+
+**How to run:**
+
+```bash
+# Standard scan (from project root)
+cd /Users/labeaaa/Developer/ditto-edge-studio
+periphery scan --project "SwiftUI/Edge Debug Helper.xcodeproj" \
+               --schemes "Edge Studio" \
+               --format xcode
+
+# Save report to file
+periphery scan --project "SwiftUI/Edge Debug Helper.xcodeproj" \
+               --schemes "Edge Studio" \
+               --format xcode > periphery-report.txt
+
+# Generate baseline (track new unused code only)
+periphery scan --project "SwiftUI/Edge Debug Helper.xcodeproj" \
+               --schemes "Edge Studio" \
+               --baseline .periphery_baseline.json
+```
+
+**Configuration (`.periphery.yml`):**
+- Excludes test files and generated code
+- Retains `@main`, `@objc`, and other special attributes
+- Configured for app targets (not framework/library)
+
+**Understanding results:**
+- Periphery lists file path, line number, and type/name of unused code
+- Verify before deleting - some code may be used via runtime reflection or dynamic lookups
+- SwiftUI views with no direct references may still be used via navigation
+
+**Common false positives:**
+- SwiftUI view initializers
+- Protocol requirements in protocol definitions
+- Code used via Objective-C runtime
+- Entry points (`@main`, `@NSApplicationMain`)
+
+### SwiftLint - Code Quality & Style
+
+**What it does:**
+- Enforces Swift style guidelines (based on Swift.org and community standards)
+- Detects code smells and potential bugs
+- Finds unused imports, variables, and closures
+- Warns about force unwraps, force casts, and overly complex code
+
+**When to run:**
+- During active development (continuously)
+- Before committing changes
+- As part of code review process
+- Can be integrated into Xcode build phase
+
+**How to run:**
+
+```bash
+# Lint entire project
+swiftlint lint
+
+# Lint and auto-fix issues
+swiftlint lint --fix
+
+# Lint specific directory
+swiftlint lint --path "SwiftUI/Edge Debug Helper/"
+
+# Strict mode (treat warnings as errors)
+swiftlint lint --strict
+
+# Generate HTML report
+swiftlint lint --reporter html > swiftlint-report.html
+```
+
+**Xcode Integration:**
+
+Add a "Run Script" build phase to show SwiftLint warnings in Xcode:
+
+```bash
+# Build Phase Script:
+if which swiftlint >/dev/null; then
+  swiftlint
+else
+  echo "warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint"
+fi
+```
+
+**Configuration (`.swiftlint.yml`):**
+- Enables unused code detection rules
+- Custom rules for project-specific patterns
+- Excludes generated files (`FontAwesomeIcons.swift`)
+- Excludes POC/experimental code
+
+**Key enabled rules:**
+- `unused_import` - Detects unused import statements
+- `unused_declaration` - Finds unused functions/variables
+- `unused_optional_binding` - Unused variables in if-let/guard-let
+- `force_unwrapping` - Warns about `!` force unwraps
+- `sorted_imports` - Enforces alphabetical import order
+
+**Custom rules:**
+- `todos_fixmes` - Warns about TODO/FIXME comments
+- `no_print_statements` - Detects print() calls (use proper logging)
+
+### SwiftFormat - Code Formatting
+
+**What it does:**
+- Automatically formats Swift code for consistency
+- Enforces indentation, spacing, brace style
+- Organizes imports and removes redundancies
+- Makes code style uniform across the project
+
+**When to run:**
+- Before committing changes
+- After pulling code from others
+- When refactoring or restructuring code
+- Can be run automatically via pre-commit hook
+
+**How to run:**
+
+```bash
+# Format entire project
+swiftformat .
+
+# Format specific directory
+swiftformat "SwiftUI/Edge Debug Helper/"
+
+# Dry run (show what would change without modifying files)
+swiftformat --verbose --dryrun .
+
+# Format and show changes
+swiftformat --verbose .
+```
+
+**Configuration (`.swiftformat`):**
+- Swift 6.2 syntax
+- 4-space indentation
+- 150-character line width
+- Inline commas and semicolons
+- Removes redundant `self`
+
+**Pre-commit hook (optional):**
+
+Create `.git/hooks/pre-commit`:
+```bash
+#!/bin/sh
+swiftformat --verbose .
+git add -u
+```
+
+Make executable: `chmod +x .git/hooks/pre-commit`
+
+### Best Practices for Using These Tools
+
+**Daily Development:**
+1. SwiftLint runs automatically if integrated into Xcode build phase
+2. Run `swiftlint lint --fix` before committing to auto-correct issues
+3. Review SwiftLint warnings and address high-priority ones
+
+**Weekly/Sprint:**
+1. Run SwiftFormat on modified files: `swiftformat "path/to/modified/files"`
+2. Ensure all SwiftLint warnings are addressed before merging PRs
+
+**Monthly/Major Releases:**
+1. Run Periphery scan to identify unused code: `periphery scan ...`
+2. Review Periphery report and create tickets for removal candidates
+3. Verify test coverage before removing code flagged by Periphery
+
+**Before Committing:**
+```bash
+# Recommended pre-commit checks
+swiftlint lint --fix  # Auto-fix style issues
+swiftformat .         # Format code
+swiftlint lint        # Final check for remaining issues
+```
+
+**CI/CD Integration (Future):**
+
+Add to GitHub Actions or CI pipeline:
+```yaml
+- name: SwiftLint
+  run: swiftlint lint --strict
+
+- name: Periphery
+  run: periphery scan --format github-actions --fail-on-unused
+```
+
+### Tool Output Examples
+
+**Periphery output:**
+```
+/path/to/File.swift:42:6: warning: Struct 'UnusedStruct' is unused
+/path/to/File.swift:58:10: warning: Function 'unusedFunction()' is unused
+```
+
+**SwiftLint output:**
+```
+/path/to/File.swift:12:5: warning: Unused Import Violation: 'Foundation' is imported but not used
+/path/to/File.swift:45:20: warning: Force Unwrapping Violation: Avoid using ! to force unwrap
+```
+
+**SwiftFormat output:**
+```
+1/245 files updated:
+  /path/to/File.swift
+```
+
+### Troubleshooting
+
+**Periphery scan fails or hangs:**
+- Ensure Xcode project builds successfully first
+- Clean derived data: `rm -rf ~/Library/Developer/Xcode/DerivedData`
+- Check `.periphery.yml` excludes paths are correct
+- Run with `--verbose` flag for debugging
+
+**SwiftLint too strict:**
+- Adjust rules in `.swiftlint.yml`
+- Disable specific rules with `disabled_rules:`
+- Use inline comments to suppress warnings: `// swiftlint:disable:next rule_name`
+
+**SwiftFormat changes too aggressive:**
+- Review `.swiftformat` configuration
+- Use `--dryrun` to preview changes before applying
+- Disable specific rules with `--disable rule_name`
+
+### When NOT to Use These Tools
+
+**Don't rely solely on automated tools for:**
+- Architectural decisions (tools can't judge if code *should* exist)
+- Performance optimization (tools don't measure runtime performance)
+- Security audits (tools catch obvious issues, not all vulnerabilities)
+- User experience issues (tools don't test UI/UX quality)
+
+**Always combine automated tools with:**
+- Manual code review
+- Unit and UI testing
+- Performance profiling
+- User testing and feedback
+
+### Further Reading
+
+- **Periphery Documentation:** https://github.com/peripheryapp/periphery
+- **SwiftLint Rules Reference:** https://realm.github.io/SwiftLint/rule-directory.html
+- **SwiftFormat Rules Reference:** https://github.com/nicklockwood/SwiftFormat/blob/main/Rules.md
+- **Swift Style Guide:** https://google.github.io/swift/
+
+## Logging Framework
+
+**CRITICAL: This project uses CocoaLumberjack for file-based logging with user-viewable logs for debugging and GitHub issue support.**
+
+### Why CocoaLumberjack?
+
+Edge Debug Helper uses [CocoaLumberjack](https://github.com/CocoaLumberjack/CocoaLumberjack) for comprehensive logging:
+
+- ✅ **File-based logging**: All logs written to files with automatic rotation
+- ✅ **User accessibility**: Logs can be viewed in-app and exported for GitHub issues
+- ✅ **Automatic rotation**: Keeps last 7 days, 5MB max per file
+- ✅ **Performance**: Asynchronous logging, doesn't block UI
+- ✅ **Thread-safe**: Safe for concurrent access across actors
+- ✅ **macOS native**: Full support for macOS, iOS, tvOS, watchOS, visionOS
+
+### Installation (Required)
+
+**The project requires CocoaLumberjack to build.** Add it via Swift Package Manager:
+
+1. Open `Edge Debug Helper.xcodeproj` in Xcode
+2. Go to **File → Add Package Dependencies...**
+3. Enter URL: `https://github.com/CocoaLumberjack/CocoaLumberjack`
+4. Select version: **Latest** (3.8.5+)
+5. Add to target: **Edge Debug Helper**
+
+### Usage
+
+The project provides a centralized `LoggingService` (`Utilities/LoggingService.swift`) with a global `Log` accessor:
+
+```swift
+// Import not needed - Log is globally available
+
+// Debug (development only)
+Log.debug("Detailed debug information")
+
+// Info (general information)
+Log.info("Starting operation")
+
+// Warning (non-critical issues)
+Log.warning("Missing optional configuration")
+
+// Error (failures, exceptions)
+Log.error("Operation failed: \(error.localizedDescription)")
+```
+
+**DO NOT use `print()` statements** - All logging must use the `Log` API for proper file logging and user support.
+
+### Log File Location
+
+Logs are automatically saved to:
+```
+~/Library/Logs/io.ditto.EdgeStudio/
+```
+
+**Log rotation:**
+- Daily rotation (24-hour rolling)
+- Maximum 7 log files kept
+- 5MB maximum per file
+- Old logs automatically deleted
+
+### Retrieving Logs (for User Support)
+
+```swift
+// Get all log files
+let logFiles = Log.getAllLogFiles()
+
+// Get combined log content
+let logContent = Log.getCombinedLogs()
+
+// Get logs directory path
+let logsDir = Log.getLogsDirectory()
+
+// Export logs to specific location
+try Log.exportLogs(to: destinationURL)
+
+// Clear all logs (privacy/reset)
+Log.clearAllLogs()
+```
+
+### Future Feature: Log Viewer
+
+Planned feature for users to:
+- View logs in-app
+- Copy logs to clipboard
+- Export logs as attachment for GitHub issues
+- Clear logs for privacy
+
+See `LoggingService.swift` for implementation details and future log viewer UI examples.
+
+### Log Levels by Build Configuration
+
+**Debug builds:**
+- All log levels enabled (debug, info, warning, error)
+- Console output to Xcode
+- File logging enabled
+
+**Release builds:**
+- Info, warning, error only (debug disabled)
+- No console output
+- File logging enabled
+
+### Best Practices
+
+1. **Use appropriate log levels:**
+   - `debug()` - Temporary debugging, verbose details
+   - `info()` - Normal operations, state changes
+   - `warning()` - Recoverable issues, missing optional data
+   - `error()` - Failures, exceptions, critical issues
+
+2. **Include context:**
+   ```swift
+   // ❌ Bad
+   Log.error("Failed")
+
+   // ✅ Good
+   Log.error("Failed to load database '\(dbName)': \(error.localizedDescription)")
+   ```
+
+3. **Don't log sensitive data:**
+   - No authentication tokens
+   - No user passwords
+   - No personally identifiable information (PII)
+
+4. **Use descriptive messages:**
+   - Logs should be understandable without code context
+   - Include operation name, resource identifiers, error details
+
+### Troubleshooting
+
+**Build error: "No such module 'CocoaLumberjack'"**
+- Verify CocoaLumberjack is added via Swift Package Manager
+- Clean build: `rm -rf ~/Library/Developer/Xcode/DerivedData`
+- Rebuild project
+
+**Logs not appearing:**
+- Check `~/Library/Logs/io.ditto.EdgeStudio/` directory exists
+- Verify `LoggingService.shared` is initialized (happens automatically)
+- Check Console.app for any initialization errors
+
+**Too many log files:**
+- Log rotation is automatic (7 days, 5MB max)
+- Use `Log.clearAllLogs()` to manually clear all logs
+
 ## Development Environment Setup
 
 ### Xcode Version Requirements

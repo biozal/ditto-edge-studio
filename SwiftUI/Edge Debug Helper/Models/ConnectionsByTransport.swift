@@ -31,17 +31,17 @@ struct ConnectionsByTransport: Codable, Equatable {
     /// Convenience initializer from dictionary (parses {"connections_by_transport": {...}})
     init(from dictionary: [String: Any]) {
         if let connectionsDict = dictionary["connections_by_transport"] as? [String: Any] {
-            self.accessPoint = connectionsDict["AccessPoint"] as? Int ?? 0
-            self.bluetooth = connectionsDict["Bluetooth"] as? Int ?? 0
-            self.dittoServer = connectionsDict["DittoServer"] as? Int ?? 0
-            self.p2pWiFi = connectionsDict["P2PWiFi"] as? Int ?? 0
-            self.webSocket = connectionsDict["WebSocket"] as? Int ?? 0
+            accessPoint = connectionsDict["AccessPoint"] as? Int ?? 0
+            bluetooth = connectionsDict["Bluetooth"] as? Int ?? 0
+            dittoServer = connectionsDict["DittoServer"] as? Int ?? 0
+            p2pWiFi = connectionsDict["P2PWiFi"] as? Int ?? 0
+            webSocket = connectionsDict["WebSocket"] as? Int ?? 0
         } else {
-            self.accessPoint = 0
-            self.bluetooth = 0
-            self.dittoServer = 0
-            self.p2pWiFi = 0
-            self.webSocket = 0
+            accessPoint = 0
+            bluetooth = 0
+            dittoServer = 0
+            p2pWiFi = 0
+            webSocket = 0
         }
     }
 
@@ -57,25 +57,33 @@ struct ConnectionsByTransport: Codable, Equatable {
         totalConnections > 0
     }
 
+    /// Information about an active transport with display metadata
+    struct TransportInfo {
+        let name: String
+        let count: Int
+        let icon: FontAwesomeIcon
+        let color: Color
+    }
+
     /// Array of active (non-zero) transports with display metadata
     /// Uses Ditto Rainbow colors: WebSocket (Purple), Bluetooth (Blue), P2P WiFi (Pink), LAN/Access Point (Green), Ditto Server (Purple)
-    var activeTransports: [(name: String, count: Int, icon: FontAwesomeIcon, color: Color)] {
-        var transports: [(String, Int, FontAwesomeIcon, Color)] = []
+    var activeTransports: [TransportInfo] {
+        var transports: [TransportInfo] = []
 
         if webSocket > 0 {
-            transports.append(("WebSocket", webSocket, ConnectivityIcon.network, .purple))
+            transports.append(TransportInfo(name: "WebSocket", count: webSocket, icon: ConnectivityIcon.network, color: .purple))
         }
         if bluetooth > 0 {
-            transports.append(("Bluetooth", bluetooth, ConnectivityIcon.bluetooth, .blue))
+            transports.append(TransportInfo(name: "Bluetooth", count: bluetooth, icon: ConnectivityIcon.bluetooth, color: .blue))
         }
         if p2pWiFi > 0 {
-            transports.append(("P2P WiFi", p2pWiFi, ConnectivityIcon.wifi, .pink))
+            transports.append(TransportInfo(name: "P2P WiFi", count: p2pWiFi, icon: ConnectivityIcon.wifi, color: .pink))
         }
         if accessPoint > 0 {
-            transports.append(("Access Point", accessPoint, ConnectivityIcon.broadcastTower, .green))
+            transports.append(TransportInfo(name: "Access Point", count: accessPoint, icon: ConnectivityIcon.broadcastTower, color: .green))
         }
         if dittoServer > 0 {
-            transports.append(("Ditto Server", dittoServer, ConnectivityIcon.cloud, .purple))
+            transports.append(TransportInfo(name: "Ditto Server", count: dittoServer, icon: ConnectivityIcon.cloud, color: .purple))
         }
 
         return transports

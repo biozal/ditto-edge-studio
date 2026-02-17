@@ -22,7 +22,7 @@ actor FavoritesRepository {
     private var cachedFavorites: [DittoQueryHistory] = []
     private var currentDatabaseId: String?
 
-    // Callback for UI updates
+    /// Callback for UI updates
     private var onFavoritesUpdate: (([DittoQueryHistory]) -> Void)?
 
     private init() {}
@@ -76,9 +76,8 @@ actor FavoritesRepository {
 
             // Notify UI
             notifyFavoritesUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -100,9 +99,8 @@ actor FavoritesRepository {
 
             // Notify UI
             notifyFavoritesUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -120,7 +118,14 @@ actor FavoritesRepository {
     }
 
     func setOnFavoritesUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
-        self.onFavoritesUpdate = callback
+        onFavoritesUpdate = callback
+    }
+
+    /// Clears in-memory cache (call when switching databases)
+    func clearCache() async {
+        cachedFavorites = []
+        currentDatabaseId = nil
+        Log.debug("FavoritesRepository cache cleared")
     }
 
     // MARK: - Private Helpers

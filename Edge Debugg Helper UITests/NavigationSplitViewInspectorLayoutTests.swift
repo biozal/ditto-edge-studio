@@ -11,7 +11,6 @@ import XCTest
 /// the sidebar should REMAIN VISIBLE. Previously, incorrect frame modifiers caused
 /// the sidebar to disappear when inspector opened.
 class NavigationSplitViewInspectorLayoutTests: XCTestCase {
-
     var app: XCUIApplication!
 
     override func setUp() {
@@ -66,10 +65,14 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
         add(attachment2)
 
         // STEP 3: Verify sidebar is visible with navigation items
-        XCTAssertTrue(app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
-                     "Subscriptions menu item should be visible in sidebar")
-        XCTAssertTrue(app.buttons["Collections"].exists || app.staticTexts["Collections"].exists,
-                     "Collections menu item should be visible in sidebar")
+        XCTAssertTrue(
+            app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
+            "Subscriptions menu item should be visible in sidebar"
+        )
+        XCTAssertTrue(
+            app.buttons["Collections"].exists || app.staticTexts["Collections"].exists,
+            "Collections menu item should be visible in sidebar"
+        )
 
         // STEP 4: Navigate to Collections view (contains VSplitView)
         let collectionsButton = app.buttons["Collections"].exists ?
@@ -100,26 +103,32 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
 
             // STEP 7: CRITICAL VALIDATION - Sidebar should STILL be visible
             let sidebarStillVisible = app.buttons["Subscriptions"].exists ||
-                                     app.staticTexts["Subscriptions"].exists
+                app.staticTexts["Subscriptions"].exists
 
-            XCTAssertTrue(sidebarStillVisible,
-                         """
-                         CRITICAL FAILURE: Sidebar disappeared when inspector opened!
+            XCTAssertTrue(
+                sidebarStillVisible,
+                """
+                CRITICAL FAILURE: Sidebar disappeared when inspector opened!
 
-                         This indicates the NavigationSplitView + Inspector + VSplitView layout is broken.
-                         Check screenshot '04-CRITICAL-inspector-opened-sidebar-should-stay-visible' to see the issue.
+                This indicates the NavigationSplitView + Inspector + VSplitView layout is broken.
+                Check screenshot '04-CRITICAL-inspector-opened-sidebar-should-stay-visible' to see the issue.
 
-                         Expected: Sidebar (left) | Collections Detail with VSplitView (center) | Inspector (right)
-                         Actual: Sidebar hidden, only Collections detail visible
+                Expected: Sidebar (left) | Collections Detail with VSplitView (center) | Inspector (right)
+                Actual: Sidebar hidden, only Collections detail visible
 
-                         Root cause: Incorrect frame modifiers on VSplitView children causing constraint conflicts.
-                         """)
+                Root cause: Incorrect frame modifiers on VSplitView children causing constraint conflicts.
+                """
+            )
 
             // Additional validations
-            XCTAssertTrue(app.buttons["Collections"].exists || app.staticTexts["Collections"].exists,
-                         "Collections menu item should still be visible")
-            XCTAssertTrue(app.buttons["Observer"].exists || app.staticTexts["Observer"].exists,
-                         "Observer menu item should still be visible")
+            XCTAssertTrue(
+                app.buttons["Collections"].exists || app.staticTexts["Collections"].exists,
+                "Collections menu item should still be visible"
+            )
+            XCTAssertTrue(
+                app.buttons["Observer"].exists || app.staticTexts["Observer"].exists,
+                "Observer menu item should still be visible"
+            )
         } else {
             XCTFail("Inspector toggle button not found - check toolbar configuration")
         }
@@ -135,8 +144,10 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
             attachment5.lifetime = .keepAlways
             add(attachment5)
 
-            XCTAssertTrue(app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
-                         "Sidebar should remain visible after closing inspector")
+            XCTAssertTrue(
+                app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
+                "Sidebar should remain visible after closing inspector"
+            )
         }
     }
 
@@ -215,7 +226,7 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
         }
 
         // Toggle inspector multiple times
-        for i in 1...3 {
+        for i in 1 ... 3 {
             // Open inspector
             inspectorToggle.tap()
             sleep(1)
@@ -227,8 +238,10 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
             add(attachmentOpen)
 
             // Verify sidebar visible
-            XCTAssertTrue(app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
-                         "Sidebar should be visible on toggle \(i) - opened")
+            XCTAssertTrue(
+                app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
+                "Sidebar should be visible on toggle \(i) - opened"
+            )
 
             // Close inspector
             inspectorToggle.tap()
@@ -241,8 +254,10 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
             add(attachmentClosed)
 
             // Verify sidebar still visible
-            XCTAssertTrue(app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
-                         "Sidebar should be visible on toggle \(i) - closed")
+            XCTAssertTrue(
+                app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
+                "Sidebar should be visible on toggle \(i) - closed"
+            )
         }
     }
 
@@ -283,8 +298,10 @@ class NavigationSplitViewInspectorLayoutTests: XCTestCase {
                 add(attachment)
 
                 // Verify sidebar still visible after switching
-                XCTAssertTrue(app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
-                             "Sidebar should remain visible when switching to \(item)")
+                XCTAssertTrue(
+                    app.buttons["Subscriptions"].exists || app.staticTexts["Subscriptions"].exists,
+                    "Sidebar should remain visible when switching to \(item)"
+                )
             }
         }
     }

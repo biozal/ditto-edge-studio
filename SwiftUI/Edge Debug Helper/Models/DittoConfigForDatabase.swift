@@ -37,7 +37,6 @@ class DittoConfigForDatabase: Decodable {
         isAwdlEnabled: Bool = true,
         isCloudSyncEnabled: Bool = true
     ) {
-
         self._id = _id
         self.name = name
         self.databaseId = databaseId
@@ -54,6 +53,7 @@ class DittoConfigForDatabase: Decodable {
         self.isAwdlEnabled = isAwdlEnabled
         self.isCloudSyncEnabled = isCloudSyncEnabled
     }
+
     enum CodingKeys: String, CodingKey {
         case _id
         case name
@@ -96,7 +96,7 @@ class DittoConfigForDatabase: Decodable {
 
 extension DittoConfigForDatabase {
     static func new() -> DittoConfigForDatabase {
-        return DittoConfigForDatabase(
+        DittoConfigForDatabase(
             UUID().uuidString,
             name: "",
             databaseId: "",

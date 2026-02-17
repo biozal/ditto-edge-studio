@@ -25,7 +25,7 @@ actor SubscriptionsRepository {
     private var cachedSubscriptions: [DittoSubscription] = []
     private var currentDatabaseId: String?
 
-    // Callback for UI updates
+    /// Callback for UI updates
     private var onSubscriptionsUpdate: (([DittoSubscription]) -> Void)?
 
     private init() {}
@@ -85,9 +85,8 @@ actor SubscriptionsRepository {
 
             // Notify UI
             notifySubscriptionsUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -112,9 +111,8 @@ actor SubscriptionsRepository {
 
             // Notify UI
             notifySubscriptionsUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -146,7 +144,14 @@ actor SubscriptionsRepository {
     }
 
     func setOnSubscriptionsUpdate(_ callback: @escaping ([DittoSubscription]) -> Void) {
-        self.onSubscriptionsUpdate = callback
+        onSubscriptionsUpdate = callback
+    }
+
+    /// Clears in-memory cache (call when switching databases)
+    func clearCache() async {
+        cachedSubscriptions = []
+        currentDatabaseId = nil
+        Log.debug("SubscriptionsRepository cache cleared")
     }
 
     // MARK: - Private Helpers

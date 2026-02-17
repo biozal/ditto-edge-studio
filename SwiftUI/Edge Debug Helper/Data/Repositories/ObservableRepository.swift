@@ -1,5 +1,5 @@
-import Foundation
 import DittoSwift
+import Foundation
 
 /// Repository for managing observable subscriptions with secure storage
 ///
@@ -24,7 +24,7 @@ actor ObservableRepository {
     private var cachedObservables: [DittoObservable] = []
     private var currentDatabaseId: String?
 
-    // Callback for UI updates
+    /// Callback for UI updates
     private var onObservablesUpdate: (([DittoObservable]) -> Void)?
 
     private init() {}
@@ -80,9 +80,8 @@ actor ObservableRepository {
 
             // Notify UI
             notifyObservablesUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -107,9 +106,8 @@ actor ObservableRepository {
 
             // Notify UI
             notifyObservablesUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -132,7 +130,14 @@ actor ObservableRepository {
     }
 
     func setOnObservablesUpdate(_ callback: @escaping ([DittoObservable]) -> Void) {
-        self.onObservablesUpdate = callback
+        onObservablesUpdate = callback
+    }
+
+    /// Clears in-memory cache (call when switching databases)
+    func clearCache() async {
+        cachedObservables = []
+        currentDatabaseId = nil
+        Log.debug("ObservableRepository cache cleared")
     }
 
     // MARK: - Private Helpers

@@ -6,13 +6,12 @@
 //  Phase 2: Scene Architecture - Peer Node with Simple Pill Shape
 //
 
-import SpriteKit
 import AppKit
+import SpriteKit
 
 /// Peer node in the presence network diagram using simple pill/capsule shape.
 /// Similar to JavaScript implementation with colored pills and readable text.
 class PeerNode: SKNode {
-
     // MARK: - Properties
 
     let peerKey: String
@@ -42,13 +41,15 @@ class PeerNode: SKNode {
             let lowerName = deviceName.lowercased()
 
             if lowerName.contains("iphone") || lowerName.contains("ipad") ||
-               lowerName.contains("pixel") || lowerName.contains("galaxy") ||
-               lowerName.contains("mobile") || lowerName.contains("android") {
+                lowerName.contains("pixel") || lowerName.contains("galaxy") ||
+                lowerName.contains("mobile") || lowerName.contains("android")
+            {
                 return .phone
             } else if lowerName.contains("macbook") || lowerName.contains("imac") ||
-                      lowerName.contains("mac mini") || lowerName.contains("mac studio") ||
-                      lowerName.contains("windows") || lowerName.contains("surface") ||
-                      lowerName.contains("laptop") {
+                lowerName.contains("mac mini") || lowerName.contains("mac studio") ||
+                lowerName.contains("windows") || lowerName.contains("surface") ||
+                lowerName.contains("laptop")
+            {
                 return .laptop
             } else if lowerName.contains("cloud") || lowerName.contains("ditto") {
                 return .cloud
@@ -73,12 +74,13 @@ class PeerNode: SKNode {
 
         super.init()
 
-        self.name = "PeerNode_\(peerKey)"
+        name = "PeerNode_\(peerKey)"
 
         setupPillShape()
         setupLabel()
     }
 
+    @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -176,6 +178,6 @@ class PeerNode: SKNode {
 
     /// Get the size of the pill for collision detection
     func getSpriteSize() -> CGSize {
-        return CGSize(width: pillShape.frame.width, height: pillHeight)
+        CGSize(width: pillShape.frame.width, height: pillHeight)
     }
 }

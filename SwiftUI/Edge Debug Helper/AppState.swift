@@ -1,11 +1,12 @@
 import Foundation
-enum AppError : Error {
+
+enum AppError: Error {
     case error(message: String)
 }
 
 class AppState: ObservableObject {
     @Published var appConfig: DittoConfigForDatabase
-    @Published var error: Error? = nil
+    @Published var error: Error?
 
     init() {
         // Initialize with empty config - database configs now loaded from secure storage
@@ -18,5 +19,3 @@ class AppState: ObservableObject {
         }
     }
 }
-
-

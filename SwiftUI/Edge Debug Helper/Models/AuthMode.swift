@@ -1,9 +1,9 @@
 import Foundation
 
 enum AuthMode: String, CaseIterable, Codable {
-    case server = "server"
+    case server
     case smallPeersOnly = "smallpeersonly"
-    
+
     var displayName: String {
         switch self {
         case .server:
@@ -12,8 +12,8 @@ enum AuthMode: String, CaseIterable, Codable {
             return "Small Peers Only"
         }
     }
-    
+
     static var `default`: AuthMode {
-        return .server
+        .server
     }
 }

@@ -20,13 +20,19 @@ struct NoDatabaseConfigurationView: View {
 
             // Description paragraphs (left-aligned)
             VStack(alignment: .leading, spacing: 20) {
-                Text("No Ditto databases have been registered. This application requires you to have a Ditto Portal account and a Database setup in the Ditto portal.")
+                Text(
+                    "No Ditto databases have been registered. This application requires you to have a Ditto Portal account and a Database setup in the Ditto portal."
+                )
 
-                Text("Click the plus button to register your first Ditto Database with Ditto Edge Studio. Note you must get the database configuration information from the [Ditto portal](https://portal.ditto.live).")
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Click the plus button to register your first Ditto Database with Ditto Edge Studio. Note you must get the database configuration information from the [Ditto portal](https://portal.ditto.live)."
+                )
+                .fixedSize(horizontal: false, vertical: true)
 
-                Text("Don't have a Ditto Portal account? You can learn how to create one from [here](https://docs.ditto.live/cloud/portal/creating-a-ditto-account).")
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Don't have a Ditto Portal account? You can learn how to create one from [here](https://docs.ditto.live/cloud/portal/creating-a-ditto-account)."
+                )
+                .fixedSize(horizontal: false, vertical: true)
 
                 Divider()
 

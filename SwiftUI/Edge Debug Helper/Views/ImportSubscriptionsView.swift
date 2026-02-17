@@ -7,8 +7,8 @@ struct ImportSubscriptionsView: View {
     @State private var viewModel: ViewModel
 
     init(isPresented: Binding<Bool>, existingSubscriptions: [DittoSubscription], selectedAppId: String) {
-        self._isPresented = isPresented
-        self._viewModel = State(initialValue: ViewModel(
+        _isPresented = isPresented
+        _viewModel = State(initialValue: ViewModel(
             existingSubscriptions: existingSubscriptions,
             selectedAppId: selectedAppId
         ))
@@ -130,7 +130,7 @@ extension ImportSubscriptionsView {
         var importableSubscriptions: [ImportableSubscription] = []
         var isLoading = false
         var errorMessage: String?
-        var importStatus: String = ""
+        var importStatus = ""
         var isImporting = false
 
         private let queryService = QueryService.shared
@@ -162,14 +162,16 @@ extension ImportSubscriptionsView {
 
             for peer in peerInfos {
                 guard let localSubs = peer.local_subscriptions,
-                      let queries = localSubs.queries else {
+                      let queries = localSubs.queries else
+                {
                     continue
                 }
 
                 for queryInfo in queries {
                     // Skip system collections
                     guard !queryInfo.isSystemCollection,
-                          let collectionName = queryInfo.collectionName else {
+                          let collectionName = queryInfo.collectionName else
+                    {
                         continue
                     }
 
@@ -208,7 +210,7 @@ extension ImportSubscriptionsView {
 
         func importSelectedSubscriptions() async throws {
             isImporting = true
-            let selected = importableSubscriptions.filter { $0.isSelected }
+            let selected = importableSubscriptions.filter(\.isSelected)
 
             for (index, sub) in selected.enumerated() {
                 importStatus = "Importing \(index + 1) of \(selected.count): \(sub.collectionName)..."
@@ -226,7 +228,7 @@ extension ImportSubscriptionsView {
         }
 
         var selectedCount: Int {
-            importableSubscriptions.filter { $0.isSelected }.count
+            importableSubscriptions.count(where: { $0.isSelected })
         }
     }
 }

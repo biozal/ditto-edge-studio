@@ -22,7 +22,7 @@ actor HistoryRepository {
     private var cachedHistory: [DittoQueryHistory] = []
     private var currentDatabaseId: String?
 
-    // Callback for UI updates
+    /// Callback for UI updates
     private var onHistoryUpdate: (([DittoQueryHistory]) -> Void)?
 
     private init() {}
@@ -83,9 +83,8 @@ actor HistoryRepository {
 
             // Notify UI
             notifyHistoryUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -107,9 +106,8 @@ actor HistoryRepository {
 
             // Notify UI
             notifyHistoryUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -130,9 +128,8 @@ actor HistoryRepository {
 
             // Notify UI
             notifyHistoryUpdate()
-
         } catch {
-            self.appState?.setError(error)
+            appState?.setError(error)
             throw error
         }
     }
@@ -150,10 +147,18 @@ actor HistoryRepository {
     }
 
     func setOnHistoryUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
-        self.onHistoryUpdate = callback
+        onHistoryUpdate = callback
+    }
+
+    /// Clears in-memory cache (call when switching databases)
+    func clearCache() async {
+        cachedHistory = []
+        currentDatabaseId = nil
+        Log.debug("HistoryRepository cache cleared")
     }
 
     // MARK: - Private Helpers
+
     /// Persists current in-memory cache to disk
     private func persistHistory(databaseId: String) async throws {
         // Convert DittoQueryHistory to SecureCacheService.QueryHistoryItem

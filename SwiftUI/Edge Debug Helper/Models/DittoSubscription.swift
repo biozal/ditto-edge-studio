@@ -1,28 +1,28 @@
-import Foundation
 import DittoSwift
+import Foundation
 
-public struct DittoSubscription : Identifiable {
+public struct DittoSubscription: Identifiable {
     public var id: String
     public var name: String
     public var query: String
     public var args: String?
     public var syncSubscription: DittoSyncSubscription?
-    
-    init(id: String){
+
+    init(id: String) {
         self.id = id
-        self.name = ""
-        self.query = ""
-        self.args = nil
+        name = ""
+        query = ""
+        args = nil
         syncSubscription = nil
     }
-    
+
     init(_ value: [String: Any?]) {
-        self.id = value["_id"] as! String
-        self.name = value["name"] as! String
-        self.query = value["query"] as! String
-        if (value.keys.contains("args")) {
-            if let arguments = value["args"] as? String  {
-                self.args =  arguments
+        id = value["_id"] as? String ?? UUID().uuidString
+        name = value["name"] as? String ?? "Unnamed Subscription"
+        query = value["query"] as? String ?? ""
+        if value.keys.contains("args") {
+            if let arguments = value["args"] as? String {
+                args = arguments
             }
         }
         syncSubscription = nil
@@ -31,7 +31,6 @@ public struct DittoSubscription : Identifiable {
 
 extension DittoSubscription {
     static func new() -> DittoSubscription {
-        return DittoSubscription(id: UUID().uuidString)
+        DittoSubscription(id: UUID().uuidString)
     }
 }
-            

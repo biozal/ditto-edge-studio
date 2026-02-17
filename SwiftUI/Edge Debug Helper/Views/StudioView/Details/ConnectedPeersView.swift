@@ -13,7 +13,7 @@ import SwiftUI
 struct ConnectedPeersView: View {
     @Bindable var viewModel: MainStudioView.ViewModel
     @State private var availableWidth: CGFloat = 0
-    @State private var columnCount: Int = 2
+    @State private var columnCount = 2
 
     var body: some View {
         VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
@@ -66,7 +66,8 @@ struct ConnectedPeersView: View {
                             if let deviceName = viewModel.localPeerDeviceName,
                                let sdkLanguage = viewModel.localPeerSDKLanguage,
                                let sdkPlatform = viewModel.localPeerSDKPlatform,
-                               let sdkVersion = viewModel.localPeerSDKVersion {
+                               let sdkVersion = viewModel.localPeerSDKVersion
+                            {
                                 LocalPeerInfoCard(
                                     deviceName: deviceName,
                                     sdkLanguage: sdkLanguage,
@@ -80,13 +81,13 @@ struct ConnectedPeersView: View {
                     .onAppear {
                         updateColumnCount(for: geometry.size.width)
                     }
-                    .onChange(of: geometry.size.width) { oldValue, newValue in
+                    .onChange(of: geometry.size.width) { _, newValue in
                         updateColumnCount(for: newValue)
                     }
                 }
             }
         }
-        .padding(.bottom, 28)  // Add padding for status bar height
+        .padding(.bottom, 28) // Add padding for status bar height
     }
 
     // MARK: - Helper Views
@@ -215,11 +216,9 @@ struct ConnectedPeersView: View {
         }
         .padding()
         .frame(minHeight: 280, alignment: .top)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(NSColor.controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 12)
+            .fill(Color(NSColor.controlBackgroundColor))
+            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1))
     }
 
     private func connectionBadge(for connection: ConnectionInfo, currentPeerId: String) -> some View {
@@ -241,10 +240,8 @@ struct ConnectedPeersView: View {
             Spacer()
         }
         .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        )
+        .background(RoundedRectangle(cornerRadius: 6)
+            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5)))
     }
 
     // MARK: - Helper Functions
@@ -263,14 +260,15 @@ struct ConnectedPeersView: View {
     }
 
     private func updateColumnCount(for width: CGFloat) {
-        let newColumnCount: Int
+        let newColumnCount
 
-        // Breakpoint: < 900px = 2 columns, >= 900px = 3 columns
-        // Minimum comfortable card width: ~350px
-        if width < 900 {
-            newColumnCount = 2
+            // Breakpoint: < 900px = 2 columns, >= 900px = 3 columns
+            // Minimum comfortable card width: ~350px
+            = if width < 900
+        {
+            2
         } else {
-            newColumnCount = 3
+            3
         }
 
         if columnCount != newColumnCount {

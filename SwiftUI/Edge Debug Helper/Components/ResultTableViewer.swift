@@ -10,7 +10,7 @@ struct ResultTableViewer: View {
     @State private var selectedRowId: UUID?
     @State private var copiedRowId: UUID?
 
-    // Callback for JSON selection (opens in inspector)
+    /// Callback for JSON selection (opens in inspector)
     var onJsonSelected: ((String) -> Void)?
 
     private let defaultColumnWidth: CGFloat = 200
@@ -19,7 +19,7 @@ struct ResultTableViewer: View {
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
         guard start < resultText.count else { return [] }
-        return Array(resultText[start..<end])
+        return Array(resultText[start ..< end])
     }
 
     var body: some View {
@@ -113,9 +113,9 @@ struct ResultTableViewer: View {
                                 Divider()
                             }
                             .frame(minWidth: geometry.size.width)
-                            .background(
-                                (row.rowIndex % 2 == 0 ? Color(NSColor.textBackgroundColor) : Color(NSColor.controlBackgroundColor).opacity(0.3))
-                            )
+                            .background(row.rowIndex % 2 == 0
+                                ? Color(NSColor.textBackgroundColor)
+                                : Color(NSColor.controlBackgroundColor).opacity(0.3))
                             .onTapGesture(count: 2) {
                                 copyRowToClipboard(row)
                             }
@@ -195,9 +195,7 @@ struct ResultTableViewer: View {
 
                             Divider()
                         }
-                        .background(
-                            (row.rowIndex % 2 == 0 ? Color(UIColor.systemBackground) : Color(UIColor.secondarySystemBackground).opacity(0.3))
-                        )
+                        .background(row.rowIndex % 2 == 0 ? Color(UIColor.systemBackground) : Color(UIColor.secondarySystemBackground).opacity(0.3))
                         .onTapGesture(count: 2) {
                             copyRowToClipboard(row)
                         }
@@ -283,7 +281,7 @@ private struct TableCellView: View {
 
     var body: some View {
         Group {
-            if let value = value {
+            if let value {
                 Text(value.displayValue)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(3)

@@ -5,7 +5,7 @@ struct TransportConfigView: View {
     @State private var viewModel: ViewModel
 
     init() {
-        self._viewModel = State(initialValue: ViewModel())
+        _viewModel = State(initialValue: ViewModel())
     }
 
     var body: some View {
@@ -20,10 +20,12 @@ struct TransportConfigView: View {
                             color: .orange
                         )
 
-                        Text("Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Text(
+                            "Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(12)
                     .background(Color.orange.opacity(0.1))
@@ -198,22 +200,23 @@ struct TransportConfigView: View {
 }
 
 // MARK: - ViewModel
+
 extension TransportConfigView {
     @Observable
     class ViewModel {
         // Current UI state (bound to toggles)
-        var isBluetoothLeEnabled: Bool = true
-        var isLanEnabled: Bool = true
-        var isAwdlEnabled: Bool = true
-        var isCloudSyncEnabled: Bool = true
+        var isBluetoothLeEnabled = true
+        var isLanEnabled = true
+        var isAwdlEnabled = true
+        var isCloudSyncEnabled = true
 
         // Original settings (for change detection)
-        private var originalBluetoothLeEnabled: Bool = true
-        private var originalLanEnabled: Bool = true
-        private var originalAwdlEnabled: Bool = true
-        private var originalCloudSyncEnabled: Bool = true
+        private var originalBluetoothLeEnabled = true
+        private var originalLanEnabled = true
+        private var originalAwdlEnabled = true
+        private var originalCloudSyncEnabled = true
 
-        // Progress tracking
+        /// Progress tracking
         enum OperationStep: Equatable {
             case idle
             case stoppingSync
@@ -229,7 +232,7 @@ extension TransportConfigView {
                 case .applyingConfig: return "Applying transport configuration..."
                 case .restartingSync: return "Restarting sync and reconnecting..."
                 case .complete: return "Configuration applied successfully"
-                case .error(let msg): return msg
+                case let .error(msg): return msg
                 }
             }
 
@@ -260,9 +263,9 @@ extension TransportConfigView {
         /// Detects if user has made changes from original settings
         var hasChanges: Bool {
             isBluetoothLeEnabled != originalBluetoothLeEnabled ||
-            isLanEnabled != originalLanEnabled ||
-            isAwdlEnabled != originalAwdlEnabled ||
-            isCloudSyncEnabled != originalCloudSyncEnabled
+                isLanEnabled != originalLanEnabled ||
+                isAwdlEnabled != originalAwdlEnabled ||
+                isCloudSyncEnabled != originalCloudSyncEnabled
         }
 
         init() {}
@@ -270,7 +273,7 @@ extension TransportConfigView {
         /// Loads current transport settings from selected app config
         func loadCurrentSettings() async {
             let appConfig = await dittoManager.dittoSelectedAppConfig
-            guard let appConfig = appConfig else { return }
+            guard let appConfig else { return }
 
             // Load current settings into UI
             isBluetoothLeEnabled = appConfig.isBluetoothLeEnabled
@@ -327,7 +330,7 @@ extension TransportConfigView {
                     try await SystemRepository.shared.registerSyncStatusObserver()
                     try await SystemRepository.shared.registerConnectionsPresenceObserver()
                 } catch {
-                    print("Warning: Failed to restart observers: \(error)")
+                    Log.warning("Failed to restart observers: \(error.localizedDescription)")
                     // Non-fatal - sync is running even if observers failed
                 }
 
@@ -339,7 +342,6 @@ extension TransportConfigView {
                 originalLanEnabled = isLanEnabled
                 originalAwdlEnabled = isAwdlEnabled
                 originalCloudSyncEnabled = isCloudSyncEnabled
-
             } catch {
                 currentStep = .error(error.localizedDescription)
                 appState.setError(error)

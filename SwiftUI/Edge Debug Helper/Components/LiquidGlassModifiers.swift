@@ -16,14 +16,10 @@ enum LiquidSpacing {
 struct LiquidGlassCard: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                    )
-            )
+            .background(RoundedRectangle(cornerRadius: 20)
+                .fill(.regularMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)))
             .cornerRadius(20)
             .modifier(ElevatedShadow())
     }
@@ -33,14 +29,10 @@ struct LiquidGlassCard: ViewModifier {
 struct LiquidGlassToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)
-                    )
-            )
+            .background(RoundedRectangle(cornerRadius: 12)
+                .fill(.ultraThinMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.15), lineWidth: 0.5)))
             .cornerRadius(12)
             .modifier(SubtleShadow())
     }
@@ -50,10 +42,8 @@ struct LiquidGlassToolbar: ViewModifier {
 struct LiquidGlassSubtle: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.thinMaterial)
-            )
+            .background(RoundedRectangle(cornerRadius: 16)
+                .fill(.thinMaterial))
             .cornerRadius(16)
             .modifier(SubtleShadow())
     }
@@ -67,10 +57,8 @@ struct LiquidGlassPill: ViewModifier {
         content
             .background(.ultraThinMaterial)
             .background(color.opacity(0.15))
-            .overlay(
-                Capsule()
-                    .stroke(color.opacity(0.3), lineWidth: 0.5)
-            )
+            .overlay(Capsule()
+                .stroke(color.opacity(0.3), lineWidth: 0.5))
             .modifier(SubtleShadow())
     }
 }

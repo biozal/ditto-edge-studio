@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
 
-import Foundation
 import CoreText
+import Foundation
 
 // Font paths
 let solidFont = "/Users/labeaaa/Developer/ditto-edge-studio/SwiftUI/Edge Debug Helper/Resources/Fonts/Font Awesome 7 Pro-Solid-900.otf"
@@ -17,7 +17,8 @@ func extractIcons(from fontPath: String, style: String) -> [IconInfo] {
     let fontURL = URL(fileURLWithPath: fontPath)
     guard let fontDataProvider = CGDataProvider(url: fontURL as CFURL),
           let cgFont = CGFont(fontDataProvider),
-          let ctFont = CTFontCreateWithGraphicsFont(cgFont, 12.0, nil, nil) as CTFont? else {
+          let ctFont = CTFontCreateWithGraphicsFont(cgFont, 12.0, nil, nil) as CTFont? else
+    {
         print("Failed to load font: \(fontPath)")
         return []
     }
@@ -31,14 +32,15 @@ func extractIcons(from fontPath: String, style: String) -> [IconInfo] {
 
     // Iterate through common unicode ranges for Font Awesome
     let ranges: [ClosedRange<UInt32>] = [
-        0xE000...0xF8FF,  // Private Use Area
-        0xF0000...0xFFFFF  // Supplementary Private Use Area
+        0xE000 ... 0xF8FF, // Private Use Area
+        0xF0000 ... 0xFFFFF // Supplementary Private Use Area
     ]
 
     for range in ranges {
         for unicodeValue in range {
             guard let scalar = Unicode.Scalar(unicodeValue),
-                  charset.contains(scalar) else {
+                  charset.contains(scalar) else
+            {
                 continue
             }
 
@@ -60,20 +62,20 @@ func extractIcons(from fontPath: String, style: String) -> [IconInfo] {
 
 func generateSwiftCode(solidIcons: [IconInfo], brandsIcons: [IconInfo]) -> String {
     var code = """
-//
-//  FontAwesomeIcons.swift
-//  Auto-generated from Font Awesome 7 Pro font files
-//
-//  DO NOT EDIT MANUALLY - regenerate with generate_icons.swift
-//
+    //
+    //  FontAwesomeIcons.swift
+    //  Auto-generated from Font Awesome 7 Pro font files
+    //
+    //  DO NOT EDIT MANUALLY - regenerate with generate_icons.swift
+    //
 
-import SwiftUI
+    import SwiftUI
 
-// MARK: - Font Awesome Icon Enum
+    // MARK: - Font Awesome Icon Enum
 
-enum FAIcon: String, CaseIterable {
+    enum FAIcon: String, CaseIterable {
 
-"""
+    """
 
     // Combine all icons
     var allIcons: [String: IconInfo] = [:]
@@ -99,12 +101,12 @@ enum FAIcon: String, CaseIterable {
 
     code += """
 
-    var unicode: String { rawValue }
+        var unicode: String { rawValue }
 
-    var style: FontAwesomeStyle {
-        switch self {
+        var style: FontAwesomeStyle {
+            switch self {
 
-"""
+    """
 
     // Generate solid cases
     let solidCases = allIcons.values.filter { $0.style == "solid" }.sorted { $0.unicode < $1.unicode }
@@ -121,18 +123,18 @@ enum FAIcon: String, CaseIterable {
     }
 
     code += """
-        // All other icons are in Brands font
-        default:
-            return .brands
+            // All other icons are in Brands font
+            default:
+                return .brands
+            }
         }
     }
-}
 
-// MARK: - FontAwesomeIcon Protocol Conformance
+    // MARK: - FontAwesomeIcon Protocol Conformance
 
-extension FAIcon: FontAwesomeIcon {}
+    extension FAIcon: FontAwesomeIcon {}
 
-"""
+    """
 
     return code
 }
@@ -152,4 +154,4 @@ let outputPath = "/Users/labeaaa/Developer/ditto-edge-studio/SwiftUI/Edge Debug 
 try swiftCode.write(toFile: outputPath, atomically: true, encoding: .utf8)
 
 print("✅ Generated \(outputPath)")
-print("   Total unique icons: \(Set(solidIcons.map { $0.unicode } + brandsIcons.map { $0.unicode }).count)")
+print("   Total unique icons: \(Set(solidIcons.map(\.unicode) + brandsIcons.map(\.unicode)).count)")

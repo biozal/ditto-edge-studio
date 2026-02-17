@@ -1,5 +1,5 @@
-import SwiftUI
 import DittoSwift
+import SwiftUI
 
 struct MainStudioView: View {
     @EnvironmentObject var appState: AppState
@@ -7,15 +7,15 @@ struct MainStudioView: View {
     @State var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
-    @State var selectedSyncTab = 0  // Persists tab selection
+    @State var selectedSyncTab = 0 // Persists tab selection
 
-    // Inspector state
+    /// Inspector state
     @State var showInspector = false
 
-    // Column visibility control - keeps sidebar always visible
+    /// Column visibility control - keeps sidebar always visible
     @State var columnVisibility: NavigationSplitViewVisibility = .all
 
-    //used for editing observers and subscriptions
+    /// used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
         Binding<Bool>(
             get: { viewModel.actionSheetMode != .none },
@@ -31,8 +31,8 @@ struct MainStudioView: View {
         isMainStudioViewPresented: Binding<Bool>,
         dittoAppConfig: DittoConfigForDatabase
     ) {
-        self._isMainStudioViewPresented = isMainStudioViewPresented
-        self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
+        _isMainStudioViewPresented = isMainStudioViewPresented
+        _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
     var body: some View {
@@ -66,7 +66,7 @@ struct MainStudioView: View {
                 }
                 Spacer()
 
-                //Bottom Toolbar in Sidebar
+                // Bottom Toolbar in Sidebar
                 HStack {
                     Menu {
                         Button(
@@ -84,8 +84,9 @@ struct MainStudioView: View {
 
                         // Only show Import from Server when HTTP API is configured
                         if viewModel.selectedSidebarMenuItem.name == "Subscriptions" &&
-                           !viewModel.selectedApp.httpApiUrl.isEmpty &&
-                           !viewModel.selectedApp.httpApiKey.isEmpty {
+                            !viewModel.selectedApp.httpApiUrl.isEmpty &&
+                            !viewModel.selectedApp.httpApiKey.isEmpty
+                        {
                             Button("Import from Server", systemImage: "arrow.down.circle") {
                                 showingImportSubscriptionsView = true
                             }
@@ -107,9 +108,8 @@ struct MainStudioView: View {
             .padding(.leading, 16)
             .padding(.trailing, 16)
             .padding(.top, 12)
-            .padding(.bottom, 16)  // Add padding for status bar height
+            .padding(.bottom, 16) // Add padding for status bar height
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
-
         } detail: {
             switch viewModel.selectedSidebarMenuItem.name {
             case "Collections":
@@ -125,13 +125,12 @@ struct MainStudioView: View {
             inspectorView()
                 .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
         }
-        .sheet(
-            isPresented: isSheetPresented
-        ) {
+        .sheet(isPresented: isSheetPresented) {
             if let subscription = viewModel.editorSubscription {
                 QueryArgumentEditor(
                     title: subscription.name.isEmpty
-                        ? "New Query Argument" : subscription.name,
+                        ? "New Query Argument"
+                        : subscription.name,
                     name: subscription.name,
                     query: subscription.query,
                     arguments: subscription.args ?? "",
@@ -141,7 +140,8 @@ struct MainStudioView: View {
             } else if let observer = viewModel.editorObservable {
                 QueryArgumentEditor(
                     title: observer.name.isEmpty
-                        ? "New Observer" : observer.name,
+                        ? "New Observer"
+                        : observer.name,
                     name: observer.name,
                     query: observer.query,
                     arguments: observer.args ?? "",
@@ -149,7 +149,6 @@ struct MainStudioView: View {
                     onCancel: viewModel.formCancel
                 ).environmentObject(appState)
             }
-        
         }
         .sheet(isPresented: $showingImportView) {
             ImportDataView(isPresented: $showingImportView)
@@ -164,11 +163,11 @@ struct MainStudioView: View {
             .environmentObject(appState)
         }
         #if os(macOS)
-            .toolbar {
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()  // Rightmost, after close button
-            }
+        .toolbar {
+            syncToolbarButton()
+            closeToolbarButton()
+            inspectorToggleButton() // Rightmost, after close button
+        }
         #endif
         .overlay(alignment: .bottom) {
             ConnectionStatusBar(
@@ -177,13 +176,13 @@ struct MainStudioView: View {
             )
         }
     }
-    
+
     func appNameToolbarLabel() -> some ToolbarContent {
         ToolbarItem(placement: .principal) {
             Text(viewModel.selectedApp.name).font(.headline).bold()
         }
     }
-    
+
     func syncToolbarButton() -> some ToolbarContent {
         ToolbarItem(id: "syncButton", placement: .primaryAction) {
             Button {
@@ -195,14 +194,17 @@ struct MainStudioView: View {
                     }
                 }
             } label: {
-                FontAwesomeText(icon: NavigationIcon.syncLight, size: 20,
-                    color: viewModel.isSyncEnabled ? .green : .red)
+                FontAwesomeText(
+                    icon: NavigationIcon.syncLight,
+                    size: 20,
+                    color: viewModel.isSyncEnabled ? .green : .red
+                )
             }
             .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
             .accessibilityIdentifier("SyncButton")
         }
     }
-    
+
     func closeToolbarButton() -> some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -234,27 +236,27 @@ struct MainStudioView: View {
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
     }
-
 }
 
-//MARK: ViewModel
+// MARK: ViewModel
+
 extension MainStudioView {
     @Observable
     @MainActor
     class ViewModel {
         var selectedApp: DittoConfigForDatabase
 
-        //used for displaying action sheets
-        var actionSheetMode: ActionSheetMode = ActionSheetMode.none
+        // used for displaying action sheets
+        var actionSheetMode = ActionSheetMode.none
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
-       
+
         var selectedObservable: DittoObservable?
         var selectedEventId: String?
 
         // Sync status properties
         var syncStatusItems: [SyncStatusInfo] = []
-        var isSyncEnabled = true  // Track sync status here
+        var isSyncEnabled = true // Track sync status here
         var connectionsByTransport: ConnectionsByTransport = .empty
 
         // Local peer info
@@ -279,63 +281,62 @@ extension MainStudioView {
         var observableEvents: [DittoObserveEvent] = []
         var selectedObservableEvents: [DittoObserveEvent] = []
 
-        //query editor view
+        // query editor view
         var selectedQuery: String
         var executeModes: [String]
         var selectedExecuteMode: String
 
-        //results view
+        /// results view
         var jsonResults: [String]
 
-        //Sidebar Toolbar
+        // Sidebar Toolbar
         var selectedSidebarMenuItem: MenuItem
         var sidebarMenuItems: [MenuItem] = []
-        
-        //Inspector Toolbar
+
+        // Inspector Toolbar
         var selectedInspectorMenuItem: MenuItem
         var inspectorMenuItems: [MenuItem] = []
 
-        // JSON Inspector State
+        /// JSON Inspector State
         var selectedJsonForInspector: String?
 
         init(_ dittoAppConfig: DittoConfigForDatabase) {
-            self.selectedApp = dittoAppConfig
+            selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
                 id: 1,
                 name: "Subscriptions",
                 systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"
             )
 
-            self.selectedSidebarMenuItem = subscriptionItem
-            self.sidebarMenuItems = [
+            selectedSidebarMenuItem = subscriptionItem
+            sidebarMenuItems = [
                 subscriptionItem,
                 MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observer", systemIcon: "eye"),
+                MenuItem(id: 3, name: "Observer", systemIcon: "eye")
             ]
 
-            //query section
-            self.selectedQuery = ""
-            self.selectedExecuteMode = "Local"
+            // query section
+            selectedQuery = ""
+            selectedExecuteMode = "Local"
             if dittoAppConfig.httpApiUrl == ""
                 || dittoAppConfig.httpApiKey == ""
             {
-                self.executeModes = ["Local"]
-
+                executeModes = ["Local"]
             } else {
-                self.executeModes = ["Local", "HTTP"]
+                executeModes = ["Local", "HTTP"]
             }
 
-            //query results section
-            self.jsonResults = []
-            
+            // query results section
+            jsonResults = []
+
             // Inspector toolbar (initialize after all non-optional properties)
             let historyItem = MenuItem(id: 4, name: "History", systemIcon: "clock")
-            self.inspectorMenuItems = [
+            inspectorMenuItems = [
                 historyItem,
                 MenuItem(id: 5, name: "Favorites", systemIcon: "bookmark"),
                 MenuItem(id: 6, name: "JSON", systemIcon: "text.document.fill")
             ]
-            self.selectedInspectorMenuItem = historyItem
+            selectedInspectorMenuItem = historyItem
 
             // Setup SystemRepository callback
             Task {
@@ -361,7 +362,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
+
             // Setup ObservableRepository callback
             Task {
                 await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
@@ -370,7 +371,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
+
             // Setup FavoritesRepository callback
             Task {
                 await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
@@ -379,7 +380,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
+
             // Setup HistoryRepository callback
             Task {
                 await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
@@ -391,7 +392,7 @@ extension MainStudioView {
 
             Task {
                 isLoading = true
-                
+
                 await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
                     self.subscriptions = newSubscriptions
                 }
@@ -440,15 +441,16 @@ extension MainStudioView {
                     // Parse first result (should only be one - local peer)
                     if let firstResult = jsonResults.first,
                        let data = firstResult.data(using: .utf8),
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        localPeerDeviceName =  "Edge Studio"
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                    {
+                        localPeerDeviceName = "Edge Studio"
                         localPeerSDKLanguage = json["ditto_sdk_language"] as? String
                         localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
                         localPeerSDKVersion = json["ditto_sdk_version"] as? String
                     }
                 } catch {
                     // Fail silently - not critical to app functionality
-                    print("Failed to fetch local peer info: \(error)")
+                    Log.error("Failed to fetch local peer info: \(error.localizedDescription)")
                 }
 
                 isLoading = false
@@ -464,14 +466,12 @@ extension MainStudioView {
         }
 
         var selectedEventObject: DittoObserveEvent? {
-            get {
-                guard let selectedId = selectedEventId else { return nil }
-                return observableEvents.first(where: { $0.id == selectedId })
-            }
+            guard let selectedId = selectedEventId else { return nil }
+            return observableEvents.first(where: { $0.id == selectedId })
         }
 
         func addQueryToHistory(appState: AppState) async {
-            if !selectedQuery.isEmpty && selectedQuery.count > 0 {
+            if !selectedQuery.isEmpty && !selectedQuery.isEmpty {
                 let queryHistory = DittoQueryHistory(
                     id: UUID().uuidString,
                     query: selectedQuery,
@@ -496,7 +496,7 @@ extension MainStudioView {
                 collections = try await CollectionsRepository.shared.refreshDocumentCounts()
             } catch {
                 // Error will be set in repository via appState
-                print("Failed to refresh collection counts: \(error)")
+                Log.error("Failed to refresh collection counts: \(error.localizedDescription)")
             }
         }
 
@@ -526,11 +526,11 @@ extension MainStudioView {
             // Perform heavy cleanup operations on background queue to avoid priority inversion
             await performCleanupOperations()
         }
-        
+
         private func performCleanupOperations() async {
             // Capture observables on main actor before moving to background queues
             let observablesToCleanup = observerables
-            
+
             // Use TaskGroup to run cleanup operations concurrently on background queues
             await withTaskGroup(of: Void.self) { group in
                 group.addTask(priority: .utility) {
@@ -539,7 +539,7 @@ extension MainStudioView {
                         observable.storeObserver?.cancel()
                     }
                 }
-                
+
                 group.addTask(priority: .utility) {
                     // Clear repository caches (secure storage migration)
                     await HistoryRepository.shared.clearCache()
@@ -551,14 +551,14 @@ extension MainStudioView {
                     await SystemRepository.shared.stopObserver()
                     await CollectionsRepository.shared.stopObserver()
                 }
-                
+
                 group.addTask(priority: .utility) {
                     // Close DittoManager selected app
                     await DittoManager.shared.closeDittoSelectedDatabase()
                 }
             }
         }
-        
+
         func toggleSync() async throws {
             if isSyncEnabled {
                 // Disable sync
@@ -575,19 +575,18 @@ extension MainStudioView {
                 isSyncEnabled = true
             }
         }
-        
+
         func deleteObservable(_ observable: DittoObservable) async throws {
-            
             if let storeObserver = observable.storeObserver {
                 storeObserver.cancel()
             }
-            
+
             try await ObservableRepository.shared.removeDittoObservable(observable)
-            
-            //remove events for the observable
-            observableEvents.removeAll(where: {$0.observeId == observable.id})
-            
-            if (selectedObservable?.id == observable.id) {
+
+            // remove events for the observable
+            observableEvents.removeAll(where: { $0.observeId == observable.id })
+
+            if selectedObservable?.id == observable.id {
                 selectedObservable = nil
             }
             if selectedEventObject?.observeId == observable.id {
@@ -595,8 +594,7 @@ extension MainStudioView {
             }
         }
 
-        func deleteSubscription(_ subscription: DittoSubscription) async throws
-        {
+        func deleteSubscription(_ subscription: DittoSubscription) async throws {
             try await SubscriptionsRepository.shared.removeDittoSubscription(subscription)
         }
 
@@ -604,7 +602,7 @@ extension MainStudioView {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
-                     jsonResults = try await QueryService.shared
+                    jsonResults = try await QueryService.shared
                         .executeSelectedAppQuery(query: selectedQuery)
                 } else {
                     jsonResults = try await QueryService.shared
@@ -639,9 +637,7 @@ extension MainStudioView {
                 }
                 Task {
                     do {
-                        try await SubscriptionsRepository.shared.saveDittoSubscription(
-                            subscription
-                        )
+                        try await SubscriptionsRepository.shared.saveDittoSubscription(subscription)
                     } catch {
                         appState.setError(error)
                     }
@@ -650,7 +646,7 @@ extension MainStudioView {
             }
             actionSheetMode = .none
         }
-        
+
         func formSaveObserver(
             name: String,
             query: String,
@@ -684,7 +680,7 @@ extension MainStudioView {
                 selectedObservableEvents = []
             }
         }
-        
+
         func registerStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
@@ -695,26 +691,34 @@ extension MainStudioView {
             if observerables[index].storeObserver != nil {
                 throw InvalidStoreState(message: "Observer already registered")
             }
-            
-            //if you activate an observable it's instantly selected
+
+            // if you activate an observable it's instantly selected
             selectedObservable = observable
-            
-            //used for calculating the diffs
+
+            // used for calculating the diffs
             let dittoDiffer = DittoDiffer()
-            
-            //TODO: fix arguments serialization
+
+            // Deserialize arguments from JSON string
+            var arguments: [String: Any?] = [:]
+            if let argsString = observable.args, !argsString.isEmpty,
+               let argsData = argsString.data(using: .utf8),
+               let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any]
+            {
+                arguments = argsDict
+            }
+
             let observer = try ditto.store.registerObserver(
                 query: observable.query,
-                arguments: [:]
+                arguments: arguments
             ) { [weak self] results in
-                //required to show the end user when the event fired
+                // required to show the end user when the event fired
                 var event = DittoObserveEvent.new(observeId: observable.id)
 
                 let diff = dittoDiffer.diff(results.items)
 
                 event.eventTime = Date().ISO8601Format()
 
-                //set diff information
+                // set diff information
                 event.insertIndexes = Array(diff.insertions)
                 event.deletedIndexes = Array(diff.deletions)
                 event.updatedIndexes = Array(diff.updates)
@@ -726,17 +730,17 @@ extension MainStudioView {
                 }
 
                 self?.observableEvents.append(event)
-                
-                //if this is the selected observable, add it to the selectedEvents array too
+
+                // if this is the selected observable, add it to the selectedEvents array too
                 if let selectedObservableId = self?.selectedObservable?.id {
-                    if (event.observeId == selectedObservableId) {
+                    if event.observeId == selectedObservableId {
                         self?.selectedObservableEvents.append(event)
                     }
                 }
             }
             observerables[index].storeObserver = observer
         }
-        
+
         func removeStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
@@ -760,24 +764,22 @@ extension MainStudioView {
     }
 }
 
-//MARK: Helpers
+// MARK: Helpers
 
 enum ActionSheetMode: String {
-    case none = "none"
-    case subscription = "subscription"
-    case observer = "observer"
+    case none
+    case subscription
+    case observer
 }
 
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
-    var systemIcon: String  // SF Symbol name (e.g., "clock", "bookmark")
+    var systemIcon: String // SF Symbol name (e.g., "clock", "bookmark")
 
-    // Computed property for rendering in pickers
-    @ViewBuilder
+    /// Computed property for rendering in pickers
     var image: some View {
         Image(systemName: systemIcon)
             .font(.system(size: 48))
     }
 }
-

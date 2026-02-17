@@ -2,7 +2,6 @@ import Foundation
 
 /// Loads DittoConfigForDatabase from various sources and handles legacy formats
 enum DittoAppConfigLoader {
-
     /// Converts mode string values to AuthMode enum, supporting legacy formats
     static func parseMode(from string: String) -> AuthMode? {
         switch string.lowercased() {
@@ -11,15 +10,13 @@ enum DittoAppConfigLoader {
             return .server
         case "smallpeersonly":
             return .smallPeersOnly
-
         // Legacy format mappings
         case "onlineplayground", "online":
             return .server
         case "offlineplayground", "offline":
-            return .server  // Deprecated mode, default to server
+            return .server // Deprecated mode, default to server
         case "sharedkey":
             return .smallPeersOnly
-
         default:
             return nil
         }

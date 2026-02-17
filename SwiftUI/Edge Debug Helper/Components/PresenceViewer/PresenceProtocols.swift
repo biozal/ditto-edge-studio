@@ -6,8 +6,8 @@
 //  Phase 8: Test Mode - Protocol Abstraction for Testing
 //
 
-import Foundation
 import DittoSwift
+import Foundation
 
 /// Protocol abstraction for peer data to allow both real DittoPeer and mock test data
 protocol PeerProtocol {
@@ -30,9 +30,9 @@ protocol ConnectionProtocol {
 
 /// Extend DittoPeer to conform to PeerProtocol
 extension DittoPeer: PeerProtocol {
-    // Bridge connections array to protocol type
+    /// Bridge connections array to protocol type
     var connectionProtocols: [any ConnectionProtocol] {
-        return self.connections.map { $0 as ConnectionProtocol }
+        connections.map { $0 as ConnectionProtocol }
     }
 }
 
@@ -49,16 +49,16 @@ struct MockPeer: PeerProtocol {
     let deviceName: String
     let connectionProtocols: [any ConnectionProtocol]
     let isConnectedToDittoCloud: Bool
-    
+
     init(
         peerKey: String,
         deviceName: String,
         connections: [MockConnection],
         isConnectedToDittoCloud: Bool = false
     ) {
-        self.peerKeyString = peerKey
+        peerKeyString = peerKey
         self.deviceName = deviceName
-        self.connectionProtocols = connections.map { $0 as ConnectionProtocol }
+        connectionProtocols = connections.map { $0 as ConnectionProtocol }
         self.isConnectedToDittoCloud = isConnectedToDittoCloud
     }
 }
@@ -70,7 +70,7 @@ struct MockConnection: ConnectionProtocol {
     let peerKeyString1: String
     let peerKeyString2: String
     let approximateDistanceInMeters: Double?
-    
+
     init(
         type: DittoConnectionType,
         id: String,

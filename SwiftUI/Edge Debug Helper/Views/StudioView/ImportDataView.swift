@@ -4,22 +4,22 @@ import UniformTypeIdentifiers
 struct ImportDataView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
-    
+
     @State private var selectedFileURL: URL?
-    @State private var selectedFileName: String = "No file selected"
-    @State private var collectionName: String = ""
-    @State private var useExistingCollection: Bool = true
+    @State private var selectedFileName = "No file selected"
+    @State private var collectionName = ""
+    @State private var useExistingCollection = true
     @State private var existingCollections: [DittoCollection] = []
-    @State private var selectedCollection: String = ""
-    @State private var isImporting: Bool = false
-    @State private var showingFilePicker: Bool = false
+    @State private var selectedCollection = ""
+    @State private var isImporting = false
+    @State private var showingFilePicker = false
     @State private var importProgress: ImportService.ImportProgress?
-    @State private var currentImportStatus: String = ""
-    @State private var importError: String? = nil
-    @State private var importSuccess: Bool = false
-    @State private var successMessage: String = ""
-    @State private var useInitialInsert: Bool = false
-    
+    @State private var currentImportStatus = ""
+    @State private var importError: String?
+    @State private var importSuccess = false
+    @State private var successMessage = ""
+    @State private var useInitialInsert = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Import JSON Data")
@@ -27,41 +27,39 @@ struct ImportDataView: View {
                 .bold()
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 30)
-            
+
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Select JSON File")
                         .font(.headline)
-                    
+
                     HStack {
                         Text(selectedFileName)
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundColor(selectedFileURL == nil ? .secondary : .primary)
-                        
+
                         Spacer()
-                        
+
                         Button("Choose File...") {
                             showingFilePicker = true
                         }
                     }
                     .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(NSColor.controlBackgroundColor))
-                    )
+                    .background(RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(NSColor.controlBackgroundColor)))
                 }
-                
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Target Collection")
                         .font(.headline)
-                    
+
                     Picker("", selection: $useExistingCollection) {
                         Text("Existing Collection").tag(true)
                         Text("New Collection").tag(false)
                     }
                     .pickerStyle(.segmented)
-                    
+
                     if useExistingCollection {
                         if existingCollections.isEmpty {
                             Text("No existing collections found")
@@ -86,26 +84,26 @@ struct ImportDataView: View {
                             .textFieldStyle(.roundedBorder)
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Insert Type")
                         .font(.headline)
-                    
+
                     HStack(spacing: 16) {
                         Toggle(isOn: $useInitialInsert) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(useInitialInsert ? "Initial Documents Insert" : "Regular Insert")
                                     .font(.system(size: 13))
-                                Text(useInitialInsert ? 
-                                     "Use for first-time data import (WITH INITIAL DOCUMENTS)" : 
-                                     "Use for adding data to existing collections")
+                                Text(useInitialInsert
+                                    ? "Use for first-time data import (WITH INITIAL DOCUMENTS)"
+                                    : "Use for adding data to existing collections")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
                         .toggleStyle(.switch)
                     }
-                    
+
                     if useInitialInsert {
                         HStack(spacing: 4) {
                             FontAwesomeText(icon: StatusIcon.circleInfo, size: 12, color: .blue)
@@ -114,40 +112,38 @@ struct ImportDataView: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.blue.opacity(0.1))
-                        )
+                        .background(RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.blue.opacity(0.1)))
                     }
                 }
             }
-            
+
             // Add more spacing before Status section
             if isImporting || importError != nil || importSuccess {
                 Spacer()
                     .frame(height: 20)
             }
-            
+
             // Status Section
             if isImporting || importError != nil || importSuccess {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Status")
                         .font(.headline)
-                    
+
                     if isImporting {
                         VStack(alignment: .leading, spacing: 10) {
                             if let progress = importProgress {
                                 // Progress bar
                                 ProgressView(value: Double(progress.current), total: Double(progress.total))
                                     .progressViewStyle(.linear)
-                                
+
                                 HStack {
                                     Text("Importing: \(progress.current) of \(progress.total) documents")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                     Spacer()
                                 }
-                                
+
                                 if let docId = progress.currentDocumentId {
                                     Text("Processing: \(docId)")
                                         .font(.caption)
@@ -167,10 +163,8 @@ struct ImportDataView: View {
                             }
                         }
                         .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.blue.opacity(0.1))
-                        )
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.blue.opacity(0.1)))
                     } else if let error = importError {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
@@ -183,21 +177,19 @@ struct ImportDataView: View {
                                 Button(action: {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(error, forType: .string)
-                                }) {
+                                }, label: {
                                     HStack(spacing: 4) {
                                         FontAwesomeText(icon: ActionIcon.copy, size: 12)
                                         Text("Copy")
                                             .font(.caption2)
                                     }
-                                }
+                                })
                                 .buttonStyle(.plain)
                                 .foregroundColor(.red.opacity(0.8))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.red.opacity(0.1))
-                                )
+                                .background(RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.red.opacity(0.1)))
                                 .help("Click to copy error message to clipboard")
                             }
 
@@ -212,10 +204,8 @@ struct ImportDataView: View {
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.red.opacity(0.1))
-                        )
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.red.opacity(0.1)))
                     } else if importSuccess {
                         HStack(alignment: .top, spacing: 8) {
                             FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
@@ -225,10 +215,8 @@ struct ImportDataView: View {
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.green.opacity(0.1))
-                        )
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.green.opacity(0.1)))
                     }
                 }
                 .transition(.opacity)
@@ -236,17 +224,17 @@ struct ImportDataView: View {
                 .animation(.easeInOut(duration: 0.3), value: importError)
                 .animation(.easeInOut(duration: 0.3), value: importSuccess)
             }
-            
+
             Spacer()
-            
+
             HStack {
                 Button("Cancel") {
                     isPresented = false
                 }
                 .keyboardShortcut(.escape)
-                
+
                 Spacer()
-                
+
                 if importSuccess {
                     Button("Done") {
                         isPresented = false
@@ -270,13 +258,13 @@ struct ImportDataView: View {
             allowsMultipleSelection: false
         ) { result in
             switch result {
-            case .success(let files):
+            case let .success(files):
                 if let file = files.first {
                     // Store the security-scoped URL
                     selectedFileURL = file
                     selectedFileName = file.lastPathComponent
                 }
-            case .failure(let error):
+            case let .failure(error):
                 appState.setError(error)
             }
         }
@@ -284,17 +272,17 @@ struct ImportDataView: View {
             loadExistingCollections()
         }
     }
-    
+
     private var canImport: Bool {
         guard selectedFileURL != nil else { return false }
-        
+
         if useExistingCollection {
             return !selectedCollection.isEmpty
         } else {
             return !collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
-    
+
     private func loadExistingCollections() {
         Task {
             do {
@@ -307,55 +295,55 @@ struct ImportDataView: View {
             }
         }
     }
-    
+
     private func performImport() {
         guard let fileURL = selectedFileURL else { return }
-        
+
         let targetCollection = useExistingCollection ? selectedCollection : collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !targetCollection.isEmpty else {
             importError = "Collection name cannot be empty"
             return
         }
-        
+
         // Clear any previous state
         importError = nil
         importSuccess = false
         successMessage = ""
-        
+
         isImporting = true
         importProgress = nil
         currentImportStatus = "Reading file..."
-        
+
         Task {
             do {
                 // Update status before starting
                 await MainActor.run {
                     currentImportStatus = "Validating JSON data..."
                 }
-                
+
                 // Small delay to show the status
                 try await Task.sleep(nanoseconds: 300_000_000) // 0.3 second
-                
+
                 await MainActor.run {
                     currentImportStatus = "Starting import to \(targetCollection)..."
                 }
-                
+
                 let result = try await ImportService.shared.importData(
                     from: fileURL,
                     to: targetCollection,
                     insertType: useInitialInsert ? .initial : .regular
                 ) { progress in
                     Task { @MainActor in
-                        self.importProgress = progress
+                        importProgress = progress
                     }
                 }
-                
+
                 await MainActor.run {
                     isImporting = false
                     importProgress = nil
                     currentImportStatus = ""
-                    
+
                     if result.failureCount == 0 {
                         importSuccess = true
                         successMessage = "Successfully imported \(result.successCount) document(s) to \(targetCollection)"
@@ -367,7 +355,7 @@ struct ImportDataView: View {
                             importError = result.errors.first
                         }
                     }
-                    
+
                     // Refresh collections if we created a new one
                     if !useExistingCollection {
                         loadExistingCollections()

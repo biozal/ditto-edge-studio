@@ -7,7 +7,7 @@ struct QueryEditorView: View {
     @Binding var selectedExecuteMode: String
     @Binding var isLoading: Bool
     var onExecuteQuery: () async -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .center) {
@@ -24,24 +24,23 @@ struct QueryEditorView: View {
                         selectedExecuteMode = executeModes[0]
                     }
                 }
-                //query button
+                // query button
                 Button {
                     Task {
                         await onExecuteQuery()
                     }
                 } label: {
-                    if (isLoading) {
+                    if isLoading {
                         FontAwesomeText(icon: NavigationIcon.play, size: 14, color: .gray)
                             .accessibilityLabel("Execute Query")
                     } else {
                         FontAwesomeText(icon: NavigationIcon.play, size: 14, color: .green)
                             .accessibilityLabel("Execute Query")
-
                     }
                 }.disabled(isLoading)
-                
+
                 if isLoading {
-                #if os(macOS)
+                    #if os(macOS)
                     HStack {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -50,7 +49,7 @@ struct QueryEditorView: View {
                     .padding(1)
                     .background(Color(NSColor.windowBackgroundColor).opacity(0.9))
                     .cornerRadius(10)
-                #else
+                    #else
                     HStack {
                         ProgressView()
                             .scaleEffect(1.5)
@@ -59,7 +58,7 @@ struct QueryEditorView: View {
                     .background(Color(UIColor.systemBackground).opacity(0.9))
                     .cornerRadius(10)
                     .shadow(radius: 5)
-                #endif
+                    #endif
                 }
                 Spacer()
             }.padding(.top, 8)
@@ -79,7 +78,6 @@ struct QueryEditorView: View {
         executeModes: .constant(["Local", "HTTP"]),
         selectedExecuteMode: .constant("Local"),
         isLoading: .constant(false),
-        onExecuteQuery: { }
+        onExecuteQuery: {}
     )
-
 }

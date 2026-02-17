@@ -11,7 +11,7 @@ struct PaginationControls: View {
     let onPageSizeChange: (Int) -> Void
 
     var body: some View {
-        HStack (alignment: .center) {
+        HStack(alignment: .center) {
             Text("Total: \(totalCount)")
             Spacer()
             Picker("Page Size", selection: $pageSize) {
@@ -28,9 +28,9 @@ struct PaginationControls: View {
 
             Button(action: {
                 onPageChange(currentPage - 1)
-            }) {
+            }, label: {
                 FontAwesomeText(icon: NavigationIcon.chevronLeft, size: 12)
-            }
+            })
             .disabled(currentPage <= 1)
 
             Text("Page \(currentPage) of \(pageCount)")
@@ -39,9 +39,9 @@ struct PaginationControls: View {
 
             Button(action: {
                 onPageChange(currentPage + 1)
-            }) {
+            }, label: {
                 FontAwesomeText(icon: NavigationIcon.chevronRight, size: 12)
-            }
+            })
             .disabled(currentPage >= pageCount)
             Spacer()
         }

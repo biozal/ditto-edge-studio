@@ -12,13 +12,13 @@ struct ResultJsonViewer: View {
     // Optional external state for shared pagination
     var externalCurrentPage: Binding<Int>?
     var externalPageSize: Binding<Int>?
-    var showPaginationControls: Bool = true
-    var showExportButton: Bool = true
+    var showPaginationControls = true
+    var showExportButton = true
 
-    // Callback for JSON selection (opens in inspector)
+    /// Callback for JSON selection (opens in inspector)
     var onJsonSelected: ((String) -> Void)?
 
-    // Use external or internal state
+    /// Use external or internal state
     private var currentPage: Binding<Int> {
         externalCurrentPage ?? $internalCurrentPage
     }
@@ -29,12 +29,12 @@ struct ResultJsonViewer: View {
 
     private var pageSizes: [Int] {
         switch resultCount {
-        case 0...10: return [10]
-        case 11...25: return [10, 25]
-        case 26...50: return [10, 25, 50]
-        case 51...100: return [10, 25, 50, 100]
-        case 101...200: return [10, 25, 50, 100, 200]
-        case 201...250: return [10, 25, 50, 100, 200, 250]
+        case 0 ... 10: return [10]
+        case 11 ... 25: return [10, 25]
+        case 26 ... 50: return [10, 25, 50]
+        case 51 ... 100: return [10, 25, 50, 100]
+        case 101 ... 200: return [10, 25, 50, 100, 200]
+        case 201 ... 250: return [10, 25, 50, 100, 200, 250]
         default: return [10, 25, 50, 100, 200, 250]
         }
     }
@@ -51,7 +51,7 @@ struct ResultJsonViewer: View {
         showExportButton: Bool = true,
         onJsonSelected: ((String) -> Void)? = nil
     ) {
-        self._resultText = resultText
+        _resultText = resultText
         self.externalCurrentPage = externalCurrentPage
         self.externalPageSize = externalPageSize
         self.showPaginationControls = showPaginationControls
@@ -59,9 +59,9 @@ struct ResultJsonViewer: View {
         self.onJsonSelected = onJsonSelected
     }
 
-    // Convenience initializer for static arrays
+    /// Convenience initializer for static arrays
     init(resultText: [String]) {
-        self._resultText = .constant(resultText)
+        _resultText = .constant(resultText)
     }
 
     private var pageCount: Int {
@@ -72,7 +72,7 @@ struct ResultJsonViewer: View {
         let start = (currentPage.wrappedValue - 1) * pageSize.wrappedValue
         let end = min(start + pageSize.wrappedValue, resultText.count)
         guard start < resultText.count else { return [] }
-        return Array(resultText[start..<end])
+        return Array(resultText[start ..< end])
     }
 
     var body: some View {
@@ -113,9 +113,7 @@ struct ResultJsonViewer: View {
                         .disabled(resultCount == 0)
                         .fileExporter(
                             isPresented: $isExporting,
-                            document: QueryResultsDocument(
-                                jsonData: flattenJsonResults()
-                            ),
+                            document: QueryResultsDocument(jsonData: flattenJsonResults()),
                             contentType: .json,
                             defaultFilename: "query_results"
                         ) { _ in }
@@ -135,7 +133,7 @@ struct ResultJsonViewer: View {
             }
         }
     }
-    
+
     private func flattenJsonResults() -> String {
         // If it's a single JSON object, just return it as is
         if resultText.count == 1 {
@@ -146,7 +144,7 @@ struct ResultJsonViewer: View {
     }
 }
 
-// Separate component for the header
+/// Separate component for the header
 struct ResultsHeader: View {
     let count: Int
 
@@ -157,7 +155,7 @@ struct ResultsHeader: View {
     }
 }
 
-// Separate component for the list
+/// Separate component for the list
 struct ResultsList: View {
     let items: [String]
     var onJsonSelected: ((String) -> Void)?
@@ -204,20 +202,18 @@ struct ResultItem: View {
             copyToClipboard()
             onJsonSelected?(jsonString)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.primary.opacity(0.05))
-                .opacity(isCopied ? 1.0 : 0.0)
-        )
+        .background(RoundedRectangle(cornerRadius: 4)
+            .fill(Color.primary.opacity(0.05))
+            .opacity(isCopied ? 1.0 : 0.0))
         .animation(.easeInOut(duration: 0.3), value: isCopied)
     }
 
     private func copyToClipboard() {
         #if os(macOS)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(jsonString, forType: .string)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(jsonString, forType: .string)
         #else
-            UIPasteboard.general.string = jsonString
+        UIPasteboard.general.string = jsonString
         #endif
 
         // Show feedback
@@ -235,37 +231,35 @@ struct ResultItem: View {
 }
 
 #Preview {
-    ResultJsonViewer(
-        resultText: .constant([
-            "{\n  \"id\": 1,\n  \"name\": \"Test\"\n}",
-            "{\n  \"id\": 2,\n  \"name\": \"Sample\"\n}",
-            "{\n  \"id\": 3,\n  \"name\": \"Example\"\n}",
-            "{\n  \"id\": 4,\n  \"name\": \"Demo\"\n}",
-            "{\n  \"id\": 5,\n  \"name\": \"Alpha\"\n}",
-            "{\n  \"id\": 6,\n  \"name\": \"Beta\"\n}",
-            "{\n  \"id\": 7,\n  \"name\": \"Gamma\"\n}",
-            "{\n  \"id\": 8,\n  \"name\": \"Delta\"\n}",
-            "{\n  \"id\": 9,\n  \"name\": \"Epsilon\"\n}",
-            "{\n  \"id\": 10,\n  \"name\": \"Zeta\"\n}",
-            "{\n  \"id\": 11,\n  \"name\": \"Eta\"\n}",
-            "{\n  \"id\": 12,\n  \"name\": \"Theta\"\n}",
-            "{\n  \"id\": 13,\n  \"name\": \"Iota\"\n}",
-            "{\n  \"id\": 14,\n  \"name\": \"Kappa\"\n}",
-            "{\n  \"id\": 15,\n  \"name\": \"Lambda\"\n}",
-            "{\n  \"id\": 16,\n  \"name\": \"Mu\"\n}",
-            "{\n  \"id\": 17,\n  \"name\": \"Nu\"\n}",
-            "{\n  \"id\": 18,\n  \"name\": \"Xi\"\n}",
-            "{\n  \"id\": 19,\n  \"name\": \"Omicron\"\n}",
-            "{\n  \"id\": 20,\n  \"name\": \"Pi\"\n}",
-            "{\n  \"id\": 21,\n  \"name\": \"Rho\"\n}",
-            "{\n  \"id\": 22,\n  \"name\": \"Sigma\"\n}",
-            "{\n  \"id\": 23,\n  \"name\": \"Tau\"\n}",
-            "{\n  \"id\": 24,\n  \"name\": \"Upsilon\"\n}",
-            "{\n  \"id\": 25,\n  \"name\": \"Phi\"\n}",
-            "{\n  \"id\": 26,\n  \"name\": \"Chi\"\n}",
-            "{\n  \"id\": 27,\n  \"name\": \"Psi\"\n}",
-            "{\n  \"id\": 28,\n  \"name\": \"Omega\"\n}",
-        ])
-    )
+    ResultJsonViewer(resultText: .constant([
+        "{\n  \"id\": 1,\n  \"name\": \"Test\"\n}",
+        "{\n  \"id\": 2,\n  \"name\": \"Sample\"\n}",
+        "{\n  \"id\": 3,\n  \"name\": \"Example\"\n}",
+        "{\n  \"id\": 4,\n  \"name\": \"Demo\"\n}",
+        "{\n  \"id\": 5,\n  \"name\": \"Alpha\"\n}",
+        "{\n  \"id\": 6,\n  \"name\": \"Beta\"\n}",
+        "{\n  \"id\": 7,\n  \"name\": \"Gamma\"\n}",
+        "{\n  \"id\": 8,\n  \"name\": \"Delta\"\n}",
+        "{\n  \"id\": 9,\n  \"name\": \"Epsilon\"\n}",
+        "{\n  \"id\": 10,\n  \"name\": \"Zeta\"\n}",
+        "{\n  \"id\": 11,\n  \"name\": \"Eta\"\n}",
+        "{\n  \"id\": 12,\n  \"name\": \"Theta\"\n}",
+        "{\n  \"id\": 13,\n  \"name\": \"Iota\"\n}",
+        "{\n  \"id\": 14,\n  \"name\": \"Kappa\"\n}",
+        "{\n  \"id\": 15,\n  \"name\": \"Lambda\"\n}",
+        "{\n  \"id\": 16,\n  \"name\": \"Mu\"\n}",
+        "{\n  \"id\": 17,\n  \"name\": \"Nu\"\n}",
+        "{\n  \"id\": 18,\n  \"name\": \"Xi\"\n}",
+        "{\n  \"id\": 19,\n  \"name\": \"Omicron\"\n}",
+        "{\n  \"id\": 20,\n  \"name\": \"Pi\"\n}",
+        "{\n  \"id\": 21,\n  \"name\": \"Rho\"\n}",
+        "{\n  \"id\": 22,\n  \"name\": \"Sigma\"\n}",
+        "{\n  \"id\": 23,\n  \"name\": \"Tau\"\n}",
+        "{\n  \"id\": 24,\n  \"name\": \"Upsilon\"\n}",
+        "{\n  \"id\": 25,\n  \"name\": \"Phi\"\n}",
+        "{\n  \"id\": 26,\n  \"name\": \"Chi\"\n}",
+        "{\n  \"id\": 27,\n  \"name\": \"Psi\"\n}",
+        "{\n  \"id\": 28,\n  \"name\": \"Omega\"\n}"
+    ]))
     .frame(width: 400, height: 300)
 }

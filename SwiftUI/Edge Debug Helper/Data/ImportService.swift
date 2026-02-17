@@ -1,43 +1,41 @@
-import Foundation
 import DittoSwift
+import Foundation
 import UniformTypeIdentifiers
 
 struct ImportService {
     static let shared = ImportService()
-    
+
     private init() {}
-    
+
     enum InsertType {
         case regular
         case initial
     }
-    
+
     struct ImportResult {
         let successCount: Int
         let failureCount: Int
         let errors: [String]
     }
-    
+
     struct ImportProgress {
         let current: Int
         let total: Int
         let currentDocumentId: String?
     }
-    
+
     func validateJSON(_ data: Data) throws -> [[String: Any]] {
         guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw ImportError.invalidJSON("File must contain an array of JSON objects")
         }
-        
-        for (index, object) in jsonArray.enumerated() {
-            if object["_id"] == nil {
-                throw ImportError.missingID("Document at index \(index) is missing required '_id' field")
-            }
+
+        for (index, object) in jsonArray.enumerated() where object["_id"] == nil {
+            throw ImportError.missingID("Document at index \(index) is missing required '_id' field")
         }
-        
+
         return jsonArray
     }
-    
+
     /// Imports JSON documents from a file into a Ditto collection using batch processing.
     ///
     /// Uses `deserialize_json()` with parameterized queries per Ditto documentation
@@ -89,12 +87,12 @@ struct ImportService {
         guard url.startAccessingSecurityScopedResource() else {
             throw ImportError.fileAccessDenied("Unable to access the selected file. Please try selecting it again.")
         }
-        
+
         // Ensure we stop accessing when we're done
         defer {
             url.stopAccessingSecurityScopedResource()
         }
-        
+
         // Read the file data
         let data: Data
         do {
@@ -102,17 +100,18 @@ struct ImportService {
         } catch {
             throw ImportError.fileAccessDenied("Could not read file: \(error.localizedDescription)")
         }
-        
+
         let documents = try validateJSON(data)
         let totalDocuments = documents.count
-        
+
         guard let ditto = await DittoManager.shared.dittoSelectedApp else {
             throw ImportError.noDittoInstance("No Ditto instance available")
         }
 
         // Validate collection name to prevent SQL injection
         guard collection.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
-            throw ImportError.invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
+            throw ImportError
+                .invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
         }
 
         // Perform heavy import work on background thread with utility priority
@@ -161,7 +160,6 @@ struct ImportService {
                             currentDocumentId: nil
                         ))
                     }
-
                 } catch {
                     // Batch failed - fall back to individual inserts to identify failures
                     for (indexInBatch, document) in batch.enumerated() {
@@ -207,8 +205,8 @@ struct ImportService {
 
         return await task.value
     }
-    
-    // Helper function to wrap Ditto operations with better error handling
+
+    /// Helper function to wrap Ditto operations with better error handling
     private func withErrorHandling<T>(_ operation: () async throws -> T) async throws -> T {
         do {
             return try await operation()
@@ -237,7 +235,7 @@ struct ImportService {
 
     /// Builds a DQL INSERT query for a batch of documents using deserialize_json()
     private func buildBatchInsertQuery(collection: String, batchSize: Int, insertType: InsertType) -> String {
-        let placeholders = (0..<batchSize)
+        let placeholders = (0 ..< batchSize)
             .map { "(deserialize_json(:doc\($0)))" }
             .joined(separator: ", ")
 
@@ -316,14 +314,14 @@ enum ImportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidJSON(let message),
-             .missingID(let message),
-             .noDittoInstance(let message),
-             .encodingError(let message),
-             .fileAccessDenied(let message),
-             .invalidCollectionName(let message):
+        case let .invalidJSON(message),
+             let .missingID(message),
+             let .noDittoInstance(message),
+             let .encodingError(message),
+             let .fileAccessDenied(message),
+             let .invalidCollectionName(message):
             return message
-        case .queryExecutionFailed(let documentId, let query, let arguments, let originalError):
+        case let .queryExecutionFailed(documentId, query, arguments, originalError):
             let argsFormatted = formatArguments(arguments)
             return """
             Document \(documentId): \(originalError.localizedDescription)
@@ -351,10 +349,10 @@ enum ImportError: LocalizedError {
     }
 }
 
-// Extension to support chunking arrays
+/// Extension to support chunking arrays
 extension Array {
     func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
+        stride(from: 0, to: count, by: size).map {
             Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }

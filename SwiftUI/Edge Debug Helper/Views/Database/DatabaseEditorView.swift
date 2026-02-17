@@ -4,11 +4,12 @@ struct DatabaseEditorView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
-    
+
     init(isPresented: Binding<Bool>, dittoAppConfig: DittoConfigForDatabase) {
-        self._isPresented = isPresented
-        self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
+        _isPresented = isPresented
+        _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
@@ -60,11 +61,13 @@ struct DatabaseEditorView: View {
                                 .foregroundColor(.blue)
                                 .font(.system(size: 16))
 
-                            Text("This information comes from the [Ditto Portal](https://portal.ditto.live) and is required in order to register a Ditto Database.")
-                                .font(.callout)
-                                .foregroundColor(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .tint(.blue)
+                            Text(
+                                "This information comes from the [Ditto Portal](https://portal.ditto.live) and is required in order to register a Ditto Database."
+                            )
+                            .font(.callout)
+                            .foregroundColor(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .tint(.blue)
                         }
                         .padding()
                         .background(Color.blue.opacity(0.1))
@@ -76,37 +79,35 @@ struct DatabaseEditorView: View {
 
                 Spacer()
             }
-#if os(macOS)
+            #if os(macOS)
             .padding()
-#endif
+            #endif
             .navigationTitle(viewModel.databaseId == "" ? "Register Database" : "Edit Database")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        isPresented = false
-                    } label: {
-                        Label("Cancel", systemImage: "xmark")
-                    }
-                    .accessibilityIdentifier("CancelButton")
-                }
-                ToolbarItem(placement: .confirmationAction){
-                    Button ("Save"){
-                        Task {
-                            await viewModel.save(appState: appState)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
                             isPresented = false
+                        } label: {
+                            Label("Cancel", systemImage: "xmark")
                         }
+                        .accessibilityIdentifier("CancelButton")
                     }
-                    .disabled(
-                        viewModel.databaseId.isEmpty ||
-                        viewModel.name.isEmpty ||
-                        viewModel.token.isEmpty
-                    )
-                    .accessibilityIdentifier("SaveButton")
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            Task {
+                                await viewModel.save(appState: appState)
+                                isPresented = false
+                            }
+                        }
+                        .disabled(viewModel.databaseId.isEmpty ||
+                            viewModel.name.isEmpty ||
+                            viewModel.token.isEmpty)
+                        .accessibilityIdentifier("SaveButton")
+                    }
                 }
-            }
         }
     }
 
@@ -148,7 +149,6 @@ struct DatabaseEditorView: View {
         }
     }
 
-    @ViewBuilder
     private func secretKeySection() -> some View {
         Section("Optional Secret Key") {
             TextField("Shared Key", text: $viewModel.secretKey)
@@ -164,7 +164,6 @@ struct DatabaseEditorView: View {
         }
     }
 
-    @ViewBuilder
     private func serverInformationSection() -> some View {
         Section("Ditto Server (BigPeer) Information") {
             TextField("Auth URL", text: $viewModel.authUrl)
@@ -180,7 +179,6 @@ struct DatabaseEditorView: View {
         }
     }
 
-    @ViewBuilder
     private func httpApiSection() -> some View {
         Section("Ditto Server - HTTP API - Optional") {
             VStack(alignment: .leading) {
@@ -200,12 +198,14 @@ struct DatabaseEditorView: View {
                     .padding(.bottom, 5)
                     .accessibilityIdentifier("AllowUntrustedCertsToggle")
 
-                Text("By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 10)
+                Text(
+                    "By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production."
+                )
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 10)
             }
         }
     }
@@ -229,12 +229,12 @@ extension DatabaseEditorView {
         var mode: AuthMode
         var allowUntrustedCerts: Bool
         var secretKey: String
-        
+
         let isNewItem: Bool
         private let databaseRepository = DatabaseRepository.shared
-        
+
         init(_ appConfig: DittoConfigForDatabase) {
-            _id =  appConfig._id
+            _id = appConfig._id
             name = appConfig.name
             databaseId = appConfig.databaseId
             token = appConfig.token
@@ -245,30 +245,32 @@ extension DatabaseEditorView {
             mode = appConfig.mode
             allowUntrustedCerts = appConfig.allowUntrustedCerts
             secretKey = appConfig.secretKey
-            
-            if (appConfig.databaseId == "") {
+
+            if appConfig.databaseId == "" {
                 isNewItem = true
             } else {
                 isNewItem = false
             }
         }
-        
+
         func save(appState: AppState) async {
             do {
                 // Trim whitespace from databaseId
                 let trimmedDatabaseId = databaseId.trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                let appConfig = DittoConfigForDatabase(_id,
-                                               name: name,
-                                               databaseId: trimmedDatabaseId,
-                                               token: token.trimmingCharacters(in: .whitespacesAndNewlines),
-                                               authUrl: authUrl,
-                                               websocketUrl: websocketUrl,
-                                               httpApiUrl: httpApiUrl,
-                                               httpApiKey: httpApiKey,
-                                               mode: mode,
-                                               allowUntrustedCerts: allowUntrustedCerts,
-                                               secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines))
+
+                let appConfig = DittoConfigForDatabase(
+                    _id,
+                    name: name,
+                    databaseId: trimmedDatabaseId,
+                    token: token.trimmingCharacters(in: .whitespacesAndNewlines),
+                    authUrl: authUrl,
+                    websocketUrl: websocketUrl,
+                    httpApiUrl: httpApiUrl,
+                    httpApiKey: httpApiKey,
+                    mode: mode,
+                    allowUntrustedCerts: allowUntrustedCerts,
+                    secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {
@@ -281,7 +283,7 @@ extension DatabaseEditorView {
     }
 }
 
-// View modifier to handle paste trimming
+/// View modifier to handle paste trimming
 struct PasteTrimModifier: ViewModifier {
     @Binding var text: String
 
@@ -289,7 +291,7 @@ struct PasteTrimModifier: ViewModifier {
         content
             .onPasteCommand(of: [.plainText]) { providers in
                 for provider in providers {
-                    _ = provider.loadObject(ofClass: NSString.self) { string, error in
+                    _ = provider.loadObject(ofClass: NSString.self) { string, _ in
                         if let string = string as? String {
                             DispatchQueue.main.async {
                                 text = string.trimmingCharacters(in: .whitespacesAndNewlines)

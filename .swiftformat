@@ -1,0 +1,62 @@
+# SwiftFormat Configuration
+# Automatic code formatting for Swift
+# Documentation: https://github.com/nicklockwood/SwiftFormat
+
+# File options
+--exclude SwiftUI/Edge Debug Helper/Utilities/FontAwesomeIcons.swift
+--exclude SwiftUI/POC
+--exclude SwiftUI/designs
+--exclude SwiftUI/tests
+--exclude SwiftUI/Edge Debug Helper.xcodeproj
+--exclude SwiftUI/Edge Debug Helper Tests
+--exclude SwiftUI/Edge Debugg Helper UITests
+--exclude .build
+--exclude DerivedData
+
+# Format options
+--swiftversion 6.2
+
+# Indentation
+--indent 4
+--tabwidth 4
+--indentcase false
+--ifdef no-indent
+
+# Wrapping
+--maxwidth 150
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+
+# Spacing
+--trimwhitespace always
+--commas inline
+--semicolons inline
+
+# Organization
+--importgrouping testable-bottom
+--stripunusedargs closure-only
+
+# Braces
+--allman false
+--elseposition same-line
+--guardelse same-line
+
+# Redundancies
+--redundanttype inferred
+--self remove
+--stripunusedargs closure-only
+
+# Rules to enable
+--enable isEmpty
+--enable sortImports
+--enable blankLinesAtStartOfScope
+--enable blankLinesAtEndOfScope
+--enable blankLinesBetweenScopes
+--enable redundantSelf
+--enable trailingCommas
+
+# Rules to disable
+--disable redundantReturn  # Explicit returns can be clearer
+--disable andOperator  # && is more recognizable than "and"

@@ -3,7 +3,6 @@ import SpriteKit
 /// Manages a layer of animated floating squares for background decoration
 /// Inspired by the ditto.com website design with subtle data block visualization
 class FloatingSquaresLayer {
-
     private var squares: [SKSpriteNode] = []
     private var parentScene: SKScene?
 
@@ -14,7 +13,7 @@ class FloatingSquaresLayer {
     func setup(in scene: SKScene, count: Int = 105) {
         parentScene = scene
 
-        for _ in 0..<count {
+        for _ in 0 ..< count {
             let square = createSquare(sceneSize: scene.size)
             squares.append(square)
         }
@@ -73,7 +72,7 @@ class FloatingSquaresLayer {
 
         // Create shape node for diamond
         let diamond = SKShapeNode(path: diamondPath)
-        diamond.fillColor = colors.randomElement()!
+        diamond.fillColor = colors.randomElement() ?? SKColor(white: 0.5, alpha: 0.3)
         diamond.strokeColor = .clear
         diamond.lineWidth = 0
 
@@ -85,22 +84,22 @@ class FloatingSquaresLayer {
         // Scene is centered at 0,0, so constrain to ±600 range (1200x1200 total area)
         let maxRange: CGFloat = 600
         square.position = CGPoint(
-            x: CGFloat.random(in: -maxRange...maxRange),
-            y: CGFloat.random(in: -maxRange...maxRange)
+            x: CGFloat.random(in: -maxRange ... maxRange),
+            y: CGFloat.random(in: -maxRange ... maxRange)
         )
 
         // Deep background layer
         square.zPosition = -100
 
         // Apply random animation type
-        let animationType = Int.random(in: 0..<100)
+        let animationType = Int.random(in: 0 ..< 100)
 
         switch animationType {
-        case 0..<80:  // 80% Drifters (20% more movement)
+        case 0 ..< 80: // 80% Drifters (20% more movement)
             applyDriftAnimation(to: square, sceneSize: sceneSize)
-        case 80..<90:  // 10% Pulsers
+        case 80 ..< 90: // 10% Pulsers
             applyPulseAnimation(to: square)
-        default:  // 10% Spinners
+        default: // 10% Spinners
             applySpinAnimation(to: square)
         }
 
@@ -112,11 +111,11 @@ class FloatingSquaresLayer {
     ///   - square: The square to animate
     ///   - sceneSize: The size of the parent scene for movement bounds
     private func applyDriftAnimation(to square: SKSpriteNode, sceneSize: CGSize) {
-        let duration = TimeInterval.random(in: 8...12)
+        let duration = TimeInterval.random(in: 8 ... 12)
 
         // Random drift within bounds
-        let deltaX = CGFloat.random(in: -50...50)
-        let deltaY = CGFloat.random(in: -40...40)
+        let deltaX = CGFloat.random(in: -50 ... 50)
+        let deltaY = CGFloat.random(in: -40 ... 40)
 
         // Calculate new position, wrapping if needed
         var newX = square.position.x + deltaX
@@ -135,10 +134,10 @@ class FloatingSquaresLayer {
         let sequence = SKAction.sequence([
             move,
             SKAction.run { [weak self, weak square] in
-                guard let self = self,
-                      let square = square,
-                      let sceneSize = self.parentScene?.size else { return }
-                self.applyDriftAnimation(to: square, sceneSize: sceneSize)
+                guard let self,
+                      let square,
+                      let sceneSize = parentScene?.size else { return }
+                applyDriftAnimation(to: square, sceneSize: sceneSize)
             }
         ])
 
@@ -148,7 +147,7 @@ class FloatingSquaresLayer {
     /// Applies scale and fade pulse animation
     /// - Parameter square: The square to animate
     private func applyPulseAnimation(to square: SKSpriteNode) {
-        let duration = TimeInterval.random(in: 3...5)
+        let duration = TimeInterval.random(in: 3 ... 5)
 
         let scaleUp = SKAction.scale(to: 1.2, duration: duration / 2)
         scaleUp.timingMode = .easeInEaseOut
@@ -174,7 +173,7 @@ class FloatingSquaresLayer {
     /// Applies slow rotation animation
     /// - Parameter square: The square to animate
     private func applySpinAnimation(to square: SKSpriteNode) {
-        let duration = TimeInterval.random(in: 20...30)
+        let duration = TimeInterval.random(in: 20 ... 30)
 
         let rotate = SKAction.rotate(byAngle: .pi * 2, duration: duration)
         let repeatForever = SKAction.repeatForever(rotate)

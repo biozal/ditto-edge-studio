@@ -1,7 +1,7 @@
-import Foundation
-import SwiftUI
 @preconcurrency import DittoSwift
+import Foundation
 import SpriteKit
+import SwiftUI
 
 /// SwiftUI wrapper for the Presence Network Viewer
 /// Displays a dynamic network diagram of Ditto peers with connection visualization
@@ -83,10 +83,10 @@ struct PresenceViewerSK: View {
     private var zoomControls: some View {
         HStack(spacing: 8) {
             // Zoom out button (-)
-            Button(action: { viewModel.zoomOut() }) {
+            Button(action: { viewModel.zoomOut() }, label: {
                 FontAwesomeText(icon: ActionIcon.minus, size: 14)
                     .frame(width: 32, height: 32)
-            }
+            })
             .buttonStyle(.bordered)
             .disabled(viewModel.zoomLevel >= 2.0)
             .help("Zoom out (or use scroll wheel)")
@@ -97,10 +97,10 @@ struct PresenceViewerSK: View {
                 .frame(width: 50)
 
             // Zoom in button (+)
-            Button(action: { viewModel.zoomIn() }) {
+            Button(action: { viewModel.zoomIn() }, label: {
                 FontAwesomeText(icon: ActionIcon.plus, size: 14)
                     .frame(width: 32, height: 32)
-            }
+            })
             .buttonStyle(.bordered)
             .disabled(viewModel.zoomLevel <= 0.5)
             .help("Zoom in (or use scroll wheel)")
@@ -194,7 +194,9 @@ struct LegendRow: View {
 
 /// Custom SKView subclass that properly forwards scroll events to the scene
 class ScrollableSKView: SKView {
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool {
+        true
+    }
 
     override func scrollWheel(with event: NSEvent) {
         // Forward scroll events to the scene
@@ -214,7 +216,7 @@ struct SpriteKitSceneView: NSViewRepresentable {
         skView.showsNodeCount = false // Set to true for debugging
         skView.allowsTransparency = true // Allow transparent background
 
-        if let scene = scene {
+        if let scene {
             skView.presentScene(scene)
         }
 
@@ -227,7 +229,7 @@ struct SpriteKitSceneView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: ScrollableSKView, context: Context) {
-        if let scene = scene, nsView.scene !== scene {
+        if let scene, nsView.scene !== scene {
             nsView.presentScene(scene)
         }
     }
@@ -243,9 +245,9 @@ extension PresenceViewerSK {
     @Observable
     class ViewModel {
         // MARK: - Published State
-        
+
         /// Test mode flag - when true, uses mock data instead of real Ditto presence
-        var isTestMode: Bool = false {
+        var isTestMode = false {
             didSet {
                 if isTestMode {
                     startTestMode()
@@ -256,24 +258,24 @@ extension PresenceViewerSK {
                 }
             }
         }
-        
+
         /// Current zoom level (0.5 = 50%, 1.0 = 100%, 2.0 = 200%)
         var zoomLevel: CGFloat = 1.0
-        
+
         /// Local peer data (supports both real DittoPeer and mock test data)
         var localPeer: PeerProtocol?
-        
+
         /// Remote peers data (supports both real DittoPeer and mock test data)
         var remotePeers: [PeerProtocol] = []
 
         /// Local peer key string for quick lookup
         var localPeerKey: String?
-        
+
         // MARK: - Scene Reference
-        
+
         /// Reference to the SpriteKit scene for updates
         weak var scene: PresenceNetworkScene?
-        
+
         // MARK: - Private State
 
         /// Presence observer for real-time updates
@@ -281,40 +283,40 @@ extension PresenceViewerSK {
 
         /// Timer for test mode updates
         private var testModeTimer: Timer?
-        
+
         /// Mock data generator for test mode
         private var mockDataGenerator: MockPresenceDataGenerator?
-        
+
         // MARK: - Initialization
-        
+
         init() {
             // Start production mode - accesses DittoManager.shared directly
             Task {
                 await startProductionMode()
             }
         }
-        
+
         // MARK: - Production Mode (Real Ditto Presence)
-        
+
         /// Start observing real Ditto presence graph
         /// Accesses DittoManager.shared.dittoSelectedApp (actor-isolated)
         func startProductionMode() async {
             // Access actor-isolated property
-            guard let ditto = await DittoManager.shared.dittoSelectedApp else { 
-                print("⚠️ PresenceViewerViewModel: No Ditto instance available")
-                return 
+            guard let ditto = await DittoManager.shared.dittoSelectedApp else {
+                Log.warning("PresenceViewerViewModel: No Ditto instance available")
+                return
             }
-            
+
             presenceObserver = ditto.presence.observe { [weak self] presenceGraph in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 // Already on MainActor, no need for DispatchQueue.main.async
-                self.localPeer = presenceGraph.localPeer
-                self.remotePeers = Array(presenceGraph.remotePeers)
-                self.localPeerKey = presenceGraph.localPeer.peerKeyString
+                localPeer = presenceGraph.localPeer
+                remotePeers = Array(presenceGraph.remotePeers)
+                localPeerKey = presenceGraph.localPeer.peerKeyString
 
                 // Update scene if available
-                if let scene = self.scene {
+                if let scene {
                     scene.updatePresenceGraph(
                         localPeer: presenceGraph.localPeer,
                         remotePeers: Array(presenceGraph.remotePeers)
@@ -322,24 +324,24 @@ extension PresenceViewerSK {
                 }
             }
         }
-        
+
         /// Stop observing Ditto presence graph
         func stopProductionMode() {
             presenceObserver?.stop()
             presenceObserver = nil
         }
-        
+
         // MARK: - Test Mode (Mock Data)
-        
+
         /// Start test mode with mock data generation
         func startTestMode() {
             stopProductionMode()
-            
+
             mockDataGenerator = MockPresenceDataGenerator()
-            
+
             // Generate initial data
             updateTestData()
-            
+
             // Update every 7 seconds
             testModeTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -347,16 +349,16 @@ extension PresenceViewerSK {
                 }
             }
         }
-        
+
         /// Stop test mode and return to production mode
         func stopTestModeAndResume() async {
             testModeTimer?.invalidate()
             testModeTimer = nil
             mockDataGenerator = nil
-            
+
             await startProductionMode()
         }
-        
+
         /// Update scene with new mock data
         private func updateTestData() {
             guard let generator = mockDataGenerator else { return }
@@ -368,36 +370,37 @@ extension PresenceViewerSK {
             localPeerKey = mockData.localPeer.peerKeyString
 
             // Update scene if available
-            if let scene = scene {
+            if let scene {
                 scene.updatePresenceGraph(
                     localPeer: mockData.localPeer,
                     remotePeers: mockData.remotePeers
                 )
             }
         }
-        
+
         // MARK: - Zoom Control
-        
+
         /// Zoom in (decrease scale value)
         func zoomIn() {
             let newZoom = max(0.5, zoomLevel - 0.1)
             updateZoomLevel(newZoom)
         }
-        
+
         /// Zoom out (increase scale value)
         func zoomOut() {
             let newZoom = min(2.0, zoomLevel + 0.1)
             updateZoomLevel(newZoom)
         }
-        
+
         /// Update zoom level and apply to scene camera
         /// - Parameter level: New zoom level (0.5 to 2.0)
         func updateZoomLevel(_ level: CGFloat) {
             zoomLevel = level
             scene?.camera?.setScale(level)
         }
-        
+
         // MARK: - Cleanup
+
         // Note: Cleanup happens automatically when ViewModel is deallocated
         // - DittoObserver cleans up when released
         // - Timer is invalidated in stopTestModeAndResume() when needed

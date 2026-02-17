@@ -6,8 +6,8 @@
 //  Reusable JSON syntax highlighting view using HighlightSwift
 //
 
-import SwiftUI
 import HighlightSwift
+import SwiftUI
 
 /// A view that displays JSON with syntax highlighting and copy functionality
 struct JsonSyntaxView: View {
@@ -23,7 +23,7 @@ struct JsonSyntaxView: View {
 
                 Button(action: {
                     copyToClipboard()
-                }) {
+                }, label: {
                     HStack(spacing: 4) {
                         if showCopiedFeedback {
                             Image(systemName: "checkmark")
@@ -34,7 +34,7 @@ struct JsonSyntaxView: View {
                         Text(showCopiedFeedback ? "Copied!" : "Copy")
                             .font(.caption)
                     }
-                }
+                })
                 .buttonStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -112,20 +112,20 @@ struct JsonSyntaxView: View {
 }
 
 #Preview("Large JSON") {
-    let largeJson = """
-    {
-        "users": [
-            \(String(repeating: """
-            {
-                "id": 1,
-                "name": "User Name",
-                "email": "user@example.com",
-                "active": true
-            },
-            """, count: 50))
-        ]
+    // Simplified large JSON for preview
+    var largeJson = "{\n    \"users\": [\n"
+    for i in 1 ... 50 {
+        largeJson += """
+        {
+            "id": \(i),
+            "name": "User \(i)",
+            "email": "user\(i)@example.com",
+            "active": true
+        }\(i < 50 ? "," : "")
+
+        """
     }
-    """
+    largeJson += "\n    ]\n}"
 
     return JsonSyntaxView(jsonString: largeJson)
         .frame(width: 400, height: 500)

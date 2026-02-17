@@ -3,24 +3,25 @@ import Foundation
 
 actor CollectionsRepository {
     static let shared = CollectionsRepository()
-    
+
     private let dittoManager = DittoManager.shared
     private var appState: AppState?
     private var collectionsObserver: DittoStoreObserver?
-    
+
     // Store the callback inside the actor
     private var onCollectionsUpdate: (([DittoCollection]) -> Void)?
     private let decoder = JSONDecoder()
-    
-    private init() { }
-    
+
+    private init() {}
+
     deinit {
         collectionsObserver?.cancel()
     }
-    
+
     func hydrateCollections() async throws -> [DittoCollection] {
         guard let ditto = await dittoManager.dittoSelectedApp,
-              let appState = self.appState else {
+              let appState else
+        {
             throw InvalidStateError(message: "No Ditto selected app or app state available")
         }
 
@@ -33,7 +34,8 @@ actor CollectionsRepository {
                 do {
                     let decodedItem = try decoder.decode(
                         DittoCollection.self,
-                        from: item.jsonData())
+                        from: item.jsonData()
+                    )
                     item.dematerialize()
                     return decodedItem
                 } catch {
@@ -53,9 +55,7 @@ actor CollectionsRepository {
             }
 
             // Register for any changes in the database
-            collectionsObserver = try ditto.store.registerObserver(
-                query: query
-            ) { [weak self] results in
+            collectionsObserver = try ditto.store.registerObserver(query: query) { [weak self] results in
                 Task { [weak self] in
                     guard let self else { return }
 
@@ -75,7 +75,7 @@ actor CollectionsRepository {
                     }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
 
                     // Fetch counts on every update as dictionary: [collectionName: count]
-                    if let counts = try? await self.fetchDocumentCounts(for: updatedCollections) {
+                    if let counts = try? await fetchDocumentCounts(for: updatedCollections) {
                         // Match counts to collections by name (dictionary lookup)
                         for i in updatedCollections.indices {
                             let collectionName = updatedCollections[i].name
@@ -84,7 +84,7 @@ actor CollectionsRepository {
                     }
 
                     // Call the callback to update collections
-                    await self.onCollectionsUpdate?(updatedCollections)
+                    await onCollectionsUpdate?(updatedCollections)
                 }
             }
 
@@ -110,7 +110,8 @@ actor CollectionsRepository {
                 let results = try await ditto.store.execute(query: query, arguments: [:])
 
                 if let firstItem = results.items.first,
-                   let count = firstItem.value["numDocs"] as? Int {
+                   let count = firstItem.value["numDocs"] as? Int
+                {
                     countsByCollection[collection.name] = count
                     firstItem.dematerialize()
                 }
@@ -121,10 +122,11 @@ actor CollectionsRepository {
 
         return countsByCollection
     }
-    
+
     func refreshDocumentCounts() async throws -> [DittoCollection] {
         guard let ditto = await dittoManager.dittoSelectedApp,
-              let appState = self.appState else {
+              let appState else
+        {
             throw InvalidStateError(message: "No Ditto selected app or app state available")
         }
 
@@ -136,7 +138,8 @@ actor CollectionsRepository {
             do {
                 let decodedItem = try decoder.decode(
                     DittoCollection.self,
-                    from: item.jsonData())
+                    from: item.jsonData()
+                )
                 item.dematerialize()
                 return decodedItem
             } catch {
@@ -156,7 +159,7 @@ actor CollectionsRepository {
         }
 
         // Trigger the update callback to refresh UI
-        self.onCollectionsUpdate?(collections)
+        onCollectionsUpdate?(collections)
 
         return collections
     }
@@ -166,9 +169,9 @@ actor CollectionsRepository {
     }
 
     func setOnCollectionsUpdate(_ callback: @escaping ([DittoCollection]) -> Void) {
-        self.onCollectionsUpdate = callback
+        onCollectionsUpdate = callback
     }
-    
+
     func stopObserver() {
         // Use Task to ensure observer cleanup runs on appropriate background queue
         // This prevents priority inversion when called from main thread
@@ -176,7 +179,7 @@ actor CollectionsRepository {
             await self?.performObserverCleanup()
         }
     }
-    
+
     private func performObserverCleanup() {
         collectionsObserver?.cancel()
         collectionsObserver = nil

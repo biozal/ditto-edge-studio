@@ -8,7 +8,7 @@ actor SystemRepository {
     private var syncStatusObserver: DittoObserver?
     private var connectionsPresenceObserver: DittoObserver?
     private var appState: AppState?
-    private var dittoServerCount: Int = 0
+    private var dittoServerCount = 0
 
     // Backpressure handling
     private var isProcessingUpdate = false
@@ -19,8 +19,8 @@ actor SystemRepository {
     private var onSyncStatusUpdate: (([SyncStatusInfo], @escaping () -> Void) -> Void)?
     private var onConnectionsUpdate: ((ConnectionsByTransport) -> Void)?
 
-    private init() { }
-    
+    private init() {}
+
     deinit {
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
@@ -94,7 +94,8 @@ actor SystemRepository {
 
             guard !filteredMetadata.isEmpty,
                   let jsonData = try? JSONSerialization.data(withJSONObject: filteredMetadata, options: .prettyPrinted),
-                  let jsonString = String(data: jsonData, encoding: .utf8) else {
+                  let jsonString = String(data: jsonData, encoding: .utf8) else
+            {
                 return nil
             }
             return jsonString
@@ -129,8 +130,8 @@ actor SystemRepository {
 
     private func buildPeerLookupMap(ditto: Ditto) async -> [String: PeerEnrichmentData] {
         // Access presence graph on background queue
-        return await Task.detached(priority: .utility) { [weak self] in
-            guard let self = self else { return [:] }
+        await Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return [:] }
 
             var peerMap: [String: PeerEnrichmentData] = [:]
 
@@ -138,7 +139,7 @@ actor SystemRepository {
             let remotePeers = ditto.presence.graph.remotePeers
 
             for peer in remotePeers {
-                let enrichment = await self.extractPeerEnrichment(from: peer)
+                let enrichment = await extractPeerEnrichment(from: peer)
                 peerMap[peer.peerKeyString] = enrichment
             }
 
@@ -182,16 +183,16 @@ actor SystemRepository {
 
                 // Step 2: Query DQL for sync metrics (all peers with full documents object)
                 let query = """
-                    SELECT *
-                    FROM system:data_sync_info
-                    """
+                SELECT *
+                FROM system:data_sync_info
+                """
 
                 let jsonResults: [String]
                 do {
                     jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
                 } catch {
                     // Query failed - skip this update (log error if needed)
-                    print("Failed to query system:data_sync_info: \(error)")
+                    Log.error("Failed to query system:data_sync_info: \(error.localizedDescription)")
                     return
                 }
 
@@ -200,7 +201,8 @@ actor SystemRepository {
                 for jsonString in jsonResults {
                     guard let data = jsonString.data(using: .utf8),
                           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let peerId = dict["_id"] as? String else {
+                          let peerId = dict["_id"] as? String else
+                    {
                         continue
                     }
                     syncMetricsLookup[peerId] = dict
@@ -216,7 +218,7 @@ actor SystemRepository {
                     let peerId = peer.peerKeyString
 
                     // Extract peer enrichment data from presence
-                    let enrichment = await self.extractPeerEnrichment(from: peer)
+                    let enrichment = await extractPeerEnrichment(from: peer)
 
                     // Look up sync metrics for this peer (may not exist)
                     var dict: [String: Any]
@@ -291,14 +293,14 @@ actor SystemRepository {
                 }
 
                 // Step 5: Update Ditto Server count and trigger connections update
-                let currentDittoServerCount = await self.dittoServerCount
+                let currentDittoServerCount = await dittoServerCount
                 if newDittoServerCount != currentDittoServerCount {
-                    await self.updateDittoServerCount(newDittoServerCount)
-                    await self.triggerConnectionsUpdate()
+                    await updateDittoServerCount(newDittoServerCount)
+                    await triggerConnectionsUpdate()
                 }
 
                 // Step 6: Backpressure handling (unchanged)
-                await self.processSyncStatusUpdate(statusItems)
+                await processSyncStatusUpdate(statusItems)
             }
         }
     }
@@ -315,14 +317,14 @@ actor SystemRepository {
         // Mark as processing and send to UI
         isProcessingUpdate = true
 
-        self.onSyncStatusUpdate?(statusItems, { [weak self] in
+        onSyncStatusUpdate?(statusItems) { [weak self] in
             Task {
                 guard let self else { return }
 
                 // Update complete - check for pending updates
                 await self.handleUpdateComplete()
             }
-        })
+        }
     }
 
     /// Handles completion of a UI update and processes any pending updates
@@ -339,14 +341,14 @@ actor SystemRepository {
             isProcessingUpdate = false
         }
     }
-    
+
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
-    
-    // Function to set the callback from outside the actor
+
+    /// Function to set the callback from outside the actor
     func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo], @escaping () -> Void) -> Void) {
-        self.onSyncStatusUpdate = callback
+        onSyncStatusUpdate = callback
     }
 
     private func updateDittoServerCount(_ count: Int) {
@@ -378,7 +380,7 @@ actor SystemRepository {
                 for peer in presenceGraph.remotePeers {
                     // Count connections by type for this peer
                     for connection in peer.connections {
-                        let connectionType = await self.convertConnectionType(connection.type)
+                        let connectionType = await convertConnectionType(connection.type)
 
                         switch connectionType {
                         case .bluetooth:
@@ -396,22 +398,22 @@ actor SystemRepository {
                 }
 
                 // Create aggregated result including Ditto Server count
-                let aggregated = ConnectionsByTransport(
+                let aggregated = await ConnectionsByTransport(
                     accessPoint: totalAccessPoint,
                     bluetooth: totalBluetooth,
-                    dittoServer: await self.dittoServerCount,
+                    dittoServer: dittoServerCount,
                     p2pWiFi: totalP2PWiFi,
                     webSocket: totalWebSocket
                 )
 
                 // Call the callback to update the ViewModel's published property
-                await self.onConnectionsUpdate?(aggregated)
+                await onConnectionsUpdate?(aggregated)
             }
         }
     }
 
     func setOnConnectionsUpdate(_ callback: @escaping (ConnectionsByTransport) -> Void) {
-        self.onConnectionsUpdate = callback
+        onConnectionsUpdate = callback
     }
 
     func stopObserver() {
@@ -421,11 +423,10 @@ actor SystemRepository {
             await self?.performObserverCleanup()
         }
     }
-    
+
     private func performObserverCleanup() {
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
         dittoServerCount = 0
     }
 }
-

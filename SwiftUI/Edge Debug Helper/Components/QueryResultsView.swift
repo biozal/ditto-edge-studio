@@ -15,24 +15,24 @@ enum ResultViewTab: String, CaseIterable {
 
 struct QueryResultsView: View {
     @Binding var jsonResults: [String]
-    var onGetLastQuery: (() -> String)? = nil
-    var onInsertQuery: ((String) -> Void)? = nil
-    var onJsonSelected: ((String) -> Void)? = nil
+    var onGetLastQuery: (() -> String)?
+    var onInsertQuery: ((String) -> Void)?
+    var onJsonSelected: ((String) -> Void)?
 
     @State private var selectedTab: ResultViewTab = .raw
     @State private var currentPage = 1
     @State private var pageSize = 10
     @State private var isExporting = false
-    @State private var copiedDQLNotification: String? = nil
+    @State private var copiedDQLNotification: String?
 
     private var pageSizes: [Int] {
         switch resultCount {
-        case 0...10: return [10]
-        case 11...25: return [10, 25]
-        case 26...50: return [10, 25, 50]
-        case 51...100: return [10, 25, 50, 100]
-        case 101...200: return [10, 25, 50, 100, 200]
-        case 201...250: return [10, 25, 50, 100, 200, 250]
+        case 0 ... 10: return [10]
+        case 11 ... 25: return [10, 25]
+        case 26 ... 50: return [10, 25, 50]
+        case 51 ... 100: return [10, 25, 50, 100]
+        case 101 ... 200: return [10, 25, 50, 100, 200]
+        case 201 ... 250: return [10, 25, 50, 100, 200, 250]
         default: return [10, 25, 50, 100, 200, 250]
         }
     }
@@ -45,7 +45,12 @@ struct QueryResultsView: View {
         max(1, Int(ceil(Double(jsonResults.count) / Double(pageSize))))
     }
 
-    init(jsonResults: Binding<[String]>, onGetLastQuery: (() -> String)? = nil, onInsertQuery: ((String) -> Void)? = nil, onJsonSelected: ((String) -> Void)? = nil) {
+    init(
+        jsonResults: Binding<[String]>,
+        onGetLastQuery: (() -> String)? = nil,
+        onInsertQuery: ((String) -> Void)? = nil,
+        onJsonSelected: ((String) -> Void)? = nil
+    ) {
         _jsonResults = jsonResults
         self.onGetLastQuery = onGetLastQuery
         self.onInsertQuery = onInsertQuery
@@ -111,10 +116,8 @@ struct QueryResultsView: View {
                     .background(.ultraThinMaterial)
                     .background(Color.green.opacity(0.2))
                     .foregroundColor(.primary)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.green.opacity(0.4), lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.green.opacity(0.4), lineWidth: 1))
                     .cornerRadius(12)
                     .subtleShadow()
                     .padding(.top, 20)
@@ -159,16 +162,14 @@ struct QueryResultsView: View {
             .disabled(resultCount == 0)
             .fileExporter(
                 isPresented: $isExporting,
-                document: QueryResultsDocument(
-                    jsonData: flattenJsonResults()
-                ),
+                document: QueryResultsDocument(jsonData: flattenJsonResults()),
                 contentType: .json,
                 defaultFilename: "query_results"
             ) { _ in }
         }
-        .padding(.vertical, 8)      // Reduced from 12pt to 8pt for more compact footer
+        .padding(.vertical, 8) // Reduced from 12pt to 8pt for more compact footer
         .padding(.horizontal, 20)
-        .padding(.bottom, 4)        // Reduced from 8pt to 4pt for tighter spacing
+        .padding(.bottom, 4) // Reduced from 8pt to 4pt for tighter spacing
         .liquidGlassToolbar()
     }
 
@@ -213,18 +214,17 @@ struct QueryResultsView: View {
         let fieldNames = extractFieldNamesFromJSON()
 
         // 4. Generate DQL
-        let dql: String
-        switch type {
+        let dql: String = switch type {
         case .select:
-            dql = DQLGenerator.generateSelect(collection: collectionName, fields: fieldNames)
+            DQLGenerator.generateSelect(collection: collectionName, fields: fieldNames)
         case .insert:
-            dql = DQLGenerator.generateInsert(collection: collectionName, fields: fieldNames)
+            DQLGenerator.generateInsert(collection: collectionName, fields: fieldNames)
         case .update:
-            dql = DQLGenerator.generateUpdate(collection: collectionName, fields: fieldNames)
+            DQLGenerator.generateUpdate(collection: collectionName, fields: fieldNames)
         case .delete:
-            dql = DQLGenerator.generateDelete(collection: collectionName)
+            DQLGenerator.generateDelete(collection: collectionName)
         case .evict:
-            dql = DQLGenerator.generateEvict(collection: collectionName)
+            DQLGenerator.generateEvict(collection: collectionName)
         }
 
         // 5. Insert into editor
@@ -234,7 +234,8 @@ struct QueryResultsView: View {
     private func extractFieldNamesFromJSON() -> [String] {
         guard let firstResult = jsonResults.first,
               let jsonData = firstResult.data(using: .utf8),
-              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else
+        {
             return []
         }
 

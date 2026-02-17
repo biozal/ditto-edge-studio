@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142462F44220F0023BC0C /* CocoaLumberjack */; };
+		0D1142492F44220F0023BC0C /* CocoaLumberjackSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */; };
+		0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */ = {isa = PBXBuildFile; productRef = 0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */; };
 		0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */; };
 		0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28362DDA0EA7004A69D1 /* DittoAllToolsMenu */; };
 		0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28382DDA0EA7004A69D1 /* DittoDataBrowser */; };
@@ -152,7 +155,9 @@
 			files = (
 				0D3F283B2DDA0EA7004A69D1 /* DittoDiskUsage in Frameworks */,
 				0D3F283F2DDA0EA7004A69D1 /* DittoExportLogs in Frameworks */,
+				0D1142492F44220F0023BC0C /* CocoaLumberjackSwift in Frameworks */,
 				0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */,
+				0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */,
 				0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */,
 				0D3F28492DDA0EA7004A69D1 /* DittoPresenceDegradation in Frameworks */,
 				0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */,
@@ -161,6 +166,7 @@
 				0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */,
 				0D3F28432DDA0EA7004A69D1 /* DittoHeartbeat in Frameworks */,
 				0D3F28472DDA0EA7004A69D1 /* DittoPermissionsHealth in Frameworks */,
+				0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */,
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
 				0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */,
 				0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */,
@@ -221,6 +227,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0D3F27F52DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug Helper" */;
 			buildPhases = (
+				DF26CBE95104437198DF0CCB /* SwiftFormat */,
+				F272A47F5E02439F8645D427 /* SwiftLint */,
 				0D3F27CF2DDA00FA004A69D1 /* Sources */,
 				0D3F27D02DDA00FA004A69D1 /* Frameworks */,
 				0D3F27D12DDA00FA004A69D1 /* Resources */,
@@ -251,6 +259,9 @@
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
 				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
 				0DEBB4512F3BDD1700C11449 /* Textual */,
+				0D1142462F44220F0023BC0C /* CocoaLumberjack */,
+				0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */,
+				0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */,
 			);
 			productName = "Ditto Edge Studio";
 			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */;
@@ -334,6 +345,7 @@
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
 				0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */,
 				0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */,
+				0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -370,6 +382,49 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DF26CBE95104437198DF0CCB /* SwiftFormat */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.swiftformat",
+			);
+			name = SwiftFormat;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftformat >/dev/null; then\n  if [ -d \"SwiftUI/Edge Debug Helper\" ]; then\n    swiftformat \"SwiftUI/Edge Debug Helper\" --config .swiftformat --quiet || true\n  fi\nelse\n  echo \"warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat\"\nfi\n";
+		};
+		F272A47F5E02439F8645D427 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  swiftlint lint --config .swiftlint.yml --quiet || true\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0D3F27CF2DDA00FA004A69D1 /* Sources */ = {
@@ -448,7 +503,7 @@
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -512,7 +567,7 @@
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -775,6 +830,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/CocoaLumberjack/CocoaLumberjack";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.9.0;
+			};
+		};
 		0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ZeeZide/CodeEditor.git";
@@ -818,6 +881,21 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0D1142462F44220F0023BC0C /* CocoaLumberjack */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjack;
+		};
+		0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjackSwift;
+		};
+		0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjackSwiftLogBackend;
+		};
 		0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */;

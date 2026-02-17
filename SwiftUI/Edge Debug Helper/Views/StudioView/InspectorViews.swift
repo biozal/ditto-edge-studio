@@ -1,8 +1,6 @@
 import SwiftUI
 
 extension MainStudioView {
-
-    @ViewBuilder
     func inspectorView() -> some View {
         VStack(spacing: 0) {
             // Tab picker using standard SwiftUI segmented picker
@@ -43,7 +41,6 @@ extension MainStudioView {
         }
     }
 
-    @ViewBuilder
     private func historyInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Query History")
@@ -62,12 +59,12 @@ extension MainStudioView {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.clock, size: 12)
                                 .foregroundColor(.secondary)
-                                .padding(.top, 2)  // Align with first line of text
+                                .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .font(.system(.body, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)  // Take full available width
+                                .frame(maxWidth: .infinity, alignment: .leading) // Take full available width
                         }
                     }
                     .padding(8)
@@ -94,7 +91,6 @@ extension MainStudioView {
         }
     }
 
-    @ViewBuilder
     private func favoritesInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Favorite Queries")
@@ -113,12 +109,12 @@ extension MainStudioView {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.star, size: 12)
                                 .foregroundColor(.yellow)
-                                .padding(.top, 2)  // Align with first line of text
+                                .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .font(.system(.body, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)  // Take full available width
+                                .frame(maxWidth: .infinity, alignment: .leading) // Take full available width
                         }
                     }
                     .padding(8)
@@ -140,7 +136,6 @@ extension MainStudioView {
         }
     }
 
-    @ViewBuilder
     private func jsonInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("JSON Viewer")
@@ -149,7 +144,7 @@ extension MainStudioView {
 
             if let json = viewModel.selectedJsonForInspector {
                 JsonSyntaxView(jsonString: json)
-                    .id(json)  // Force recreation when JSON changes
+                    .id(json) // Force recreation when JSON changes
             } else {
                 // Empty state: centered message
                 VStack(spacing: 12) {
@@ -187,7 +182,7 @@ extension MainStudioView {
 
         // Double-check sidebar stays visible after state changes
         DispatchQueue.main.async { [self] in
-            self.columnVisibility = .all
+            columnVisibility = .all
         }
     }
 }
