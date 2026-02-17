@@ -4,7 +4,7 @@ When we want to get the list of peers we call registerSyncStatusObserver in the 
 
 "SELECT * FROM system:data_sync_info"
 
-This give us status updates about commits from that peer.   The problem is this is too slow for updates - the presence graph gives us real time updates and detailed updates about each peer.  So in the registerSyncStatusObserver after we get the information from the observer we call the presence graph and pull the information about each peer from it and the merge the information from the observer on system:data_sync_info and the info from the presence graph.  
+This gives us status updates about commits from that peer.   The problem is this is too slow for updates - the presence graph gives us real time updates and detailed updates about each peer.  So in the registerSyncStatusObserver after we get the information from the observer we call the presence graph and pull the information about each peer from it and the merge the information from the observer on system:data_sync_info and the info from the presence graph.  
 
 This brings up a bigger issue though, because system:data_sync_info is too slow we could loose a connection to a node but it will still say we are connected.  That's not right.  
 
