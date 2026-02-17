@@ -49,7 +49,7 @@ The goal of this is to have a dynamic network diagram and as peers are no longer
 
 We need two modes:  a test mode and a real live production data mode.  To test how we draw devices and connections - we need a test mode that uses mock data to draw 30 devices on the screen with at least 1 network with some of them having two different network connections and one cloud connection.  This will allow us to test the ability for this to scale.  
 
-The entier diagram can be zoomed in and out which is why I had you add in the + and - keys.  In the javascript version the mouse scroll wheel can also be used to zoom in and out.  We should allow this.  
+The entire diagram can be zoomed in and out which is why I had you add in the + and - keys.  In the javascript version the mouse scroll wheel can also be used to zoom in and out.  We should allow this.  
 
 You can also click on any peer and drag it to a different location and let it go and the lines will stay connected.  This allows you to move different peers around in the diagram, including the "me" local peer.  You can click anywhere on the diagram and hold down the mouse and move the diagram around in any direction.  
 
