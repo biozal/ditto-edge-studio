@@ -53,7 +53,7 @@ The entire diagram can be zoomed in and out which is why I had you add in the + 
 
 You can also click on any peer and drag it to a different location and let it go and the lines will stay connected.  This allows you to move different peers around in the diagram, including the "me" local peer.  You can click anywhere on the diagram and hold down the mouse and move the diagram around in any direction.  
 
-The device name for each peer should be drawn and the current shape is dnyamic enough so that the full name can fit into it.  We need to keep this feature.  I don't like the current shape and the UI doesn't look very modern.  I would like it to look a little more modern and polished with animations.  
+The device name for each peer should be drawn and the current shape is dynamic enough so that the full name can fit into it.  We need to keep this feature.  I don't like the current shape and the UI doesn't look very modern.  I would like it to look a little more modern and polished with animations.  
 
  For now let's make checkbox that is for test mode.  If you check the box instead of getting the information from the ditto presence graph we use mock data so we can test the rendering engine of peers and the line connections between them. I would like you to make a plan to implemnt the new version of the presence graph viewer based on all the information I've given to you.  
 
