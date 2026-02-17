@@ -18,6 +18,6 @@ This will return the synced_up_to_local_commit_id and last updated received time
 
 This also means we will only ever draw connected peers - so we can remove the code and UI that filters out Connected vs All Peers.  Finally this observer that calculates all this really is only needed when we are on the Peers Listing tab.  When we aren't on this tab we don't necessarily need all this and if it's running in the background it's just going to cause performance issues in the app.  So we should only start the observer when we are on that tab and we should stop the observer when we leave that tab. 
 
- Make sure you walk through all the code so you undersatnd the current flow before you build new stuff so you don't cause regression bugs.  This doesn't need UI Testing, but it needs regular tests to vallidate things still work.  There should be no need to replace out the  SyncStatusInfo model.  All we are doing is replacing out how we get the values to put in it.  
+ Make sure you walk through all the code so you understand the current flow before you build new stuff so you don't cause regression bugs.  This doesn't need UI Testing, but it needs regular tests to validate things still work.  There should be no need to replace out the  SyncStatusInfo model.  All we are doing is replacing out how we get the values to put in it.  
 
 Create a plan that goes through all this and report back to me when you have it on how we can accomplish this.
