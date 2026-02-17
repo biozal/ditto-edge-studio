@@ -14,7 +14,7 @@ So I would like to change registerSyncStatusObserver to do an observer on the pr
 
 SELECT _id, documents.synced_up_to_local_commit_id, documents.last_update_received_time FROM system:data_sync_info
 
-This will return the synced_up_to_local_commit_id and last updated received time which really is the only field we need from this for the cards we draw.  Anything else we have in the SyncStatusInfo comes from the presence graph.  A reminder we know that the _id from the DQL is the peerId taht we use to match the information in the presence graph.
+This will return the synced_up_to_local_commit_id and last updated received time which really is the only field we need from this for the cards we draw.  Anything else we have in the SyncStatusInfo comes from the presence graph.  A reminder we know that the _id from the DQL is the peerId that we use to match the information in the presence graph.
 
 This also means we will only ever draw connected peers - so we can remove the code and UI that filters out Connected vs All Peers.  Finally this observer that caculates all this really is only needed when we are on the Peers Listing tab.  When we aren't on this tab we don't necessarly need all this and if it's running in the background it's just going to cause performance issues in the app.  So we should only start the observer when we are on that tab and we should stop the observer when we leave that tab. 
 
