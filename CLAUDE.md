@@ -134,23 +134,47 @@ Edge Debug Helper uses **three separate test targets** for comprehensive testing
 
 ### Test File Structure
 
-Unit tests are organized in `SwiftUI/EdgeStudioUnitTests/` with this structure:
+Tests are split across two targets by type of I/O:
 
+**`SwiftUI/EdgeStudioUnitTests/`** — Pure logic, no real I/O (~105 tests):
 ```
 EdgeStudioUnitTests/
-├── Services/
-│   ├── SQLCipherServiceTests.swift      # Database encryption tests
-│   ├── KeychainServiceTests.swift       # Secure credential storage tests
-│   └── QueryServiceTests.swift          # Query execution tests
-├── Repositories/
-│   ├── DatabaseRepositoryTests.swift    # Database config management tests
-│   ├── HistoryRepositoryTests.swift     # Query history tests
-│   └── FavoritesRepositoryTests.swift   # Favorites tests
+├── Models/
+│   └── ModelTests.swift                 # Pure in-memory model tests
 ├── Utilities/
-│   ├── DQLGeneratorTests.swift          # DQL generation tests
-│   └── TestHelpers.swift                # Shared test utilities
-└── TestConfiguration.swift              # Test environment configuration
+│   └── DQLGeneratorTests.swift          # Pure string generation, no I/O
+├── Repositories/
+│   ├── CollectionsRepositoryTests.swift # Error paths only, no DB
+│   └── SystemRepositoryTests.swift      # Error paths only, no Ditto/DB
+├── Services/
+│   └── QueryServiceTests.swift          # Error paths + format string tests
+├── Fixtures/
+│   └── QueryFixtures.swift              # Shared fixture data (also copied to integration)
+└── TestTags.swift                       # Shared test tags (also copied to integration)
 ```
+
+**`SwiftUI/EdgeStudioIntegrationTests/`** — Real I/O, multi-component (~115 tests):
+```
+EdgeStudioIntegrationTests/
+├── Services/
+│   ├── SQLCipherServiceTests.swift      # Real SQLite file I/O
+│   └── KeychainServiceTests.swift       # Real macOS Keychain
+├── Repositories/
+│   ├── DatabaseRepositoryTests.swift    # Repository + SQLCipher + SQLite
+│   ├── HistoryRepositoryTests.swift     # Repository + SQLCipher + SQLite
+│   ├── FavoritesRepositoryTests.swift   # Repository + SQLCipher + SQLite
+│   ├── SubscriptionsRepositoryTests.swift # Repository + SQLCipher + SQLite
+│   └── ObservableRepositoryTests.swift  # Repository + SQLCipher + SQLite
+├── Fixtures/
+│   ├── DatabaseConfigFixtures.swift     # Fixture data for repository tests
+│   ├── MockServices.swift               # Mock implementations
+│   └── QueryFixtures.swift              # Shared fixture data (copy from unit tests)
+├── TestHelpers.swift                    # withFreshDatabase, test isolation helpers
+├── TestConfiguration.swift             # Test environment configuration
+└── TestTags.swift                       # Shared test tags (copy from unit tests)
+```
+
+**Decision rule:** If a test touches real SQLite files, the macOS Keychain, or exercises multiple layers (Repository → SQLCipher → SQLite), it belongs in `EdgeStudioIntegrationTests`. Pure in-memory logic with no real I/O belongs in `EdgeStudioUnitTests`.
 
 ### Basic Test Structure
 

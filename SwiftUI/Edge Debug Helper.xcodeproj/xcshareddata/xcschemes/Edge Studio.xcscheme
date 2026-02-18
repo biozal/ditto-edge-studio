@@ -28,7 +28,7 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      shouldAutocreateTestPlan = "NO">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
@@ -51,63 +51,12 @@
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
-      <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0D3F27E02DDA00FB004A69D1"
-               BuildableName = "Edge Debug HelperTests.xctest"
-               BlueprintName = "Edge Debug HelperTests"
-               ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0D3F27EA2DDA00FB004A69D1"
-               BuildableName = "Edge Debug HelperUITests.xctest"
-               BlueprintName = "Edge Debug HelperUITests"
-               ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0DD95EA12F4584EF0063C203"
-               BuildableName = "EdgeStudioUnitTests.xctest"
-               BlueprintName = "EdgeStudioUnitTests"
-               ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0DD95EAE2F4585270063C203"
-               BuildableName = "EdgeStudioIntegrationTests.xctest"
-               BlueprintName = "EdgeStudioIntegrationTests"
-               ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0DD95EBB2F4585430063C203"
-               BuildableName = "EdgeStudioUITests.xctest"
-               BlueprintName = "EdgeStudioUITests"
-               ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:Edge Debug Helper.xcodeproj/xcshareddata/xctestplans/Edge Studio.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

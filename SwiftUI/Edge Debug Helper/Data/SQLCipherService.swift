@@ -44,13 +44,28 @@ actor SQLCipherService {
     private var db: OpaquePointer?
     private var _isInitialized = false
 
+    /// Custom database directory name for test instances (nil = use environment detection)
+    private let customTestPath: String?
+
     // MARK: - Schema Version
 
     private let currentSchemaVersion = 2
 
     // MARK: - Initialization
 
-    private init() {}
+    private init() {
+        customTestPath = nil
+    }
+
+    /// Creates an isolated test instance pointing to a unique directory.
+    ///
+    /// Use with `SQLCipherContext.$current.withValue(testService) { }` to inject
+    /// this instance into the current Swift task and all its children.
+    ///
+    /// - Parameter testPath: Directory name (relative to Application Support) for this instance.
+    init(testPath: String) {
+        customTestPath = testPath
+    }
 
     /// Initializes the encrypted database connection
     ///
@@ -140,7 +155,19 @@ actor SQLCipherService {
 
     /// Returns the database file path based on test/production mode
     private func getDatabasePath() throws -> URL {
-        // Detect test environment
+        let fileManager = FileManager.default
+        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+
+        // Test instances always use their custom path — no environment detection needed
+        if let customPath = customTestPath {
+            let cacheDirURL = appSupportURL.appendingPathComponent(customPath)
+            if !fileManager.fileExists(atPath: cacheDirURL.path) {
+                try fileManager.createDirectory(at: cacheDirURL, withIntermediateDirectories: true)
+            }
+            return cacheDirURL.appendingPathComponent("ditto_encrypted.db")
+        }
+
+        // Singleton: detect test environment at runtime
         let isUnitTesting = NSClassFromString("XCTest") != nil
         let args = ProcessInfo.processInfo.arguments
         let isUITesting = args.contains("UI-TESTING")
@@ -156,8 +183,6 @@ actor SQLCipherService {
             "ditto_cache"
         }
 
-        let fileManager = FileManager.default
-        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let cacheDirURL = appSupportURL.appendingPathComponent(cacheDir)
 
         // Create directory if needed

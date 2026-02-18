@@ -1,0 +1,57 @@
+{
+  "configurations" : [
+    {
+      "id" : "EF3A8C2D-1B47-4F9E-A0C3-7D6B5E8F2194",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Edge Debug Helper.xcodeproj",
+        "identifier" : "0DD95EA12F4584EF0063C203",
+        "name" : "EdgeStudioUnitTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Edge Debug Helper.xcodeproj",
+        "identifier" : "0DD95EAE2F4585270063C203",
+        "name" : "EdgeStudioIntegrationTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Edge Debug Helper.xcodeproj",
+        "identifier" : "0DD95EBB2F4585430063C203",
+        "name" : "EdgeStudioUITests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Edge Debug Helper.xcodeproj",
+        "identifier" : "0D3F27E02DDA00FB004A69D1",
+        "name" : "Edge Debug HelperTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Edge Debug Helper.xcodeproj",
+        "identifier" : "0D3F27EA2DDA00FB004A69D1",
+        "name" : "Edge Debug HelperUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

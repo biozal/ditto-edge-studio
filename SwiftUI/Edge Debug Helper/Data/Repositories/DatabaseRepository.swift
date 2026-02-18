@@ -18,7 +18,10 @@ import Foundation
 actor DatabaseRepository {
     static let shared = DatabaseRepository()
 
-    private let sqlCipher = SQLCipherService.shared
+    private var sqlCipher: SQLCipherService {
+        SQLCipherContext.current
+    }
+
     private var appState: AppState?
 
     /// In-memory cache for fast access

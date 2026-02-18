@@ -1,0 +1,8 @@
+Go into plan mode.  Our test coverage is very low.  Create a plan to write tests for all repositories and sevices.  Also we should have unit tests for all models.  The test should follow the standards described in docs\TESTING.md and in Claude.md and also should pass our code quality guidelines in CODE_QUALITY_GUIDE.md.  
+
+All tests must pass and can not be moved out of the project if they fail.  The tests should not generate new warnings and any warnings should be fixed prior to moving on to the next task. 
+
+Once your plan is ready let me know. 
+
+
+

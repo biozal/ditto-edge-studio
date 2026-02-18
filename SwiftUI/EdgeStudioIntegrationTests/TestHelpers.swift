@@ -124,71 +124,78 @@ enum TestHelpers {
         try TestConfiguration.cleanAllTestDirectories()
     }
 
-    // MARK: - Database Testing
+    // MARK: - Database Testing (Isolated per-task instances)
 
-    /// Set up a fresh, initialized test database
+    /// Runs the test body with a fully isolated, initialized SQLCipher database.
     ///
-    /// This resets the SQLCipherService singleton, creates a clean test directory,
-    /// and initializes the database. Use this for most tests.
+    /// Each call creates a unique directory, spins up a fresh service instance,
+    /// injects it via @TaskLocal (so repositories automatically see it), executes
+    /// the body, then deletes the directory — even if the body throws.
+    ///
+    /// Concurrent test suites each get their own directory; there is NO shared
+    /// filesystem state between tasks.
     ///
     /// Usage:
     /// ```swift
     /// @Test("My test") func testSomething() async throws {
-    ///     try await TestHelpers.setupFreshDatabase()
-    ///
-    ///     let service = SQLCipherService.shared
-    ///     // Database is already initialized and ready to use
-    ///
-    ///     // Test code here...
+    ///     try await TestHelpers.withFreshDatabase {
+    ///         let service = SQLCipherContext.current
+    ///         // Database is initialized and isolated to this task
+    ///     }
     /// }
     /// ```
-    static func setupFreshDatabase() async throws {
-        try await setupUninitializedDatabase()
+    @discardableResult
+    static func withFreshDatabase<T: Sendable>(
+        _ body: @Sendable () async throws -> T
+    ) async throws -> T {
+        let uniqueDirName = "ditto_test_\(UUID().uuidString)"
+        let testService = SQLCipherService(testPath: uniqueDirName)
+        try await testService.initialize()
 
-        // Initialize the database
-        let service = SQLCipherService.shared
-        try await service.initialize()
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let testDirURL = appSupportURL.appendingPathComponent(uniqueDirName)
+
+        defer {
+            try? FileManager.default.removeItem(at: testDirURL)
+        }
+
+        return try await SQLCipherContext.$current.withValue(testService) {
+            try await body()
+        }
     }
 
-    /// Set up a fresh test database environment WITHOUT initializing
+    /// Runs the test body with an uninitialized, isolated SQLCipher database.
     ///
-    /// This resets the SQLCipherService singleton and ensures a clean test directory,
-    /// but does NOT call initialize(). Use this ONLY for tests that need to test
-    /// the initialization process itself.
+    /// Use ONLY for tests that explicitly test the `initialize()` method itself.
+    /// The service instance is created but NOT initialized before calling the body.
     ///
     /// Usage:
     /// ```swift
     /// @Test("Test initialization") func testInit() async throws {
-    ///     try await TestHelpers.setupUninitializedDatabase()
-    ///
-    ///     let service = SQLCipherService.shared
-    ///     try await service.initialize()  // Test the initialization
-    ///
-    ///     // Verify initialization worked...
+    ///     try await TestHelpers.withUninitializedDatabase {
+    ///         let service = SQLCipherContext.current
+    ///         try await service.initialize()  // Test the initialization
+    ///         // Verify initialization worked...
+    ///     }
     /// }
     /// ```
-    static func setupUninitializedDatabase() async throws {
-        // With TESTING compilation flag, we're guaranteed to use test paths
-        // No runtime verification needed - compile-time flag ensures isolation
+    @discardableResult
+    static func withUninitializedDatabase<T: Sendable>(
+        _ body: @Sendable () async throws -> T
+    ) async throws -> T {
+        let uniqueDirName = "ditto_test_uninit_\(UUID().uuidString)"
+        let testService = SQLCipherService(testPath: uniqueDirName)
+        // NOT calling initialize() — the test body does that explicitly
 
-        // Reset singleton (closes DB connection, allows reinitialization)
-        let service = SQLCipherService.shared
-        await service.resetForTesting()
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let testDirURL = appSupportURL.appendingPathComponent(uniqueDirName)
 
-        // Get actual database path
-        let fileManager = FileManager.default
-        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dbDir = appSupportURL.appendingPathComponent("ditto_cache_unit_test")
-
-        // Delete entire test directory to ensure clean state
-        if fileManager.fileExists(atPath: dbDir.path) {
-            try? fileManager.removeItem(at: dbDir)
+        defer {
+            try? FileManager.default.removeItem(at: testDirURL)
         }
 
-        // Recreate empty directory
-        try fileManager.createDirectory(at: dbDir, withIntermediateDirectories: true)
-
-        // NOTE: We do NOT call initialize() here
-        // That allows tests to test the initialization behavior
+        return try await SQLCipherContext.$current.withValue(testService) {
+            try await body()
+        }
     }
 }

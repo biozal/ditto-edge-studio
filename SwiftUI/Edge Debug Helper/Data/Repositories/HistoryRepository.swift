@@ -19,7 +19,10 @@ import Foundation
 actor HistoryRepository {
     static let shared = HistoryRepository()
 
-    private let sqlCipher = SQLCipherService.shared
+    private var sqlCipher: SQLCipherService {
+        SQLCipherContext.current
+    }
+
     private var appState: AppState?
 
     // In-memory cache for current database session

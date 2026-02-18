@@ -22,7 +22,10 @@ actor SubscriptionsRepository {
     static let shared = SubscriptionsRepository()
 
     private let dittoManager = DittoManager.shared
-    private let sqlCipher = SQLCipherService.shared
+    private var sqlCipher: SQLCipherService {
+        SQLCipherContext.current
+    }
+
     private var appState: AppState?
 
     // In-memory cache for current database session

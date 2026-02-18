@@ -92,7 +92,8 @@ struct MainStudioView: View {
                             }
                         }
                     } label: {
-                        FontAwesomeText(icon: ActionIcon.circlePlus, size: 20)
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 20))
                             .padding(4)
                     }
                     Spacer()
