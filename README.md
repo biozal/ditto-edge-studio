@@ -155,6 +155,77 @@ try Log.exportLogs(to: url)
 
 See **CLAUDE.md** for complete logging documentation, best practices, and future log viewer feature.
 
+## Testing
+
+Edge Debug Helper uses **Swift Testing** for comprehensive test coverage with mandatory testing requirements for all new code.
+
+### Quick Start
+
+```bash
+# Run all tests
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64"
+
+# Run with coverage report
+./scripts/generate_coverage_report.sh
+
+# View coverage dashboard
+./scripts/coverage_dashboard.sh
+```
+
+### Test Infrastructure
+
+| Target | Framework | Purpose | Coverage Goal |
+|--------|-----------|---------|---------------|
+| **EdgeStudioUnitTests** | Swift Testing | Fast, isolated unit tests | 70% |
+| **EdgeStudioIntegrationTests** | Swift Testing | Multi-component tests | 50% |
+| **EdgeStudioUITests** | XCTest | UI automation | 30% |
+
+### Testing Requirements
+
+**CRITICAL: All new code MUST have tests.**
+
+- ✅ Unit tests with Swift Testing (`import Testing`)
+- ✅ 80%+ coverage on new code (minimum 50% overall)
+- ✅ AAA pattern (Arrange-Act-Assert)
+- ✅ Test isolation (uses separate database paths)
+- ❌ No skipped tests
+- ❌ No tests that touch production data
+
+### Current Status
+
+- **Overall Coverage**: 15.96% (target: 50%)
+- **SQLCipherService**: 62.19% coverage ✅
+- **Total Tests**: 15+ unit tests, growing weekly
+
+### Coverage Enforcement
+
+Pre-push hook automatically enforces 50% minimum coverage:
+
+```bash
+# Enable pre-push hook
+chmod +x .git/hooks/pre-push
+
+# Now runs automatically before every push
+git push origin main
+
+# Bypass once (emergency only)
+git push --no-verify
+```
+
+### Complete Documentation
+
+📖 **See [docs/TESTING.md](docs/TESTING.md) for:**
+- Complete testing guide (unit, integration, UI tests)
+- Swift Testing framework tutorial
+- Test isolation and sandboxing
+- AAA pattern examples
+- Coverage best practices
+- Troubleshooting guide
+
+**Also see CLAUDE.md** for testing requirements and mandatory testing policy.
+
 ## ⚠️ DISCLAIMER
 
 **THIS SOFTWARE IS PROVIDED "AS-IS" WITHOUT WARRANTY OF ANY KIND.**

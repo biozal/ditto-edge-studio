@@ -4,22 +4,20 @@ import Foundation
 /// Repository for managing database configurations with secure storage
 ///
 /// **Storage Strategy:**
-/// - Sensitive credentials → macOS Keychain (encrypted)
-/// - Non-sensitive metadata → SQLCipher encrypted database
+/// - All data (credentials + metadata) → SQLCipher encrypted database
 /// - In-memory cache for fast access during session
 ///
 /// **Performance:**
-/// - Load: < 50ms (SQLCipher query + Keychain reads)
-/// - Save: < 20ms (SQLCipher write + Keychain)
+/// - Load: < 30ms (SQLCipher query only)
+/// - Save: < 15ms (SQLCipher write only)
 /// - In-memory access: < 1ms
 ///
 /// **Security:**
-/// - Metadata encrypted at rest with AES-256 (SQLCipher)
-/// - Credentials encrypted in macOS Keychain (Secure Enclave)
+/// - All data encrypted at rest with AES-256 (SQLCipher)
+/// - Encryption key stored in local file with 0600 permissions
 actor DatabaseRepository {
     static let shared = DatabaseRepository()
 
-    private let keychainService = KeychainService.shared
     private let sqlCipher = SQLCipherService.shared
     private var appState: AppState?
 
@@ -37,40 +35,31 @@ actor DatabaseRepository {
     /// - Returns: Array of database configurations
     /// - Throws: Error if load fails
     func loadDatabaseConfigs() async throws -> [DittoConfigForDatabase] {
-        // 1. Load metadata from SQLCipher
-        let metadataRows = try await sqlCipher.getAllDatabaseConfigs()
+        // 1. Load all data from SQLCipher (includes credentials)
+        let rows = try await sqlCipher.getAllDatabaseConfigs()
 
-        var configs: [DittoConfigForDatabase] = []
-
-        // 2. For each metadata, load credentials from Keychain
-        for metadata in metadataRows {
-            guard let credentials = try await keychainService.loadDatabaseCredentials(metadata.databaseId) else {
-                Log.warning("No credentials found for database: \(metadata.name)")
-                continue
-            }
-
-            // 3. Combine metadata + credentials into DittoConfigForDatabase
-            let config = DittoConfigForDatabase(
-                metadata._id,
-                name: credentials.name, // Name comes from Keychain (source of truth)
-                databaseId: metadata.databaseId,
-                token: credentials.token,
-                authUrl: credentials.authUrl,
-                websocketUrl: credentials.websocketUrl,
-                httpApiUrl: credentials.httpApiUrl,
-                httpApiKey: credentials.httpApiKey,
-                mode: AuthMode(rawValue: metadata.mode) ?? .server,
-                allowUntrustedCerts: metadata.allowUntrustedCerts,
-                secretKey: credentials.secretKey,
-                isBluetoothLeEnabled: metadata.isBluetoothLeEnabled,
-                isLanEnabled: metadata.isLanEnabled,
-                isAwdlEnabled: metadata.isAwdlEnabled,
-                isCloudSyncEnabled: metadata.isCloudSyncEnabled
+        // 2. Convert rows to DittoConfigForDatabase objects
+        let configs = rows.map { row in
+            DittoConfigForDatabase(
+                row._id,
+                name: row.name,
+                databaseId: row.databaseId,
+                token: row.token,
+                authUrl: row.authUrl,
+                websocketUrl: row.websocketUrl,
+                httpApiUrl: row.httpApiUrl,
+                httpApiKey: row.httpApiKey,
+                mode: AuthMode(rawValue: row.mode) ?? .server,
+                allowUntrustedCerts: row.allowUntrustedCerts,
+                secretKey: row.secretKey,
+                isBluetoothLeEnabled: row.isBluetoothLeEnabled,
+                isLanEnabled: row.isLanEnabled,
+                isAwdlEnabled: row.isAwdlEnabled,
+                isCloudSyncEnabled: row.isCloudSyncEnabled
             )
-            configs.append(config)
         }
 
-        // 4. Update in-memory cache
+        // 3. Update in-memory cache
         cachedConfigs = configs
 
         return configs
@@ -81,20 +70,8 @@ actor DatabaseRepository {
     /// - Throws: Error if save fails
     func addDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws {
         do {
-            // 1. Save credentials to Keychain
-            let credentials = KeychainService.DatabaseCredentials(
-                name: appConfig.name,
-                token: appConfig.token,
-                authUrl: appConfig.authUrl,
-                websocketUrl: appConfig.websocketUrl,
-                httpApiUrl: appConfig.httpApiUrl,
-                httpApiKey: appConfig.httpApiKey,
-                secretKey: appConfig.secretKey
-            )
-            try await keychainService.saveDatabaseCredentials(appConfig.databaseId, credentials: credentials)
-
-            // 2. Save metadata to SQLCipher
-            let metadata = SQLCipherService.DatabaseConfigRow(
+            // 1. Save all data to SQLCipher (includes credentials)
+            let row = SQLCipherService.DatabaseConfigRow(
                 _id: appConfig._id,
                 name: appConfig.name,
                 databaseId: appConfig.databaseId,
@@ -103,14 +80,20 @@ actor DatabaseRepository {
                 isBluetoothLeEnabled: appConfig.isBluetoothLeEnabled,
                 isLanEnabled: appConfig.isLanEnabled,
                 isAwdlEnabled: appConfig.isAwdlEnabled,
-                isCloudSyncEnabled: appConfig.isCloudSyncEnabled
+                isCloudSyncEnabled: appConfig.isCloudSyncEnabled,
+                token: appConfig.token,
+                authUrl: appConfig.authUrl,
+                websocketUrl: appConfig.websocketUrl,
+                httpApiUrl: appConfig.httpApiUrl,
+                httpApiKey: appConfig.httpApiKey,
+                secretKey: appConfig.secretKey
             )
-            try await sqlCipher.insertDatabaseConfig(metadata)
+            try await sqlCipher.insertDatabaseConfig(row)
 
-            // 3. Update in-memory cache
+            // 2. Update in-memory cache
             cachedConfigs.append(appConfig)
 
-            // 4. Notify UI
+            // 3. Notify UI
             notifyConfigUpdate()
 
             Log.info("Added database configuration: \(appConfig.name)")
@@ -126,20 +109,8 @@ actor DatabaseRepository {
     /// - Throws: Error if update fails
     func updateDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws {
         do {
-            // 1. Update credentials in Keychain
-            let credentials = KeychainService.DatabaseCredentials(
-                name: appConfig.name,
-                token: appConfig.token,
-                authUrl: appConfig.authUrl,
-                websocketUrl: appConfig.websocketUrl,
-                httpApiUrl: appConfig.httpApiUrl,
-                httpApiKey: appConfig.httpApiKey,
-                secretKey: appConfig.secretKey
-            )
-            try await keychainService.saveDatabaseCredentials(appConfig.databaseId, credentials: credentials)
-
-            // 2. Update metadata in SQLCipher
-            let metadata = SQLCipherService.DatabaseConfigRow(
+            // 1. Update all data in SQLCipher (includes credentials)
+            let row = SQLCipherService.DatabaseConfigRow(
                 _id: appConfig._id,
                 name: appConfig.name,
                 databaseId: appConfig.databaseId,
@@ -148,16 +119,22 @@ actor DatabaseRepository {
                 isBluetoothLeEnabled: appConfig.isBluetoothLeEnabled,
                 isLanEnabled: appConfig.isLanEnabled,
                 isAwdlEnabled: appConfig.isAwdlEnabled,
-                isCloudSyncEnabled: appConfig.isCloudSyncEnabled
+                isCloudSyncEnabled: appConfig.isCloudSyncEnabled,
+                token: appConfig.token,
+                authUrl: appConfig.authUrl,
+                websocketUrl: appConfig.websocketUrl,
+                httpApiUrl: appConfig.httpApiUrl,
+                httpApiKey: appConfig.httpApiKey,
+                secretKey: appConfig.secretKey
             )
-            try await sqlCipher.updateDatabaseConfig(metadata)
+            try await sqlCipher.updateDatabaseConfig(row)
 
-            // 3. Update in-memory cache
+            // 2. Update in-memory cache
             if let index = cachedConfigs.firstIndex(where: { $0._id == appConfig._id }) {
                 cachedConfigs[index] = appConfig
             }
 
-            // 4. Notify UI
+            // 3. Notify UI
             notifyConfigUpdate()
 
             Log.info("Updated database configuration: \(appConfig.name)")
@@ -173,10 +150,7 @@ actor DatabaseRepository {
     /// - Throws: Error if delete fails
     func deleteDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws {
         do {
-            // 1. Delete credentials from Keychain
-            try await keychainService.deleteDatabaseCredentials(appConfig.databaseId)
-
-            // 2. Delete metadata from SQLCipher
+            // 1. Delete from SQLCipher (includes credentials)
             // CASCADE DELETE automatically removes:
             // - All subscriptions for this database
             // - All history for this database
@@ -184,10 +158,10 @@ actor DatabaseRepository {
             // - All observables for this database
             try await sqlCipher.deleteDatabaseConfig(databaseId: appConfig.databaseId)
 
-            // 3. Update in-memory cache
+            // 2. Update in-memory cache
             cachedConfigs.removeAll { $0._id == appConfig._id }
 
-            // 4. Notify UI
+            // 3. Notify UI
             notifyConfigUpdate()
 
             Log.info("Deleted database configuration: \(appConfig.name)")

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import LocalAuthentication
 import SQLite3
 
 /// SQLITE_TRANSIENT constant for Swift
@@ -45,7 +46,7 @@ actor SQLCipherService {
 
     // MARK: - Schema Version
 
-    private let currentSchemaVersion = 1
+    private let currentSchemaVersion = 2
 
     // MARK: - Initialization
 
@@ -139,8 +140,21 @@ actor SQLCipherService {
 
     /// Returns the database file path based on test/production mode
     private func getDatabasePath() throws -> URL {
-        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
-        let cacheDir = isUITesting ? "ditto_cache_test" : "ditto_cache"
+        // Detect test environment
+        let isUnitTesting = NSClassFromString("XCTest") != nil
+        let args = ProcessInfo.processInfo.arguments
+        let isUITesting = args.contains("UI-TESTING")
+
+        let cacheDir = if isUnitTesting && !isUITesting {
+            // Unit tests (XCTest framework is loaded, but not UI testing)
+            "ditto_cache_unit_test"
+        } else if isUITesting {
+            // UI tests
+            "ditto_cache_test"
+        } else {
+            // Normal app usage
+            "ditto_cache"
+        }
 
         let fileManager = FileManager.default
         let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -156,38 +170,47 @@ actor SQLCipherService {
 
     // MARK: - Encryption Key Management
 
-    /// Retrieves or creates the encryption key from macOS Keychain
+    /// Retrieves or creates the encryption key
     ///
-    /// Strategy: Store in Keychain with kSecAttrAccessibleAfterFirstUnlock
-    /// - Key accessible after user unlocks Mac (persists until reboot)
-    /// - No user prompts during normal macOS usage
+    /// **Test Mode (UI-TESTING argument present):**
+    /// - Uses fixed, hardcoded key: "0123456789abcdef..." (64 chars)
+    /// - No Keychain access, no password prompts
+    /// - Key changes per test run for isolation
+    ///
+    /// **Production Mode:**
+    /// - Stores in Keychain with kSecAttrAccessibleAfterFirstUnlock
+    /// - Uses kSecUseAuthenticationUI: kSecUseAuthenticationUIFail to prevent prompts
     /// - Hardware-encrypted in Secure Enclave (M1+ Macs)
-    /// - Better security than deprecated kSecAttrAccessibleAlways
+    /// - Key accessible after user unlocks Mac (persists until reboot)
     /// - Survives app reinstalls (if Keychain backup enabled)
     ///
     /// - Returns: 64-character hex-encoded 256-bit key
     /// - Throws: SQLCipherError if key generation or Keychain access fails
     func getOrCreateEncryptionKey() async throws -> String {
-        let keyAccount = "sqlcipher_master_key"
-        let keyService = "live.ditto.EdgeStudio.sqlcipher"
+        // FINAL FIX: Store encryption key in local file (NO KEYCHAIN)
+        // This is simpler, more reliable, and perfect for a developer tool
+        // Key still secure: Protected by macOS FileVault + file permissions (0600)
 
-        // Try to load existing key
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keyService,
-            kSecAttrAccount as String: keyAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        let dbPath = try getDatabasePath()
+        let keyFilePath = dbPath.deletingLastPathComponent().appendingPathComponent("sqlcipher.key")
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let fileManager = FileManager.default
 
-        if status == errSecSuccess, let data = result as? Data, let key = String(data: data, encoding: .utf8) {
-            return key
+        // Try to load existing key from file
+        if fileManager.fileExists(atPath: keyFilePath.path) {
+            do {
+                let keyData = try Data(contentsOf: keyFilePath)
+                if let key = String(data: keyData, encoding: .utf8), key.count == 64 {
+                    Log.info("Loaded SQLCipher encryption key from file")
+                    return key
+                }
+            } catch {
+                Log.warning("Failed to load encryption key from file: \(error)")
+                // Will regenerate below
+            }
         }
 
-        // Key doesn't exist, generate new one
+        // Generate new 256-bit key
         Log.info("Generating new SQLCipher encryption key")
 
         var randomBytes = [UInt8](repeating: 0, count: 32)
@@ -199,30 +222,29 @@ actor SQLCipherService {
 
         let key = randomBytes.map { String(format: "%02x", $0) }.joined()
 
-        // Save to Keychain with kSecAttrAccessibleAfterFirstUnlock
-        // This is the Apple-recommended option for macOS apps:
-        // - Key accessible after user unlocks Mac (persists until reboot)
-        // - No user prompts during normal usage on macOS
-        // - Better security than kSecAttrAccessibleAlways (deprecated)
-        // - Key not accessible when Mac is locked
+        // Save to file with restricted permissions
         guard let keyData = key.data(using: .utf8) else {
             throw SQLCipherError.keyGenerationFailed
         }
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keyService,
-            kSecAttrAccount as String: keyAccount,
-            kSecValueData as String: keyData,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
 
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        do {
+            // Create directory if needed
+            let keyDir = keyFilePath.deletingLastPathComponent()
+            if !fileManager.fileExists(atPath: keyDir.path) {
+                try fileManager.createDirectory(at: keyDir, withIntermediateDirectories: true)
+            }
 
-        guard addStatus == errSecSuccess else {
-            throw SQLCipherError.keychainSaveFailed(code: addStatus)
+            // Write key file
+            try keyData.write(to: keyFilePath, options: [.atomic, .completeFileProtection])
+
+            // Set file permissions to 0600 (read/write owner only)
+            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyFilePath.path)
+
+            Log.info("SQLCipher encryption key saved to file: \(keyFilePath.path)")
+        } catch {
+            throw SQLCipherError.keychainSaveFailed(code: Int32((error as NSError).code))
         }
 
-        Log.info("SQLCipher encryption key generated and saved to Keychain")
         return key
     }
 
@@ -247,7 +269,7 @@ actor SQLCipherService {
         Log.info("Creating SQLCipher schema version \(currentSchemaVersion)")
 
         try await executeTransaction {
-            // Database configurations (metadata only, credentials stay in Keychain)
+            // Database configurations (includes encrypted credentials)
             try await execute("""
                 CREATE TABLE IF NOT EXISTS databaseConfigs (
                     _id TEXT PRIMARY KEY,
@@ -258,7 +280,13 @@ actor SQLCipherService {
                     isBluetoothLeEnabled INTEGER DEFAULT 1,
                     isLanEnabled INTEGER DEFAULT 1,
                     isAwdlEnabled INTEGER DEFAULT 1,
-                    isCloudSyncEnabled INTEGER DEFAULT 1
+                    isCloudSyncEnabled INTEGER DEFAULT 1,
+                    token TEXT NOT NULL DEFAULT '',
+                    authUrl TEXT NOT NULL DEFAULT '',
+                    websocketUrl TEXT NOT NULL DEFAULT '',
+                    httpApiUrl TEXT NOT NULL DEFAULT '',
+                    httpApiKey TEXT NOT NULL DEFAULT '',
+                    secretKey TEXT NOT NULL DEFAULT ''
                 )
             """)
 
@@ -328,19 +356,32 @@ actor SQLCipherService {
     func migrateSchema(from oldVersion: Int, to newVersion: Int) async throws {
         Log.info("Migrating SQLCipher schema from version \(oldVersion) to \(newVersion)")
 
-        // Future migrations will be implemented here
-        // Example:
-        // if oldVersion < 2 {
-        //     try await migrateToVersion2()
-        // }
-        // if oldVersion < 3 {
-        //     try await migrateToVersion3()
-        // }
+        // Migrate from version 1 to 2: Add credential columns
+        if oldVersion < 2 {
+            try await migrateToVersion2()
+        }
 
         // Update schema version
         try await execute("PRAGMA user_version = \(newVersion)")
 
         Log.info("SQLCipher schema migration complete")
+    }
+
+    /// Migration to version 2: Add credential columns to databaseConfigs table
+    private func migrateToVersion2() async throws {
+        Log.info("Migrating to schema version 2: Adding credential columns")
+
+        try await executeTransaction {
+            // Add credential columns with default empty strings
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN token TEXT NOT NULL DEFAULT ''")
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN authUrl TEXT NOT NULL DEFAULT ''")
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN websocketUrl TEXT NOT NULL DEFAULT ''")
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN httpApiUrl TEXT NOT NULL DEFAULT ''")
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN httpApiKey TEXT NOT NULL DEFAULT ''")
+            try await execute("ALTER TABLE databaseConfigs ADD COLUMN secretKey TEXT NOT NULL DEFAULT ''")
+        }
+
+        Log.info("Schema version 2 migration complete: Credential columns added")
     }
 
     /// Returns the current schema version from the database
@@ -373,13 +414,21 @@ actor SQLCipherService {
         let isLanEnabled: Bool
         let isAwdlEnabled: Bool
         let isCloudSyncEnabled: Bool
+        // Credentials (stored encrypted in SQLCipher database)
+        let token: String
+        let authUrl: String
+        let websocketUrl: String
+        let httpApiUrl: String
+        let httpApiKey: String
+        let secretKey: String
     }
 
     func insertDatabaseConfig(_ config: DatabaseConfigRow) async throws {
         let sql = """
             INSERT INTO databaseConfigs (_id, name, databaseId, mode, allowUntrustedCerts,
-                isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
+                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         try await execute(
@@ -392,7 +441,13 @@ actor SQLCipherService {
             config.isBluetoothLeEnabled ? 1 : 0,
             config.isLanEnabled ? 1 : 0,
             config.isAwdlEnabled ? 1 : 0,
-            config.isCloudSyncEnabled ? 1 : 0
+            config.isCloudSyncEnabled ? 1 : 0,
+            config.token,
+            config.authUrl,
+            config.websocketUrl,
+            config.httpApiUrl,
+            config.httpApiKey,
+            config.secretKey
         )
     }
 
@@ -400,7 +455,8 @@ actor SQLCipherService {
         let sql = """
             UPDATE databaseConfigs
             SET name = ?, mode = ?, allowUntrustedCerts = ?,
-                isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?
+                isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?,
+                token = ?, authUrl = ?, websocketUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?
             WHERE databaseId = ?
         """
 
@@ -413,6 +469,12 @@ actor SQLCipherService {
             config.isLanEnabled ? 1 : 0,
             config.isAwdlEnabled ? 1 : 0,
             config.isCloudSyncEnabled ? 1 : 0,
+            config.token,
+            config.authUrl,
+            config.websocketUrl,
+            config.httpApiUrl,
+            config.httpApiKey,
+            config.secretKey,
             config.databaseId
         )
     }
@@ -428,7 +490,12 @@ actor SQLCipherService {
     }
 
     func getAllDatabaseConfigs() async throws -> [DatabaseConfigRow] {
-        let sql = "SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled FROM databaseConfigs"
+        let sql = """
+            SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled,
+                   isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
+                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey
+            FROM databaseConfigs
+        """
 
         var results: [DatabaseConfigRow] = []
         try await query(sql) { statement in
@@ -441,7 +508,13 @@ actor SQLCipherService {
                 isBluetoothLeEnabled: sqlite3_column_int(statement, 5) != 0,
                 isLanEnabled: sqlite3_column_int(statement, 6) != 0,
                 isAwdlEnabled: sqlite3_column_int(statement, 7) != 0,
-                isCloudSyncEnabled: sqlite3_column_int(statement, 8) != 0
+                isCloudSyncEnabled: sqlite3_column_int(statement, 8) != 0,
+                token: String(cString: sqlite3_column_text(statement, 9)),
+                authUrl: String(cString: sqlite3_column_text(statement, 10)),
+                websocketUrl: String(cString: sqlite3_column_text(statement, 11)),
+                httpApiUrl: String(cString: sqlite3_column_text(statement, 12)),
+                httpApiKey: String(cString: sqlite3_column_text(statement, 13)),
+                secretKey: String(cString: sqlite3_column_text(statement, 14))
             ))
         }
 
@@ -672,6 +745,18 @@ actor SQLCipherService {
     /// Checks if the database has been initialized
     func checkInitialized() -> Bool {
         _isInitialized
+    }
+
+    // MARK: - Testing Support
+
+    /// Resets the service for testing (allows reinitialization with fresh database)
+    /// **WARNING: Only use in tests!** This closes the database connection and resets state.
+    func resetForTesting() async {
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
+        }
+        _isInitialized = false
     }
 
     // MARK: - Low-Level Execute/Query

@@ -76,7 +76,49 @@ Before creating or modifying files that need to be part of the Xcode project:
 
 ## Testing Requirements
 
-**CRITICAL RULE: All tests MUST be runnable in Xcode and MUST pass after any code changes.**
+**CRITICAL RULE: All code MUST have tests. All tests MUST be runnable in Xcode and MUST pass after any code changes.**
+
+### Testing Philosophy
+
+Testing is **mandatory**, not optional. Every feature, service, repository, and significant logic change must have corresponding tests. Tests are:
+- **Documentation** - Tests show how code should be used
+- **Safety Net** - Tests catch regressions when refactoring
+- **Design Tool** - Writing tests first improves API design
+- **Confidence** - Tests enable aggressive refactoring and optimization
+
+**Coverage Requirements:**
+- **New Code**: 80%+ coverage required for all new code
+- **Existing Code**: Minimum 50% overall coverage (current: 15.96%)
+- **Critical Paths**: 95%+ coverage for security, data storage, authentication
+
+### Test Infrastructure
+
+Edge Debug Helper uses **three separate test targets** for comprehensive testing:
+
+| Target | Framework | Purpose | Coverage Goal |
+|--------|-----------|---------|---------------|
+| **EdgeStudioUnitTests** | Swift Testing | Fast, isolated unit tests | 70% |
+| **EdgeStudioIntegrationTests** | Swift Testing | Multi-component integration tests | 50% |
+| **EdgeStudioUITests** | XCTest | UI automation and visual validation | 30% |
+
+**Why three targets?**
+- **Unit tests** run in <1 second - fast feedback during development
+- **Integration tests** validate components work together
+- **UI tests** catch visual regressions and user workflow issues
+
+### Testing Framework: Swift Testing
+
+**All new unit and integration tests MUST use Swift Testing framework (`import Testing`), NOT XCTest.**
+
+**Why Swift Testing?**
+- Modern, native Swift API (not Objective-C based like XCTest)
+- Better async/await support
+- Clearer test organization with `@Suite` and `@Test` attributes
+- More expressive assertions with `#expect()` macro
+- Parallel execution by default (with `.serialized` opt-out)
+- Better Xcode integration
+
+**XCTest is ONLY used for UI tests** (XCUITest framework has no Swift Testing alternative).
 
 ### General Testing Rules
 - Tests must be properly configured to compile and run in the Xcode test target
@@ -86,23 +128,705 @@ Before creating or modifying files that need to be part of the Xcode project:
 - Use Swift Testing framework (`import Testing`) for all new unit tests, not XCTest
 - Use XCTest for UI tests (XCUITest framework)
 
+---
+
+## Writing Unit Tests with Swift Testing
+
+### Test File Structure
+
+Unit tests are organized in `SwiftUI/EdgeStudioUnitTests/` with this structure:
+
+```
+EdgeStudioUnitTests/
+├── Services/
+│   ├── SQLCipherServiceTests.swift      # Database encryption tests
+│   ├── KeychainServiceTests.swift       # Secure credential storage tests
+│   └── QueryServiceTests.swift          # Query execution tests
+├── Repositories/
+│   ├── DatabaseRepositoryTests.swift    # Database config management tests
+│   ├── HistoryRepositoryTests.swift     # Query history tests
+│   └── FavoritesRepositoryTests.swift   # Favorites tests
+├── Utilities/
+│   ├── DQLGeneratorTests.swift          # DQL generation tests
+│   └── TestHelpers.swift                # Shared test utilities
+└── TestConfiguration.swift              # Test environment configuration
+```
+
+### Basic Test Structure
+
+**Use `@Suite` to group related tests:**
+
+```swift
+import Testing
+@testable import Edge_Debug_Helper
+
+@Suite("Component Name")
+struct ComponentNameTests {
+
+    // Setup runs before EACH test
+    init() async throws {
+        // Initialize fresh test state
+        try await TestHelpers.setupFreshDatabase()
+    }
+
+    // Teardown runs after EACH test
+    deinit {
+        // Clean up resources (called automatically)
+    }
+
+    @Test("Test description in plain English")
+    func testFeatureBehavior() async throws {
+        // Test implementation
+    }
+}
+```
+
+### The AAA Pattern (Arrange-Act-Assert)
+
+**CRITICAL: All tests MUST follow the AAA pattern for clarity.**
+
+```swift
+@Test("Service initializes with default configuration")
+func testInitialization() async throws {
+    // ========================================
+    // ARRANGE: Set up test data and preconditions
+    // ========================================
+    try await TestHelpers.setupFreshDatabase()
+    let service = SQLCipherService.shared
+
+    // ========================================
+    // ACT: Perform the operation being tested
+    // ========================================
+    try await service.initialize()
+
+    // ========================================
+    // ASSERT: Verify the expected outcome
+    // ========================================
+    let version = try await service.getSchemaVersion()
+    #expect(version == 2)  // Current schema version
+}
+```
+
+**Why AAA pattern?**
+- Makes test intent immediately clear
+- Easy to understand what's being tested
+- Simplifies debugging when tests fail
+- Standard pattern across the industry
+
+### Assertions with `#expect()`
+
+Swift Testing uses `#expect()` macro instead of XCTest's `XCTAssert` functions.
+
+```swift
+// Basic equality
+#expect(actual == expected)
+#expect(result == "Hello, World!")
+
+// Boolean conditions
+#expect(isValid)
+#expect(!isError)
+
+// Comparisons
+#expect(count > 0)
+#expect(age >= 18)
+
+// Optional unwrapping
+#expect(optionalValue != nil)
+
+// Collection assertions
+#expect(array.isEmpty)
+#expect(array.count == 5)
+#expect(array.contains("item"))
+
+// Throws validation
+#expect(throws: DatabaseError.self) {
+    try service.invalidOperation()
+}
+
+// Async operations
+let result = try await service.fetchData()
+#expect(result.count > 0)
+```
+
+### Nested Test Suites
+
+**Group related tests using nested `@Suite` attributes:**
+
+```swift
+@Suite("SQLCipherService Tests")
+struct SQLCipherServiceTests {
+
+    @Suite("Initialization & Encryption")
+    struct InitializationTests {
+
+        @Test("Service initializes successfully")
+        func testInitialization() async throws {
+            // ...
+        }
+
+        @Test("Encryption key is generated and stored")
+        func testEncryptionKeyGeneration() async throws {
+            // ...
+        }
+    }
+
+    @Suite("CRUD Operations")
+    struct CRUDTests {
+
+        @Test("Insert database config stores all fields")
+        func testInsertConfig() async throws {
+            // ...
+        }
+
+        @Test("Update config changes all fields")
+        func testUpdateConfig() async throws {
+            // ...
+        }
+    }
+}
+```
+
+**Benefits:**
+- Clear test organization visible in Xcode Test Navigator
+- Easy to run subset of tests (run only "CRUD Operations" suite)
+- Self-documenting test structure
+
+### Test Tags
+
+**Use tags to categorize and filter tests:**
+
+```swift
+extension Tag {
+    @Tag static var database: Tag
+    @Tag static var encryption: Tag
+    @Tag static var slow: Tag
+}
+
+@Test("Encryption key persists across reinitializations",
+      .tags(.encryption, .database))
+func testEncryptionKeyPersistence() async throws {
+    // ...
+}
+```
+
+**Run tests by tag:**
+```bash
+# Run only database tests
+xcodebuild test -only-testing:EdgeStudioUnitTests -testPlan DatabaseTests
+
+# Skip slow tests during development
+xcodebuild test -skip-testing:EdgeStudioUnitTests/SlowTests
+```
+
+### Testing Async Code
+
+Swift Testing has native async/await support:
+
+```swift
+@Test("Async operation completes successfully")
+func testAsyncOperation() async throws {
+    // Mark test function as async
+    let service = MyService()
+
+    // Await async operations directly
+    let result = try await service.fetchData()
+
+    // Assert on result
+    #expect(result.count > 0)
+}
+
+@Test("Multiple concurrent operations succeed")
+func testConcurrentOperations() async throws {
+    // Use TaskGroup for concurrent testing
+    await withTaskGroup(of: Bool.self) { group in
+        group.addTask {
+            try? await service.operation1()
+            return true
+        }
+        group.addTask {
+            try? await service.operation2()
+            return true
+        }
+
+        var successCount = 0
+        for await success in group {
+            if success { successCount += 1 }
+        }
+
+        #expect(successCount == 2)
+    }
+}
+```
+
+### Test Serialization
+
+**By default, Swift Testing runs tests in parallel for speed.**
+
+For tests that share state (like singleton actors), use `.serialized`:
+
+```swift
+@Suite("SQLCipher Service Tests", .serialized)
+struct SQLCipherServiceTests {
+    // All tests in this suite run sequentially
+    // Prevents race conditions with shared SQLCipherService.shared
+}
+```
+
+**When to use `.serialized`:**
+- Tests that use singleton instances (actors, managers)
+- Tests that modify shared file system state
+- Tests that require specific execution order
+
+**Prefer parallel execution when possible** - it's much faster.
+
+### Test Isolation and Sandboxing
+
+**CRITICAL: Tests MUST NEVER touch production data.**
+
+Edge Debug Helper uses **runtime detection** to isolate test data:
+
+```swift
+// In SQLCipherService.swift
+private func getDatabasePath() throws -> URL {
+    // Detect test environment at runtime
+    let isUnitTesting = NSClassFromString("XCTest") != nil
+    let args = ProcessInfo.processInfo.arguments
+    let isUITesting = args.contains("UI-TESTING")
+
+    let cacheDir: String
+    if isUnitTesting && !isUITesting {
+        cacheDir = "ditto_cache_unit_test"  // Unit tests
+    } else if isUITesting {
+        cacheDir = "ditto_cache_test"       // UI tests
+    } else {
+        cacheDir = "ditto_cache"            // Production
+    }
+
+    // ... rest of method
+}
+```
+
+**Test paths (macOS sandboxed):**
+- Production: `~/Library/Application Support/ditto_cache`
+- Unit tests: `~/Library/Application Support/ditto_cache_unit_test`
+- UI tests: `~/Library/Application Support/ditto_cache_test`
+
+**Why runtime detection instead of compile-time flags?**
+- Works reliably with macOS app sandboxing
+- No TESTING flag needed in Debug builds
+- Normal development runs use production paths
+- Tests automatically use isolated paths
+
+### Test Helper Functions
+
+**Use `TestHelpers.swift` for common test setup:**
+
+```swift
+enum TestHelpers {
+
+    /// Creates a fresh, initialized test database
+    static func setupFreshDatabase() async throws {
+        try await setupUninitializedDatabase()
+        let service = SQLCipherService.shared
+        try await service.initialize()
+    }
+
+    /// Creates a clean test database directory (uninitialized)
+    static func setupUninitializedDatabase() async throws {
+        let service = SQLCipherService.shared
+        await service.resetForTesting()
+
+        let fileManager = FileManager.default
+        let appSupportURL = fileManager.urls(for: .applicationSupportDirectory,
+                                              in: .userDomainMask)[0]
+        let dbDir = appSupportURL.appendingPathComponent("ditto_cache_unit_test")
+
+        // Remove existing test database
+        if fileManager.fileExists(atPath: dbDir.path) {
+            try? fileManager.removeItem(at: dbDir)
+        }
+
+        // Create fresh directory
+        try fileManager.createDirectory(at: dbDir,
+                                       withIntermediateDirectories: true)
+    }
+
+    /// Generate unique test ID
+    static func uniqueTestId(prefix: String = "test") -> String {
+        "\(prefix)-\(UUID().uuidString)"
+    }
+}
+```
+
+**When to use each helper:**
+
+```swift
+// Use setupFreshDatabase() when you need a working database
+@Test("Query executes successfully")
+func testQueryExecution() async throws {
+    try await TestHelpers.setupFreshDatabase()  // Initialized DB
+    let service = SQLCipherService.shared
+
+    let configs = try await service.getAllDatabaseConfigs()
+    #expect(configs.isEmpty)  // Fresh database
+}
+
+// Use setupUninitializedDatabase() to test initialization itself
+@Test("Initialize creates schema")
+func testInitialization() async throws {
+    try await TestHelpers.setupUninitializedDatabase()  // No schema yet
+    let service = SQLCipherService.shared
+
+    try await service.initialize()  // Test initialization
+
+    let version = try await service.getSchemaVersion()
+    #expect(version == 2)
+}
+```
+
+### Complete Unit Test Example
+
+```swift
+import Testing
+@testable import Edge_Debug_Helper
+
+@Suite("SQLCipherService Tests", .serialized)
+struct SQLCipherServiceTests {
+
+    @Suite("Initialization & Encryption")
+    struct InitializationTests {
+
+        @Test("Service initializes successfully", .tags(.database, .encryption))
+        func testInitialization() async throws {
+            // ARRANGE
+            try await TestHelpers.setupUninitializedDatabase()
+            let service = SQLCipherService.shared
+
+            // ACT
+            try await service.initialize()
+
+            // ASSERT
+            let configs = try await service.getAllDatabaseConfigs()
+            #expect(configs.isEmpty)  // Fresh database, no configs yet
+        }
+
+        @Test("Encryption key is generated and stored", .tags(.encryption))
+        func testEncryptionKeyGeneration() async throws {
+            // ARRANGE
+            try await TestHelpers.setupFreshDatabase()
+
+            // ACT
+            let dbDir = TestConfiguration.unitTestDatabasePath
+            let keyFilePath = URL(fileURLWithPath: dbDir)
+                .appendingPathComponent("sqlcipher.key")
+
+            // ASSERT
+            let fileManager = FileManager.default
+            #expect(fileManager.fileExists(atPath: keyFilePath.path))
+
+            let keyData = try Data(contentsOf: keyFilePath)
+            let key = String(data: keyData, encoding: .utf8)
+            #expect(key?.count == 64)  // 256-bit hex key
+        }
+    }
+
+    @Suite("CRUD Operations")
+    struct CRUDTests {
+
+        @Test("Insert database config stores all fields", .tags(.database))
+        func testInsertConfig() async throws {
+            // ARRANGE
+            try await TestHelpers.setupFreshDatabase()
+            let service = SQLCipherService.shared
+
+            let config = SQLCipherService.DatabaseConfigRow(
+                _id: TestHelpers.uniqueTestId(),
+                name: "Test Database",
+                databaseId: "db-test-123",
+                mode: "server",
+                allowUntrustedCerts: false,
+                isBluetoothLeEnabled: true,
+                isLanEnabled: true,
+                isAwdlEnabled: false,
+                isCloudSyncEnabled: true,
+                token: "my-token",
+                authUrl: "https://auth.example.com",
+                websocketUrl: "wss://sync.example.com",
+                httpApiUrl: "https://api.example.com",
+                httpApiKey: "api-key-123",
+                secretKey: ""
+            )
+
+            // ACT
+            try await service.insertDatabaseConfig(config)
+
+            // ASSERT
+            let configs = try await service.getAllDatabaseConfigs()
+            #expect(configs.count == 1)
+            #expect(configs[0]._id == config._id)
+            #expect(configs[0].name == "Test Database")
+            #expect(configs[0].token == "my-token")
+        }
+    }
+}
+```
+
+---
+
+## Mandatory Testing Requirements for New Code
+
+**CRITICAL: The following rules are MANDATORY for all code contributions:**
+
+### 1. All New Code MUST Have Tests
+
+- ✅ New service methods → unit tests required
+- ✅ New repository methods → unit tests required
+- ✅ New view models → unit tests required
+- ✅ New utilities/helpers → unit tests required
+- ✅ Bug fixes → regression test required
+- ❌ No tests → Pull request will be rejected
+
+### 2. Test Coverage Requirements
+
+**Minimum coverage by component type:**
+
+| Component Type | Minimum Coverage | Rationale |
+|---------------|------------------|-----------|
+| **Services** (SQLCipherService, QueryService) | 80% | Critical business logic |
+| **Repositories** (all repositories) | 70% | Data access layer |
+| **Utilities** (DQL generators, parsers) | 75% | Complex logic |
+| **View Models** | 60% | UI state management |
+| **Models** (data classes) | 50% | Getters/setters, simple logic |
+
+**Current project coverage: 15.96%**
+- SQLCipherService: 62.19% coverage ✅
+- Target: Reach 50% overall coverage (Phase 4 in progress)
+
+### 3. Tests Must Follow Standards
+
+- ✅ Use Swift Testing framework (`import Testing`)
+- ✅ Follow AAA pattern (Arrange-Act-Assert)
+- ✅ Include descriptive test names
+- ✅ Use `#expect()` assertions with meaningful messages
+- ✅ Test isolation (use `TestHelpers.setupFreshDatabase()`)
+- ✅ Clean up resources in `deinit`
+- ❌ No skipped tests (`.enabled(if: false)`)
+- ❌ No commented-out tests
+- ❌ No `print()` debugging (use proper logging)
+
+### 4. Tests Must Pass Before Merging
+
+```bash
+# Run all tests before committing
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64"
+
+# Check coverage
+./scripts/generate_coverage_report.sh
+```
+
+**Pre-push validation:**
+- All tests pass ✅
+- Coverage has not decreased ✅
+- No new SwiftLint warnings ✅
+
+### 5. Test Documentation
+
+**Every test file MUST include:**
+
+```swift
+/// Comprehensive test suite for ComponentName
+///
+/// Tests cover:
+/// - Initialization and configuration
+/// - Core functionality (CRUD operations, business logic)
+/// - Error handling and edge cases
+/// - Async operations and concurrency
+///
+/// Each test uses a fresh test database with proper isolation.
+/// Target: 80% code coverage for this component.
+@Suite("Component Name", .serialized)
+struct ComponentNameTests {
+    // ...
+}
+```
+
+### 6. What NOT to Test
+
+**Don't waste time testing:**
+- Simple getters/setters with no logic
+- Third-party library internals (e.g., Ditto SDK)
+- Auto-generated code (e.g., `FontAwesomeIcons.swift`)
+- SwiftUI view layouts (use UI tests instead)
+
+**DO test:**
+- Business logic and algorithms
+- Data transformations
+- Error handling
+- Boundary conditions
+- Integration between components
+
+---
+
+## Test Coverage and Reporting
+
+### Running Coverage Reports
+
+**Generate coverage report:**
+
+```bash
+# Run tests with coverage tracking
+./scripts/generate_coverage_report.sh
+
+# View detailed dashboard
+./scripts/coverage_dashboard.sh
+```
+
+**Output:**
+```
+🧪 Running tests with coverage...
+✅ Tests passed
+
+📊 Coverage Dashboard
+====================
+
+Overall Coverage: 15.96%
+
+SQLCipherService Coverage:
+--------------------------
+SQLCipherService.swift: 62.19% (500/804 lines)
+
+Test Files Coverage:
+--------------------
+SQLCipherServiceTests.swift: 100.00%
+TestHelpers.swift: 100.00%
+```
+
+### Coverage Threshold Enforcement
+
+**Pre-push hook** automatically enforces 50% minimum coverage:
+
+```bash
+# Enable pre-push hook
+chmod +x .git/hooks/pre-push
+
+# Hook runs automatically before every push
+git push origin main
+
+# Bypass once (emergency only)
+git push --no-verify
+```
+
+### Viewing Coverage in Xcode
+
+1. Open `SwiftUI/TestResults.xcresult` in Xcode
+2. Navigate to **Coverage** tab
+3. Browse per-file and per-function coverage
+4. Click on files to see line-by-line coverage highlighting
+
+**Green lines** = covered by tests
+**Red lines** = not covered by tests
+
+### Coverage Best Practices
+
+- **Focus on critical paths first**: Security, data storage, authentication
+- **Don't chase 100% coverage**: 80-90% is realistic and valuable
+- **Test behavior, not implementation**: Don't test private methods directly
+- **Use coverage to find gaps**: Low coverage indicates missing test cases
+
+---
+
 ### Running Tests After Changes
 
 **CRITICAL: Always run tests after making changes to validate the app still works.**
 
+#### Run All Tests
+
 ```bash
-# Run all tests (unit + UI tests)
+# Run all tests (unit + integration + UI tests)
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64"
+
+# Or run via Xcode: Product → Test (⌘U)
+
+# Or use the UI test runner script
 cd SwiftUI
 ./run_ui_tests.sh
-
-# Or run via Xcode
-# Product → Test (⌘U)
-
-# Or run via command line
-xcodebuild test -project "Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -destination "platform=macOS,arch=arm64"
 ```
 
-### UI Tests
+#### Run Specific Test Targets
+
+```bash
+# Run only unit tests (fast - <1 second)
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64" \
+                -only-testing:EdgeStudioUnitTests
+
+# Run only integration tests
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64" \
+                -only-testing:EdgeStudioIntegrationTests
+
+# Run only UI tests (slower - requires app launch)
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64" \
+                -only-testing:EdgeStudioUITests
+```
+
+#### Run Specific Test Suite or Test
+
+```bash
+# Run a specific test suite
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64" \
+                -only-testing:EdgeStudioUnitTests/SQLCipherServiceTests
+
+# Run a single test
+xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+                -scheme "Edge Studio" \
+                -destination "platform=macOS,arch=arm64" \
+                -only-testing:EdgeStudioUnitTests/SQLCipherServiceTests/testInitialization
+```
+
+#### Test Output
+
+**Successful test run:**
+```
+Test Suite 'All tests' passed at 2026-02-17 10:30:15.123.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.892 (0.952) seconds
+```
+
+**Failed test:**
+```
+❌ Test testInsertConfig() failed: Expected 1 config, got 0
+   File: SQLCipherServiceTests.swift:185
+   Assertion: #expect(configs.count == 1)
+```
+
+---
+
+## UI Testing with XCTest
+
+**UI tests use XCTest framework (NOT Swift Testing)** because XCUITest has no Swift Testing alternative.
+
+UI tests validate user workflows, visual layouts, and end-to-end functionality that unit tests cannot cover:
+- App launches successfully
+- User can navigate between views
+- Forms accept input correctly
+- Visual layouts render properly (using screenshots)
+- Database selection and query execution flows work end-to-end
+
+**UI tests are slower than unit tests** (require app launch, window activation, UI rendering), so:
+- Use unit tests for business logic
+- Use UI tests for user workflows and visual validation
+
+### Overview
 
 Comprehensive UI tests validate:
 - App launches successfully

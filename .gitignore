@@ -17,3 +17,9 @@ fontawesome
 SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 .periphery_baseline.json
+
+# Test coverage reports
+SwiftUI/TestResults.xcresult
+SwiftUI/coverage.json
+SwiftUI/coverage.txt
+SwiftUI/coverage_files.txt
