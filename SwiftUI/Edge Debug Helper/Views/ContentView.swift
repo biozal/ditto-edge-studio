@@ -5,15 +5,15 @@ struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
-    // Define columns: 2 for iPad, 1 for iPhone
+    /// Define columns: 2 for iPad, 1 for iPhone
     var columns: [GridItem] {
         #if os(iOS)
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                return Array(
-                    repeating: .init(.flexible(), spacing: 16),
-                    count: 2
-                )
-            }
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            return Array(
+                repeating: .init(.flexible(), spacing: 16),
+                count: 2
+            )
+        }
         #endif
         return [GridItem(.flexible())]
     }
@@ -21,7 +21,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if viewModel.isMainStudioViewPresented,
-                let selectedApp = viewModel.selectedDittoConfigForDatabase
+               let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
                 MainStudioView(
                     isMainStudioViewPresented: Binding(
@@ -51,27 +51,27 @@ struct ContentView: View {
                     .navigationTitle(Text("Registered Ditto Databases"))
                     .toolbar {
                         #if os(iOS)
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    viewModel.showAppEditor(
-                                        DittoConfigForDatabase.new()
-                                    )
-                                } label: {
-                                    FontAwesomeText(icon: ActionIcon.plus, size: 14)
-                                }
-                                .accessibilityIdentifier("AddDatabaseButton")
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                viewModel.showAppEditor(
+                                    DittoConfigForDatabase.new()
+                                )
+                            } label: {
+                                FontAwesomeText(icon: ActionIcon.plus, size: 14)
                             }
+                            .accessibilityIdentifier("AddDatabaseButton")
+                        }
                         #else
-                            ToolbarItem(placement: .automatic) {
-                                Button {
-                                    viewModel.showAppEditor(
-                                        DittoConfigForDatabase.new()
-                                    )
-                                } label: {
-                                    FontAwesomeText(icon: ActionIcon.plus, size: 14)
-                                }
-                                .accessibilityIdentifier("AddDatabaseButton")
+                        ToolbarItem(placement: .automatic) {
+                            Button {
+                                viewModel.showAppEditor(
+                                    DittoConfigForDatabase.new()
+                                )
+                            } label: {
+                                FontAwesomeText(icon: ActionIcon.plus, size: 14)
                             }
+                            .accessibilityIdentifier("AddDatabaseButton")
+                        }
                         #endif
                     }
                     .sheet(
@@ -80,14 +80,15 @@ struct ContentView: View {
                             set: { viewModel.isPresented = $0 }
                         )
                     ) {
-                        DatabaseEditorView(
-                            isPresented: Binding(
-                                get: { viewModel.isPresented },
-                                set: { viewModel.isPresented = $0 }
-                            ),
-                            dittoAppConfig: viewModel.dittoAppToEdit!
-                        )
-                        #if os(macOS)
+                        if let dittoAppConfig = viewModel.dittoAppToEdit {
+                            DatabaseEditorView(
+                                isPresented: Binding(
+                                    get: { viewModel.isPresented },
+                                    set: { viewModel.isPresented = $0 }
+                                ),
+                                dittoAppConfig: dittoAppConfig
+                            )
+                            #if os(macOS)
                             .frame(
                                 minWidth: 600,
                                 idealWidth: 1000,
@@ -96,7 +97,7 @@ struct ContentView: View {
                                 idealHeight: 600,
                                 maxHeight: 650
                             )
-                        #elseif os(iOS)
+                            #elseif os(iOS)
                             .frame(
                                 minWidth: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 800 : nil,
@@ -111,9 +112,10 @@ struct ContentView: View {
                                 maxHeight: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 850 : nil
                             )
-                        #endif
-                        .environmentObject(appState)
-                        .presentationDetents([.medium, .large])
+                            #endif
+                            .environmentObject(appState)
+                            .presentationDetents([.medium, .large])
+                        }
                     }
                 }
             }
@@ -137,11 +139,11 @@ extension ContentView {
         var isLoading = false
         var isMainStudioLoaded = false
 
-        //used for editor
+        // used for editor
         var isPresented = false
         var dittoAppToEdit: DittoConfigForDatabase?
 
-        //used for MainStudioView
+        // used for MainStudioView
         var isMainStudioViewPresented = false
         var selectedDittoConfigForDatabase: DittoConfigForDatabase?
 
@@ -186,7 +188,7 @@ extension ContentView {
                 // 3. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
                 let configs = try await databaseRepository.loadDatabaseConfigs()
-                self.dittoApps = configs
+                dittoApps = configs
 
                 // 4. Set up callback for future updates
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
@@ -202,7 +204,6 @@ extension ContentView {
                 await HistoryRepository.shared.setAppState(appState)
                 await CollectionsRepository.shared.setAppState(appState)
                 await SubscriptionsRepository.shared.setAppState(appState)
-
             } catch {
                 appState.setError(error)
             }

@@ -1,21 +1,25 @@
 import Foundation
 
-/// Repository for managing favorite queries with secure storage
+/// Repository for managing favorite queries with secure encrypted storage
 ///
 /// **Storage Strategy:**
-/// - Per-database isolation (each database has its own favorites file)
+/// - Per-database isolation (each database has its own favorites in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to JSON cache files
+/// - Write-through persistence to encrypted database
+///
+/// **Security:**
+/// - All favorites encrypted at rest with AES-256 (SQLCipher)
+/// - Indexed for fast queries by databaseId
 ///
 /// **Lifecycle:**
-/// 1. Load: Called when database opens → loads from {databaseId}_favorites.json
+/// 1. Load: Called when database opens → loads from SQLCipher
 /// 2. Cache: All operations update in-memory cache first
-/// 3. Persist: Write-through to disk after every change
+/// 3. Persist: Write-through to SQLCipher after every change
 /// 4. Clear: Called when database closes → clears in-memory cache
 actor FavoritesRepository {
     static let shared = FavoritesRepository()
 
-    private let cacheService = SecureCacheService.shared
+    private let sqlCipher = SQLCipherService.shared
     private var appState: AppState?
 
     // In-memory cache for current database session
@@ -31,20 +35,20 @@ actor FavoritesRepository {
 
     /// Loads favorite queries for a specific database into memory
     /// - Parameter databaseId: Database identifier
-    /// - Returns: Array of favorite query items
+    /// - Returns: Array of favorite query items (most recent first)
     /// - Throws: Error if load fails
     func loadFavorites(for databaseId: String) async throws -> [DittoQueryHistory] {
         currentDatabaseId = databaseId
 
-        // Load from cache file
-        let cacheItems = try await cacheService.loadDatabaseFavorites(databaseId)
+        // Load from SQLCipher (ordered by createdDate DESC)
+        let rows = try await sqlCipher.getFavorites(databaseId: databaseId)
 
-        // Convert SecureCacheService.QueryHistoryItem to DittoQueryHistory
-        let favorites = cacheItems.map { item in
+        // Convert SQLCipherService.FavoriteRow to DittoQueryHistory
+        let favorites = rows.map { row in
             DittoQueryHistory(
-                id: item._id,
-                query: item.query,
-                createdDate: item.createdDate
+                id: row._id,
+                query: row.query,
+                createdDate: row.createdDate
             )
         }
 
@@ -54,7 +58,7 @@ actor FavoritesRepository {
         return favorites
     }
 
-    /// Saves a query to favorites (write-through to disk)
+    /// Saves a query to favorites (write-through to SQLCipher)
     /// - Parameter favorite: Favorite query item to save
     /// - Throws: Error if save fails
     func saveFavorite(_ favorite: DittoQueryHistory) async throws {
@@ -64,19 +68,30 @@ actor FavoritesRepository {
 
         do {
             // Check if already exists (by query content)
-            if cachedFavorites.contains(where: { $0.query == favorite.query }) {
+            let existing = try await sqlCipher.getFavorites(databaseId: databaseId)
+
+            if existing.contains(where: { $0.query == favorite.query }) {
                 throw InvalidStateError(message: "Query already exists in favorites")
             }
 
-            // Add to front of list
-            cachedFavorites.insert(favorite, at: 0)
+            // Insert into SQLCipher
+            let row = SQLCipherService.FavoriteRow(
+                _id: favorite.id,
+                databaseId: databaseId,
+                query: favorite.query,
+                createdDate: Date().ISO8601Format()
+            )
+            try await sqlCipher.insertFavorite(row)
 
-            // Persist to disk
-            try await persistFavorites(databaseId: databaseId)
+            // Reload cache from SQLCipher (to maintain proper ordering)
+            cachedFavorites = try await loadFavorites(for: databaseId)
 
             // Notify UI
             notifyFavoritesUpdate()
+
+            Log.debug("Saved favorite query: \(favorite.query.prefix(50))...")
         } catch {
+            Log.error("Failed to save favorite: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -91,15 +106,18 @@ actor FavoritesRepository {
         }
 
         do {
+            // Delete from SQLCipher
+            try await sqlCipher.deleteFavorite(id: id)
+
             // Remove from in-memory cache
             cachedFavorites.removeAll { $0.id == id }
 
-            // Persist to disk
-            try await persistFavorites(databaseId: databaseId)
-
             // Notify UI
             notifyFavoritesUpdate()
+
+            Log.debug("Deleted favorite: \(id)")
         } catch {
+            Log.error("Failed to delete favorite: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -109,6 +127,7 @@ actor FavoritesRepository {
     func clearCache() {
         cachedFavorites = []
         currentDatabaseId = nil
+        Log.debug("FavoritesRepository cache cleared")
     }
 
     // MARK: - State Management
@@ -121,28 +140,7 @@ actor FavoritesRepository {
         onFavoritesUpdate = callback
     }
 
-    /// Clears in-memory cache (call when switching databases)
-    func clearCache() async {
-        cachedFavorites = []
-        currentDatabaseId = nil
-        Log.debug("FavoritesRepository cache cleared")
-    }
-
     // MARK: - Private Helpers
-
-    /// Persists current in-memory cache to disk
-    private func persistFavorites(databaseId: String) async throws {
-        // Convert DittoQueryHistory to SecureCacheService.QueryHistoryItem
-        let cacheItems = cachedFavorites.map { favorite in
-            SecureCacheService.QueryHistoryItem(
-                _id: favorite.id,
-                query: favorite.query,
-                createdDate: favorite.createdDate
-            )
-        }
-
-        try await cacheService.saveDatabaseFavorites(databaseId, favorites: cacheItems)
-    }
 
     private func notifyFavoritesUpdate() {
         onFavoritesUpdate?(cachedFavorites)

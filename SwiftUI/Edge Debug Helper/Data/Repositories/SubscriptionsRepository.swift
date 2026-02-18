@@ -1,24 +1,28 @@
 import DittoSwift
 import Foundation
 
-/// Repository for managing subscription metadata with secure storage
+/// Repository for managing subscription metadata with secure encrypted storage
 ///
 /// **Storage Strategy:**
-/// - Per-database isolation (each database has its own subscriptions file)
+/// - Per-database isolation (each database has its own subscriptions in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to JSON cache files
+/// - Write-through persistence to encrypted database
 /// - **Note**: Live DittoSyncSubscription instances are NOT persisted (only metadata)
 ///
+/// **Security:**
+/// - All subscription metadata encrypted at rest with AES-256 (SQLCipher)
+/// - Indexed for fast queries by databaseId
+///
 /// **Lifecycle:**
-/// 1. Load: Called when database opens → loads from {databaseId}_subscriptions.json
+/// 1. Load: Called when database opens → loads from SQLCipher
 /// 2. Cache: All operations update in-memory cache first
-/// 3. Persist: Write-through to disk after every change
+/// 3. Persist: Write-through to SQLCipher after every change
 /// 4. Clear: Called when database closes → clears in-memory cache and cancels subscriptions
 actor SubscriptionsRepository {
     static let shared = SubscriptionsRepository()
 
     private let dittoManager = DittoManager.shared
-    private let cacheService = SecureCacheService.shared
+    private let sqlCipher = SQLCipherService.shared
     private var appState: AppState?
 
     // In-memory cache for current database session
@@ -39,15 +43,15 @@ actor SubscriptionsRepository {
     func loadSubscriptions(for databaseId: String) async throws -> [DittoSubscription] {
         currentDatabaseId = databaseId
 
-        // Load from cache file
-        let cacheItems = try await cacheService.loadDatabaseSubscriptions(databaseId)
+        // Load from SQLCipher
+        let rows = try await sqlCipher.getSubscriptions(databaseId: databaseId)
 
-        // Convert SecureCacheService.SubscriptionMetadata to DittoSubscription
-        let subscriptions = cacheItems.map { item in
-            var subscription = DittoSubscription(id: item._id)
-            subscription.name = item.name
-            subscription.query = item.query
-            subscription.args = item.args
+        // Convert SQLCipherService.SubscriptionRow to DittoSubscription
+        let subscriptions = rows.map { row in
+            var subscription = DittoSubscription(id: row._id)
+            subscription.name = row.name
+            subscription.query = row.query
+            subscription.args = row.args
             // Note: syncSubscription is NOT restored (must be re-registered by caller)
             return subscription
         }
@@ -58,7 +62,7 @@ actor SubscriptionsRepository {
         return subscriptions
     }
 
-    /// Saves a subscription (write-through to disk) and registers it with Ditto sync
+    /// Saves a subscription (write-through to SQLCipher) and registers it with Ditto sync
     /// - Parameter subscription: Subscription to save
     /// - Throws: Error if save fails
     func saveDittoSubscription(_ subscription: DittoSubscription) async throws {
@@ -73,19 +77,35 @@ actor SubscriptionsRepository {
                 .registerSubscription(query: subscription.query)
             sub.syncSubscription = syncSub
 
-            // Update or add to in-memory cache
-            if let existingIndex = cachedSubscriptions.firstIndex(where: { $0.id == subscription.id }) {
-                cachedSubscriptions[existingIndex] = sub
+            // Check if already exists
+            let existing = try await sqlCipher.getSubscriptions(databaseId: databaseId)
+
+            if existing.contains(where: { $0._id == subscription.id }) {
+                // Already exists, just update the in-memory cache
+                if let existingIndex = cachedSubscriptions.firstIndex(where: { $0.id == subscription.id }) {
+                    cachedSubscriptions[existingIndex] = sub
+                }
             } else {
+                // Insert into SQLCipher
+                let row = SQLCipherService.SubscriptionRow(
+                    _id: subscription.id,
+                    databaseId: databaseId,
+                    name: subscription.name,
+                    query: subscription.query,
+                    args: subscription.args
+                )
+                try await sqlCipher.insertSubscription(row)
+
+                // Add to in-memory cache
                 cachedSubscriptions.append(sub)
             }
 
-            // Persist to disk
-            try await persistSubscriptions(databaseId: databaseId)
-
             // Notify UI
             notifySubscriptionsUpdate()
+
+            Log.debug("Saved subscription: \(subscription.name)")
         } catch {
+            Log.error("Failed to save subscription: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -103,15 +123,18 @@ actor SubscriptionsRepository {
             // Cancel live sync subscription if present
             subscription.syncSubscription?.cancel()
 
+            // Delete from SQLCipher
+            try await sqlCipher.deleteSubscription(id: subscription.id)
+
             // Remove from in-memory cache
             cachedSubscriptions.removeAll { $0.id == subscription.id }
 
-            // Persist to disk
-            try await persistSubscriptions(databaseId: databaseId)
-
             // Notify UI
             notifySubscriptionsUpdate()
+
+            Log.debug("Removed subscription: \(subscription.name)")
         } catch {
+            Log.error("Failed to remove subscription: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -126,6 +149,7 @@ actor SubscriptionsRepository {
 
         cachedSubscriptions = []
         currentDatabaseId = nil
+        Log.debug("SubscriptionsRepository cache cleared")
     }
 
     /// Cancels all active subscriptions (legacy method for backward compatibility)
@@ -147,30 +171,7 @@ actor SubscriptionsRepository {
         onSubscriptionsUpdate = callback
     }
 
-    /// Clears in-memory cache (call when switching databases)
-    func clearCache() async {
-        cachedSubscriptions = []
-        currentDatabaseId = nil
-        Log.debug("SubscriptionsRepository cache cleared")
-    }
-
     // MARK: - Private Helpers
-
-    /// Persists current in-memory cache to disk (without live sync subscriptions)
-    private func persistSubscriptions(databaseId: String) async throws {
-        // Convert DittoSubscription to SecureCacheService.SubscriptionMetadata
-        // Note: syncSubscription is NOT persisted
-        let cacheItems = cachedSubscriptions.map { subscription in
-            SecureCacheService.SubscriptionMetadata(
-                _id: subscription.id,
-                name: subscription.name,
-                query: subscription.query,
-                args: subscription.args
-            )
-        }
-
-        try await cacheService.saveDatabaseSubscriptions(databaseId, subscriptions: cacheItems)
-    }
 
     private func notifySubscriptionsUpdate() {
         onSubscriptionsUpdate?(cachedSubscriptions)

@@ -1,0 +1,31 @@
+Go into plan mode.  I would like to plan a change in the app that would move the local cache data from being stored in Secure Storage and on disk to SQLite Cipher.  
+
+Research SQL Cipher for Swift - here is the repo:
+https://github.com/sqlcipher/SQLCipher.swift
+
+You need to fully understand how to bring SQL Cipher into the project - installation is a bit complex, so make sure you understand how to do this and how you can do it using XCode MCP.
+
+Next make a plan to refactor the following features to use SQL Cipher:
+
+Database Listing/Editor - Found in DatabaseRepository - this should be in a table called databaseConfigs.  This uses the DittoConfigForDatabase model and this can be used to generate the schema for the table.  There should be a primary key which should be the databaseId that is provided as part of the config.  This needs to be unique.  
+
+Subscriptions Listing/Editor - Found in the SubscriptionsRepository - this should be in a table called subscriptions.  This uses the DittoSubscription model and it can be used to generate the schema.  This should have a primary key of id and a foreign key to databaseId in the databaseConfigs table.     
+
+History - Found in the HistoryRepository - this should be in a table called history.  This uses the DittoQueryHistory model and it can be used to generate the schema.  This should have a primary key of id and a foreign key to databaseId in the databaseConfigs table. 
+
+Favorites - Found in the FavoritesRepository - this should be in a table called favorites.  This uses the DittoQueryHistory model and it can be used to generate the schema.  This should have a primary key of id and a foreign key to databaseId in the databaseConfigs table. 
+
+Observerations - Found in the ObservableRepository - this should be in a table called observables.  This uses the DittoObservable model and it can be used to generate the schema.  This should have a primary key of id and a foreign key to databaseId in the databaseConfigs table. 
+
+When a database is removed from the database, all records associated with the database should be removed: subscriptions, history, favorites, and observables.  
+
+Research the most secure way to generate the encryption key for the database.  The database NEEDS to be secure, but we can't check the key into code, nor should someone be able to open up the app folder and find a file with the encyryption key in it.  This is very important to come up with a plan on how we handle the encryption key for the database.
+
+A change was made for supporting Swift Format and Swift Lint that I believe turned off sandbox mode for testing.  Tests right now use the same data as debugging the app and that's not acceptable.  Research macro options or any other option to make it so that tests run against a seperate database than the normal database used by the app.  
+
+The database should be stored in the same directory as we generate for the cache files today.  
+
+You will need to test this feature to make sure it works properly with encyrption, etc so make a plan on how we can make sure that the feature works properly.  The implemenation should use best practices, so look into best practices around SQLite and SQL Cipher.  
+
+Once you have a plan, let me know so I can review it.
+

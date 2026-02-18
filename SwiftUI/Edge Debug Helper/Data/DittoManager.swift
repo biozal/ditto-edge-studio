@@ -52,12 +52,17 @@ actor DittoManager {
             // setup the new selected app
             // need to calculate the directory path so each app has it's own
             // unique directory with /database subdirectory
+
+            // Test isolation: Use separate directory for UI tests
+            let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
+            let baseComponent = isUITesting ? "ditto_apps_test" : "ditto_apps"
+
             let dbname = databaseConfig.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let localDirectoryPath = FileManager.default.urls(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0]
-                .appendingPathComponent("ditto_apps")
+                .appendingPathComponent(baseComponent)
                 .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
                 .appendingPathComponent("database") // NEW: Add database/ subdirectory
 
@@ -68,6 +73,8 @@ actor DittoManager {
                     withIntermediateDirectories: true
                 )
             }
+
+            Log.info("Ditto database path: \(baseComponent)/\(dbname)-\(databaseConfig.databaseId)")
 
             // Validate inputs before trying to create Ditto
             guard !databaseConfig.databaseId.isEmpty, !databaseConfig.token.isEmpty else {

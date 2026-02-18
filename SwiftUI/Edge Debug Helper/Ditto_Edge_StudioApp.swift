@@ -21,11 +21,12 @@ class WindowController {
 }
 
 @main
+// swiftlint:disable:next type_name
 struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
-    @State private var windowSize: CGSize = CGSize(width: 1200, height: 700) // Default size
+    @State private var windowSize = CGSize(width: 1200, height: 700) // Default size
 
     init() {
         // Register Font Awesome fonts programmatically
@@ -49,11 +50,11 @@ struct Ditto_Edge_StudioApp: App {
                 } message: {
                     if let appError = appState.error as? AppError {
                         switch appError {
-                        case .error(let message):
+                        case let .error(message):
                             Text(message)
                         }
                     } else {
-                        Text( appState.error?.localizedDescription ?? "Unknown Error")
+                        Text(appState.error?.localizedDescription ?? "Unknown Error")
                     }
                 }
                 .environmentObject(appState)
@@ -65,7 +66,7 @@ struct Ditto_Edge_StudioApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
-        .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
+        .handlesExternalEvents(matching: ["*"])
 
         // MARK: - Utility Windows
 
@@ -86,61 +87,60 @@ struct Ditto_Edge_StudioApp: App {
         .defaultSize(width: 600, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) {
-                        // Leave empty to remove New Window command
-                    }
+                // Leave empty to remove New Window command
+            }
 
-                    // MARK: - Help Menu with Font Debug
-                    CommandGroup(replacing: .help) {
-                        Button("User Guide") {
-                            WindowController.openHelpWindow()
-                        }
-                        .keyboardShortcut("h", modifiers: .command)
+            // MARK: - Help Menu with Font Debug
 
-                        Divider()
+            CommandGroup(replacing: .help) {
+                Button("User Guide") {
+                    WindowController.openHelpWindow()
+                }
+                .keyboardShortcut("h", modifiers: .command)
 
-                        Button("Ditto Docs") {
-                            // Open help documentation
-                            if let url = URL(string: "https://docs.ditto.live") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                        .keyboardShortcut("?", modifiers: .command)
+                Divider()
 
-                        Button("Ditto Portal"){
-                            // Open help documentation
-                            if let url = URL(string: "https://portal.ditto.live") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-
-                        Divider()
-                        
-                        Button("Report Issue"){
-                            // Open help documentation
-                            if let url = URL(string: "https://github.com/biozal/ditto-edge-studio/issues") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-
-                        Divider()
-
-                        Button("Font Debug...") {
-                            WindowController.openFontDebugWindow()
-                        }
-                        .keyboardShortcut("d", modifiers: [.command, .shift])
+                Button("Ditto Docs") {
+                    // Open help documentation
+                    if let url = URL(string: "https://docs.ditto.live") {
+                        NSWorkspace.shared.open(url)
                     }
                 }
-        .onChange(of: scenePhase) { newPhase, oldPhase in
+                .keyboardShortcut("?", modifiers: .command)
+
+                Button("Ditto Portal") {
+                    // Open help documentation
+                    if let url = URL(string: "https://portal.ditto.live") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                Divider()
+
+                Button("Report Issue") {
+                    // Open help documentation
+                    if let url = URL(string: "https://github.com/biozal/ditto-edge-studio/issues") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                Divider()
+
+                Button("Font Debug...") {
+                    WindowController.openFontDebugWindow()
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
+        }
+        .onChange(of: scenePhase) { newPhase, _ in
             switch newPhase {
             case .background, .inactive:
-                Task {
-                }
+                Task {}
             case .active:
                 break
             @unknown default:
                 break
             }
         }
-
     }
 }

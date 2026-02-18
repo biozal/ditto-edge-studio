@@ -1,23 +1,27 @@
 import DittoSwift
 import Foundation
 
-/// Repository for managing observable subscriptions with secure storage
+/// Repository for managing observable subscriptions with secure encrypted storage
 ///
 /// **Storage Strategy:**
-/// - Per-database isolation (each database has its own observers file)
+/// - Per-database isolation (each database has its own observers in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to JSON cache files
+/// - Write-through persistence to encrypted database
 /// - **Note**: Live DittoStoreObserver instances are NOT persisted (only metadata)
 ///
+/// **Security:**
+/// - All observable metadata encrypted at rest with AES-256 (SQLCipher)
+/// - Indexed for fast queries by databaseId
+///
 /// **Lifecycle:**
-/// 1. Load: Called when database opens → loads from {databaseId}_observers.json
+/// 1. Load: Called when database opens → loads from SQLCipher
 /// 2. Cache: All operations update in-memory cache first
-/// 3. Persist: Write-through to disk after every change
+/// 3. Persist: Write-through to SQLCipher after every change
 /// 4. Clear: Called when database closes → clears in-memory cache and cancels observers
 actor ObservableRepository {
     static let shared = ObservableRepository()
 
-    private let cacheService = SecureCacheService.shared
+    private let sqlCipher = SQLCipherService.shared
     private var appState: AppState?
 
     // In-memory cache for current database session
@@ -38,17 +42,17 @@ actor ObservableRepository {
     func loadObservers(for databaseId: String) async throws -> [DittoObservable] {
         currentDatabaseId = databaseId
 
-        // Load from cache file
-        let cacheItems = try await cacheService.loadDatabaseObservers(databaseId)
+        // Load from SQLCipher
+        let rows = try await sqlCipher.getObservables(databaseId: databaseId)
 
-        // Convert SecureCacheService.ObservableMetadata to DittoObservable
-        let observables = cacheItems.map { item in
-            var observable = DittoObservable(id: item._id)
-            observable.name = item.name
-            observable.query = item.query
-            observable.args = item.args
-            observable.isActive = item.isActive
-            observable.lastUpdated = item.lastUpdated
+        // Convert SQLCipherService.ObservableRow to DittoObservable
+        let observables = rows.map { row in
+            var observable = DittoObservable(id: row._id)
+            observable.name = row.name
+            observable.query = row.query
+            observable.args = row.args
+            observable.isActive = row.isActive
+            observable.lastUpdated = row.lastUpdated
             // Note: storeObserver is NOT restored (must be re-registered by caller)
             return observable
         }
@@ -59,7 +63,7 @@ actor ObservableRepository {
         return observables
     }
 
-    /// Saves an observable subscription (write-through to disk)
+    /// Saves an observable subscription (write-through to SQLCipher)
     /// - Parameter observable: Observable to save
     /// - Throws: Error if save fails
     func saveDittoObservable(_ observable: DittoObservable) async throws {
@@ -68,19 +72,49 @@ actor ObservableRepository {
         }
 
         do {
-            // Update or add to in-memory cache
-            if let existingIndex = cachedObservables.firstIndex(where: { $0.id == observable.id }) {
-                cachedObservables[existingIndex] = observable
+            // Check if already exists
+            let existing = try await sqlCipher.getObservables(databaseId: databaseId)
+
+            if existing.contains(where: { $0._id == observable.id }) {
+                // Update existing observable
+                let row = SQLCipherService.ObservableRow(
+                    _id: observable.id,
+                    databaseId: databaseId,
+                    name: observable.name,
+                    query: observable.query,
+                    args: observable.args,
+                    isActive: observable.isActive,
+                    lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
+                )
+                try await sqlCipher.updateObservable(row)
+
+                // Update in-memory cache
+                if let existingIndex = cachedObservables.firstIndex(where: { $0.id == observable.id }) {
+                    cachedObservables[existingIndex] = observable
+                }
             } else {
+                // Insert new observable
+                let row = SQLCipherService.ObservableRow(
+                    _id: observable.id,
+                    databaseId: databaseId,
+                    name: observable.name,
+                    query: observable.query,
+                    args: observable.args,
+                    isActive: observable.isActive,
+                    lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
+                )
+                try await sqlCipher.insertObservable(row)
+
+                // Add to in-memory cache
                 cachedObservables.append(observable)
             }
 
-            // Persist to disk
-            try await persistObservables(databaseId: databaseId)
-
             // Notify UI
             notifyObservablesUpdate()
+
+            Log.debug("Saved observable: \(observable.name)")
         } catch {
+            Log.error("Failed to save observable: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -98,15 +132,18 @@ actor ObservableRepository {
             // Cancel live observer if present
             observable.storeObserver?.cancel()
 
+            // Delete from SQLCipher
+            try await sqlCipher.deleteObservable(id: observable.id)
+
             // Remove from in-memory cache
             cachedObservables.removeAll { $0.id == observable.id }
 
-            // Persist to disk
-            try await persistObservables(databaseId: databaseId)
-
             // Notify UI
             notifyObservablesUpdate()
+
+            Log.debug("Removed observable: \(observable.name)")
         } catch {
+            Log.error("Failed to remove observable: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -121,6 +158,7 @@ actor ObservableRepository {
 
         cachedObservables = []
         currentDatabaseId = nil
+        Log.debug("ObservableRepository cache cleared")
     }
 
     // MARK: - State Management
@@ -133,32 +171,7 @@ actor ObservableRepository {
         onObservablesUpdate = callback
     }
 
-    /// Clears in-memory cache (call when switching databases)
-    func clearCache() async {
-        cachedObservables = []
-        currentDatabaseId = nil
-        Log.debug("ObservableRepository cache cleared")
-    }
-
     // MARK: - Private Helpers
-
-    /// Persists current in-memory cache to disk (without live observers)
-    private func persistObservables(databaseId: String) async throws {
-        // Convert DittoObservable to SecureCacheService.ObservableMetadata
-        // Note: storeObserver is NOT persisted
-        let cacheItems = cachedObservables.map { observable in
-            SecureCacheService.ObservableMetadata(
-                _id: observable.id,
-                name: observable.name,
-                query: observable.query,
-                args: observable.args,
-                isActive: observable.isActive,
-                lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
-            )
-        }
-
-        try await cacheService.saveDatabaseObservers(databaseId, observers: cacheItems)
-    }
 
     private func notifyObservablesUpdate() {
         onObservablesUpdate?(cachedObservables)

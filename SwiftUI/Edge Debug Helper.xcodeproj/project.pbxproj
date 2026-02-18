@@ -70,8 +70,10 @@
 				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,
 				QueryResultsViewTests.swift,
+				RepositorySQLCipherIntegrationTests.swift,
 				ResultJsonViewerRegressionTests.swift,
 				ResultTableViewerTests.swift,
+				SQLCipherServiceTests.swift,
 				SystemRepositoryTests.swift,
 				TableResultsParserTests.swift,
 			);
@@ -86,8 +88,10 @@
 				DittoManager_TransportConfigTests.swift,
 				DQLGeneratorTests.swift,
 				QueryResultsViewTests.swift,
+				RepositorySQLCipherIntegrationTests.swift,
 				ResultJsonViewerRegressionTests.swift,
 				ResultTableViewerTests.swift,
+				SQLCipherServiceTests.swift,
 				SystemRepositoryTests.swift,
 				TableResultsParserTests.swift,
 			);

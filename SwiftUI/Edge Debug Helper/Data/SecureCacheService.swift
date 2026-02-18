@@ -23,8 +23,8 @@ import Foundation
 actor SecureCacheService {
     static let shared = SecureCacheService()
 
-    // cacheDirectory is nonisolated because it's immutable after init
-    nonisolated private let cacheDirectory: URL
+    /// cacheDirectory is nonisolated because it's immutable after init
+    private nonisolated let cacheDirectory: URL
 
     private init() {
         let fileManager = FileManager.default
@@ -35,23 +35,23 @@ actor SecureCacheService {
         // Get sandboxed application support directory
         let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let cacheDirURL = baseURL.appendingPathComponent(directoryName)
-        self.cacheDirectory = cacheDirURL
+        cacheDirectory = cacheDirURL
 
-        print("📁 SecureCacheService initializing with directory: \(cacheDirURL.path)")
+        Log.info("📁 SecureCacheService initializing with directory: \(cacheDirURL.path)")
 
         // If in test mode, clean up any previous test data
         if isUITesting && fileManager.fileExists(atPath: cacheDirURL.path) {
             try? fileManager.removeItem(at: cacheDirURL)
-            print("🧪 Cleaned up previous test cache directory")
+            Log.info("🧪 Cleaned up previous test cache directory")
         }
 
         // Create cache directory with proper error handling
         do {
             if !fileManager.fileExists(atPath: cacheDirURL.path) {
                 try fileManager.createDirectory(at: cacheDirURL, withIntermediateDirectories: true, attributes: nil)
-                print("✅ Created cache directory: \(cacheDirURL.path)")
+                Log.info("✅ Created cache directory: \(cacheDirURL.path)")
             } else {
-                print("✅ Cache directory already exists: \(cacheDirURL.path)")
+                Log.info("✅ Cache directory already exists: \(cacheDirURL.path)")
             }
         } catch {
             // Fatal error - app cannot function without cache directory
@@ -302,7 +302,7 @@ actor SecureCacheService {
         if !FileManager.default.fileExists(atPath: cacheDirectory.path) {
             do {
                 try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true, attributes: nil)
-                print("✅ Created cache directory on demand: \(cacheDirectory.path)")
+                Log.info("✅ Created cache directory on demand: \(cacheDirectory.path)")
             } catch {
                 throw CacheError.directoryCreationFailed(error: error)
             }
@@ -310,7 +310,7 @@ actor SecureCacheService {
     }
 
     /// Writes JSON data to file atomically
-    private func writeJSON<T: Encodable>(_ data: T, to url: URL) throws {
+    private func writeJSON(_ data: some Encodable, to url: URL) throws {
         // Ensure directory exists before writing
         try ensureDirectoryExists()
 
@@ -346,11 +346,11 @@ enum CacheError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .writeFailed(let url, let error):
+        case let .writeFailed(url, error):
             return "Failed to write to cache file '\(url)': \(error.localizedDescription)"
-        case .readFailed(let url, let error):
+        case let .readFailed(url, error):
             return "Failed to read cache file '\(url)': \(error.localizedDescription)"
-        case .directoryCreationFailed(let error):
+        case let .directoryCreationFailed(error):
             return "Failed to create cache directory: \(error.localizedDescription)"
         }
     }

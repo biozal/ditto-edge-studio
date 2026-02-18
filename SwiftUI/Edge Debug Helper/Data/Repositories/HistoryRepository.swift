@@ -1,21 +1,25 @@
 import Foundation
 
-/// Repository for managing query history with secure storage
+/// Repository for managing query history with secure encrypted storage
 ///
 /// **Storage Strategy:**
-/// - Per-database isolation (each database has its own history file)
+/// - Per-database isolation (each database has its own history in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to JSON cache files
+/// - Write-through persistence to encrypted database
+///
+/// **Security:**
+/// - All history encrypted at rest with AES-256 (SQLCipher)
+/// - Indexed for fast queries (databaseId, createdDate DESC)
 ///
 /// **Lifecycle:**
-/// 1. Load: Called when database opens → loads from {databaseId}_history.json
+/// 1. Load: Called when database opens → loads from SQLCipher
 /// 2. Cache: All operations update in-memory cache first
-/// 3. Persist: Write-through to disk after every change
+/// 3. Persist: Write-through to SQLCipher after every change
 /// 4. Clear: Called when database closes → clears in-memory cache
 actor HistoryRepository {
     static let shared = HistoryRepository()
 
-    private let cacheService = SecureCacheService.shared
+    private let sqlCipher = SQLCipherService.shared
     private var appState: AppState?
 
     // In-memory cache for current database session
@@ -31,20 +35,20 @@ actor HistoryRepository {
 
     /// Loads query history for a specific database into memory
     /// - Parameter databaseId: Database identifier
-    /// - Returns: Array of query history items
+    /// - Returns: Array of query history items (most recent first)
     /// - Throws: Error if load fails
     func loadHistory(for databaseId: String) async throws -> [DittoQueryHistory] {
         currentDatabaseId = databaseId
 
-        // Load from cache file
-        let cacheItems = try await cacheService.loadDatabaseHistory(databaseId)
+        // Load from SQLCipher (ordered by createdDate DESC)
+        let rows = try await sqlCipher.getHistory(databaseId: databaseId, limit: 1000)
 
-        // Convert SecureCacheService.QueryHistoryItem to DittoQueryHistory
-        let history = cacheItems.map { item in
+        // Convert SQLCipherService.HistoryRow to DittoQueryHistory
+        let history = rows.map { row in
             DittoQueryHistory(
-                id: item._id,
-                query: item.query,
-                createdDate: item.createdDate
+                id: row._id,
+                query: row.query,
+                createdDate: row.createdDate
             )
         }
 
@@ -54,7 +58,7 @@ actor HistoryRepository {
         return history
     }
 
-    /// Saves a query to history (write-through to disk)
+    /// Saves a query to history (write-through to SQLCipher)
     /// - Parameter history: Query history item to save
     /// - Throws: Error if save fails
     func saveQueryHistory(_ history: DittoQueryHistory) async throws {
@@ -63,27 +67,32 @@ actor HistoryRepository {
         }
 
         do {
-            // Check if query already exists in cache
-            if let existingIndex = cachedHistory.firstIndex(where: { $0.query == history.query }) {
-                // Update existing entry's date
-                var updated = cachedHistory[existingIndex]
-                updated.createdDate = Date().ISO8601Format()
-                cachedHistory[existingIndex] = updated
+            // Check if query already exists in SQLCipher (for deduplication)
+            let existing = try await sqlCipher.getHistory(databaseId: databaseId, limit: 1000)
 
-                // Move to front (most recent)
-                let item = cachedHistory.remove(at: existingIndex)
-                cachedHistory.insert(item, at: 0)
-            } else {
-                // Add new entry at front
-                cachedHistory.insert(history, at: 0)
+            if let match = existing.first(where: { $0.query == history.query }) {
+                // Delete old entry (will re-insert with new timestamp)
+                try await sqlCipher.deleteHistory(id: match._id)
             }
 
-            // Persist to disk
-            try await persistHistory(databaseId: databaseId)
+            // Insert with current timestamp
+            let row = SQLCipherService.HistoryRow(
+                _id: history.id,
+                databaseId: databaseId,
+                query: history.query,
+                createdDate: Date().ISO8601Format()
+            )
+            try await sqlCipher.insertHistory(row)
+
+            // Reload cache from SQLCipher (to maintain proper ordering)
+            cachedHistory = try await loadHistory(for: databaseId)
 
             // Notify UI
             notifyHistoryUpdate()
+
+            Log.debug("Saved query history: \(history.query.prefix(50))...")
         } catch {
+            Log.error("Failed to save query history: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -98,15 +107,18 @@ actor HistoryRepository {
         }
 
         do {
+            // Delete from SQLCipher
+            try await sqlCipher.deleteHistory(id: id)
+
             // Remove from in-memory cache
             cachedHistory.removeAll { $0.id == id }
 
-            // Persist to disk
-            try await persistHistory(databaseId: databaseId)
-
             // Notify UI
             notifyHistoryUpdate()
+
+            Log.debug("Deleted query history: \(id)")
         } catch {
+            Log.error("Failed to delete query history: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -120,15 +132,18 @@ actor HistoryRepository {
         }
 
         do {
+            // Delete all from SQLCipher
+            try await sqlCipher.deleteAllHistory(databaseId: databaseId)
+
             // Clear in-memory cache
             cachedHistory = []
 
-            // Persist empty array to disk
-            try await persistHistory(databaseId: databaseId)
-
             // Notify UI
             notifyHistoryUpdate()
+
+            Log.info("Cleared all query history for database: \(databaseId)")
         } catch {
+            Log.error("Failed to clear query history: \(error)")
             appState?.setError(error)
             throw error
         }
@@ -138,6 +153,7 @@ actor HistoryRepository {
     func clearCache() {
         cachedHistory = []
         currentDatabaseId = nil
+        Log.debug("HistoryRepository cache cleared")
     }
 
     // MARK: - State Management
@@ -150,28 +166,7 @@ actor HistoryRepository {
         onHistoryUpdate = callback
     }
 
-    /// Clears in-memory cache (call when switching databases)
-    func clearCache() async {
-        cachedHistory = []
-        currentDatabaseId = nil
-        Log.debug("HistoryRepository cache cleared")
-    }
-
     // MARK: - Private Helpers
-
-    /// Persists current in-memory cache to disk
-    private func persistHistory(databaseId: String) async throws {
-        // Convert DittoQueryHistory to SecureCacheService.QueryHistoryItem
-        let cacheItems = cachedHistory.map { history in
-            SecureCacheService.QueryHistoryItem(
-                _id: history.id,
-                query: history.query,
-                createdDate: history.createdDate
-            )
-        }
-
-        try await cacheService.saveDatabaseHistory(databaseId, history: cacheItems)
-    }
 
     private func notifyHistoryUpdate() {
         onHistoryUpdate?(cachedHistory)
