@@ -102,7 +102,7 @@ actor HistoryRepository {
     /// - Parameter id: History item ID to delete
     /// - Throws: Error if delete fails
     func deleteQueryHistory(_ id: String) async throws {
-        guard let databaseId = currentDatabaseId else {
+        guard currentDatabaseId != nil else {
             throw InvalidStateError(message: "No database selected")
         }
 

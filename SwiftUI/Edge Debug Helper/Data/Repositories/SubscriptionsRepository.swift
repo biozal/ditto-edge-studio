@@ -115,7 +115,7 @@ actor SubscriptionsRepository {
     /// - Parameter subscription: Subscription to remove
     /// - Throws: Error if remove fails
     func removeDittoSubscription(_ subscription: DittoSubscription) async throws {
-        guard let databaseId = currentDatabaseId else {
+        guard currentDatabaseId != nil else {
             throw InvalidStateError(message: "No database selected")
         }
 

@@ -124,7 +124,7 @@ actor ObservableRepository {
     /// - Parameter observable: Observable to remove
     /// - Throws: Error if remove fails
     func removeDittoObservable(_ observable: DittoObservable) async throws {
-        guard let databaseId = currentDatabaseId else {
+        guard currentDatabaseId != nil else {
             throw InvalidStateError(message: "No database selected")
         }
 

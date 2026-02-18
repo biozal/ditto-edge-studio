@@ -101,7 +101,7 @@ actor FavoritesRepository {
     /// - Parameter id: Favorite item ID to delete
     /// - Throws: Error if delete fails
     func deleteFavorite(_ id: String) async throws {
-        guard let databaseId = currentDatabaseId else {
+        guard currentDatabaseId != nil else {
             throw InvalidStateError(message: "No database selected")
         }
 

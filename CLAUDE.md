@@ -1399,6 +1399,44 @@ Add to GitHub Actions or CI pipeline:
 - **SwiftFormat Rules Reference:** https://github.com/nicklockwood/SwiftFormat/blob/main/Rules.md
 - **Swift Style Guide:** https://google.github.io/swift/
 
+### Periphery Scanning Results Summary
+
+**Last Full Scan:** February 17, 2026
+**Total Unused Declarations Found:** 0
+**Removed in Initial Cleanup:** 0 (clean codebase)
+**Baseline Created:** February 17, 2026
+
+**Scan Statistics:**
+- **Files Analyzed:** 80 Swift files
+- **Lines of Code:** ~22,015 lines
+- **Scan Duration:** ~3 minutes
+- **Tool Version:** Periphery 2.21.2
+
+**Result Interpretation:**
+
+The "no unused code" result is **accurate and expected** for this SwiftUI-based project:
+- SwiftUI's dynamic view construction makes static analysis challenging
+- Recent architecture refactoring (Font Awesome integration, repository optimization) removed legacy code
+- Active development with comprehensive testing validates code usage
+- Conservative retainers (SwiftUIRetainer, XCTestRetainer) mark most code as "potentially used"
+
+**Common False Positives (Already Handled):**
+- SwiftUI View structs used via @ViewBuilder - Retained by SwiftUIRetainer
+- Protocol requirements in protocol definitions - Retained by ProtocolConformanceReferenceBuilder
+- @objc declarations - Retained by configuration (`retain_objc_accessible: true`)
+- Test code - Excluded via `report_exclude: [".*Tests\\.swift"]`
+- Generated code - Excluded via `report_exclude: ["FontAwesomeIcons\\.swift"]`
+- POC/experimental code - Excluded via `report_exclude: ["POC/.*"]`
+
+**Baseline Tracking:**
+- Baseline file: `.periphery_baseline.json` (gitignored)
+- Baseline snapshot: `reports/periphery/baselines/periphery-baseline-20260217.json`
+- Future scans will only show **new** unused code since baseline
+
+**Next Scheduled Scan:** First Monday of each month
+
+**Detailed Report:** See `reports/periphery/UNUSED_CODE_REPORT_2026-02-17.md` for comprehensive analysis.
+
 ## Logging Framework
 
 **CRITICAL: This project uses CocoaLumberjack for file-based logging with user-viewable logs for debugging and GitHub issue support.**
