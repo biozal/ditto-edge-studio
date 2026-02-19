@@ -49,9 +49,10 @@ extension MainStudioView {
         }
         .onChange(of: selectedSyncTab) { oldValue, newValue in
             Task {
-                // Stop observer when leaving Peers List tab (tab 0)
+                // Stop only the sync-status observer when leaving Peers List tab (tab 0).
+                // The connections-presence observer stays alive to keep the status bar updating.
                 if oldValue == 0 && newValue != 0 {
-                    await SystemRepository.shared.stopObserver()
+                    await SystemRepository.shared.stopSyncStatusObserver()
                 }
 
                 // Start observer when entering Peers List tab (tab 0)

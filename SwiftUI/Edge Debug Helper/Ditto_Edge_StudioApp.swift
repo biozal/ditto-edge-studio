@@ -26,7 +26,6 @@ struct Ditto_Edge_StudioApp: App {
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
-    @State private var windowSize = CGSize(width: 1200, height: 700) // Default size
 
     init() {
         // Register Font Awesome fonts programmatically
@@ -36,7 +35,6 @@ struct Ditto_Edge_StudioApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .frame(minWidth: windowSize.width, minHeight: windowSize.height)
                 .alert(
                     "Error",
                     isPresented: Binding(
@@ -66,6 +64,7 @@ struct Ditto_Edge_StudioApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        .defaultSize(width: 800, height: 540)
         .handlesExternalEvents(matching: ["*"])
 
         // MARK: - Utility Windows
@@ -89,8 +88,6 @@ struct Ditto_Edge_StudioApp: App {
             CommandGroup(replacing: .newItem) {
                 // Leave empty to remove New Window command
             }
-
-            // MARK: - Help Menu with Font Debug
 
             CommandGroup(replacing: .help) {
                 Button("User Guide") {

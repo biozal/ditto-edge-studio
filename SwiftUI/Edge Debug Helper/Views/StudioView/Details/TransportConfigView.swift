@@ -12,25 +12,24 @@ struct TransportConfigView: View {
         Form {
             // Warning Section
             Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        FontAwesomeText(
-                            icon: StatusIcon.triangleExclamation,
-                            size: 16,
-                            color: .orange
-                        )
+                HStack(alignment: .top, spacing: 12) {
+                    FontAwesomeText(
+                        icon: StatusIcon.triangleExclamation,
+                        size: 16,
+                        color: .orange
+                    )
 
-                        Text(
-                            "Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted."
-                        )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(12)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
+                    Text(
+                        "Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .listRowBackground(Color.orange.opacity(0.1))
+                .listRowInsets(EdgeInsets())
             }
 
             // Peer-to-Peer Transports Section

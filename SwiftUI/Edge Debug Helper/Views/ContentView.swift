@@ -32,6 +32,7 @@ struct ContentView: View {
                 )
                 .environmentObject(appState)
             } else {
+                #if os(iOS)
                 NavigationStack {
                     Group {
                         if viewModel.isLoading {
@@ -50,7 +51,6 @@ struct ContentView: View {
                     }
                     .navigationTitle(Text("Ditto Databases"))
                     .toolbar {
-                        #if os(iOS)
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 viewModel.showAppEditor(
@@ -61,18 +61,6 @@ struct ContentView: View {
                             }
                             .accessibilityIdentifier("AddDatabaseButton")
                         }
-                        #else
-                        ToolbarItem(placement: .automatic) {
-                            Button {
-                                viewModel.showAppEditor(
-                                    DittoConfigForDatabase.new()
-                                )
-                            } label: {
-                                FontAwesomeText(icon: ActionIcon.plus, size: 14)
-                            }
-                            .accessibilityIdentifier("AddDatabaseButton")
-                        }
-                        #endif
                     }
                     .sheet(
                         isPresented: Binding(
@@ -88,16 +76,6 @@ struct ContentView: View {
                                 ),
                                 dittoAppConfig: dittoAppConfig
                             )
-                            #if os(macOS)
-                            .frame(
-                                minWidth: 600,
-                                idealWidth: 1000,
-                                maxWidth: 1920,
-                                minHeight: 600,
-                                idealHeight: 600,
-                                maxHeight: 650
-                            )
-                            #elseif os(iOS)
                             .frame(
                                 minWidth: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 800 : nil,
@@ -112,14 +90,22 @@ struct ContentView: View {
                                 maxHeight: UIDevice.current.userInterfaceIdiom
                                     == .pad ? 850 : nil
                             )
-                            #endif
                             .environmentObject(appState)
                             .presentationDetents([.medium, .large])
                         }
                     }
                 }
+                #else
+                macOSPickerView
+                #endif
             }
         }
+        #if os(macOS)
+        .frame(
+            minWidth: viewModel.isMainStudioViewPresented ? 1200 : 800,
+            minHeight: viewModel.isMainStudioViewPresented ? 700 : 540
+        )
+        #endif
         .onAppear {
             Task {
                 await viewModel.loadApps(appState: appState)
@@ -127,6 +113,158 @@ struct ContentView: View {
         }
     }
 }
+
+// MARK: - macOS Picker View
+
+#if os(macOS)
+extension ContentView {
+    private var sulfurYellow: Color {
+        Color(red: 0.941, green: 0.847, blue: 0.188)
+    }
+
+    var macOSPickerView: some View {
+        ZStack(alignment: .bottomLeading) {
+            Image("ditto-splash")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.20)
+                .ignoresSafeArea()
+
+            HStack {
+                Spacer()
+                DatabaseListPanel(viewModel: viewModel, appState: appState)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 4)
+                    .frame(width: 340, height: 450)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.18),
+                                    Color.black.opacity(0.52)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.trailing, 24)
+
+            VStack(alignment: .center, spacing: 20) {
+                Text("Edge Studio")
+                    .font(.custom("ChakraPetch-Bold", size: 42))
+                    .foregroundColor(sulfurYellow)
+                    .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 2)
+
+                VStack(spacing: 14) {
+                    Button {
+                        viewModel.showAppEditor(DittoConfigForDatabase.new())
+                    } label: {
+                        HStack(spacing: 10) {
+                            FontAwesomeText(icon: ActionIcon.plus, size: 13, color: .white)
+                            Text("Database Config")
+                                .foregroundColor(.white)
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .liquidGlassToolbar()
+                    .accessibilityIdentifier("AddDatabaseButton")
+
+                    Button {
+                        if let url = URL(string: "https://portal.ditto.live") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            FontAwesomeText(icon: ConnectivityIcon.cloud, size: 13, color: .white)
+                            Text("Ditto Portal")
+                                .foregroundColor(.white)
+                                .fontWeight(.medium)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .liquidGlassToolbar()
+                }
+                .frame(width: 200)
+            }
+            .frame(width: 436)
+            .padding(.bottom, 80)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            // Resize window to 800×540 whenever the picker appears —
+            // handles both first launch and returning from MainStudioView.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                guard let window = NSApplication.shared.keyWindow else { return }
+                let fixedSize = NSSize(width: 800, height: 540)
+                window.setContentSize(fixedSize)
+                window.minSize = fixedSize
+                window.maxSize = fixedSize
+                window.styleMask.remove(.resizable)
+                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.center()
+            }
+        }
+        .onDisappear {
+            DispatchQueue.main.async {
+                guard let window = NSApplication.shared.keyWindow else { return }
+                window.styleMask.insert(.resizable)
+                window.minSize = NSSize(width: 1200, height: 700)
+                window.maxSize = NSSize(width: 10000, height: 10000)
+                window.standardWindowButton(.zoomButton)?.isHidden = false
+            }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isPresented },
+                set: { viewModel.isPresented = $0 }
+            )
+        ) {
+            if let dittoAppConfig = viewModel.dittoAppToEdit {
+                DatabaseEditorView(
+                    isPresented: Binding(
+                        get: { viewModel.isPresented },
+                        set: { viewModel.isPresented = $0 }
+                    ),
+                    dittoAppConfig: dittoAppConfig
+                )
+                .frame(
+                    minWidth: 600,
+                    idealWidth: 1000,
+                    maxWidth: 1920,
+                    minHeight: 600,
+                    idealHeight: 600,
+                    maxHeight: 650
+                )
+                .environmentObject(appState)
+                .presentationDetents([.medium, .large])
+            }
+        }
+    }
+}
+#endif
+
+// MARK: - ViewModel
 
 extension ContentView {
     @Observable

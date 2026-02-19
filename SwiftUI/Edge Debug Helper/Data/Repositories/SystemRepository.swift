@@ -187,13 +187,15 @@ actor SystemRepository {
                 FROM system:data_sync_info
                 """
 
-                let jsonResults: [String]
+                // Query DQL for sync metrics; on failure degrade to presence-only data
+                // so cards still render without commit info (rather than showing empty state).
+                var jsonResults: [String] = []
                 do {
                     jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
                 } catch {
-                    // Query failed - skip this update (log error if needed)
                     Log.error("Failed to query system:data_sync_info: \(error.localizedDescription)")
-                    return
+                    // Fall through with empty jsonResults — presence graph is still the source
+                    // of truth for which peers are connected, so cards will still render.
                 }
 
                 // Step 3: Build sync metrics lookup map from DQL results
@@ -314,10 +316,19 @@ actor SystemRepository {
             return
         }
 
+        // Guard against nil callback BEFORE locking the pipeline. If we set
+        // isProcessingUpdate = true and then the optional call is a no-op, the flag
+        // stays true forever and all subsequent updates are silently dropped.
+        guard let callback = onSyncStatusUpdate else {
+            hasPendingUpdate = true
+            pendingStatusItems = statusItems
+            return
+        }
+
         // Mark as processing and send to UI
         isProcessingUpdate = true
 
-        onSyncStatusUpdate?(statusItems) { [weak self] in
+        callback(statusItems) { [weak self] in
             Task {
                 guard let self else { return }
 
@@ -334,6 +345,12 @@ actor SystemRepository {
             hasPendingUpdate = false
             pendingStatusItems = nil
 
+            // CRITICAL: Reset isProcessingUpdate BEFORE calling processSyncStatusUpdate.
+            // processSyncStatusUpdate checks isProcessingUpdate first; if it's still true,
+            // the pending items would be re-queued as pending instead of dispatched,
+            // causing a permanent deadlock where completion() is never called again.
+            isProcessingUpdate = false
+
             // Process the pending update (recursive call)
             await processSyncStatusUpdate(pending)
         } else {
@@ -346,9 +363,20 @@ actor SystemRepository {
         self.appState = appState
     }
 
-    /// Function to set the callback from outside the actor
+    /// Function to set the callback from outside the actor.
+    /// Drains any pending update that queued up before the callback was registered
+    /// (e.g. when the presence observer fires before the new session's callback is set).
     func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo], @escaping () -> Void) -> Void) {
         onSyncStatusUpdate = callback
+
+        // If a pending update arrived while the callback was nil, process it now.
+        if hasPendingUpdate, let pending = pendingStatusItems {
+            hasPendingUpdate = false
+            pendingStatusItems = nil
+            Task {
+                await processSyncStatusUpdate(pending)
+            }
+        }
     }
 
     private func updateDittoServerCount(_ count: Int) {
@@ -416,17 +444,38 @@ actor SystemRepository {
         onConnectionsUpdate = callback
     }
 
-    func stopObserver() {
-        // Use Task to ensure observer cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performObserverCleanup()
-        }
+    /// Stops only the sync-status observer (called when leaving the Peers List tab).
+    ///
+    /// Preserves the connections-presence observer (which drives the status bar) and all
+    /// callbacks. Only the backpressure pipeline state is reset so the next registration
+    /// starts clean.
+    func stopSyncStatusObserver() async {
+        syncStatusObserver = nil
+        isProcessingUpdate = false
+        hasPendingUpdate = false
+        pendingStatusItems = nil
     }
 
-    private func performObserverCleanup() {
+    /// Full session cleanup — stops ALL observers and resets ALL per-session state.
+    ///
+    /// Call this only when closing a database session entirely (not for tab switches).
+    ///
+    /// Previously this fired a `Task.detached` and returned immediately, which caused two bugs:
+    /// 1. The detached task raced with the new session's registration and could nil out
+    ///    newly registered observers after the fact.
+    /// 2. `isProcessingUpdate` was never reset, so a session that closed mid-update left
+    ///    the backpressure pipeline permanently locked — all new updates queued as pending
+    ///    but were never drained.
+    ///
+    /// Callbacks (`onSyncStatusUpdate`, `onConnectionsUpdate`) are intentionally NOT cleared:
+    /// the new session's `setOn*` calls replace them, and `setOnSyncStatusUpdate` drains
+    /// any pending update that arrived before the new callback was registered.
+    func stopObserver() async {
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
         dittoServerCount = 0
+        isProcessingUpdate = false
+        hasPendingUpdate = false
+        pendingStatusItems = nil
     }
 }

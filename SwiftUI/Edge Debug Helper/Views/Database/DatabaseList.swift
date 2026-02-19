@@ -1,12 +1,13 @@
 import Combine
 import SwiftUI
 
+// iOS-only: macOS uses DatabaseListPanel instead
+#if os(iOS)
 struct DatabaseList: View {
     let viewModel: ContentView.ViewModel
     let appState: AppState
 
     var body: some View {
-        #if os(iOS)
         List {
             Section(header: Spacer().frame(height: 24).listRowInsets(EdgeInsets())) {
                 ForEach(viewModel.dittoApps, id: \._id) { dittoApp in
@@ -37,37 +38,6 @@ struct DatabaseList: View {
             }
         }
         .padding(.top, 16)
-        #else
-        List {
-            ForEach(viewModel.dittoApps, id: \._id) { dittoApp in
-                DatabaseCard(dittoApp: dittoApp) {}
-                    .padding(.bottom, 16)
-                    .padding(.top, 16)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task {
-                            await viewModel.showMainStudio(
-                                dittoApp,
-                                appState: appState
-                            )
-                        }
-                    }
-                    .contextMenu {
-                        Button {
-                            viewModel.showAppEditor(dittoApp)
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        Button("Delete") {
-                            Task {
-                                await viewModel.deleteApp(dittoApp, appState: appState)
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("AppCard_\(dittoApp.name)")
-            }
-        }
-        .accessibilityIdentifier("DatabaseList")
-        #endif
     }
 }
+#endif

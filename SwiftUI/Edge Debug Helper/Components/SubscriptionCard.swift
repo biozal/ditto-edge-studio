@@ -1,5 +1,8 @@
 import SwiftUI
 
+private let dittoBlack = Color(red: 42 / 255, green: 41 / 255, blue: 42 / 255)
+private let dittoBlackLight = Color(red: 65 / 255, green: 64 / 255, blue: 65 / 255)
+
 struct SubscriptionCard: View {
     let subscription: DittoSubscription
 
@@ -9,17 +12,20 @@ struct SubscriptionCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(subscription.name)
                     .font(.headline)
+                    .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subscription.query)
                     .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 if let args = subscription.args, !args.isEmpty {
                     Text(args)
                         .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.60))
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -28,17 +34,15 @@ struct SubscriptionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(20)
-        #if os(iOS)
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(20)
-        #else
-            .background(RoundedRectangle(cornerRadius: 20)
-                .fill(.regularMaterial)
-                .overlay(RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)))
-            .cornerRadius(20)
-            .elevatedShadow()
-        #endif
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(
+                    colors: [dittoBlackLight, dittoBlack],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .shadow(color: Color.black.opacity(0.40), radius: 6, x: 0, y: 3)
+        )
     }
 }
 

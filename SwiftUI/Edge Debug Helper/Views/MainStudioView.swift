@@ -122,60 +122,63 @@ struct MainStudioView: View {
             }
         }
         .navigationTitle(viewModel.selectedApp.name)
-        .inspector(isPresented: $showInspector) {
-            inspectorView()
-                .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
-        }
-        .sheet(isPresented: isSheetPresented) {
-            if let subscription = viewModel.editorSubscription {
-                QueryArgumentEditor(
-                    title: subscription.name.isEmpty
-                        ? "New Query Argument"
-                        : subscription.name,
-                    name: subscription.name,
-                    query: subscription.query,
-                    arguments: subscription.args ?? "",
-                    onSave: viewModel.formSaveSubscription,
-                    onCancel: viewModel.formCancel
-                ).environmentObject(appState)
-            } else if let observer = viewModel.editorObservable {
-                QueryArgumentEditor(
-                    title: observer.name.isEmpty
-                        ? "New Observer"
-                        : observer.name,
-                    name: observer.name,
-                    query: observer.query,
-                    arguments: observer.args ?? "",
-                    onSave: viewModel.formSaveObserver,
-                    onCancel: viewModel.formCancel
-                ).environmentObject(appState)
-            }
-        }
-        .sheet(isPresented: $showingImportView) {
-            ImportDataView(isPresented: $showingImportView)
-                .environmentObject(appState)
-        }
-        .sheet(isPresented: $showingImportSubscriptionsView) {
-            ImportSubscriptionsView(
-                isPresented: $showingImportSubscriptionsView,
-                existingSubscriptions: viewModel.subscriptions,
-                selectedAppId: viewModel.selectedApp._id
-            )
-            .environmentObject(appState)
-        }
         #if os(macOS)
-        .toolbar {
-            syncToolbarButton()
-            closeToolbarButton()
-            inspectorToggleButton() // Rightmost, after close button
-        }
+            .background(WindowFrameRestorer())
         #endif
-        .overlay(alignment: .bottom) {
-            ConnectionStatusBar(
-                connections: viewModel.connectionsByTransport,
-                isSyncEnabled: viewModel.isSyncEnabled
-            )
-        }
+            .inspector(isPresented: $showInspector) {
+                inspectorView()
+                    .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
+            }
+            .sheet(isPresented: isSheetPresented) {
+                if let subscription = viewModel.editorSubscription {
+                    QueryArgumentEditor(
+                        title: subscription.name.isEmpty
+                            ? "New Query Argument"
+                            : subscription.name,
+                        name: subscription.name,
+                        query: subscription.query,
+                        arguments: subscription.args ?? "",
+                        onSave: viewModel.formSaveSubscription,
+                        onCancel: viewModel.formCancel
+                    ).environmentObject(appState)
+                } else if let observer = viewModel.editorObservable {
+                    QueryArgumentEditor(
+                        title: observer.name.isEmpty
+                            ? "New Observer"
+                            : observer.name,
+                        name: observer.name,
+                        query: observer.query,
+                        arguments: observer.args ?? "",
+                        onSave: viewModel.formSaveObserver,
+                        onCancel: viewModel.formCancel
+                    ).environmentObject(appState)
+                }
+            }
+            .sheet(isPresented: $showingImportView) {
+                ImportDataView(isPresented: $showingImportView)
+                    .environmentObject(appState)
+            }
+            .sheet(isPresented: $showingImportSubscriptionsView) {
+                ImportSubscriptionsView(
+                    isPresented: $showingImportSubscriptionsView,
+                    existingSubscriptions: viewModel.subscriptions,
+                    selectedAppId: viewModel.selectedApp._id
+                )
+                .environmentObject(appState)
+            }
+        #if os(macOS)
+            .toolbar {
+                syncToolbarButton()
+                closeToolbarButton()
+                inspectorToggleButton() // Rightmost, after close button
+            }
+        #endif
+            .overlay(alignment: .bottom) {
+                ConnectionStatusBar(
+                    connections: viewModel.connectionsByTransport,
+                    isSyncEnabled: viewModel.isSyncEnabled
+                )
+            }
     }
 
     func appNameToolbarLabel() -> some ToolbarContent {
@@ -424,15 +427,18 @@ extension MainStudioView {
                     selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
                 }
 
-                // Note: Sync status observer is now started conditionally when Peers List tab is selected
-                // See .onAppear and .onChange(of: selectedSyncTab) modifiers in syncTabsDetailView()
-
-                // Start observing connections via presence graph
+                // Start observing connections via presence graph (drives bottom status bar)
                 do {
                     try await SystemRepository.shared.registerConnectionsPresenceObserver()
                 } catch {
-                    assertionFailure("Failed to register connections presence observer: \(error)")
+                    // Not a programming error — can happen if the database was closed before
+                    // this async Task completed (e.g. user switched databases quickly).
+                    Log.error("Failed to register connections presence observer: \(error.localizedDescription)")
                 }
+
+                // Note: sync-status observer is registered by syncTabsDetailView().onAppear
+                // (which fires before this Task reaches here). No eager registration needed —
+                // it caused double-registration and backpressure pipeline deadlocks.
 
                 // Fetch local peer info via local query
                 do {
