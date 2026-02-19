@@ -36,7 +36,7 @@ struct ContentView: View {
                     Group {
                         if viewModel.isLoading {
                             AnyView(
-                                ProgressView("Loading Database Configs...")
+                                ProgressView("Loading Registered Databases...")
                                     .progressViewStyle(.circular)
                             )
                         } else if viewModel.dittoApps.isEmpty {
@@ -48,7 +48,7 @@ struct ContentView: View {
                             )
                         }
                     }
-                    .navigationTitle(Text("Registered Ditto Databases"))
+                    .navigationTitle(Text("Ditto Databases"))
                     .toolbar {
                         #if os(iOS)
                         ToolbarItem(placement: .topBarTrailing) {

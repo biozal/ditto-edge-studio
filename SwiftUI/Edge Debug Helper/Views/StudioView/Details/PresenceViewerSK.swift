@@ -119,11 +119,11 @@ struct PresenceViewerSK: View {
                 .font(.caption)
                 .fontWeight(.semibold)
 
-            LegendRow(color: .blue, pattern: "● ● ●", label: "Bluetooth")
-            LegendRow(color: .green, pattern: "████ ████", label: "LAN")
-            LegendRow(color: .pink, pattern: "██ ██ ██", label: "P2P WiFi")
-            LegendRow(color: .orange, pattern: "███·███·", label: "WebSocket")
-            LegendRow(color: .purple, pattern: "████ ○ ████", label: "Cloud")
+            LegendRow(color: ConnectionType.bluetooth.cardColor, pattern: "● ● ●", label: "Bluetooth")
+            LegendRow(color: ConnectionType.accessPoint.cardColor, pattern: "████ ████", label: "LAN")
+            LegendRow(color: ConnectionType.p2pWiFi.cardColor, pattern: "██ ██ ██", label: "P2P WiFi")
+            LegendRow(color: ConnectionType.webSocket.cardColor, pattern: "███·███·", label: "WebSocket")
+            LegendRow(color: SyncStatusInfo.cloudCardColor, pattern: "████ ○ ████", label: "Cloud")
         }
         .padding(12)
         .background(.ultraThinMaterial)

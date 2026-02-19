@@ -1,5 +1,5 @@
 import Testing
-@testable import Edge_Debug_Helper
+@testable import Ditto_Edge_Studio
 
 /// Test suite for CollectionsRepository
 ///

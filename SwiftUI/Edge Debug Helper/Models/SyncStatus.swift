@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Custom enum for peer operating system information
 enum PeerOS: Equatable, Codable {
@@ -62,6 +63,26 @@ enum ConnectionType: Equatable, Codable {
             return ConnectivityIcon.network
         case .unknown:
             return SystemIcon.question
+        }
+    }
+
+    var cardColor: Color {
+        switch self {
+        case .bluetooth: return Color(red: 0.0, green: 0.40, blue: 0.85)
+        case .accessPoint: return Color(red: 0.05, green: 0.52, blue: 0.25)
+        case .p2pWiFi: return Color(red: 0.78, green: 0.10, blue: 0.22)
+        case .webSocket: return Color(red: 0.85, green: 0.48, blue: 0.00)
+        case .unknown: return Color(red: 0.35, green: 0.35, blue: 0.40)
+        }
+    }
+
+    var cardDarkColor: Color {
+        switch self {
+        case .bluetooth: return Color(red: 0.0, green: 0.20, blue: 0.60)
+        case .accessPoint: return Color(red: 0.02, green: 0.32, blue: 0.14)
+        case .p2pWiFi: return Color(red: 0.50, green: 0.04, blue: 0.12)
+        case .webSocket: return Color(red: 0.60, green: 0.30, blue: 0.00)
+        case .unknown: return Color(red: 0.20, green: 0.20, blue: 0.25)
         }
     }
 }
@@ -207,4 +228,9 @@ struct SyncStatusInfo: Identifiable, Equatable {
     var peerType: String {
         isDittoServer ? "Cloud Server" : "Peer Device"
     }
+}
+
+extension SyncStatusInfo {
+    static let cloudCardColor = Color(red: 0.45, green: 0.15, blue: 0.72)
+    static let cloudCardDarkColor = Color(red: 0.28, green: 0.07, blue: 0.48)
 }

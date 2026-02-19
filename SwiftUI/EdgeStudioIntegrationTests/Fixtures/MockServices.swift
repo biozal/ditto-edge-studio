@@ -1,5 +1,5 @@
 import Foundation
-@testable import Edge_Debug_Helper
+@testable import Ditto_Edge_Studio
 
 // MARK: - Mock SQLCipher Service
 

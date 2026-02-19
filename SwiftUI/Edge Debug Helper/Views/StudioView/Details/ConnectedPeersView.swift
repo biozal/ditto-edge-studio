@@ -93,7 +93,8 @@ struct ConnectedPeersView: View {
     // MARK: - Helper Views
 
     private func syncStatusCard(for status: SyncStatusInfo) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let (startColor, endColor) = connectionGradient(for: status)
+        return VStack(alignment: .leading, spacing: 12) {
             // Header with peer type and connection status
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -101,20 +102,21 @@ struct ConnectedPeersView: View {
                     Text(status.deviceName ?? status.peerType)
                         .font(.headline)
                         .bold()
+                        .foregroundColor(.white)
 
                     // Show OS info if available
                     if let osInfo = status.osInfo {
                         HStack(spacing: 4) {
-                            FontAwesomeText(icon: osIcon(for: osInfo), size: 12, color: .secondary)
+                            FontAwesomeText(icon: osIcon(for: osInfo), size: 12, color: .white.opacity(0.80))
                             Text(osInfo.displayName)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.80))
                         }
                     }
 
                     Text(status.id)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.80))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -127,31 +129,33 @@ struct ConnectedPeersView: View {
                         .frame(width: 8, height: 8)
                     Text(status.syncSessionStatus)
                         .font(.subheadline)
-                        .foregroundColor(statusColor(for: status.syncSessionStatus))
+                        .foregroundColor(.white)
                 }
             }
 
-            Divider()
+            Rectangle()
+                .fill(Color.white.opacity(0.25))
+                .frame(height: 1)
 
             // Peer information (new enrichment fields)
             VStack(alignment: .leading, spacing: 8) {
                 // SDK Version
                 if let sdkVersion = status.dittoSDKVersion {
                     HStack {
-                        FontAwesomeText(icon: SystemIcon.sdk, size: 12, color: .secondary)
+                        FontAwesomeText(icon: SystemIcon.sdk, size: 12, color: .white.opacity(0.80))
                         Text("Ditto SDK: \(sdkVersion)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.80))
                     }
                 }
 
                 // Connection address
                 if let addressInfo = status.addressInfo {
                     HStack {
-                        FontAwesomeText(icon: connectionIcon(for: addressInfo.connectionType), size: 12, color: .secondary)
+                        FontAwesomeText(icon: connectionIcon(for: addressInfo.connectionType), size: 12, color: .white.opacity(0.80))
                         Text(addressInfo.displayText)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.80))
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
@@ -163,17 +167,17 @@ struct ConnectedPeersView: View {
                         ScrollView {
                             Text(metadata)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.80))
                                 .textSelection(.enabled)
                                 .padding(.vertical, 4)
                         }
                         .frame(maxHeight: 150)
                     } label: {
                         HStack {
-                            FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .secondary)
+                            FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .white.opacity(0.80))
                             Text("Identity Metadata")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.80))
                         }
                     }
                 }
@@ -182,10 +186,10 @@ struct ConnectedPeersView: View {
                 if let connections = status.connections, !connections.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            FontAwesomeText(icon: SystemIcon.link, size: 12, color: .secondary)
+                            FontAwesomeText(icon: SystemIcon.link, size: 12, color: .white.opacity(0.80))
                             Text("Active Connections (\(connections.count))")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.80))
                         }
 
                         ForEach(connections) { connection in
@@ -197,18 +201,18 @@ struct ConnectedPeersView: View {
                 // Existing sync information
                 if let commitId = status.syncedUpToLocalCommitId {
                     HStack {
-                        FontAwesomeText(icon: SystemIcon.circleCheck, size: 12, color: .green)
+                        FontAwesomeText(icon: SystemIcon.circleCheck, size: 12, color: .white)
                         Text("Synced to commit: \(commitId)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.80))
                     }
                 }
 
                 HStack {
-                    FontAwesomeText(icon: SystemIcon.clock, size: 12, color: .secondary)
+                    FontAwesomeText(icon: SystemIcon.clock, size: 12, color: .white.opacity(0.80))
                     Text("Last update: \(status.formattedLastUpdate)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.80))
                 }
             }
 
@@ -216,35 +220,72 @@ struct ConnectedPeersView: View {
         }
         .padding()
         .frame(minHeight: 280, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 12)
-            .fill(Color(NSColor.controlBackgroundColor))
-            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(LinearGradient(
+                    colors: [startColor, endColor],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
+        )
+        .animation(.easeInOut(duration: 0.4), value: dominantTypeKey(for: status))
     }
 
     private func connectionBadge(for connection: ConnectionInfo, currentPeerId: String) -> some View {
         HStack(spacing: 6) {
-            FontAwesomeText(icon: connection.type.icon, size: 12, color: .secondary)
+            FontAwesomeText(icon: connection.type.icon, size: 12, color: .white.opacity(0.80))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.type.displayName)
                     .font(.caption)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
 
                 if let distance = connection.displayDistance {
                     Text("Distance: \(distance)")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white.opacity(0.80))
                 }
             }
 
             Spacer()
         }
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: 6)
-            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5)))
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.white.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.20)))
+        )
     }
 
     // MARK: - Helper Functions
+
+    private func connectionGradient(for status: SyncStatusInfo) -> (Color, Color) {
+        if status.isDittoServer {
+            return (SyncStatusInfo.cloudCardColor, SyncStatusInfo.cloudCardDarkColor)
+        }
+        let connections = status.connections ?? []
+        if connections
+            .contains(where: { $0.type == .webSocket }) { return (ConnectionType.webSocket.cardColor, ConnectionType.webSocket.cardDarkColor) }
+        if connections.contains(where: { $0.type == .accessPoint }) { return (
+            ConnectionType.accessPoint.cardColor,
+            ConnectionType.accessPoint.cardDarkColor
+        ) }
+        if connections.contains(where: { $0.type == .p2pWiFi }) { return (ConnectionType.p2pWiFi.cardColor, ConnectionType.p2pWiFi.cardDarkColor) }
+        if connections
+            .contains(where: { $0.type == .bluetooth }) { return (ConnectionType.bluetooth.cardColor, ConnectionType.bluetooth.cardDarkColor) }
+        return (ConnectionType.unknown("").cardColor, ConnectionType.unknown("").cardDarkColor)
+    }
+
+    private func dominantTypeKey(for status: SyncStatusInfo) -> String {
+        if status.isDittoServer { return "cloud" }
+        let connections = status.connections ?? []
+        if connections.contains(where: { $0.type == .webSocket }) { return "websocket" }
+        if connections.contains(where: { $0.type == .accessPoint }) { return "lan" }
+        if connections.contains(where: { $0.type == .p2pWiFi }) { return "p2p" }
+        if connections.contains(where: { $0.type == .bluetooth }) { return "bluetooth" }
+        return "unknown"
+    }
 
     private func statusColor(for status: String) -> Color {
         switch status {

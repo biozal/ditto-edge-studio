@@ -66,24 +66,44 @@ struct ConnectionsByTransport: Codable, Equatable {
     }
 
     /// Array of active (non-zero) transports with display metadata
-    /// Uses Ditto Rainbow colors: WebSocket (Purple), Bluetooth (Blue), P2P WiFi (Pink), LAN/Access Point (Green), Ditto Server (Purple)
+    /// Uses Ditto Rainbow colors: WebSocket (orange), Bluetooth (blue), P2P WiFi (red), LAN/Access Point (green), Ditto Server (purple)
     var activeTransports: [TransportInfo] {
         var transports: [TransportInfo] = []
 
         if webSocket > 0 {
-            transports.append(TransportInfo(name: "WebSocket", count: webSocket, icon: ConnectivityIcon.network, color: .purple))
+            transports.append(TransportInfo(
+                name: "WebSocket",
+                count: webSocket,
+                icon: ConnectivityIcon.network,
+                color: ConnectionType.webSocket.cardColor
+            ))
         }
         if bluetooth > 0 {
-            transports.append(TransportInfo(name: "Bluetooth", count: bluetooth, icon: ConnectivityIcon.bluetooth, color: .blue))
+            transports.append(TransportInfo(
+                name: "Bluetooth",
+                count: bluetooth,
+                icon: ConnectivityIcon.bluetooth,
+                color: ConnectionType.bluetooth.cardColor
+            ))
         }
         if p2pWiFi > 0 {
-            transports.append(TransportInfo(name: "P2P WiFi", count: p2pWiFi, icon: ConnectivityIcon.wifi, color: .pink))
+            transports.append(TransportInfo(name: "P2P WiFi", count: p2pWiFi, icon: ConnectivityIcon.wifi, color: ConnectionType.p2pWiFi.cardColor))
         }
         if accessPoint > 0 {
-            transports.append(TransportInfo(name: "Access Point", count: accessPoint, icon: ConnectivityIcon.broadcastTower, color: .green))
+            transports.append(TransportInfo(
+                name: "Access Point",
+                count: accessPoint,
+                icon: ConnectivityIcon.broadcastTower,
+                color: ConnectionType.accessPoint.cardColor
+            ))
         }
         if dittoServer > 0 {
-            transports.append(TransportInfo(name: "Ditto Server", count: dittoServer, icon: ConnectivityIcon.cloud, color: .purple))
+            transports.append(TransportInfo(
+                name: "Ditto Server",
+                count: dittoServer,
+                icon: ConnectivityIcon.cloud,
+                color: SyncStatusInfo.cloudCardColor
+            ))
         }
 
         return transports

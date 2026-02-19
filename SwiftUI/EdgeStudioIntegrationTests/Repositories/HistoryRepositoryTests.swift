@@ -1,5 +1,5 @@
 import Testing
-@testable import Edge_Debug_Helper
+@testable import Ditto_Edge_Studio
 
 /// Helper: inserts a parent DatabaseConfigRow into SQLCipher to satisfy the
 /// FOREIGN KEY constraint on the `history.databaseId` column.

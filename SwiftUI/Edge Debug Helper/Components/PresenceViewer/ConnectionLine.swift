@@ -59,7 +59,7 @@ class ConnectionLine: SKNode {
                 dashPattern = [16, 3] // Very long dashes (distinct from P2P)
 
             case .p2pWiFi:
-                lineColor = .systemPink
+                lineColor = NSColor(red: 0.78, green: 0.10, blue: 0.22, alpha: 1.0)
                 dashPattern = [6, 3] // Shorter dashes (distinct from LAN)
 
             case .webSocket:

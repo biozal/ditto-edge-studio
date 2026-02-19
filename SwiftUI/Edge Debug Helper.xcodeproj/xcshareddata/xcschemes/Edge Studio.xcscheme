@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0D3F27D22DDA00FA004A69D1"
-               BuildableName = "Edge Debug Helper.app"
+               BuildableName = "Ditto Edge Studio.app"
                BlueprintName = "Edge Debug Helper"
                ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
             </BuildableReference>
@@ -27,13 +27,12 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "NO">
+      shouldUseLaunchSchemeArgsEnv = "YES">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0D3F27D22DDA00FA004A69D1"
-            BuildableName = "Edge Debug Helper.app"
+            BuildableName = "Ditto Edge Studio.app"
             BlueprintName = "Edge Debug Helper"
             ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
          </BuildableReference>
@@ -73,7 +72,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0D3F27D22DDA00FA004A69D1"
-            BuildableName = "Edge Debug Helper.app"
+            BuildableName = "Ditto Edge Studio.app"
             BlueprintName = "Edge Debug Helper"
             ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
          </BuildableReference>
@@ -90,7 +89,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0D3F27D22DDA00FA004A69D1"
-            BuildableName = "Edge Debug Helper.app"
+            BuildableName = "Ditto Edge Studio.app"
             BlueprintName = "Edge Debug Helper"
             ReferencedContainer = "container:Edge Debug Helper.xcodeproj">
          </BuildableReference>
