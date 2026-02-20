@@ -51,13 +51,18 @@ actor NetworkDiagnosticsService {
         let (nwInterfaces, snapshotAwdl) = await snapshotInterfaces()
         let awdlActive = awdlActiveFromMonitor || snapshotAwdl
 
+        // NWPathMonitor can report the same interface name multiple times (e.g. en0 appearing
+        // as both .wifi and another type). Deduplicate by name to avoid duplicate SwiftUI IDs.
+        var seen = Set<String>()
+        let uniqueInterfaces = nwInterfaces.filter { seen.insert($0.name).inserted }
+
         let addrsMap = buildAddressMap()
         let gatewayMap = buildGatewayMap()
         let locationGranted = await checkLocationPermission()
 
         var results: [NetworkInterfaceInfo] = []
 
-        for iface in nwInterfaces {
+        for iface in uniqueInterfaces {
             switch iface.type {
             case .wifi:
                 await results.append(buildWiFiInfo(
@@ -253,8 +258,9 @@ actor NetworkDiagnosticsService {
 
         // SIOCGIFMTU = _IOWR('i', 51, ifreq) = 0xC0206933 on 64-bit macOS
         let SIOCGIFMTU_VALUE: UInt = 0xC020_6933
-        let ok = buf.withUnsafeMutableBytes {
-            Darwin.ioctl(sock, SIOCGIFMTU_VALUE, $0.baseAddress!) == 0
+        let ok = buf.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress else { return false }
+            return Darwin.ioctl(sock, SIOCGIFMTU_VALUE, base) == 0
         }
         guard ok else { return nil }
 
@@ -288,8 +294,9 @@ actor NetworkDiagnosticsService {
 
         // SIOCGIFMEDIA = _IOWR('i', 56, ifmediareq) ≈ 0xC0306938 on 64-bit macOS
         let SIOCGIFMEDIA_VALUE: UInt = 0xC030_6938
-        let ok = buf.withUnsafeMutableBytes {
-            Darwin.ioctl(sock, SIOCGIFMEDIA_VALUE, $0.baseAddress!) == 0
+        let ok = buf.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress else { return false }
+            return Darwin.ioctl(sock, SIOCGIFMEDIA_VALUE, base) == 0
         }
         guard ok else { return (nil, nil) }
 

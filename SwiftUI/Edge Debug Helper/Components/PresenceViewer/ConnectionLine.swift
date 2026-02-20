@@ -1,11 +1,3 @@
-//
-//  ConnectionLine.swift
-//  Edge Debug Helper
-//
-//  Created by Claude on 2026-02-10.
-//  Phase 2: Scene Architecture - Connection Line Rendering
-//
-
 import AppKit
 import DittoSwift
 import SpriteKit

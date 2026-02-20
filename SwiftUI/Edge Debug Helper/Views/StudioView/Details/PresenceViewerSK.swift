@@ -72,10 +72,6 @@ struct PresenceViewerSK: View {
                     .background(.ultraThinMaterial)
                     .cornerRadius(8)
             }
-
-            // Transport settings button
-            TransportSettingsButton()
-                .padding(.leading, 4)
         }
         .padding()
         .background(.ultraThinMaterial)

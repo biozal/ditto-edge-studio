@@ -119,7 +119,7 @@ extension MainStudioView {
                 )
             } else {
                 List(viewModel.observerables) { observer in
-                    observerCard(observer: observer)
+                    ObserverCard(observer: observer)
                         .onTapGesture {
                             viewModel.selectedObservable = observer
                             Task {
@@ -224,35 +224,6 @@ extension MainStudioView {
         }
     }
 
-    private func observerCard(observer: DittoObservable) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15))
-                .shadow(radius: 1)
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(observer.name)
-                        .font(.headline)
-                        .bold()
-                }
-                Spacer()
-                if observer.storeObserver == nil {
-                    Text("Idle")
-                        .font(.subheadline)
-                        .padding(.trailing, 4)
-                } else {
-                    Text("Active")
-                        .font(.subheadline)
-                        .bold()
-                        .padding(.trailing, 4)
-                }
-            }
-            .padding()
-        }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
-    }
-
     func headerView(title: String) -> some View {
         HStack {
             Spacer()
@@ -260,5 +231,67 @@ extension MainStudioView {
                 .padding(.top, 4)
             Spacer()
         }
+    }
+}
+
+// MARK: - ObserverCard
+
+struct ObserverCard: View {
+    let observer: DittoObservable
+    @Environment(\.colorScheme) var colorScheme
+
+    private var isActive: Bool {
+        observer.storeObserver != nil
+    }
+
+    private var gradientColors: [Color] {
+        if isActive {
+            return colorScheme == .dark
+                ? [Color(red: 0.08, green: 0.28, blue: 0.12), Color(red: 0.04, green: 0.16, blue: 0.08)]
+                : [Color(red: 0.82, green: 0.95, blue: 0.82), Color(red: 0.70, green: 0.88, blue: 0.70)]
+        } else {
+            return colorScheme == .dark
+                ? [Color.Ditto.trafficBlack, Color.Ditto.jetBlack]
+                : [Color.Ditto.trafficWhite, Color.Ditto.papyrusWhite]
+        }
+    }
+
+    private var shadowOpacity: Double {
+        colorScheme == .dark ? 0.40 : 0.15
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(observer.name)
+                    .font(.headline)
+                    .bold()
+                    .foregroundColor(.primary)
+            }
+            Spacer()
+            if isActive {
+                Text("Active")
+                    .font(.subheadline)
+                    .bold()
+                    .padding(.trailing, 4)
+            } else {
+                Text("Idle")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.trailing, 4)
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(
+                    colors: gradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .shadow(color: Color.black.opacity(shadowOpacity), radius: 6, x: 0, y: 3)
+        )
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
     }
 }

@@ -3,19 +3,41 @@ import SwiftUI
 extension MainStudioView {
     func syncTabsDetailView() -> some View {
         VStack(spacing: 0) {
-            // Tab selector (segmented picker with icons)
-            Picker("", selection: $selectedSyncTab) {
-                Text("Peers List")
-                    .tag(0)
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Connected Peers")
+                        .font(.title2)
+                        .bold()
+                    if let statusInfo = viewModel.syncStatusItems.first {
+                        Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.leading, 10)
 
-                Text("Presence Viewer")
-                    .tag(1)
+                Spacer()
+
+                // Tab selector (segmented picker with icons)
+                Picker("", selection: $selectedSyncTab) {
+                    Text("Peers List")
+                        .tag(0)
+
+                    Text("Presence Viewer")
+                        .tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("SyncTabPicker")
+
+                Spacer()
+
+                // Right: Transport settings popover button
+                TransportSettingsButton()
+                    .padding(.trailing, 5)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
-            .accessibilityIdentifier("SyncTabPicker")
 
             // Tab content
             Group {
@@ -66,9 +88,7 @@ extension MainStudioView {
 
     func queryDetailView() -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            #if os(macOS)
-            // 50/50 split: 50% editor, 50% results
-            // GeometryReader provides exact percentage heights
+            // 50/50 split using GeometryReader for exact percentage heights (works on all platforms)
             GeometryReader { geometry in
                 VStack(spacing: 0) {
                     // Top section - Query Editor (50% of available height)
@@ -81,7 +101,6 @@ extension MainStudioView {
                     )
                     .frame(height: geometry.size.height * 0.5)
 
-                    // Visual divider
                     Divider()
 
                     // Bottom section - Query Results (50% of available height)
@@ -99,34 +118,7 @@ extension MainStudioView {
                     .frame(height: geometry.size.height * 0.5)
                 }
             }
-            #else
-            VStack(spacing: 0) {
-                // top half
-                QueryEditorView(
-                    queryText: $viewModel.selectedQuery,
-                    executeModes: $viewModel.executeModes,
-                    selectedExecuteMode: $viewModel.selectedExecuteMode,
-                    isLoading: $viewModel.isQueryExecuting,
-                    onExecuteQuery: executeQuery
-                )
-                .frame(maxHeight: .infinity)
-
-                Divider()
-
-                // bottom half
-                QueryResultsView(
-                    jsonResults: $viewModel.jsonResults,
-                    onGetLastQuery: { viewModel.selectedQuery },
-                    onInsertQuery: { dql in
-                        viewModel.selectedQuery = dql
-                    },
-                    onJsonSelected: { json in
-                        viewModel.showJsonInInspector(json)
-                        showInspector = true // Auto-open inspector
-                    }
-                )
-                .frame(maxHeight: .infinity)
-            }
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
         }
@@ -142,42 +134,37 @@ extension MainStudioView {
     }
 
     func observeDetailView() -> some View {
-        VStack(alignment: .trailing) {
-            #if os(macOS)
-            VSplitView {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                } else {
+        VStack(alignment: .leading, spacing: 0) {
+            // 50/50 split using GeometryReader — same pattern as queryDetailView (no VSplitView)
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    // Top pane (50%) — events list, or "no observer" / "no events" states inline
                     observableEventsList()
+                        .frame(height: geometry.size.height * 0.5)
+
+                    Divider()
+
+                    // Bottom pane (50%) — selected event detail
+                    observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
+                        .frame(height: geometry.size.height * 0.5)
                 }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
             }
-            #else
-            VStack {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                } else {
-                    observableEventsList()
-                }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-            }
-            #endif
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 28) // Add padding for status bar height
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
     }
 
     // Observe helper views
 
     private func observableEventsList() -> some View {
         VStack {
-            if viewModel.observableEvents.isEmpty {
+            if viewModel.selectedObservable == nil {
+                ContentUnavailableView(
+                    "No Observer Selected",
+                    systemImage: "exclamationmark.triangle.fill",
+                    description: Text("Select an observer from the sidebar to view events.")
+                )
+            } else if viewModel.observableEvents.isEmpty {
                 ContentUnavailableView(
                     "No Observer Events",
                     systemImage: "exclamationmark.triangle.fill",
@@ -224,18 +211,6 @@ extension MainStudioView {
                 }
                 .navigationTitle("Observer Events")
             }
-        }
-    }
-
-    private func observableDetailNoContent() -> some View {
-        VStack {
-            ContentUnavailableView(
-                "No Observer Selected",
-                systemImage: "exclamationmark.triangle.fill",
-                description: Text(
-                    "Please select an observer from the sidebar to view events."
-                )
-            )
         }
     }
 

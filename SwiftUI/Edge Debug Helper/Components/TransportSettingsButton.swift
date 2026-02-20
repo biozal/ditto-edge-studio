@@ -13,8 +13,8 @@ struct TransportSettingsButton: View {
         } label: {
             Image(systemName: "gearshape")
                 .foregroundStyle(colorScheme == .dark ? Color.Ditto.trafficWhite : .black)
-                .font(.system(size: 20))
-                .padding(10)
+                .font(.system(size: 18))
+                .padding(5)
         }
         .tint(colorScheme == .dark ? Color.Ditto.jetBlack : .white)
         .buttonStyle(.glass)

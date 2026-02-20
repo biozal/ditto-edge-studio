@@ -1,11 +1,3 @@
-//
-//  PresenceNetworkScene.swift
-//  Edge Debug Helper
-//
-//  Created by Claude on 2026-02-10.
-//  Phase 2: Scene Architecture - Network Diagram Scene
-//
-
 import AppKit
 import DittoSwift
 import SpriteKit

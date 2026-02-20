@@ -1,11 +1,3 @@
-//
-//  MockPresenceDataGenerator.swift
-//  Edge Debug Helper
-//
-//  Created by Claude on 2026-02-10.
-//  Phase 8: Test Mode - Mock Data Generator for Testing
-//
-
 import DittoSwift
 import Foundation
 

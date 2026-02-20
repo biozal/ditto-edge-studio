@@ -425,9 +425,8 @@ extension MainStudioView {
                 favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
 
                 // Load observer metadata (without live observers - those must be re-registered)
-                // Note: Observers are managed through repository callbacks, not stored in ViewModel
                 do {
-                    _ = try await ObservableRepository.shared.loadObservers(for: selectedApp.databaseId)
+                    observerables = try await ObservableRepository.shared.loadObservers(for: selectedApp.databaseId)
                 } catch {
                     assertionFailure("Failed to load observers: \(error)")
                 }

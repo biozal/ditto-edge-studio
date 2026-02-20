@@ -18,28 +18,6 @@ struct ConnectedPeersView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            // Header with last update time
-            HStack(alignment: .top, spacing: 12) {
-                // Left: Title
-                VStack(alignment: .leading) {
-                    Text("Connected Peers")
-                        .font(.title2)
-                        .bold()
-                    if let statusInfo = viewModel.syncStatusItems.first {
-                        Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                // Right: Transport settings popover button
-                TransportSettingsButton()
-            }
-            .padding(.horizontal)
-            .padding(.top)
-
             GeometryReader { geometry in
                 let hasLocalPeer = viewModel.localPeerDeviceName != nil
                 let isEmpty = viewModel.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty

@@ -60,8 +60,9 @@ actor ObservableRepository {
             return observable
         }
 
-        // Update in-memory cache
+        // Update in-memory cache and notify UI
         cachedObservables = observables
+        notifyObservablesUpdate()
 
         return observables
     }

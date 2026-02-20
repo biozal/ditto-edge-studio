@@ -1,11 +1,3 @@
-//
-//  NetworkLayoutEngine.swift
-//  Edge Debug Helper
-//
-//  Created by Claude on 2026-02-10.
-//  Phase 3: Layout Algorithm - BFS Ring Assignment
-//
-
 import CoreGraphics
 import Foundation
 

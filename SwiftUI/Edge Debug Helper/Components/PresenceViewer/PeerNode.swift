@@ -1,11 +1,3 @@
-//
-//  PeerNode.swift
-//  Edge Debug Helper
-//
-//  Created by Claude on 2026-02-10.
-//  Phase 2: Scene Architecture - Peer Node with Simple Pill Shape
-//
-
 import AppKit
 import SpriteKit
 
