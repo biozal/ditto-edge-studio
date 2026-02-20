@@ -5,19 +5,6 @@ struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
-    /// Define columns: 2 for iPad, 1 for iPhone
-    var columns: [GridItem] {
-        #if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return Array(
-                repeating: .init(.flexible(), spacing: 16),
-                count: 2
-            )
-        }
-        #endif
-        return [GridItem(.flexible())]
-    }
-
     var body: some View {
         Group {
             if viewModel.isMainStudioViewPresented,
@@ -33,66 +20,7 @@ struct ContentView: View {
                 .environmentObject(appState)
             } else {
                 #if os(iOS)
-                NavigationStack {
-                    Group {
-                        if viewModel.isLoading {
-                            AnyView(
-                                ProgressView("Loading Database Config...")
-                                    .progressViewStyle(.circular)
-                            )
-                        } else {
-                            DatabaseList(
-                                viewModel: viewModel,
-                                appState: appState
-                            )
-                        }
-                    }
-                    .navigationTitle(Text("Ditto Databases"))
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                viewModel.showAppEditor(
-                                    DittoConfigForDatabase.new()
-                                )
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .accessibilityIdentifier("AddDatabaseButton")
-                        }
-                    }
-                    .sheet(
-                        isPresented: Binding(
-                            get: { viewModel.isPresented },
-                            set: { viewModel.isPresented = $0 }
-                        )
-                    ) {
-                        if let dittoAppConfig = viewModel.dittoAppToEdit {
-                            DatabaseEditorView(
-                                isPresented: Binding(
-                                    get: { viewModel.isPresented },
-                                    set: { viewModel.isPresented = $0 }
-                                ),
-                                dittoAppConfig: dittoAppConfig
-                            )
-                            .frame(
-                                minWidth: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 800 : nil,
-                                idealWidth: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 1000 : nil,
-                                maxWidth: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 1080 : nil,
-                                minHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 600 : nil,
-                                idealHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 680 : nil,
-                                maxHeight: UIDevice.current.userInterfaceIdiom
-                                    == .pad ? 850 : nil
-                            )
-                            .environmentObject(appState)
-                            .presentationDetents([.medium, .large])
-                        }
-                    }
-                }
+                iPadPickerView
                 #else
                 macOSPickerView
                 #endif
@@ -202,7 +130,7 @@ extension ContentView {
                     .buttonStyle(.glass)
                     .focusEffectDisabled()
                 }
-                .frame(width: 200)
+                .frame(width: 280)
             }
             .frame(width: 436)
             .padding(.bottom, 60)
@@ -252,6 +180,135 @@ extension ContentView {
                     minHeight: 600,
                     idealHeight: 600,
                     maxHeight: 650
+                )
+                .environmentObject(appState)
+                .presentationDetents([.medium, .large])
+            }
+        }
+    }
+}
+#endif
+
+// MARK: - iPad Picker View
+
+#if os(iOS)
+extension ContentView {
+    var iPadPickerView: some View {
+        ZStack(alignment: .bottomLeading) {
+            // Same splash background as macOS
+            Image("ditto-splash")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.20)
+                .ignoresSafeArea()
+
+            // Floating glass panel — right-center
+            HStack {
+                Spacer()
+                DatabaseListPanel(viewModel: viewModel, appState: appState)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 4)
+                    .frame(width: 340, height: 450)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.18),
+                                    Color.black.opacity(0.52)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.trailing, 24)
+
+            // Branding + action buttons — bottom-left
+            VStack(alignment: .center, spacing: 20) {
+                Text("Edge Studio")
+                    .font(.custom("ChakraPetch-Bold", size: 42))
+                    .foregroundColor(.dittoYellow)
+                    .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 2)
+
+                VStack(spacing: 14) {
+                    Button {
+                        viewModel.showAppEditor(DittoConfigForDatabase.new())
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus")
+                                .foregroundColor(.black)
+                            Text("Database Config")
+                                .foregroundColor(.black)
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(.dittoYellow)
+                    .focusEffectDisabled()
+                    .accessibilityIdentifier("AddDatabaseButton")
+
+                    Button {
+                        if let url = URL(string: "https://portal.ditto.live") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "cloud")
+                                .foregroundColor(.white)
+                            Text("Ditto Portal")
+                                .foregroundColor(.white)
+                                .fontWeight(.medium)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.glass)
+                    .focusEffectDisabled()
+                }
+                .frame(width: 280)
+            }
+            .frame(width: 436)
+            .padding(.bottom, 60)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isPresented },
+                set: { viewModel.isPresented = $0 }
+            )
+        ) {
+            if let dittoAppConfig = viewModel.dittoAppToEdit {
+                DatabaseEditorView(
+                    isPresented: Binding(
+                        get: { viewModel.isPresented },
+                        set: { viewModel.isPresented = $0 }
+                    ),
+                    dittoAppConfig: dittoAppConfig
+                )
+                .frame(
+                    minWidth: 800,
+                    idealWidth: 1000,
+                    maxWidth: 1080,
+                    minHeight: 600,
+                    idealHeight: 680,
+                    maxHeight: 850
                 )
                 .environmentObject(appState)
                 .presentationDetents([.medium, .large])

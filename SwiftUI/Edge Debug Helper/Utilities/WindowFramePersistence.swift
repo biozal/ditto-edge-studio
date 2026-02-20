@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import SwiftUI
 
@@ -112,3 +113,4 @@ struct WindowFrameRestorer: NSViewRepresentable {
         }
     }
 }
+#endif

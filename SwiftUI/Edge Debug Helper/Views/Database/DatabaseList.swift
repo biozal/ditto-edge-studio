@@ -11,7 +11,7 @@ struct DatabaseList: View {
         List {
             Section(header: Spacer().frame(height: 24).listRowInsets(EdgeInsets())) {
                 ForEach(viewModel.dittoApps, id: \._id) { dittoApp in
-                    DittoAppCard(dittoApp: dittoApp) {}
+                    DatabaseCard(dittoApp: dittoApp, onEdit: {})
                         .padding(.bottom, 16)
                         .padding(.top, 16)
                         .contentShape(Rectangle())

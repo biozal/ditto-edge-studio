@@ -50,7 +50,7 @@ struct JsonSyntaxView: View {
                 .font(.system(.body, design: .monospaced))
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .background(Color(nsColor: .textBackgroundColor).opacity(0.05))
+                .background(Color.primary.opacity(0.03))
         }
         .frame(maxWidth: .infinity)
     }

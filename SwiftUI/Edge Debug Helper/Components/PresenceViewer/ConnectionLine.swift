@@ -1,4 +1,3 @@
-import AppKit
 import DittoSwift
 import SpriteKit
 
@@ -13,7 +12,7 @@ class ConnectionLine: SKNode {
 
     private var shapeNode: SKShapeNode!
     private var dashPattern: [CGFloat]
-    private var lineColor: NSColor
+    private var lineColor: SKColor
     private var cloudCircles: [SKShapeNode] = []
 
     // MARK: - Initialization
@@ -51,7 +50,7 @@ class ConnectionLine: SKNode {
                 dashPattern = [16, 3] // Very long dashes (distinct from P2P)
 
             case .p2pWiFi:
-                lineColor = NSColor(red: 0.78, green: 0.10, blue: 0.22, alpha: 1.0)
+                lineColor = SKColor(red: 0.78, green: 0.10, blue: 0.22, alpha: 1.0)
                 dashPattern = [6, 3] // Shorter dashes (distinct from LAN)
 
             case .webSocket:
@@ -258,7 +257,7 @@ class ConnectionLine: SKNode {
     }
 
     /// Get the line color
-    func getColor() -> NSColor {
+    func getColor() -> SKColor {
         lineColor
     }
 }

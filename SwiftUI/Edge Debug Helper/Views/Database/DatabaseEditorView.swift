@@ -28,8 +28,10 @@ struct DatabaseEditorView: View {
                         Spacer()
                     }
 
+                    #if os(macOS)
                     Spacer()
                         .frame(height: 20)
+                    #endif
 
                     Section("Basic Information") {
                         TextField("Name", text: $viewModel.name)
@@ -40,7 +42,9 @@ struct DatabaseEditorView: View {
 
                     Section("Authorization Information") {
                         TextField("Database ID", text: $viewModel.databaseId)
+                        #if os(macOS)
                             .textFieldStyle(.roundedBorder)
+                        #endif
                             .font(.system(.body, design: .monospaced))
                             .lineLimit(1)
                             .trimOnPaste($viewModel.databaseId)
@@ -118,14 +122,18 @@ struct DatabaseEditorView: View {
         switch mode {
         case .server:
             TextField("Token", text: $viewModel.token)
+            #if os(macOS)
                 .textFieldStyle(.roundedBorder)
+            #endif
                 .lineLimit(1)
                 .trimOnPaste($viewModel.token)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("TokenTextField")
         case .smallPeersOnly:
             TextField("Offline Token", text: $viewModel.token)
+            #if os(macOS)
                 .textFieldStyle(.roundedBorder)
+            #endif
                 .lineLimit(1)
                 .trimOnPaste($viewModel.token)
                 .padding(.bottom, 5)
@@ -152,7 +160,9 @@ struct DatabaseEditorView: View {
     private func secretKeySection() -> some View {
         Section("Optional Secret Key") {
             TextField("Shared Key", text: $viewModel.secretKey)
+            #if os(macOS)
                 .textFieldStyle(.roundedBorder)
+            #endif
                 .lineLimit(1)
                 .padding(.bottom, 5)
                 .accessibilityIdentifier("SecretKeyTextField")
@@ -167,12 +177,16 @@ struct DatabaseEditorView: View {
     private func serverInformationSection() -> some View {
         Section("Ditto Server (BigPeer) Information") {
             TextField("Auth URL", text: $viewModel.authUrl)
+            #if os(macOS)
                 .textFieldStyle(.roundedBorder)
+            #endif
                 .lineLimit(1)
                 .accessibilityIdentifier("AuthUrlTextField")
 
             TextField("Websocket URL", text: $viewModel.websocketUrl)
+            #if os(macOS)
                 .textFieldStyle(.roundedBorder)
+            #endif
                 .lineLimit(1)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("WebsocketUrlTextField")
@@ -181,19 +195,23 @@ struct DatabaseEditorView: View {
 
     private func httpApiSection() -> some View {
         Section("Ditto Server - HTTP API - Optional") {
+            TextField("HTTP API URL", text: $viewModel.httpApiUrl)
+            #if os(macOS)
+                .textFieldStyle(.roundedBorder)
+            #endif
+                .lineLimit(1)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("HttpApiUrlTextField")
+
+            TextField("HTTP API Key", text: $viewModel.httpApiKey)
+            #if os(macOS)
+                .textFieldStyle(.roundedBorder)
+            #endif
+                .lineLimit(1)
+                .padding(.bottom, 10)
+                .accessibilityIdentifier("HttpApiKeyTextField")
+
             VStack(alignment: .leading) {
-                TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1)
-                    .padding(.bottom, 8)
-                    .accessibilityIdentifier("HttpApiUrlTextField")
-
-                TextField("HTTP API Key", text: $viewModel.httpApiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1)
-                    .padding(.bottom, 10)
-                    .accessibilityIdentifier("HttpApiKeyTextField")
-
                 Toggle("Allow untrusted certificates", isOn: $viewModel.allowUntrustedCerts)
                     .padding(.bottom, 5)
                     .accessibilityIdentifier("AllowUntrustedCertsToggle")
@@ -288,6 +306,7 @@ struct PasteTrimModifier: ViewModifier {
     @Binding var text: String
 
     func body(content: Content) -> some View {
+        #if os(macOS)
         content
             .onPasteCommand(of: [.plainText]) { providers in
                 for provider in providers {
@@ -300,6 +319,9 @@ struct PasteTrimModifier: ViewModifier {
                     }
                 }
             }
+        #else
+        content
+        #endif
     }
 }
 

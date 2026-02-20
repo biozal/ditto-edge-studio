@@ -47,7 +47,7 @@ struct ImportDataView: View {
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(NSColor.controlBackgroundColor)))
+                        .fill(Color.primary.opacity(0.05)))
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -175,8 +175,12 @@ struct ImportDataView: View {
                                     .foregroundColor(.red)
                                 Spacer()
                                 Button(action: {
+                                    #if os(macOS)
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(error, forType: .string)
+                                    #else
+                                    UIPasteboard.general.string = error
+                                    #endif
                                 }, label: {
                                     HStack(spacing: 4) {
                                         FontAwesomeText(icon: ActionIcon.copy, size: 12)

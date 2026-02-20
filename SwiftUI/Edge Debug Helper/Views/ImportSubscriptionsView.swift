@@ -95,7 +95,9 @@ struct ImportSubscriptionsView: View {
                         set: { _ in viewModel.toggleSelection(for: subscription.id) }
                     ))
                     .labelsHidden()
-                    .toggleStyle(.checkbox)
+                    #if os(macOS)
+                        .toggleStyle(.checkbox)
+                    #endif
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(subscription.collectionName)

@@ -8,6 +8,12 @@ struct MainStudioView: View {
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
     @State var selectedSyncTab = 0 // Persists tab selection
+    @State var queryCurrentPage = 1
+    @State var queryPageSize = 10
+    @State var observerCurrentPage = 1
+    @State var observerPageSize = 25
+    @State var queryIsExporting = false
+    @State var queryCopiedDQLNotification: String?
 
     /// Inspector state
     @State var showInspector = false
@@ -93,19 +99,32 @@ struct MainStudioView: View {
                             }
                         }
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 20))
-                            .padding(4)
+                        Image(systemName: "plus")
+                            .font(.system(size: 16))
+                            .padding(6)
                     }
+                    .buttonStyle(.glass)
+                    .clipShape(Circle())
                     Spacer()
                     if viewModel.selectedSidebarMenuItem.name == "Collections" {
-                        Button("Import") {
+                        Button {
                             showingImportView = true
+                        } label: {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 16))
+                                .padding(6)
                         }
+                        .buttonStyle(.glass)
+                        .clipShape(Circle())
+                        .help("Import JSON data")
                     }
                 }
                 .padding(.leading, 12)
-                .padding(.bottom, 12)
+                #if os(iOS)
+                    .padding(.bottom, 28)
+                #else
+                    .padding(.bottom, 12)
+                #endif
             }
             .padding(.leading, 16)
             .padding(.trailing, 16)
@@ -179,12 +198,6 @@ struct MainStudioView: View {
                 inspectorToggleButton() // Rightmost, after close button
             }
         #endif
-            .overlay(alignment: .bottom) {
-                ConnectionStatusBar(
-                    connections: viewModel.connectionsByTransport,
-                    isSyncEnabled: viewModel.isSyncEnabled
-                )
-            }
     }
 
     func appNameToolbarLabel() -> some ToolbarContent {

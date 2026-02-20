@@ -1054,6 +1054,351 @@ struct EdgeCaseTests {
 
 ---
 
+## Writing UI Tests
+
+**UI tests use XCTest framework (NOT Swift Testing)** because XCUITest has no Swift Testing alternative.
+
+UI tests validate user workflows, visual layouts, and end-to-end functionality that unit tests cannot cover:
+- App launches successfully
+- User can navigate between views
+- Forms accept input correctly
+- Visual layouts render properly (using screenshots)
+- Database selection and query execution flows work end-to-end
+
+**Use unit tests for business logic, UI tests for user workflows and visual validation.**
+
+### Test Files
+- `SwiftUI/Edge Debugg Helper UITests/Ditto_Edge_StudioUITests.swift` - Main UI test suite
+- `SwiftUI/run_ui_tests.sh` - Automated test runner script
+
+### macOS XCUITest Requirements
+
+**CRITICAL: XCUITest on macOS requires specific system permissions to work.**
+
+#### Accessibility Permissions (REQUIRED)
+
+Add these to **System Settings → Privacy & Security → Accessibility:**
+
+1. **Xcode Helper** (Required):
+   ```
+   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/Xcode Helper.app
+   ```
+
+2. **xctest** (Required):
+   ```
+   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
+   ```
+
+**How to Add:** System Settings → Privacy & Security → Accessibility → lock icon → "+" → ⌘⇧G to paste path
+
+**Symptoms of Missing Permissions:**
+- Tests launch app but window stays in Dock
+- UI hierarchy appears empty (0 buttons, 0 controls)
+- Tests fail with "element not found" even though app is running
+
+#### Test Database Setup
+
+UI tests use a separate database directory (`ditto_appconfig_test`) to avoid contaminating production data.
+
+**Setup:**
+1. Copy `SwiftUI/Edge Debug Helper/testDatabaseConfig.plist.example` to `testDatabaseConfig.plist`
+2. Add real test credentials (supports `onlineplayground`, `offlineplayground`, `sharedkey` modes)
+3. Tests auto-load databases when launched with `UI-TESTING` argument
+
+**How it works:**
+- `AppState.init()` detects `UI-TESTING` argument
+- Loads all databases from `testDatabaseConfig.plist`
+- Databases saved to sandboxed test storage via `DatabaseRepository`
+
+#### macOS Window Activation
+
+**Known macOS Bug (macOS 11+):** `NSRunningApplication.activate()` doesn't reliably bring windows to foreground.
+
+**Workaround in Tests:**
+1. Launch app
+2. Wait for window using `waitForExistence()`
+3. Call `app.activate()`
+4. Click the window element to force focus
+5. Retry activation up to 5 times if needed
+
+**After any `tap()` that transitions views:**
+```swift
+firstAppCard.tap()
+app.activate()  // Reactivate to maintain focus
+sleep(1)
+let window = app.windows.firstMatch
+if window.exists {
+    window.click()  // Force window to front
+    sleep(1)
+}
+```
+
+### Screenshot-Based Visual Validation
+
+**CRITICAL: For visual layout bugs, screenshots are REQUIRED for validation.**
+
+```swift
+import XCTest
+
+class VisualLayoutTests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
+    }
+
+    func testInspectorLayout() {
+        // 1. Capture initial state
+        let screenshot1 = app.screenshot()
+        let attachment1 = XCTAttachment(screenshot: screenshot1)
+        attachment1.name = "01-initial-state"
+        attachment1.lifetime = .keepAlways
+        add(attachment1)
+
+        // 2. Validate elements
+        XCTAssertTrue(app.buttons["Subscriptions"].exists, "Sidebar should remain visible")
+
+        // Screenshot serves as visual proof of layout correctness
+    }
+}
+```
+
+**Screenshot Lifetime:**
+- `.deleteOnSuccess` — For CI/automated testing (saves space)
+- `.keepAlways` — For debugging failing tests
+
+**Naming convention:** Use sequential descriptive names: `"01-initial-state"`, `"02-after-action"`, `"FAIL-error-state"`
+
+### Established UI Testing Patterns
+
+#### Pattern 1: Database Setup via Form Automation
+
+**Problem:** Programmatic database loading during app initialization is unreliable due to sandboxing and timing.
+
+**Solution:** Use XCUITest to automate the UI workflow (Add Database button → fill form → save).
+
+```swift
+@MainActor
+private func addDatabasesFromPlist() throws {
+    guard let appBundle = Bundle(identifier: "io.ditto.EdgeStudio"),
+          let path = appBundle.path(forResource: "testDatabaseConfig", ofType: "plist") else {
+        throw XCTSkip("testDatabaseConfig.plist not found")
+    }
+
+    let data = try Data(contentsOf: URL(fileURLWithPath: path))
+    let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+
+    guard let databases = plist?["databases"] as? [[String: Any]] else {
+        throw XCTSkip("testDatabaseConfig.plist missing 'databases' array")
+    }
+
+    for (index, config) in databases.enumerated() {
+        try addSingleDatabase(config: config)
+    }
+}
+
+@MainActor
+private func addSingleDatabase(config: [String: Any]) throws {
+    let name = config["name"] as? String ?? ""
+
+    // Use .firstMatch for nested button hierarchies
+    let addButton = app.buttons["AddDatabaseButton"].firstMatch
+    guard addButton.waitForExistence(timeout: 5) else {
+        XCTFail("Add Database button not found")
+        return
+    }
+    addButton.tap()
+    sleep(2)  // Wait for sheet animation
+
+    // Wait for form using text field (NOT picker - see Pattern 2)
+    let nameField = app.textFields["NameTextField"]
+    guard nameField.waitForExistence(timeout: 10) else {
+        XCTFail("Form not found")
+        return
+    }
+
+    nameField.tap()
+    sleep(1)  // Allow focus to register
+    nameField.typeText(name)
+
+    // Fill other fields, then save
+    let saveButton = app.buttons["SaveButton"]
+    saveButton.tap()
+    sleep(2)
+
+    // Monitor sheet dismissal
+    for _ in 0..<10 {
+        if !app.sheets.firstMatch.exists { break }
+        usleep(500000)  // 0.5s
+    }
+    sleep(2)  // Wait for database save + UI update
+}
+```
+
+#### Pattern 2: SwiftUI Picker Accessibility
+
+**CRITICAL LIMITATION: SwiftUI Pickers with `.pickerStyle(.segmented)` DO NOT expose as segmented controls in XCUITest.**
+
+```swift
+// ❌ DOESN'T WORK - picker not accessible
+let picker = app.segmentedControls["MyPicker"]
+
+// ✅ WORKS - Use alternative validation elements
+let nameField = app.textFields["NameTextField"]
+guard nameField.waitForExistence(timeout: 10) else { /* ... */ }
+
+// ✅ WORKS - Validate MainStudioView with toolbar button instead of picker
+let closeButton = app.buttons["CloseButton"].firstMatch
+guard closeButton.waitForExistence(timeout: 60) else { /* ... */ }
+```
+
+**Making Pickers Testable:** Replace SF Symbol images with text labels, or use custom button-based controls.
+
+#### Pattern 3: Nested Button Structures (.firstMatch)
+
+FontAwesome and other custom button labels create nested button hierarchies. Always use `.firstMatch`:
+
+```swift
+// ❌ FAILS - Multiple matching elements
+let button = app.buttons["AddDatabaseButton"]
+
+// ✅ WORKS
+let button = app.buttons["AddDatabaseButton"].firstMatch
+```
+
+#### Pattern 4: Timing
+
+| Situation | Approach |
+|-----------|----------|
+| After `tap()` for animations | `sleep(1)` |
+| Waiting for async content | `waitForExistence(timeout:)` |
+| After sheet-opening button | `sleep(2)` |
+| After database save | `sleep(2)` + monitor sheet dismissal |
+| MainStudioView init (slow Ditto) | `waitForExistence(timeout: 60)` |
+
+#### Pattern 5: Standard Helper — ensureMainStudioViewIsOpen()
+
+```swift
+@MainActor
+private func ensureMainStudioViewIsOpen() throws {
+    let closeButton = app.buttons["CloseButton"].firstMatch
+
+    if closeButton.exists { return }
+
+    let addDatabaseButton = app.buttons["AddDatabaseButton"].firstMatch
+    guard addDatabaseButton.waitForExistence(timeout: 5) else {
+        throw XCTSkip("Not on ContentView")
+    }
+
+    let predicate = NSPredicate(format: "identifier BEGINSWITH 'AppCard_'")
+    let firstCard = app.descendants(matching: .any).matching(predicate).firstMatch
+
+    guard firstCard.waitForExistence(timeout: 5) else {
+        throw XCTSkip("No databases found")
+    }
+
+    firstCard.tap()
+    sleep(2)
+
+    // Validate with CloseButton, NOT navigationPicker
+    guard closeButton.waitForExistence(timeout: 30) else {
+        XCTFail("MainStudioView did not open")
+        throw XCTSkip("MainStudioView failed to open")
+    }
+}
+```
+
+#### Pattern 6: Alert Checks on Failure
+
+Always check for alerts before failing — they provide actionable error info:
+
+```swift
+guard element.waitForExistence(timeout: 10) else {
+    if app.alerts.count > 0 {
+        XCTFail("Element not found - Alert: \(app.alerts.firstMatch.label)")
+    } else {
+        XCTFail("Element not found")
+    }
+    throw XCTSkip("Test cannot continue")
+}
+```
+
+#### Pattern 7: Accessibility Identifiers
+
+Add to all testable elements in SwiftUI:
+
+```swift
+Button("Sync") { /* action */ }
+    .accessibilityIdentifier("SyncButton")
+```
+
+**Rules:**
+- Use stable, descriptive names ("SyncButton" not "button1")
+- Apply to buttons, pickers, tabs, containers
+- Never rely on localized text
+
+#### Pattern 8: Complete Test Template
+
+```swift
+@MainActor
+func testNavigationToView() throws {
+    // ARRANGE
+    waitForAppToFinishLoading(timeout: 20)
+    try addDatabasesFromPlist()
+    try ensureMainStudioViewIsOpen()
+
+    // ACT
+    let navigationButton = app.buttons["NavigationItem_Collections"]
+    guard navigationButton.waitForExistence(timeout: 5) else {
+        throw XCTSkip("Navigation not accessible - picker may use SF Symbol images")
+    }
+    navigationButton.tap()
+    sleep(2)
+
+    // ASSERT
+    let headerText = app.staticTexts["Ditto Collections"]
+    XCTAssertTrue(headerText.waitForExistence(timeout: 5))
+
+    // Capture screenshot
+    let screenshot = app.screenshot()
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = "view-loaded"
+    attachment.lifetime = .deleteOnSuccess
+    add(attachment)
+}
+```
+
+### App Launch Flow (Required for UI Tests)
+
+```
+App Launch
+  ↓
+ContentView (database list, isMainStudioViewPresented = false)
+  ├─ AddDatabaseButton (CRITICAL: use this to detect ContentView)
+  ├─ DatabaseList ("DatabaseList" accessibility ID, macOS only)
+  └─ DatabaseCard ("AppCard_{name}" per card - legacy "App" naming)
+     ↓ tap
+MainStudioView (isMainStudioViewPresented = true)
+  ├─ CloseButton (CRITICAL: use this to detect MainStudioView)
+  ├─ NavigationSegmentedPicker (sidebar)
+  └─ InspectorSegmentedPicker (inspector panel)
+```
+
+**Key Rule:** Tests always start in fresh sandbox → always at ContentView → must add databases first.
+
+### UI Testing Documentation Files
+
+- `NAVIGATION_TESTS_UPDATE_SUMMARY.md` - Navigation test patterns and solutions
+- `ADDBUTTON_FIRSTMATCH_FIX.md` - Nested button structure fix
+- `SHEET_TIMING_FIX.md` - macOS sheet timing patterns
+- `PICKER_WORKAROUND_FIX.md` - SwiftUI Picker accessibility issues
+- `SHEET_DISMISS_TIMING_FIX.md` - Sheet dismissal timing patterns
+
+---
+
 ## Troubleshooting
 
 ### Common Issues

@@ -53,7 +53,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "Edge Debug Helper.app"; path = "Ditto Edge Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ditto Edge Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -148,7 +148,7 @@
 		0D3F27D42DDA00FA004A69D1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */,
+				0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */,
 				0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */,
 				0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */,
 				0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */,
@@ -205,7 +205,7 @@
 				0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */,
 			);
 			productName = "Ditto Edge Studio";
-			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */;
+			productReference = 0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */;
 			productType = "com.apple.product-type.application";
 		};
 		0DD95EA12F4584EF0063C203 /* EdgeStudioUnitTests */ = {
@@ -285,7 +285,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					0D3F27D22DDA00FA004A69D1 = {
 						CreatedOnToolsVersion = 16.3;
@@ -596,6 +596,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
@@ -653,6 +654,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";

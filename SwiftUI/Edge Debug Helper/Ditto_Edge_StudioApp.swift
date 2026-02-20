@@ -28,8 +28,11 @@ struct Ditto_Edge_StudioApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
-        // Register Font Awesome fonts programmatically
+        #if os(macOS)
+        // On macOS, programmatic registration ensures fonts are available before first render.
+        // On iOS, UIAppFonts in Info.plist handles registration — manual call causes duplicates.
         FontAwesomeRegistration.registerFonts()
+        #endif
     }
 
     var body: some Scene {
@@ -65,9 +68,20 @@ struct Ditto_Edge_StudioApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 800, height: 540)
-        .handlesExternalEvents(matching: ["*"])
+        .onChange(of: scenePhase) { newPhase, _ in
+            switch newPhase {
+            case .background, .inactive:
+                Task {}
+            case .active:
+                break
+            @unknown default:
+                break
+            }
+        }
 
-        // MARK: - Utility Windows
+        #if os(macOS)
+
+        // MARK: - Utility Windows (macOS only)
 
         // Help Documentation Window
         WindowGroup(id: "help-window") {
@@ -98,7 +112,6 @@ struct Ditto_Edge_StudioApp: App {
                 Divider()
 
                 Button("Ditto Docs") {
-                    // Open help documentation
                     if let url = URL(string: "https://docs.ditto.live") {
                         NSWorkspace.shared.open(url)
                     }
@@ -106,7 +119,6 @@ struct Ditto_Edge_StudioApp: App {
                 .keyboardShortcut("?", modifiers: .command)
 
                 Button("Ditto Portal") {
-                    // Open help documentation
                     if let url = URL(string: "https://portal.ditto.live") {
                         NSWorkspace.shared.open(url)
                     }
@@ -115,7 +127,6 @@ struct Ditto_Edge_StudioApp: App {
                 Divider()
 
                 Button("Report Issue") {
-                    // Open help documentation
                     if let url = URL(string: "https://github.com/biozal/ditto-edge-studio/issues") {
                         NSWorkspace.shared.open(url)
                     }
@@ -129,15 +140,6 @@ struct Ditto_Edge_StudioApp: App {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             }
         }
-        .onChange(of: scenePhase) { newPhase, _ in
-            switch newPhase {
-            case .background, .inactive:
-                Task {}
-            case .active:
-                break
-            @unknown default:
-                break
-            }
-        }
+        #endif
     }
 }

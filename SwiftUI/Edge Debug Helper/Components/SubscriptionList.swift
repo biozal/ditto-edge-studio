@@ -10,11 +10,11 @@ struct SubscriptionList: View {
     var body: some View {
         #if os(iOS)
         List {
-            Section(header: Spacer().frame(height: 24).listRowInsets(EdgeInsets())) {
+            Section(header: Spacer().frame(height: 4).listRowInsets(EdgeInsets())) {
                 ForEach(subscriptions, id: \.id) { subscription in
                     SubscriptionCard(subscription: subscription)
                         .padding(.bottom, 16)
-                        .padding(.top, 16)
+                        .padding(.top, 8)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             Task {

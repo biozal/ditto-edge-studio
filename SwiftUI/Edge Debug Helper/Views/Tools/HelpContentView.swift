@@ -11,7 +11,11 @@ struct HelpContentView: View {
                 .textSelection(.enabled) // Allow copying text
                 .environment(\.openURL, OpenURLAction { url in
                     // Open all links in system browser
+                    #if os(macOS)
                     NSWorkspace.shared.open(url)
+                    #else
+                    UIApplication.shared.open(url)
+                    #endif
                     return .handled
                 })
                 .padding()

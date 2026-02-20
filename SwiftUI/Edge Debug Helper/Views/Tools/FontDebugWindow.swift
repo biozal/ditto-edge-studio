@@ -420,7 +420,9 @@ struct FontDebugWindow: View {
                     Spacer()
 
                     Button {
+                        #if os(macOS)
                         NSApplication.shared.keyWindow?.close()
+                        #endif
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 20))
@@ -451,7 +453,7 @@ struct FontDebugWindow: View {
                 }
             }
             .padding()
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(Color.primary.opacity(0.05))
 
             Divider()
 
@@ -486,7 +488,7 @@ struct FontDebugWindow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
+        .background(Color.primary.opacity(0.05).opacity(0.8))
     }
 
     private func iconRow(_ iconInfo: IconDebugInfo) -> some View {
@@ -548,8 +550,12 @@ struct FontDebugWindow: View {
 
             // Copy button
             Button {
+                #if os(macOS)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(iconInfo.aliasName, forType: .string)
+                #else
+                UIPasteboard.general.string = iconInfo.aliasName
+                #endif
             } label: {
                 Label("Copy", systemImage: "doc.on.doc")
                     .font(.caption)

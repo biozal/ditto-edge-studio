@@ -39,7 +39,7 @@ struct HelpDocumentationWindow: View {
             Spacer()
 
             Button {
-                NSApplication.shared.keyWindow?.close()
+                dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 20))
@@ -51,7 +51,7 @@ struct HelpDocumentationWindow: View {
             .accessibilityIdentifier("CloseHelpButton")
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(.regularMaterial)
     }
 
     private func errorView(_ message: String) -> some View {

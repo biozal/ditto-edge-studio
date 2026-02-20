@@ -1,4 +1,3 @@
-import AppKit
 import DittoSwift
 import SpriteKit
 
@@ -481,8 +480,9 @@ class PresenceNetworkScene: SKScene {
         line.run(fadeIn, withKey: "lineDrawAnimation")
     }
 
-    // MARK: - Mouse/Touch Handling (macOS)
+    // MARK: - Mouse/Touch Handling
 
+    #if os(macOS)
     override func mouseDown(with event: NSEvent) {
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
@@ -523,25 +523,7 @@ class PresenceNetworkScene: SKScene {
     }
 
     override func mouseUp(with event: NSEvent) {
-        // Clear selection and highlighting
-        if let node = selectedNode {
-            node.setHighlighted(false)
-            highlightConnectionsForPeer(node.peerKey, highlighted: false)
-        }
-
-        selectedNode = nil
-        isDraggingNode = false
-        isPanning = false
-
-        // Mark that user interaction has ended
-        isUserInteracting = false
-
-        // If layout was deferred during interaction, trigger it now
-        if needsLayoutAfterInteraction {
-            needsLayoutAfterInteraction = false
-            Log.debug("User interaction ended, running deferred layout animation")
-            recalculateLayout()
-        }
+        endInteraction()
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -597,6 +579,87 @@ class PresenceNetworkScene: SKScene {
             self?.onZoomChanged?(newScale)
         }
     }
+    #else
+
+    // MARK: - Touch Handling (iOS / iPadOS)
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        let touchedNodes = nodes(at: location)
+
+        isUserInteracting = true
+
+        if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
+            selectedNode = peerNode
+            isDraggingNode = true
+            peerNode.setHighlighted(true)
+            highlightConnectionsForPeer(peerNode.peerKey, highlighted: true)
+        } else {
+            isPanning = true
+            lastPanLocation = location
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+
+        if isDraggingNode, let node = selectedNode {
+            node.position = location
+            updateConnectionsForNode(node)
+        } else if isPanning {
+            let previous = touch.previousLocation(in: self)
+            let delta = CGPoint(x: location.x - previous.x, y: location.y - previous.y)
+            cameraNode.position.x -= delta.x
+            cameraNode.position.y -= delta.y
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        endInteraction()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        endInteraction()
+    }
+    #endif
+
+    // MARK: - Shared Interaction End
+
+    private func endInteraction() {
+        if let node = selectedNode {
+            node.setHighlighted(false)
+            highlightConnectionsForPeer(node.peerKey, highlighted: false)
+        }
+
+        selectedNode = nil
+        isDraggingNode = false
+        isPanning = false
+        isUserInteracting = false
+
+        if needsLayoutAfterInteraction {
+            needsLayoutAfterInteraction = false
+            Log.debug("User interaction ended, running deferred layout animation")
+            recalculateLayout()
+        }
+    }
+
+    // MARK: - Zoom (called by UIViewRepresentable pinch gesture on iPad)
+
+    /// Adjust zoom using a pinch gesture scale factor (incremental delta).
+    /// - Parameter pinchScale: The current pinch gesture scale (>1 = zoom in, <1 = zoom out).
+    func adjustZoom(by pinchScale: CGFloat) {
+        guard let camera = cameraNode else { return }
+        // Pinch scale > 1 = spread fingers = zoom in = camera scale decreases
+        let newScale = max(0.5, min(2.0, camera.xScale / pinchScale))
+        let scaleAction = SKAction.scale(to: newScale, duration: 0.1)
+        scaleAction.timingMode = .easeOut
+        camera.run(scaleAction, withKey: "pinchZoom")
+        DispatchQueue.main.async { [weak self] in
+            self?.onZoomChanged?(newScale)
+        }
+    }
 
     // MARK: - Helper Methods
 
@@ -618,10 +681,11 @@ class PresenceNetworkScene: SKScene {
         peerNodes[key]?.position
     }
 
-    /// Enable mouse tracking for hover effects
+    /// Enable mouse tracking for hover effects (macOS only)
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
 
+        #if os(macOS)
         // Ensure view tracks mouse movement for hover effects
         if let view {
             let trackingArea = NSTrackingArea(
@@ -632,6 +696,7 @@ class PresenceNetworkScene: SKScene {
             )
             view.addTrackingArea(trackingArea)
         }
+        #endif
     }
 }
 

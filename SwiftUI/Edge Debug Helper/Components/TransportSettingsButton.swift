@@ -19,10 +19,18 @@ struct TransportSettingsButton: View {
         .tint(colorScheme == .dark ? Color.Ditto.jetBlack : .white)
         .buttonStyle(.glass)
         .clipShape(Circle())
-        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            TransportConfigView()
-                .frame(width: 340)
-                .padding(.vertical, 8)
-        }
+        #if os(iOS)
+            .sheet(isPresented: $showPopover) {
+                TransportConfigView()
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        #else
+            .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+                TransportConfigView()
+                    .frame(width: 340)
+                    .padding(.vertical, 8)
+            }
+        #endif
     }
 }

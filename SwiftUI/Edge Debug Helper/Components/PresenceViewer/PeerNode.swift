@@ -1,4 +1,3 @@
-import AppKit
 import SpriteKit
 
 /// Peer node in the presence network diagram using simple pill/capsule shape.
@@ -106,12 +105,12 @@ class PeerNode: SKNode {
         // Set colors based on local/remote
         if isLocal {
             // Local peer: Blue background (like "Me" in JavaScript version)
-            pillShape.fillColor = NSColor.systemBlue
-            pillShape.strokeColor = NSColor.systemBlue.withAlphaComponent(0.8)
+            pillShape.fillColor = SKColor.systemBlue
+            pillShape.strokeColor = SKColor.systemBlue.withAlphaComponent(0.8)
         } else {
             // Remote peers: Green background (like JavaScript version)
-            pillShape.fillColor = NSColor.systemGreen
-            pillShape.strokeColor = NSColor.systemGreen.withAlphaComponent(0.8)
+            pillShape.fillColor = SKColor.systemGreen
+            pillShape.strokeColor = SKColor.systemGreen.withAlphaComponent(0.8)
         }
 
         pillShape.lineWidth = 2

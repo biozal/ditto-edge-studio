@@ -46,12 +46,19 @@ extension MainStudioView {
                     ConnectedPeersView(viewModel: viewModel)
                 case 1:
                     PresenceViewerSK()
-                        .padding(.bottom, 28) // Add padding for status bar
                 default:
                     ConnectedPeersView(viewModel: viewModel)
                 }
             }
+
+            DetailBottomBar(
+                connections: viewModel.connectionsByTransport,
+                isSyncEnabled: viewModel.isSyncEnabled
+            )
         }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear {
             // Only start observer if Peers List tab (tab 0) is selected
             if selectedSyncTab == 0 {
@@ -82,16 +89,71 @@ extension MainStudioView {
                 }
             }
         }
-        // Note: Toolbar buttons are already added at NavigationSplitView level (line 198)
-        // on macOS, so no need to add them here
+        #if os(iOS)
+        .toolbar {
+            appNameToolbarLabel()
+            syncToolbarButton()
+            closeToolbarButton()
+            inspectorToggleButton()
+        }
+        #endif
+    }
+
+    // MARK: - Pagination helpers (used by queryDetailView)
+
+    private var queryResultsCount: Int {
+        viewModel.jsonResults.count
+    }
+
+    private var queryPageSizes: [Int] {
+        switch queryResultsCount {
+        case 0 ... 10: return [10]
+        case 11 ... 25: return [10, 25]
+        case 26 ... 50: return [10, 25, 50]
+        case 51 ... 100: return [10, 25, 50, 100]
+        case 101 ... 200: return [10, 25, 50, 100, 200]
+        case 201 ... 250: return [10, 25, 50, 100, 200, 250]
+        default: return [10, 25, 50, 100, 200, 250]
+        }
+    }
+
+    private var queryPageCount: Int {
+        max(1, Int(ceil(Double(queryResultsCount) / Double(queryPageSize))))
+    }
+
+    // MARK: - Pagination helpers (used by observeDetailView)
+
+    private var observerEventsCount: Int {
+        viewModel.observableEvents.count
+    }
+
+    private var observerPageSizes: [Int] {
+        switch observerEventsCount {
+        case 0 ... 10: return [10]
+        case 11 ... 25: return [10, 25]
+        case 26 ... 50: return [10, 25, 50]
+        case 51 ... 100: return [10, 25, 50, 100]
+        case 101 ... 200: return [10, 25, 50, 100, 200]
+        default: return [10, 25, 50, 100, 200, 250]
+        }
+    }
+
+    private var observerPageCount: Int {
+        max(1, Int(ceil(Double(observerEventsCount) / Double(observerPageSize))))
+    }
+
+    private var pagedObservableEvents: [DittoObserveEvent] {
+        let start = (observerCurrentPage - 1) * observerPageSize
+        guard start < observerEventsCount else { return [] }
+        let end = min(start + observerPageSize, observerEventsCount)
+        return Array(viewModel.observableEvents[start ..< end])
     }
 
     func queryDetailView() -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 50/50 split using GeometryReader for exact percentage heights (works on all platforms)
+            // Content split — GeometryReader fills all remaining space
             GeometryReader { geometry in
                 VStack(spacing: 0) {
-                    // Top section - Query Editor (50% of available height)
                     QueryEditorView(
                         queryText: $viewModel.selectedQuery,
                         executeModes: $viewModel.executeModes,
@@ -103,34 +165,153 @@ extension MainStudioView {
 
                     Divider()
 
-                    // Bottom section - Query Results (50% of available height)
                     QueryResultsView(
                         jsonResults: $viewModel.jsonResults,
-                        onGetLastQuery: { viewModel.selectedQuery },
-                        onInsertQuery: { dql in
-                            viewModel.selectedQuery = dql
-                        },
+                        currentPage: $queryCurrentPage,
+                        pageSize: $queryPageSize,
                         onJsonSelected: { json in
                             viewModel.showJsonInInspector(json)
-                            showInspector = true // Auto-open inspector
+                            showInspector = true
                         }
                     )
                     .frame(height: geometry.size.height * 0.5)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
+
+            DetailBottomBar(
+                connections: viewModel.connectionsByTransport,
+                isSyncEnabled: viewModel.isSyncEnabled
+            ) {
+                if !viewModel.jsonResults.isEmpty {
+                    PaginationControls(
+                        totalCount: queryResultsCount,
+                        currentPage: $queryCurrentPage,
+                        pageCount: queryPageCount,
+                        pageSize: $queryPageSize,
+                        pageSizes: queryPageSizes,
+                        onPageChange: { newPage in
+                            queryCurrentPage = max(1, min(newPage, queryPageCount))
+                        },
+                        onPageSizeChange: { newSize in
+                            queryPageSize = newSize
+                            queryCurrentPage = 1
+                        }
+                    )
+                    queryGenerateDQLButton
+                    Button { queryIsExporting = true } label: {
+                        FontAwesomeText(icon: ActionIcon.download, size: 14)
+                    }
+                    .help("Export query results to JSON file")
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 28) // Add padding for status bar height
+        .fileExporter(
+            isPresented: $queryIsExporting,
+            document: QueryResultsDocument(jsonData: queryFlattenResults()),
+            contentType: .json,
+            defaultFilename: "query_results"
+        ) { _ in }
+        .overlay(alignment: .top) {
+            if let message = queryCopiedDQLNotification {
+                Text(message)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial)
+                    .background(Color.green.opacity(0.2))
+                    .foregroundColor(.primary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.green.opacity(0.4), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                    .subtleShadow()
+                    .padding(.top, 20)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: queryCopiedDQLNotification)
         #if os(iOS)
             .toolbar {
                 appNameToolbarLabel()
                 syncToolbarButton()
                 closeToolbarButton()
+                inspectorToggleButton()
             }
         #endif
+    }
+
+    // MARK: - Query footer helpers
+
+    private var queryGenerateDQLButton: some View {
+        Menu {
+            Button("SELECT with all fields") { queryGenerateAndInsert(.select) }
+            Button("INSERT template") { queryGenerateAndInsert(.insert) }
+            Button("UPDATE template") { queryGenerateAndInsert(.update) }
+            Button("DELETE template") { queryGenerateAndInsert(.delete) }
+            Button("EVICT template") { queryGenerateAndInsert(.evict) }
+        } label: {
+            FontAwesomeText(icon: DataIcon.code, size: 14)
+        }
+        .disabled(viewModel.jsonResults.isEmpty)
+        .help("Generate DQL statement templates based on query results")
+        .padding(.trailing, 8)
+    }
+
+    private enum QueryDQLStatementType {
+        case select, insert, update, delete, evict
+    }
+
+    private func queryGenerateAndInsert(_ type: QueryDQLStatementType) {
+        let lastQuery = viewModel.selectedQuery
+        guard !lastQuery.isEmpty else {
+            queryShowNotification("No query available")
+            return
+        }
+        let queryInfo = QueryInfo(query: lastQuery)
+        guard let collectionName = queryInfo.collectionName else {
+            queryShowNotification("Could not extract collection name from query")
+            return
+        }
+        let fieldNames = queryExtractFieldNames()
+        let dql: String = switch type {
+        case .select: DQLGenerator.generateSelect(collection: collectionName, fields: fieldNames)
+        case .insert: DQLGenerator.generateInsert(collection: collectionName, fields: fieldNames)
+        case .update: DQLGenerator.generateUpdate(collection: collectionName, fields: fieldNames)
+        case .delete: DQLGenerator.generateDelete(collection: collectionName)
+        case .evict: DQLGenerator.generateEvict(collection: collectionName)
+        }
+        viewModel.selectedQuery = dql
+        queryShowNotification("DQL inserted into editor")
+    }
+
+    private func queryExtractFieldNames() -> [String] {
+        guard let first = viewModel.jsonResults.first,
+              let data = first.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        var keys = Array(obj.keys).sorted()
+        if let idx = keys.firstIndex(of: "_id") {
+            keys.remove(at: idx)
+            keys.insert("_id", at: 0)
+        }
+        return keys
+    }
+
+    private func queryFlattenResults() -> String {
+        let results = viewModel.jsonResults
+        guard results.count > 1 else { return results.first ?? "[]" }
+        return "[\n" + results.joined(separator: ",\n") + "\n]"
+    }
+
+    private func queryShowNotification(_ message: String) {
+        queryCopiedDQLNotification = message
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run { queryCopiedDQLNotification = nil }
+        }
     }
 
     func observeDetailView() -> some View {
@@ -149,9 +330,47 @@ extension MainStudioView {
                         .frame(height: geometry.size.height * 0.5)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+
+            DetailBottomBar(
+                connections: viewModel.connectionsByTransport,
+                isSyncEnabled: viewModel.isSyncEnabled
+            ) {
+                if !viewModel.observableEvents.isEmpty {
+                    PaginationControls(
+                        totalCount: observerEventsCount,
+                        currentPage: $observerCurrentPage,
+                        pageCount: observerPageCount,
+                        pageSize: $observerPageSize,
+                        pageSizes: observerPageSizes,
+                        onPageChange: { newPage in
+                            observerCurrentPage = max(1, min(newPage, observerPageCount))
+                        },
+                        onPageSizeChange: { newSize in
+                            observerPageSize = newSize
+                            observerCurrentPage = 1
+                        }
+                    )
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 28) // Add padding for status bar height
+        .onChange(of: viewModel.observableEvents.count) { _, _ in
+            observerCurrentPage = 1
+            if !observerPageSizes.contains(observerPageSize) {
+                observerPageSize = observerPageSizes.first ?? 25
+            }
+        }
+        #if os(iOS)
+        .toolbar {
+            appNameToolbarLabel()
+            syncToolbarButton()
+            closeToolbarButton()
+            inspectorToggleButton()
+        }
+        #endif
     }
 
     // Observe helper views
@@ -172,7 +391,7 @@ extension MainStudioView {
                 )
             } else {
                 Table(
-                    viewModel.observableEvents,
+                    pagedObservableEvents,
                     selection: Binding<Set<String>>(
                         get: {
                             if let selectedId = viewModel.selectedEventId {

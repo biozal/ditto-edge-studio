@@ -190,8 +190,9 @@ struct LegendRow: View {
     }
 }
 
-// MARK: - SpriteKit Scene View (NSViewRepresentable)
+// MARK: - SpriteKit Scene View (Platform-Specific)
 
+#if os(macOS)
 /// Custom SKView subclass that properly forwards scroll events to the scene
 class ScrollableSKView: SKView {
     override var acceptsFirstResponder: Bool {
@@ -234,6 +235,63 @@ struct SpriteKitSceneView: NSViewRepresentable {
         }
     }
 }
+
+#else
+// iOS / iPadOS
+
+/// UIViewRepresentable wrapper for SKView with pinch-to-zoom support
+struct SpriteKitSceneView: UIViewRepresentable {
+    @Binding var scene: PresenceNetworkScene?
+    let viewModel: PresenceViewerSK.ViewModel
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(viewModel: viewModel)
+    }
+
+    func makeUIView(context: Context) -> SKView {
+        let skView = SKView()
+        skView.ignoresSiblingOrder = true
+        skView.showsFPS = false
+        skView.showsNodeCount = false
+        skView.allowsTransparency = true
+
+        if let scene {
+            skView.presentScene(scene)
+        }
+
+        // Add pinch gesture for zoom
+        let pinch = UIPinchGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePinch(_:))
+        )
+        skView.addGestureRecognizer(pinch)
+
+        return skView
+    }
+
+    func updateUIView(_ uiView: SKView, context: Context) {
+        if let scene, uiView.scene !== scene {
+            uiView.presentScene(scene)
+        }
+        context.coordinator.scene = scene
+    }
+
+    class Coordinator: NSObject {
+        let viewModel: PresenceViewerSK.ViewModel
+        weak var scene: PresenceNetworkScene?
+
+        init(viewModel: PresenceViewerSK.ViewModel) {
+            self.viewModel = viewModel
+        }
+
+        @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+            guard gesture.state == .changed else { return }
+            scene?.adjustZoom(by: gesture.scale)
+            gesture.scale = 1.0 // Reset to get incremental deltas
+        }
+    }
+}
+#endif
 
 // MARK: - ViewModel
 
