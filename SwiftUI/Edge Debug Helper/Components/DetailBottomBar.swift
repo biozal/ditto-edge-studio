@@ -65,7 +65,7 @@ extension DetailBottomBar where MiddleContent == EmptyView {
     /// No middle content — used by sync tabs view and previews.
     init(connections: ConnectionsByTransport) {
         self.connections = connections
-        self.middleContent = EmptyView()
+        middleContent = EmptyView()
     }
 }
 

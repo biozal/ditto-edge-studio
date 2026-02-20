@@ -51,10 +51,7 @@ extension MainStudioView {
                 }
             }
 
-            DetailBottomBar(
-                connections: viewModel.connectionsByTransport,
-                isSyncEnabled: viewModel.isSyncEnabled
-            )
+            DetailBottomBar(connections: viewModel.connectionsByTransport)
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -182,10 +179,7 @@ extension MainStudioView {
                 .navigationBarTitleDisplayMode(.inline)
             #endif
 
-            DetailBottomBar(
-                connections: viewModel.connectionsByTransport,
-                isSyncEnabled: viewModel.isSyncEnabled
-            ) {
+            DetailBottomBar(connections: viewModel.connectionsByTransport) {
                 if !viewModel.jsonResults.isEmpty {
                     PaginationControls(
                         totalCount: queryResultsCount,
@@ -335,10 +329,7 @@ extension MainStudioView {
                 .navigationBarTitleDisplayMode(.inline)
             #endif
 
-            DetailBottomBar(
-                connections: viewModel.connectionsByTransport,
-                isSyncEnabled: viewModel.isSyncEnabled
-            ) {
+            DetailBottomBar(connections: viewModel.connectionsByTransport) {
                 if !viewModel.observableEvents.isEmpty {
                     PaginationControls(
                         totalCount: observerEventsCount,
