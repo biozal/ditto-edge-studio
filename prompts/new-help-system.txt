@@ -1,0 +1,13 @@
+Go into plan mode. Today in the app we have the inspector view that renders when the user selects it on the right side of the screen.  It's shared between all three major tabs in the inspector.  I want to change that out.  
+
+Moving forward I want to have three distint inspector that are per tab:
+
+syncTabsDetailView - when this appears I would like to have a new inspector appear called syncTabsInspectorView.  This will have a title on the top of the view stating "Subscription and Sync Help".  In this view will be a list of documentation to help the user understand how to use the Subscriptions to add a new subscription to the app or how the Peers List and Presence Viewer work.  This "viewer" should use the same Control as the User Guide that can be found on the help menu.  The actual content should be rendered based on a md file called "subscription.md" in the Docs folder so that it's easy to manage.  The Docs folder is in the Edge Debug Helper folder.  
+
+queryDetailView - when this appears I would like to have a new inspector appear called queryTabInspectorView which should display the contents of the current side bar with a new icon which is a ? for Help.  This should be the first icon and the selected icon.  Like the syncTabsInspectorView this would render a Help set of documentation about Query and DQL.  It should have a title of "Query Help" and then the rest of it I'll fill in later.  This contents should be stored in a file in the Docs folder called "query.md".
+
+observeDetailView - when this appears I would like to have a new inspector appear called observeDetailInspectorView.  This should operate just like the syncTabsInspectorView but will have a title "Observable Help" and it's content should be from the observe.md file in the Docs folder.  
+
+If the user changes a tab in the Sidebar the inspector content should dynamically change and animate in with the new inspector view.  
+
+Create a plan to implement this and let me know when you are ready for me to review it.

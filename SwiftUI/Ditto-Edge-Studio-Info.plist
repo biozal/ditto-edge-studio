@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Ditto Edge Studio</string>
 	<key>CFBundleName</key>
 	<string>Ditto Edge Studio</string>
 	<key>CFBundleGetInfoString</key>
@@ -17,6 +19,10 @@
 	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Ditto uses Bluetooth to connect and sync with nearby devices</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is used to display your current WiFi network name and access point address in Network Details.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Location access is used to display your current WiFi network name and access point address in Network Details.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Ditto uses Bluetooth to connect and sync with nearby devices</string>
 	<key>ATSApplicationFontsPath</key>

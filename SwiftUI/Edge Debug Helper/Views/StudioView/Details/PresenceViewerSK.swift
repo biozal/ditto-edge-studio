@@ -72,6 +72,10 @@ struct PresenceViewerSK: View {
                     .background(.ultraThinMaterial)
                     .cornerRadius(8)
             }
+
+            // Transport settings button
+            TransportSettingsButton()
+                .padding(.leading, 4)
         }
         .padding()
         .background(.ultraThinMaterial)
@@ -84,10 +88,10 @@ struct PresenceViewerSK: View {
         HStack(spacing: 8) {
             // Zoom out button (-)
             Button(action: { viewModel.zoomOut() }, label: {
-                FontAwesomeText(icon: ActionIcon.minus, size: 14)
-                    .frame(width: 32, height: 32)
+                Image(systemName: "minus")
             })
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .disabled(viewModel.zoomLevel >= 2.0)
             .help("Zoom out (or use scroll wheel)")
 
@@ -98,10 +102,10 @@ struct PresenceViewerSK: View {
 
             // Zoom in button (+)
             Button(action: { viewModel.zoomIn() }, label: {
-                FontAwesomeText(icon: ActionIcon.plus, size: 14)
-                    .frame(width: 32, height: 32)
+                Image(systemName: "plus")
             })
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .disabled(viewModel.zoomLevel <= 0.5)
             .help("Zoom in (or use scroll wheel)")
         }

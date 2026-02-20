@@ -7,6 +7,7 @@ struct QueryEditorView: View {
     @Binding var selectedExecuteMode: String
     @Binding var isLoading: Bool
     var onExecuteQuery: () async -> Void
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -66,7 +67,7 @@ struct QueryEditorView: View {
             CodeEditor(
                 source: $queryText,
                 language: .sql,
-                theme: .atelierSavannaDark
+                theme: colorScheme == .dark ? .atelierSavannaDark : .atelierSavannaLight
             )
         }
     }

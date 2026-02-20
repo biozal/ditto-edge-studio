@@ -131,6 +131,7 @@ struct PeerEnrichmentData {
     let dittoSDKVersion: String?
     let addressInfo: PeerAddressInfo?
     let identityMetadata: String?
+    let peerMetadata: String?
     let connections: [ConnectionInfo]?
 }
 
@@ -147,6 +148,7 @@ struct SyncStatusInfo: Identifiable, Equatable {
     let dittoSDKVersion: String?
     let addressInfo: PeerAddressInfo?
     let identityMetadata: String?
+    let peerMetadata: String?
     let connections: [ConnectionInfo]?
 
     init(from dictionary: [String: Any], peerEnrichment: PeerEnrichmentData? = nil) {
@@ -169,6 +171,7 @@ struct SyncStatusInfo: Identifiable, Equatable {
         dittoSDKVersion = peerEnrichment?.dittoSDKVersion
         addressInfo = peerEnrichment?.addressInfo
         identityMetadata = peerEnrichment?.identityMetadata
+        peerMetadata = peerEnrichment?.peerMetadata
         connections = peerEnrichment?.connections
     }
 

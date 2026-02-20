@@ -37,11 +37,9 @@ struct ContentView: View {
                     Group {
                         if viewModel.isLoading {
                             AnyView(
-                                ProgressView("Loading Registered Databases...")
+                                ProgressView("Loading Database Config...")
                                     .progressViewStyle(.circular)
                             )
-                        } else if viewModel.dittoApps.isEmpty {
-                            AnyView(NoDatabaseConfigurationView())
                         } else {
                             DatabaseList(
                                 viewModel: viewModel,
@@ -57,7 +55,7 @@ struct ContentView: View {
                                     DittoConfigForDatabase.new()
                                 )
                             } label: {
-                                FontAwesomeText(icon: ActionIcon.plus, size: 14)
+                                Image(systemName: "plus")
                             }
                             .accessibilityIdentifier("AddDatabaseButton")
                         }
@@ -118,10 +116,6 @@ struct ContentView: View {
 
 #if os(macOS)
 extension ContentView {
-    private var sulfurYellow: Color {
-        Color(red: 0.941, green: 0.847, blue: 0.188)
-    }
-
     var macOSPickerView: some View {
         ZStack(alignment: .bottomLeading) {
             Image("ditto-splash")
@@ -163,7 +157,7 @@ extension ContentView {
             VStack(alignment: .center, spacing: 20) {
                 Text("Edge Studio")
                     .font(.custom("ChakraPetch-Bold", size: 42))
-                    .foregroundColor(sulfurYellow)
+                    .foregroundColor(.dittoYellow)
                     .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 2)
 
                 VStack(spacing: 14) {
@@ -171,17 +165,19 @@ extension ContentView {
                         viewModel.showAppEditor(DittoConfigForDatabase.new())
                     } label: {
                         HStack(spacing: 10) {
-                            FontAwesomeText(icon: ActionIcon.plus, size: 13, color: .white)
+                            Image(systemName: "plus")
+                                .foregroundColor(.black)
                             Text("Database Config")
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .fontWeight(.medium)
                             Spacer()
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     }
-                    .buttonStyle(.plain)
-                    .liquidGlassToolbar()
+                    .buttonStyle(.glassProminent)
+                    .tint(.dittoYellow)
+                    .focusEffectDisabled()
                     .accessibilityIdentifier("AddDatabaseButton")
 
                     Button {
@@ -190,7 +186,8 @@ extension ContentView {
                         }
                     } label: {
                         HStack(spacing: 10) {
-                            FontAwesomeText(icon: ConnectivityIcon.cloud, size: 13, color: .white)
+                            Image(systemName: "cloud")
+                                .foregroundColor(.white)
                             Text("Ditto Portal")
                                 .foregroundColor(.white)
                                 .fontWeight(.medium)
@@ -202,13 +199,13 @@ extension ContentView {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     }
-                    .buttonStyle(.plain)
-                    .liquidGlassToolbar()
+                    .buttonStyle(.glass)
+                    .focusEffectDisabled()
                 }
                 .frame(width: 200)
             }
             .frame(width: 436)
-            .padding(.bottom, 80)
+            .padding(.bottom, 60)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
@@ -301,41 +298,22 @@ extension ContentView {
         func loadApps(appState: AppState) async {
             isLoading = true
             do {
-                // 1. Check for legacy data and show warning if needed
-                let cleanupService = LegacyDataCleanupService.shared
-                if await cleanupService.hasLegacyData() {
-                    let userApprovedCleanup = await cleanupService.showBreakingChangeWarning()
-
-                    if !userApprovedCleanup {
-                        // User chose to cancel - exit app
-                        #if os(macOS)
-                        NSApplication.shared.terminate(nil)
-                        #else
-                        exit(0)
-                        #endif
-                        return
-                    }
-
-                    // User approved - delete old data
-                    try await cleanupService.cleanupLegacyData()
-                }
-
-                // 2. Set appState in DittoManager
+                // 1. Set appState in DittoManager
                 await DittoManager.shared.setAppState(appState)
 
-                // 3. Load database configs from secure storage
+                // 2. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
 
-                // 4. Set up callback for future updates
+                // 3. Set up callback for future updates
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
                     Task { @MainActor [weak self] in
                         self?.dittoApps = configs
                     }
                 }
 
-                // 5. Set appState in other repositories
+                // 4. Set appState in other repositories
                 await SystemRepository.shared.setAppState(appState)
                 await ObservableRepository.shared.setAppState(appState)
                 await FavoritesRepository.shared.setAppState(appState)

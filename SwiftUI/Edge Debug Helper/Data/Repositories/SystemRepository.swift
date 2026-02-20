@@ -101,6 +101,20 @@ actor SystemRepository {
             return jsonString
         }()
 
+        // Convert peerMetadata to JSON string
+        let peerMetadata: String? = {
+            let metadata = peer.peerMetadata
+            let filteredMetadata = metadata.compactMapValues { $0 }
+
+            guard !filteredMetadata.isEmpty,
+                  let jsonData = try? JSONSerialization.data(withJSONObject: filteredMetadata, options: .prettyPrinted),
+                  let jsonString = String(data: jsonData, encoding: .utf8) else
+            {
+                return nil
+            }
+            return jsonString
+        }()
+
         // Convert connections array to custom ConnectionInfo
         let connections: [ConnectionInfo]? = {
             let peerConnections = peer.connections
@@ -124,6 +138,7 @@ actor SystemRepository {
             dittoSDKVersion: peer.dittoSDKVersion,
             addressInfo: addressInfo,
             identityMetadata: identityMetadata,
+            peerMetadata: peerMetadata,
             connections: connections
         )
     }

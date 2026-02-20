@@ -1,28 +1,35 @@
 import SwiftUI
 
-// RAL 9017 Traffic Black — Ditto brand color
-private let dittoBlack = Color(red: 42 / 255, green: 41 / 255, blue: 42 / 255)
-private let dittoBlackLight = Color(red: 65 / 255, green: 64 / 255, blue: 65 / 255)
-
 struct LocalPeerInfoCard: View {
     let deviceName: String
     let sdkLanguage: String
     let sdkPlatform: String
     let sdkVersion: String
+    @Environment(\.colorScheme) var colorScheme
+
+    private var gradientColors: [Color] {
+        colorScheme == .dark
+            ? [Color.Ditto.trafficBlack, Color.Ditto.jetBlack]
+            : [Color.Ditto.trafficWhite, Color.Ditto.papyrusWhite]
+    }
+
+    private var shadowOpacity: Double {
+        colorScheme == .dark ? 0.40 : 0.15
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with icon and title
             HStack {
-                FontAwesomeText(icon: UIIcon.circleNodes, size: 16, color: .white.opacity(0.80))
+                FontAwesomeText(icon: UIIcon.circleNodes, size: 16, color: .primary)
                 Text("Local Peer")
                     .font(.headline)
                     .bold()
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
             }
 
             Rectangle()
-                .fill(Color.white.opacity(0.20))
+                .fill(Color.primary.opacity(0.15))
                 .frame(height: 1)
 
             // Four labeled info rows
@@ -38,11 +45,11 @@ struct LocalPeerInfoCard: View {
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(LinearGradient(
-                    colors: [dittoBlackLight, dittoBlack],
+                    colors: gradientColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ))
-                .shadow(color: Color.black.opacity(0.40), radius: 6, x: 0, y: 3)
+                .shadow(color: Color.black.opacity(shadowOpacity), radius: 6, x: 0, y: 3)
         )
     }
 }
@@ -55,11 +62,11 @@ struct InfoRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.60))
+                .foregroundColor(.secondary)
             Spacer()
             Text(value)
                 .font(.caption)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
     }
 }

@@ -2810,7 +2810,7 @@ xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Stu
 
 ## Platform Requirements
 
-- macOS 15+ with Xcode 26.2+ or Xcode 16.5+ with Swift 6.2
+- macOS 26.0 with Xcode 26.0+ with Swift 6.2
 - iPadOS 18.0+
 - App sandbox enabled with entitlements for network, Bluetooth, and file access
 

@@ -1,10 +1,18 @@
 import SwiftUI
 
-private let dittoBlack = Color(red: 42 / 255, green: 41 / 255, blue: 42 / 255)
-private let dittoBlackLight = Color(red: 65 / 255, green: 64 / 255, blue: 65 / 255)
-
 struct SubscriptionCard: View {
     let subscription: DittoSubscription
+    @Environment(\.colorScheme) var colorScheme
+
+    private var gradientColors: [Color] {
+        colorScheme == .dark
+            ? [Color.Ditto.trafficBlack, Color.Ditto.jetBlack]
+            : [Color.Ditto.trafficWhite, Color.Ditto.papyrusWhite]
+    }
+
+    private var shadowOpacity: Double {
+        colorScheme == .dark ? 0.40 : 0.15
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 32) {
@@ -12,20 +20,20 @@ struct SubscriptionCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(subscription.name)
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subscription.query)
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.75))
+                    .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 if let args = subscription.args, !args.isEmpty {
                     Text(args)
                         .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.60))
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
@@ -37,11 +45,11 @@ struct SubscriptionCard: View {
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(LinearGradient(
-                    colors: [dittoBlackLight, dittoBlack],
+                    colors: gradientColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ))
-                .shadow(color: Color.black.opacity(0.40), radius: 6, x: 0, y: 3)
+                .shadow(color: Color.black.opacity(shadowOpacity), radius: 6, x: 0, y: 3)
         )
     }
 }

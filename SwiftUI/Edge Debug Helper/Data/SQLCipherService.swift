@@ -24,8 +24,8 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 /// - Encryption key management via macOS Keychain
 ///
 /// Database Path:
-/// - Production: ~/Library/Application Support/ditto_cache/ditto_encrypted.db
-/// - Test: ~/Library/Application Support/ditto_cache_test/ditto_encrypted.db
+/// - Production: ~/Library/Application Support/ditto_edge_studio/ditto_encrypted.db
+/// - Test: ~/Library/Application Support/ditto_edge_studio_test/ditto_encrypted.db
 ///
 /// Security:
 /// - Encryption key stored in macOS Keychain (kSecAttrAccessibleAfterFirstUnlock)
@@ -174,13 +174,13 @@ actor SQLCipherService {
 
         let cacheDir = if isUnitTesting && !isUITesting {
             // Unit tests (XCTest framework is loaded, but not UI testing)
-            "ditto_cache_unit_test"
+            "ditto_edge_studio_unit_test"
         } else if isUITesting {
             // UI tests
-            "ditto_cache_test"
+            "ditto_edge_studio_test"
         } else {
             // Normal app usage
-            "ditto_cache"
+            "ditto_edge_studio"
         }
 
         let cacheDirURL = appSupportURL.appendingPathComponent(cacheDir)

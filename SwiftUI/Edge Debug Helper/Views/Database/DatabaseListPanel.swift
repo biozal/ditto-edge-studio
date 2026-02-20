@@ -18,11 +18,13 @@ struct DatabaseListPanel: View {
             } else if viewModel.dittoApps.isEmpty {
                 VStack(spacing: 12) {
                     FontAwesomeText(icon: DataIcon.databaseThin, size: 40, color: .secondary)
-                    Text("No databases registered")
+                    Text("No database configurations found")
                         .foregroundColor(.primary)
-                    Text("Use \"Register Database\" to add one")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
+                    Text(
+                        "Use \"+ Database Config\" button to add one.  \nNew to Ditto?  Click Help -> User Guide for \nmore information on how to get started."
+                    )
+                    .foregroundColor(Color.Ditto.papyrusWhite)
+                    .font(.caption)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

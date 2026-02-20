@@ -44,13 +44,14 @@ struct MainStudioView: View {
                         ForEach(viewModel.sidebarMenuItems) { item in
                             item.image
                                 .tag(item)
+                                .font(.system(size: 20))
                                 .accessibilityIdentifier("NavigationItem_\(item.name)")
                                 .accessibilityLabel(item.name)
                         }
                     }
                     .pickerStyle(.segmented)
+                    .controlSize(ControlSize.extraLarge)
                     .labelsHidden()
-                    .liquidGlassToolbar()
                     .accessibilityIdentifier("NavigationSegmentedPicker")
                     Spacer()
                 }
@@ -112,14 +113,19 @@ struct MainStudioView: View {
             .padding(.bottom, 16) // Add padding for status bar height
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
-            switch viewModel.selectedSidebarMenuItem.name {
-            case "Collections":
-                queryDetailView()
-            case "Observer":
-                observeDetailView()
-            default:
-                syncTabsDetailView()
+            Group {
+                switch viewModel.selectedSidebarMenuItem.name {
+                case "Collections":
+                    queryDetailView()
+                case "Observer":
+                    observeDetailView()
+                default:
+                    syncTabsDetailView()
+                }
             }
+            .id(viewModel.selectedSidebarMenuItem)
+            .transition(.blurReplace)
+            .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
@@ -198,12 +204,11 @@ struct MainStudioView: View {
                     }
                 }
             } label: {
-                FontAwesomeText(
-                    icon: NavigationIcon.syncLight,
-                    size: 20,
-                    color: viewModel.isSyncEnabled ? .green : .red
-                )
+                Image(systemName: "arrow.2.circlepath")
+                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
             }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
             .accessibilityIdentifier("SyncButton")
         }
@@ -217,8 +222,11 @@ struct MainStudioView: View {
                     isMainStudioViewPresented = false
                 }
             } label: {
-                FontAwesomeText(icon: ActionIcon.circleXmarkLight, size: 20, color: .red)
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
             }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .help("Close App")
             .accessibilityIdentifier("CloseButton")
         }
@@ -232,6 +240,8 @@ struct MainStudioView: View {
                 Image(systemName: "sidebar.right")
                     .foregroundColor(showInspector ? .primary : .secondary)
             }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .help("Toggle Inspector")
             .accessibilityIdentifier("Toggle Inspector")
         }
@@ -297,9 +307,9 @@ extension MainStudioView {
         var selectedSidebarMenuItem: MenuItem
         var sidebarMenuItems: [MenuItem] = []
 
-        // Inspector Toolbar
-        var selectedInspectorMenuItem: MenuItem
-        var inspectorMenuItems: [MenuItem] = []
+        // Inspector Toolbar (used only when Collections tab is active)
+        var selectedQueryInspectorMenuItem: MenuItem
+        var queryInspectorMenuItems: [MenuItem] = []
 
         /// JSON Inspector State
         var selectedJsonForInspector: String?
@@ -333,14 +343,15 @@ extension MainStudioView {
             // query results section
             jsonResults = []
 
-            // Inspector toolbar (initialize after all non-optional properties)
-            let historyItem = MenuItem(id: 4, name: "History", systemIcon: "clock")
-            inspectorMenuItems = [
-                historyItem,
-                MenuItem(id: 5, name: "Favorites", systemIcon: "bookmark"),
-                MenuItem(id: 6, name: "JSON", systemIcon: "text.document.fill")
+            // Inspector toolbar (used only when Collections tab is active)
+            let helpItem = MenuItem(id: 4, name: "Help", systemIcon: "questionmark")
+            queryInspectorMenuItems = [
+                helpItem,
+                MenuItem(id: 5, name: "History", systemIcon: "clock"),
+                MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
+                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill")
             ]
-            selectedInspectorMenuItem = historyItem
+            selectedQueryInspectorMenuItem = helpItem
 
             // Setup SystemRepository callback
             Task {
@@ -467,8 +478,8 @@ extension MainStudioView {
         /// Shows JSON in the inspector panel
         func showJsonInInspector(_ json: String) {
             selectedJsonForInspector = json
-            if let jsonTab = inspectorMenuItems.first(where: { $0.name == "JSON" }) {
-                selectedInspectorMenuItem = jsonTab
+            if let jsonTab = queryInspectorMenuItems.first(where: { $0.name == "JSON" }) {
+                selectedQueryInspectorMenuItem = jsonTab
             }
         }
 

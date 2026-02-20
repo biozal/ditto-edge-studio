@@ -48,10 +48,11 @@ extension MainStudioView {
                         .scaleEffect(0.7)
                         .frame(width: 16, height: 16)
                 } else {
-                    FontAwesomeText(icon: NavigationIcon.refresh, size: 14)
+                    Image(systemName: "arrow.clockwise")
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .disabled(viewModel.isRefreshingCollections)
             .help("Refresh document counts")
             .padding(.trailing, 8)

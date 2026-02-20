@@ -14,70 +14,112 @@ struct ConnectedPeersView: View {
     @Bindable var viewModel: MainStudioView.ViewModel
     @State private var availableWidth: CGFloat = 0
     @State private var columnCount = 2
+    @State private var networkInterfaces: [NetworkInterfaceInfo] = []
 
     var body: some View {
-        VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
+        VStack(alignment: .leading) {
             // Header with last update time
             HStack(alignment: .top, spacing: 12) {
                 // Left: Title
-                Text("Connected Peers")
-                    .font(.title2)
-                    .bold()
-
-                Spacer()
-
-                // Right: Timestamp only (filter removed - always shows connected peers)
-                VStack(alignment: .trailing, spacing: 4) {
-                    // Timestamp
+                VStack(alignment: .leading) {
+                    Text("Connected Peers")
+                        .font(.title2)
+                        .bold()
                     if let statusInfo = viewModel.syncStatusItems.first {
                         Text("Last updated: \(statusInfo.formattedLastUpdate)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
+
+                Spacer()
+
+                // Right: Transport settings popover button
+                TransportSettingsButton()
             }
             .padding(.horizontal)
             .padding(.top)
 
-            if viewModel.syncStatusItems.isEmpty {
-                Spacer()
-                HStack {
-                    Spacer()
+            GeometryReader { geometry in
+                let hasLocalPeer = viewModel.localPeerDeviceName != nil
+                let isEmpty = viewModel.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty
+
+                if isEmpty {
                     ContentUnavailableView(
                         "No Sync Status Available",
                         systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
                         description: Text("Enable sync to see connected peers and their status")
                     )
-                    Spacer()
-                }
-                Spacer()
-            } else {
-                GeometryReader { geometry in
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.blurReplace)
+                } else {
                     ScrollView {
-                        LazyVGrid(
-                            columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
-                            spacing: 16
-                        ) {
-                            ForEach(viewModel.syncStatusItems) { statusInfo in
-                                syncStatusCard(for: statusInfo)
-                            }
+                        VStack(spacing: 0) {
+                            // Peer cards grid
+                            LazyVGrid(
+                                columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
+                                spacing: 16
+                            ) {
+                                ForEach(viewModel.syncStatusItems) { statusInfo in
+                                    syncStatusCard(for: statusInfo)
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.88).combined(with: .opacity),
+                                            removal: .opacity
+                                        ))
+                                }
 
-                            // Local Peer Info Card (included in same grid)
-                            if let deviceName = viewModel.localPeerDeviceName,
-                               let sdkLanguage = viewModel.localPeerSDKLanguage,
-                               let sdkPlatform = viewModel.localPeerSDKPlatform,
-                               let sdkVersion = viewModel.localPeerSDKVersion
-                            {
-                                LocalPeerInfoCard(
-                                    deviceName: deviceName,
-                                    sdkLanguage: sdkLanguage,
-                                    sdkPlatform: sdkPlatform,
-                                    sdkVersion: sdkVersion
-                                )
+                                // Local Peer Info Card (included in same grid)
+                                if let deviceName = viewModel.localPeerDeviceName,
+                                   let sdkLanguage = viewModel.localPeerSDKLanguage,
+                                   let sdkPlatform = viewModel.localPeerSDKPlatform,
+                                   let sdkVersion = viewModel.localPeerSDKVersion
+                                {
+                                    LocalPeerInfoCard(
+                                        deviceName: deviceName,
+                                        sdkLanguage: sdkLanguage,
+                                        sdkPlatform: sdkPlatform,
+                                        sdkVersion: sdkVersion
+                                    )
+                                }
+                            }
+                            .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncStatusItems)
+                            .padding()
+
+                            // Network interface cards — shown below peer cards with a divider
+                            if !networkInterfaces.isEmpty {
+                                HStack {
+                                    Rectangle()
+                                        .fill(Color.secondary.opacity(0.25))
+                                        .frame(height: 1)
+                                    Text("Local Network")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize()
+                                    Rectangle()
+                                        .fill(Color.secondary.opacity(0.25))
+                                        .frame(height: 1)
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 8)
+
+                                LazyVGrid(
+                                    columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
+                                    spacing: 16
+                                ) {
+                                    ForEach(networkInterfaces) { iface in
+                                        NetworkInterfaceCard(info: iface)
+                                            .transition(.asymmetric(
+                                                insertion: .scale(scale: 0.88).combined(with: .opacity),
+                                                removal: .opacity
+                                            ))
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom)
                             }
                         }
-                        .padding()
                     }
+                    .transition(.blurReplace)
                     .onAppear {
                         updateColumnCount(for: geometry.size.width)
                     }
@@ -86,8 +128,12 @@ struct ConnectedPeersView: View {
                     }
                 }
             }
+            .animation(.smooth(duration: 0.45), value: viewModel.syncStatusItems.isEmpty)
         }
         .padding(.bottom, 28) // Add padding for status bar height
+        .task {
+            await loadNetworkDiagnostics()
+        }
     }
 
     // MARK: - Helper Views
@@ -176,6 +222,27 @@ struct ConnectedPeersView: View {
                         HStack {
                             FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .white.opacity(0.80))
                             Text("Identity Metadata")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.80))
+                        }
+                    }
+                }
+
+                // Peer metadata (collapsible with chevron)
+                if let metadata = status.peerMetadata {
+                    DisclosureGroup {
+                        ScrollView {
+                            Text(metadata)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.80))
+                                .textSelection(.enabled)
+                                .padding(.vertical, 4)
+                        }
+                        .frame(maxHeight: 150)
+                    } label: {
+                        HStack {
+                            FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .white.opacity(0.80))
+                            Text("Peer Metadata")
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.80))
                         }
@@ -346,6 +413,14 @@ struct ConnectedPeersView: View {
             return ConnectivityIcon.ethernet
         } else {
             return ConnectivityIcon.broadcastTower
+        }
+    }
+
+    private func loadNetworkDiagnostics() async {
+        await NetworkDiagnosticsService.shared.requestLocationPermissionIfNeeded()
+        let interfaces = await NetworkDiagnosticsService.shared.fetchAllInterfaces()
+        withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
+            networkInterfaces = interfaces
         }
     }
 }

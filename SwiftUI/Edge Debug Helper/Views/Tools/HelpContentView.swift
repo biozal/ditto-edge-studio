@@ -15,6 +15,7 @@ struct HelpContentView: View {
                     return .handled
                 })
                 .padding()
+                .padding(.bottom, 48) // Extra clearance for ConnectionStatusBar overlay
         }
     }
 }

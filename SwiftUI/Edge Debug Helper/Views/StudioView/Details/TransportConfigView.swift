@@ -10,17 +10,36 @@ struct TransportConfigView: View {
 
     var body: some View {
         Form {
-            // Warning Section
+            // Banner Section: warning at rest, replaced by status during/after apply
             Section {
                 HStack(alignment: .top, spacing: 12) {
-                    FontAwesomeText(
-                        icon: StatusIcon.triangleExclamation,
-                        size: 16,
-                        color: .orange
-                    )
+                    if viewModel.currentStep == .idle {
+                        FontAwesomeText(
+                            icon: StatusIcon.triangleExclamation,
+                            size: 16,
+                            color: .orange
+                        )
+                    } else if viewModel.currentStep.isInProgress {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.8)
+                    } else if viewModel.currentStep.isComplete {
+                        FontAwesomeText(
+                            icon: StatusIcon.circleCheck,
+                            size: 16,
+                            color: .green
+                        )
+                    } else if viewModel.currentStep.isError {
+                        FontAwesomeText(
+                            icon: StatusIcon.triangleExclamation,
+                            size: 16,
+                            color: .red
+                        )
+                    }
 
-                    Text(
-                        "Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted."
+                    Text(viewModel.currentStep == .idle
+                        ? "Changing transport settings will temporarily stop sync and disconnect all peers. Active sync operations will be interrupted."
+                        : viewModel.currentStep.message
                     )
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -28,8 +47,9 @@ struct TransportConfigView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .listRowBackground(Color.orange.opacity(0.1))
+                .listRowBackground(bannerBackgroundColor)
                 .listRowInsets(EdgeInsets())
+                .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
             }
 
             // Peer-to-Peer Transports Section
@@ -89,87 +109,27 @@ struct TransportConfigView: View {
                 }
             }
 
-            // Cloud Sync Section
-            Section("Cloud Sync") {
-                Toggle(isOn: $viewModel.isCloudSyncEnabled) {
-                    HStack(spacing: 8) {
-                        FontAwesomeText(
-                            icon: ConnectivityIcon.cloud,
-                            size: 14,
-                            color: viewModel.isCloudSyncEnabled ? .cyan : .secondary
-                        )
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("WebSocket Sync")
-                                .font(.body)
-                            Text("Sync via Ditto Big Peer cloud server")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-
             // Apply Button Section
             Section {
-                VStack(spacing: 12) {
-                    // Progress Status (shown when operation is in progress, complete, or error)
-                    if viewModel.currentStep != .idle {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 12) {
-                                // Icon based on state
-                                if viewModel.currentStep.isInProgress {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .scaleEffect(0.8)
-                                } else if viewModel.currentStep.isComplete {
-                                    FontAwesomeText(
-                                        icon: StatusIcon.circleCheck,
-                                        size: 16,
-                                        color: .green
-                                    )
-                                } else if viewModel.currentStep.isError {
-                                    FontAwesomeText(
-                                        icon: StatusIcon.triangleExclamation,
-                                        size: 16,
-                                        color: .red
-                                    )
-                                }
-
-                                // Status message
-                                Text(viewModel.currentStep.message)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(12)
-                            .background(backgroundColor)
-                            .cornerRadius(8)
-                        }
-                        .transition(.opacity.combined(with: .scale))
+                Button {
+                    Task {
+                        await viewModel.applyTransportConfig(appState: appState)
                     }
-
-                    // Apply Button
-                    Button {
-                        Task {
-                            await viewModel.applyTransportConfig(appState: appState)
+                } label: {
+                    HStack {
+                        if viewModel.currentStep.isInProgress {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .scaleEffect(0.8)
+                                .padding(.trailing, 4)
                         }
-                    } label: {
-                        HStack {
-                            if viewModel.currentStep.isInProgress {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .scaleEffect(0.8)
-                                    .padding(.trailing, 4)
-                            }
-                            Text(buttonText)
-                        }
-                        .frame(maxWidth: .infinity)
+                        Text(buttonText)
                     }
-                    .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges)
-                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
                 }
+                .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges)
+                .buttonStyle(.borderedProminent)
             }
-            .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)
         }
         .formStyle(.grouped)
         .task {
@@ -186,15 +146,17 @@ struct TransportConfigView: View {
         return "Apply Transport Settings"
     }
 
-    private var backgroundColor: Color {
-        if viewModel.currentStep.isInProgress {
+    private var bannerBackgroundColor: Color {
+        if viewModel.currentStep == .idle {
+            return Color.orange.opacity(0.1)
+        } else if viewModel.currentStep.isInProgress {
             return Color.blue.opacity(0.1)
         } else if viewModel.currentStep.isComplete {
             return Color.green.opacity(0.1)
         } else if viewModel.currentStep.isError {
             return Color.red.opacity(0.1)
         }
-        return Color.clear
+        return Color.orange.opacity(0.1)
     }
 }
 

@@ -10,9 +10,6 @@ extension MainStudioView {
 
                 Text("Presence Viewer")
                     .tag(1)
-
-                Text("Settings")
-                    .tag(2)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -28,8 +25,6 @@ extension MainStudioView {
                 case 1:
                     PresenceViewerSK()
                         .padding(.bottom, 28) // Add padding for status bar
-                case 2:
-                    TransportConfigView()
                 default:
                     ConnectedPeersView(viewModel: viewModel)
                 }

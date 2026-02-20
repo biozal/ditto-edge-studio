@@ -2,19 +2,49 @@ import SwiftUI
 
 extension MainStudioView {
     func inspectorView() -> some View {
+        Group {
+            switch viewModel.selectedSidebarMenuItem.name {
+            case "Collections":
+                queryTabInspectorView()
+            case "Observer":
+                observeDetailInspectorView()
+            default: // "Subscriptions"
+                syncTabsInspectorView()
+            }
+        }
+        .id(viewModel.selectedSidebarMenuItem)
+        .transition(.blurReplace)
+        .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
+    }
+
+    // MARK: - Per-Tab Inspector Dispatchers
+
+    func syncTabsInspectorView() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Subscription and Sync Help").font(.headline)
+                Divider()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            HelpContentView(markdownContent: loadMarkdown(named: "subscription"))
+        }
+    }
+
+    func queryTabInspectorView() -> some View {
         VStack(spacing: 0) {
-            // Tab picker using standard SwiftUI segmented picker
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.selectedInspectorMenuItem) {
-                    ForEach(viewModel.inspectorMenuItems) { item in
+                Picker("", selection: $viewModel.selectedQueryInspectorMenuItem) {
+                    ForEach(viewModel.queryInspectorMenuItems) { item in
                         item.image
                             .tag(item)
+                            .font(.system(size: 20))
                     }
                 }
                 .pickerStyle(.segmented)
+                .controlSize(ControlSize.extraLarge)
                 .labelsHidden()
-                .liquidGlassToolbar()
                 .accessibilityIdentifier("InspectorSegmentedPicker")
                 Spacer()
             }
@@ -23,23 +53,60 @@ extension MainStudioView {
 
             Divider()
 
-            // Inspector content
-            ScrollView {
-                switch viewModel.selectedInspectorMenuItem.name {
-                case "History":
-                    historyInspectorContent()
-                case "Favorites":
-                    favoritesInspectorContent()
-                case "JSON":
-                    jsonInspectorContent()
-                default:
-                    historyInspectorContent()
+            if viewModel.selectedQueryInspectorMenuItem.name == "Help" {
+                helpQueryInspectorContent()
+            } else {
+                ScrollView {
+                    switch viewModel.selectedQueryInspectorMenuItem.name {
+                    case "History":
+                        historyInspectorContent()
+                    case "Favorites":
+                        favoritesInspectorContent()
+                    case "JSON":
+                        jsonInspectorContent()
+                    default:
+                        historyInspectorContent()
+                    }
                 }
+                .scrollIndicators(.hidden)
+                .padding()
             }
-            .scrollIndicators(.hidden)
-            .padding()
         }
     }
+
+    func observeDetailInspectorView() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Observable Help").font(.headline)
+                Divider()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            HelpContentView(markdownContent: loadMarkdown(named: "observe"))
+        }
+    }
+
+    // MARK: - Help Content
+
+    private func helpQueryInspectorContent() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Query Help").font(.headline)
+                Divider()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            HelpContentView(markdownContent: loadMarkdown(named: "query"))
+        }
+    }
+
+    private func loadMarkdown(named resourceName: String) -> String {
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "md"),
+              let content = try? String(contentsOf: url, encoding: .utf8) else { return "# Help\n\nDocumentation not found." }
+        return content
+    }
+
+    // MARK: - Inspector Content Views (Collections tab)
 
     private func historyInspectorContent() -> some View {
         VStack(alignment: .leading, spacing: 8) {

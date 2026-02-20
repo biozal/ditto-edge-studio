@@ -6,20 +6,24 @@ struct DatabaseListRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            FontAwesomeText(icon: DataIcon.databaseThin, size: 26, color: .secondary)
-                .frame(width: 28)
+            FontAwesomeText(
+                icon: DataIcon.databaseThin,
+                size: 24,
+                color: Color.Ditto.papyrusWhite
+            )
+            .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(dittoApp.name)
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color.Ditto.sulfurYellow)
 
                 HStack(spacing: 4) {
                     Text(isIdRevealed
                         ? dittoApp.databaseId
                         : String(repeating: "•", count: min(dittoApp.databaseId.count, 24)))
                         .font(.caption.monospaced())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.Ditto.papyrusWhite)
                         .lineLimit(1)
 
                     Button {
@@ -27,7 +31,7 @@ struct DatabaseListRow: View {
                     } label: {
                         Image(systemName: isIdRevealed ? "eye.slash" : "eye")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.Ditto.papyrusWhite)
                     }
                     .buttonStyle(.plain)
                 }

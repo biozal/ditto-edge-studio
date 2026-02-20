@@ -55,7 +55,7 @@ actor DittoManager {
 
             // Test isolation: Use separate directory for UI tests
             let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
-            let baseComponent = isUITesting ? "ditto_apps_test" : "ditto_apps"
+            let baseComponent = isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
 
             let dbname = databaseConfig.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let localDirectoryPath = FileManager.default.urls(
