@@ -1,115 +1,102 @@
 import SwiftUI
 
-/// Displays connected peers in a responsive grid layout (2-3 columns based on window width).
+/// Displays connected peers in a responsive adaptive grid layout.
 ///
-/// **Layout**:
-/// - < 900px width: 2 columns
-/// - >= 900px width: 3 columns
-/// - Uses LazyVGrid for efficient rendering of large peer lists
+/// **Layout**: `GridItem(.adaptive(minimum: 460, maximum: 520))` — column count adjusts
+/// automatically to available width (1 on iPhone/iPad mini, 2 on iPad Pro / Mac).
 ///
 /// **Backpressure**: Observer updates throttled to match UI render capacity (see SystemRepository).
 ///
 /// **Stable Ordering**: Peers appear in consistent order (no ORDER BY in DQL query).
 struct ConnectedPeersView: View {
     @Bindable var viewModel: MainStudioView.ViewModel
-    @State private var availableWidth: CGFloat = 0
-    @State private var columnCount = 2
     @State private var networkInterfaces: [NetworkInterfaceInfo] = []
 
     var body: some View {
-        VStack(alignment: .leading) {
-            GeometryReader { geometry in
-                let hasLocalPeer = viewModel.localPeerDeviceName != nil
-                let isEmpty = viewModel.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty
+        let hasLocalPeer = viewModel.localPeerDeviceName != nil
+        let isEmpty = viewModel.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty
 
-                if isEmpty {
-                    ContentUnavailableView(
-                        "No Sync Status Available",
-                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                        description: Text("Enable sync to see connected peers and their status")
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.blurReplace)
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // Peer cards grid
+        VStack(alignment: .leading) {
+            if isEmpty {
+                ContentUnavailableView(
+                    "No Sync Status Available",
+                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                    description: Text("Enable sync to see connected peers and their status")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.blurReplace)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Peer cards grid
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 460, maximum: 520))],
+                            spacing: 16
+                        ) {
+                            ForEach(viewModel.syncStatusItems) { statusInfo in
+                                syncStatusCard(for: statusInfo)
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.88).combined(with: .opacity),
+                                        removal: .opacity
+                                    ))
+                            }
+
+                            // Local Peer Info Card (included in same grid)
+                            if let deviceName = viewModel.localPeerDeviceName,
+                               let sdkLanguage = viewModel.localPeerSDKLanguage,
+                               let sdkPlatform = viewModel.localPeerSDKPlatform,
+                               let sdkVersion = viewModel.localPeerSDKVersion
+                            {
+                                LocalPeerInfoCard(
+                                    deviceName: deviceName,
+                                    sdkLanguage: sdkLanguage,
+                                    sdkPlatform: sdkPlatform,
+                                    sdkVersion: sdkVersion
+                                )
+                            }
+                        }
+                        .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncStatusItems)
+                        .padding()
+
+                        // Network interface cards — shown below peer cards with a divider
+                        if !networkInterfaces.isEmpty {
+                            HStack {
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.25))
+                                    .frame(height: 1)
+                                Text("Local Network")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize()
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.25))
+                                    .frame(height: 1)
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 16)
+
                             LazyVGrid(
-                                columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
+                                columns: [GridItem(.adaptive(minimum: 460, maximum: 520))],
                                 spacing: 16
                             ) {
-                                ForEach(viewModel.syncStatusItems) { statusInfo in
-                                    syncStatusCard(for: statusInfo)
+                                ForEach(networkInterfaces) { iface in
+                                    NetworkInterfaceCard(info: iface)
                                         .transition(.asymmetric(
                                             insertion: .scale(scale: 0.88).combined(with: .opacity),
                                             removal: .opacity
                                         ))
                                 }
-
-                                // Local Peer Info Card (included in same grid)
-                                if let deviceName = viewModel.localPeerDeviceName,
-                                   let sdkLanguage = viewModel.localPeerSDKLanguage,
-                                   let sdkPlatform = viewModel.localPeerSDKPlatform,
-                                   let sdkVersion = viewModel.localPeerSDKVersion
-                                {
-                                    LocalPeerInfoCard(
-                                        deviceName: deviceName,
-                                        sdkLanguage: sdkLanguage,
-                                        sdkPlatform: sdkPlatform,
-                                        sdkVersion: sdkVersion
-                                    )
-                                }
                             }
-                            .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncStatusItems)
-                            .padding()
-
-                            // Network interface cards — shown below peer cards with a divider
-                            if !networkInterfaces.isEmpty {
-                                HStack {
-                                    Rectangle()
-                                        .fill(Color.secondary.opacity(0.25))
-                                        .frame(height: 1)
-                                    Text("Local Network")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .fixedSize()
-                                    Rectangle()
-                                        .fill(Color.secondary.opacity(0.25))
-                                        .frame(height: 1)
-                                }
-                                .padding(.horizontal)
-                                .padding(.top, 16)
-                                .padding(.bottom, 8)
-
-                                LazyVGrid(
-                                    columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: columnCount),
-                                    spacing: 16
-                                ) {
-                                    ForEach(networkInterfaces) { iface in
-                                        NetworkInterfaceCard(info: iface)
-                                            .transition(.asymmetric(
-                                                insertion: .scale(scale: 0.88).combined(with: .opacity),
-                                                removal: .opacity
-                                            ))
-                                    }
-                                }
-                                .padding(.horizontal)
-                                .padding(.bottom)
-                            }
+                            .padding(.horizontal)
+                            .padding(.bottom)
                         }
                     }
-                    .transition(.blurReplace)
-                    .onAppear {
-                        updateColumnCount(for: geometry.size.width)
-                    }
-                    .onChange(of: geometry.size.width) { _, newValue in
-                        updateColumnCount(for: newValue)
-                    }
                 }
+                .transition(.blurReplace)
             }
-            .animation(.smooth(duration: 0.45), value: viewModel.syncStatusItems.isEmpty)
         }
-        .padding(.bottom, 28) // Add padding for status bar height
+        .animation(.smooth(duration: 0.45), value: viewModel.syncStatusItems.isEmpty)
+        .padding(.bottom, 28)
         .task {
             await loadNetworkDiagnostics()
         }
@@ -205,6 +192,7 @@ struct ConnectedPeersView: View {
                                 .foregroundColor(.white.opacity(0.80))
                         }
                     }
+                    .tint(.white)
                 }
 
                 // Peer metadata (collapsible with chevron)
@@ -226,6 +214,7 @@ struct ConnectedPeersView: View {
                                 .foregroundColor(.white.opacity(0.80))
                         }
                     }
+                    .tint(.white)
                 }
 
                 // Active connections (always visible)
@@ -343,23 +332,6 @@ struct ConnectedPeersView: View {
             return .red
         default:
             return .gray
-        }
-    }
-
-    private func updateColumnCount(for width: CGFloat) {
-        let newColumnCount
-
-            // Breakpoint: < 900px = 2 columns, >= 900px = 3 columns
-            // Minimum comfortable card width: ~350px
-            = if width < 900
-        {
-            2
-        } else {
-            3
-        }
-
-        if columnCount != newColumnCount {
-            columnCount = newColumnCount
         }
     }
 

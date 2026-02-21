@@ -84,7 +84,7 @@ class ConnectionLine: SKNode {
 
         // Create shape node with dashed path
         shapeNode = SKShapeNode(path: path)
-        shapeNode.strokeColor = lineColor.withAlphaComponent(0.7)
+        shapeNode.strokeColor = lineColor
         shapeNode.lineWidth = 2.0
         shapeNode.lineCap = .round
         shapeNode.lineJoin = .round
@@ -173,7 +173,7 @@ class ConnectionLine: SKNode {
             shapeNode.run(SKAction.repeatForever(glow), withKey: "highlightGlow")
         } else {
             shapeNode.removeAction(forKey: "highlightGlow")
-            shapeNode.strokeColor = lineColor.withAlphaComponent(0.7)
+            shapeNode.strokeColor = lineColor
             shapeNode.lineWidth = 2.0
         }
     }

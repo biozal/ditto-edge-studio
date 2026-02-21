@@ -1,7 +1,7 @@
 import Foundation
 
 @Observable
-class DittoConfigForDatabase: Decodable {
+class DittoConfigForDatabase: Codable {
     var _id: String
     var name: String
     var databaseId: String
@@ -70,6 +70,25 @@ class DittoConfigForDatabase: Decodable {
         case isLanEnabled
         case isAwdlEnabled
         case isCloudSyncEnabled
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(_id, forKey: ._id)
+        try container.encode(name, forKey: .name)
+        try container.encode(databaseId, forKey: .databaseId)
+        try container.encode(token, forKey: .token)
+        try container.encode(authUrl, forKey: .authUrl)
+        try container.encode(websocketUrl, forKey: .websocketUrl)
+        try container.encode(httpApiUrl, forKey: .httpApiUrl)
+        try container.encode(httpApiKey, forKey: .httpApiKey)
+        try container.encode(mode, forKey: .mode)
+        try container.encode(allowUntrustedCerts, forKey: .allowUntrustedCerts)
+        try container.encode(secretKey, forKey: .secretKey)
+        try container.encode(isBluetoothLeEnabled, forKey: .isBluetoothLeEnabled)
+        try container.encode(isLanEnabled, forKey: .isLanEnabled)
+        try container.encode(isAwdlEnabled, forKey: .isAwdlEnabled)
+        try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
     }
 
     required init(from decoder: Decoder) throws {

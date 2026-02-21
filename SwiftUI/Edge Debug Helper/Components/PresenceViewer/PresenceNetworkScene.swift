@@ -40,6 +40,9 @@ class PresenceNetworkScene: SKScene {
     /// Cloud node is treated as a regular peer with this well-known key
     private let cloudNodeKey = "ditto-cloud-node"
 
+    /// Scene readiness flag — set to true only after didMove(to:) completes setup
+    private var isReady = false
+
     // Change detection to avoid unnecessary animations
     private var lastPeerKeysSnapshot: Set<String> = []
     private var lastConnectionsSnapshot: Set<String> = [] // "fromKey-toKey-type" format
@@ -72,6 +75,8 @@ class PresenceNetworkScene: SKScene {
 
         // Apply initial zoom level from configuration
         cameraNode.setScale(initialZoomLevel)
+
+        isReady = true
     }
 
     // MARK: - Setup
@@ -111,6 +116,7 @@ class PresenceNetworkScene: SKScene {
     /// Update the presence graph visualization
     /// Now accepts PeerProtocol to support both real DittoPeer and mock test data
     func updatePresenceGraph(localPeer: PeerProtocol, remotePeers: [PeerProtocol]) {
+        guard isReady else { return }
         // Store local peer key (use peerKeyString for dictionary lookups)
         localPeerKey = localPeer.peerKeyString
 
@@ -133,9 +139,9 @@ class PresenceNetworkScene: SKScene {
             updatePeer(peer, isLocal: false)
         }
 
-        // Check if any peer is connected to cloud
-        let hasCloudConnection = localPeer.isConnectedToDittoCloud ||
-            remotePeers.contains(where: \.isConnectedToDittoCloud)
+        // Cloud connectivity is only knowable for the local device — the SDK does not
+        // expose remote peer cloud status through the presence graph.
+        let hasCloudConnection = localPeer.isConnectedToDittoCloud
 
         // Add or remove cloud node (treated as a regular peer)
         if hasCloudConnection {
@@ -238,19 +244,19 @@ class PresenceNetworkScene: SKScene {
         // Build what connections SHOULD exist (without clearing current ones yet)
         var expectedConnectionIds: Set<String> = []
 
-        // Collect peer-to-peer connection IDs
+        // Collect peer-to-peer connection IDs — deduplicate by type because the SDK returns
+        // one DittoConnection per directional endpoint (A→B and B→A are separate objects).
         for remotePeer in remotePeers {
+            var seenTypes: Set<String> = []
             for connection in remotePeer.connectionProtocols {
-                expectedConnectionIds.insert("\(remotePeer.peerKeyString)_\(connection.id)")
+                guard seenTypes.insert("\(connection.type)").inserted else { continue }
+                expectedConnectionIds.insert("\(remotePeer.peerKeyString)_\(connection.type)")
             }
         }
 
-        // Add cloud connection IDs
+        // Add cloud connection ID — only the local peer's cloud connection is knowable.
         if hasCloudConnection {
-            let allPeers = [localPeer] + remotePeers
-            for peer in allPeers where peer.isConnectedToDittoCloud {
-                expectedConnectionIds.insert("cloud_\(peer.peerKeyString)")
-            }
+            expectedConnectionIds.insert("cloud_\(localPeer.peerKeyString)")
         }
 
         // Check if connections have actually changed
@@ -267,10 +273,15 @@ class PresenceNetworkScene: SKScene {
         // Group connections by peer pair (to detect bidirectional connections)
         var peerPairConnections: [String: [PeerConnectionInfo]] = [:]
 
-        // Collect all peer-to-peer connections
+        // Collect all peer-to-peer connections — deduplicate by type because the SDK returns
+        // one DittoConnection per directional endpoint (A→B and B→A are separate objects with
+        // the same type but different IDs). Keep one line per transport type per peer pair.
         for remotePeer in remotePeers {
+            var seenTypes: Set<String> = []
             for connection in remotePeer.connectionProtocols {
-                let connectionId = "\(remotePeer.peerKeyString)_\(connection.id)"
+                guard seenTypes.insert("\(connection.type)").inserted else { continue }
+
+                let connectionId = "\(remotePeer.peerKeyString)_\(connection.type)"
                 let fromKey = remotePeer.peerKeyString
                 let toKey = localPeer.peerKeyString
 
@@ -291,27 +302,23 @@ class PresenceNetworkScene: SKScene {
             }
         }
 
-        // Add cloud connections if cloud exists
+        // Add cloud connection — only the local peer connects to Ditto Cloud from this device's
+        // perspective. Remote peer cloud status is unknowable via the presence graph.
         if hasCloudConnection {
-            let allPeers = [localPeer] + remotePeers
-            let cloudConnectedPeers = allPeers.filter(\.isConnectedToDittoCloud)
+            let connectionId = "cloud_\(localPeer.peerKeyString)"
+            let pairKey = [cloudNodeKey, localPeer.peerKeyString].sorted().joined(separator: "_")
 
-            for peer in cloudConnectedPeers {
-                let connectionId = "cloud_\(peer.peerKeyString)"
-                let pairKey = [cloudNodeKey, peer.peerKeyString].sorted().joined(separator: "_")
-
-                if peerPairConnections[pairKey] == nil {
-                    peerPairConnections[pairKey] = []
-                }
-
-                peerPairConnections[pairKey]?.append(PeerConnectionInfo(
-                    connectionId: connectionId,
-                    from: peer.peerKeyString,
-                    to: cloudNodeKey,
-                    type: .webSocket, // Cloud connections are WebSocket type
-                    isCloud: true
-                ))
+            if peerPairConnections[pairKey] == nil {
+                peerPairConnections[pairKey] = []
             }
+
+            peerPairConnections[pairKey]?.append(PeerConnectionInfo(
+                connectionId: connectionId,
+                from: localPeer.peerKeyString,
+                to: cloudNodeKey,
+                type: .webSocket,
+                isCloud: true
+            ))
         }
 
         // Create connection lines with offsets for bidirectional connections

@@ -45,6 +45,9 @@ struct DatabaseListPanel: View {
                                 Button {
                                     viewModel.showAppEditor(dittoApp)
                                 } label: { Label("Edit", systemImage: "pencil") }
+                                Button {
+                                    viewModel.showQRCode(dittoApp)
+                                } label: { Label("Show QR Code", systemImage: "qrcode") }
                                 Divider()
                                 Button(role: .destructive) {
                                     Task { await viewModel.deleteApp(dittoApp, appState: appState) }

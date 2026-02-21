@@ -115,13 +115,19 @@ actor SystemRepository {
             return jsonString
         }()
 
-        // Convert connections array to custom ConnectionInfo
+        // Convert connections array to custom ConnectionInfo.
+        // The SDK returns one DittoConnection per directional endpoint (A→B and B→A are
+        // separate objects with the same type but different IDs). Deduplicate by keeping
+        // the first-seen entry per connection type so the peer card shows accurate counts.
         let connections: [ConnectionInfo]? = {
             let peerConnections = peer.connections
 
             guard !peerConnections.isEmpty else { return nil }
 
-            return peerConnections.map { connection in
+            var seenTypes: Set<String> = []
+            let deduplicated = peerConnections.filter { seenTypes.insert("\($0.type)").inserted }
+
+            return deduplicated.map { connection in
                 ConnectionInfo(
                     id: connection.id,
                     type: self.convertConnectionType(connection.type),
@@ -419,10 +425,14 @@ actor SystemRepository {
                 var totalP2PWiFi = 0
                 var totalWebSocket = 0
 
-                // Iterate through all remote peers in the presence graph
+                // Iterate through all remote peers in the presence graph.
+                // Deduplicate by type before counting — the SDK returns one DittoConnection
+                // per directional endpoint (A→B and B→A), which would otherwise double counts.
                 for peer in presenceGraph.remotePeers {
-                    // Count connections by type for this peer
+                    var seenTypes: Set<String> = []
                     for connection in peer.connections {
+                        guard seenTypes.insert("\(connection.type)").inserted else { continue }
+
                         let connectionType = await convertConnectionType(connection.type)
 
                         switch connectionType {

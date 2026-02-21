@@ -29,8 +29,26 @@ struct ContentView: View {
         #if os(macOS)
         .frame(
             minWidth: viewModel.isMainStudioViewPresented ? 1200 : 800,
-            minHeight: viewModel.isMainStudioViewPresented ? 700 : 540
+            maxWidth: viewModel.isMainStudioViewPresented ? .infinity : 800,
+            minHeight: viewModel.isMainStudioViewPresented ? 700 : 540,
+            maxHeight: viewModel.isMainStudioViewPresented ? .infinity : 540
         )
+        .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
+            guard let window = NSApplication.shared.windows.first(where: { $0.isMainWindow }) else { return }
+            if isPresented {
+                window.styleMask.insert(.resizable)
+                window.minSize = NSSize(width: 1200, height: 700)
+                window.maxSize = NSSize(width: 10000, height: 10000)
+                window.standardWindowButton(.zoomButton)?.isHidden = false
+            } else {
+                window.setContentSize(NSSize(width: 800, height: 540))
+                window.minSize = NSSize(width: 800, height: 540)
+                window.maxSize = NSSize(width: 800, height: 540)
+                window.styleMask.remove(.resizable)
+                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.center()
+            }
+        }
         #endif
         .onAppear {
             Task {
@@ -83,10 +101,10 @@ extension ContentView {
             .padding(.trailing, 24)
 
             VStack(alignment: .center, spacing: 20) {
-                Text("Edge Studio")
-                    .font(.custom("ChakraPetch-Bold", size: 42))
-                    .foregroundColor(.dittoYellow)
-                    .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 2)
+                Image("ditto-edge-studio-splash")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 300, maxHeight: 120)
 
                 VStack(spacing: 14) {
                     Button {
@@ -129,36 +147,40 @@ extension ContentView {
                     }
                     .buttonStyle(.glass)
                     .focusEffectDisabled()
+
+                    Button {
+                        viewModel.showQRScanner()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "qrcode.viewfinder")
+                                .foregroundColor(.white)
+                            Text("Import from QR Code")
+                                .foregroundColor(.white)
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.glass)
+                    .focusEffectDisabled()
                 }
                 .frame(width: 280)
             }
             .frame(width: 436)
-            .padding(.bottom, 60)
+            .padding(.bottom, 100)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            // Resize window to 800×540 whenever the picker appears —
-            // handles both first launch and returning from MainStudioView.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                guard let window = NSApplication.shared.keyWindow else { return }
-                let fixedSize = NSSize(width: 800, height: 540)
-                window.setContentSize(fixedSize)
-                window.minSize = fixedSize
-                window.maxSize = fixedSize
+        .background(
+            WindowAccessor { window in
+                window.setContentSize(NSSize(width: 800, height: 540))
+                window.minSize = NSSize(width: 800, height: 540)
+                window.maxSize = NSSize(width: 800, height: 540)
                 window.styleMask.remove(.resizable)
                 window.standardWindowButton(.zoomButton)?.isHidden = true
                 window.center()
             }
-        }
-        .onDisappear {
-            DispatchQueue.main.async {
-                guard let window = NSApplication.shared.keyWindow else { return }
-                window.styleMask.insert(.resizable)
-                window.minSize = NSSize(width: 1200, height: 700)
-                window.maxSize = NSSize(width: 10000, height: 10000)
-                window.standardWindowButton(.zoomButton)?.isHidden = false
-            }
-        }
+        )
         .sheet(
             isPresented: Binding(
                 get: { viewModel.isPresented },
@@ -185,6 +207,24 @@ extension ContentView {
                 .presentationDetents([.medium, .large])
             }
         }
+        .sheet(isPresented: Binding(
+            get: { viewModel.isShowingQRCode },
+            set: { viewModel.isShowingQRCode = $0 }
+        )) {
+            if let config = viewModel.qrCodeConfig {
+                QRCodeDisplayView(config: config)
+                    .frame(minWidth: 360, minHeight: 420)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { viewModel.isShowingQRScanner },
+            set: { viewModel.isShowingQRScanner = $0 }
+        )) {
+            QRCodeScannerView { config in
+                Task { await viewModel.importFromQRCode(config, appState: appState) }
+            }
+            .frame(minWidth: 480, minHeight: 360)
+        }
     }
 }
 #endif
@@ -194,124 +234,134 @@ extension ContentView {
 #if os(iOS)
 extension ContentView {
     var iPadPickerView: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Same splash background as macOS
-            Image("ditto-splash")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea()
-
-            Color.black.opacity(0.20)
-                .ignoresSafeArea()
-
-            // Floating glass panel — right-center
-            HStack {
-                Spacer()
-                DatabaseListPanel(viewModel: viewModel, appState: appState)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 4)
-                    .frame(width: 340, height: 450)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(LinearGradient(
-                                colors: [
-                                    Color.black.opacity(0.18),
-                                    Color.black.opacity(0.52)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
-                            )
+        compactPickerContent
+            .sheet(
+                isPresented: Binding(
+                    get: { viewModel.isPresented },
+                    set: { viewModel.isPresented = $0 }
+                )
+            ) {
+                if let dittoAppConfig = viewModel.dittoAppToEdit {
+                    DatabaseEditorView(
+                        isPresented: Binding(
+                            get: { viewModel.isPresented },
+                            set: { viewModel.isPresented = $0 }
+                        ),
+                        dittoAppConfig: dittoAppConfig
                     )
-                    .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 8)
+                    .environmentObject(appState)
+                    .presentationDetents([.large])
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.trailing, 24)
+            .sheet(isPresented: Binding(
+                get: { viewModel.isShowingQRCode },
+                set: { viewModel.isShowingQRCode = $0 }
+            )) {
+                if let config = viewModel.qrCodeConfig {
+                    QRCodeDisplayView(config: config)
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { viewModel.isShowingQRScanner },
+                set: { viewModel.isShowingQRScanner = $0 }
+            )) {
+                QRCodeScannerView { config in
+                    Task { await viewModel.importFromQRCode(config, appState: appState) }
+                }
+            }
+    }
 
-            // Branding + action buttons — bottom-left
-            VStack(alignment: .center, spacing: 20) {
-                Text("Edge Studio")
-                    .font(.custom("ChakraPetch-Bold", size: 42))
-                    .foregroundColor(.dittoYellow)
-                    .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 2)
+    /// Compact mode: < 650pt wide — HIG-compliant NavigationStack with yellow FAB
+    var compactPickerContent: some View {
+        NavigationStack {
+            ZStack(alignment: .bottomTrailing) {
+                Color(uiColor: .systemBackground).ignoresSafeArea()
 
-                VStack(spacing: 14) {
-                    Button {
-                        viewModel.showAppEditor(DittoConfigForDatabase.new())
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "plus")
-                                .foregroundColor(.black)
-                            Text("Database Config")
-                                .foregroundColor(.black)
-                                .fontWeight(.medium)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                if viewModel.isLoading {
+                    ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if viewModel.dittoApps.isEmpty {
+                    VStack(spacing: 20) {
+                        FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
+                        Text("No Databases")
+                            .font(.title2)
+                            .foregroundColor(.primary)
+                        Text("Tap + to add a database configuration.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    .buttonStyle(.glassProminent)
-                    .tint(.dittoYellow)
-                    .focusEffectDisabled()
-                    .accessibilityIdentifier("AddDatabaseButton")
+                    .padding(.horizontal, 32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 300))],
+                            spacing: 16
+                        ) {
+                            ForEach(viewModel.dittoApps, id: \._id) { app in
+                                DatabaseCard(dittoApp: app, onEdit: { viewModel.showAppEditor(app) })
+                                    .onTapGesture {
+                                        Task { await viewModel.showMainStudio(app, appState: appState) }
+                                    }
+                                    .contextMenu {
+                                        Button { viewModel.showAppEditor(app) } label: { Label("Edit", systemImage: "pencil") }
+                                        Button { viewModel.showQRCode(app) } label: { Label("QR Code", systemImage: "qrcode") }
+                                        Divider()
+                                        Button(role: .destructive) {
+                                            Task { await viewModel.deleteApp(app, appState: appState) }
+                                        } label: { Label("Delete", systemImage: "trash") }
+                                    }
+                                    .accessibilityIdentifier("AppCard_\(app.name)")
+                            }
+                        }
+                        .padding(.horizontal)
+                        .accessibilityIdentifier("DatabaseList")
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        Color.clear.frame(height: 88)
+                    }
+                }
 
+                // Floating Action Button — HIG: primary creation action, bottom-right, thumb-accessible
+                Button {
+                    viewModel.showAppEditor(DittoConfigForDatabase.new())
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.black)
+                        .frame(width: 56, height: 56)
+                        .background(Color.dittoYellow)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 24)
+                .padding(.trailing, 24)
+                .accessibilityIdentifier("AddDatabaseButton")
+            }
+            .navigationTitle("Edge Studio")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                // HIG: secondary/utility actions in navigation bar trailing
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.showQRScanner()
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .foregroundColor(.primary)
+                    }
+                    .accessibilityIdentifier("ImportQRCodeButton")
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         if let url = URL(string: "https://portal.ditto.live") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "cloud")
-                                .foregroundColor(.white)
-                            Text("Ditto Portal")
-                                .foregroundColor(.white)
-                                .fontWeight(.medium)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.6))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        Image(systemName: "cloud")
+                            .foregroundColor(.primary)
                     }
-                    .buttonStyle(.glass)
-                    .focusEffectDisabled()
                 }
-                .frame(width: 280)
-            }
-            .frame(width: 436)
-            .padding(.bottom, 60)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.isPresented },
-                set: { viewModel.isPresented = $0 }
-            )
-        ) {
-            if let dittoAppConfig = viewModel.dittoAppToEdit {
-                DatabaseEditorView(
-                    isPresented: Binding(
-                        get: { viewModel.isPresented },
-                        set: { viewModel.isPresented = $0 }
-                    ),
-                    dittoAppConfig: dittoAppConfig
-                )
-                .frame(
-                    minWidth: 800,
-                    idealWidth: 1000,
-                    maxWidth: 1080,
-                    minHeight: 600,
-                    idealHeight: 680,
-                    maxHeight: 850
-                )
-                .environmentObject(appState)
-                .presentationDetents([.medium, .large])
             }
         }
     }
@@ -334,6 +384,13 @@ extension ContentView {
         // used for editor
         var isPresented = false
         var dittoAppToEdit: DittoConfigForDatabase?
+
+        // used for QR code display
+        var isShowingQRCode = false
+        var qrCodeConfig: DittoConfigForDatabase?
+
+        /// used for QR scanner
+        var isShowingQRScanner = false
 
         // used for MainStudioView
         var isMainStudioViewPresented = false
@@ -386,6 +443,24 @@ extension ContentView {
         func showAppEditor(_ dittoApp: DittoConfigForDatabase) {
             dittoAppToEdit = dittoApp
             isPresented = true
+        }
+
+        func showQRCode(_ config: DittoConfigForDatabase) {
+            qrCodeConfig = config
+            isShowingQRCode = true
+        }
+
+        func showQRScanner() {
+            isShowingQRScanner = true
+        }
+
+        func importFromQRCode(_ config: DittoConfigForDatabase, appState: AppState) async {
+            do {
+                try await databaseRepository.addDittoAppConfig(config)
+            } catch {
+                appState.setError(error)
+            }
+            isShowingQRScanner = false
         }
 
         func showMainStudio(_ dittoApp: DittoConfigForDatabase, appState: AppState)

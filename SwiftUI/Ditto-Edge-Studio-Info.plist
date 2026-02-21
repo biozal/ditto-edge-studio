@@ -25,6 +25,8 @@
 	<string>Location access is used to display your current WiFi network name and access point address in Network Details.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Ditto uses Bluetooth to connect and sync with nearby devices</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Edge Studio needs camera access to scan QR codes for importing database configurations.</string>
 	<key>ATSApplicationFontsPath</key>
 	<string>.</string>
 	<key>UIAppFonts</key>

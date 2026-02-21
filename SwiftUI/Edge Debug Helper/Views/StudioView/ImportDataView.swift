@@ -21,260 +21,285 @@ struct ImportDataView: View {
     @State private var useInitialInsert = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Import JSON Data")
-                .font(.title2)
-                .bold()
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 30)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
+                #if os(macOS)
+                Text("Import JSON Data")
+                    .font(.title2)
+                    .bold()
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 30)
+                #endif
 
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Select JSON File")
-                        .font(.headline)
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Select JSON File")
+                            .font(.headline)
 
-                    HStack {
-                        Text(selectedFileName)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .foregroundColor(selectedFileURL == nil ? .secondary : .primary)
+                        HStack {
+                            Text(selectedFileName)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundColor(selectedFileURL == nil ? .secondary : .primary)
 
-                        Spacer()
+                            Spacer()
 
-                        Button("Choose File...") {
-                            showingFilePicker = true
-                        }
-                    }
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.primary.opacity(0.05)))
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Target Collection")
-                        .font(.headline)
-
-                    Picker("", selection: $useExistingCollection) {
-                        Text("Existing Collection").tag(true)
-                        Text("New Collection").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-
-                    if useExistingCollection {
-                        if existingCollections.isEmpty {
-                            Text("No existing collections found")
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            HStack {
-                                Text("Select Collection")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Picker("", selection: $selectedCollection) {
-                                    ForEach(existingCollections, id: \._id) { collection in
-                                        Text(collection.name).tag(collection.name)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
+                            Button("Choose File...") {
+                                showingFilePicker = true
                             }
                         }
-                    } else {
-                        TextField("New collection name", text: $collectionName)
-                            .textFieldStyle(.roundedBorder)
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.primary.opacity(0.05)))
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Insert Type")
-                        .font(.headline)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Target Collection")
+                            .font(.headline)
 
-                    HStack(spacing: 16) {
-                        Toggle(isOn: $useInitialInsert) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(useInitialInsert ? "Initial Documents Insert" : "Regular Insert")
-                                    .font(.system(size: 13))
-                                Text(useInitialInsert
-                                    ? "Use for first-time data import (WITH INITIAL DOCUMENTS)"
-                                    : "Use for adding data to existing collections")
-                                    .font(.caption)
+                        Picker("", selection: $useExistingCollection) {
+                            Text("Existing Collection").tag(true)
+                            Text("New Collection").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if useExistingCollection {
+                            if existingCollections.isEmpty {
+                                Text("No existing collections found")
                                     .foregroundColor(.secondary)
-                            }
-                        }
-                        .toggleStyle(.switch)
-                    }
-
-                    if useInitialInsert {
-                        HStack(spacing: 4) {
-                            FontAwesomeText(icon: StatusIcon.circleInfo, size: 12, color: .blue)
-                            Text("Initial insert is designed for loading data for the first time and has special optimizations.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(8)
-                        .background(RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.blue.opacity(0.1)))
-                    }
-                }
-            }
-
-            // Add more spacing before Status section
-            if isImporting || importError != nil || importSuccess {
-                Spacer()
-                    .frame(height: 20)
-            }
-
-            // Status Section
-            if isImporting || importError != nil || importSuccess {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Status")
-                        .font(.headline)
-
-                    if isImporting {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if let progress = importProgress {
-                                // Progress bar
-                                ProgressView(value: Double(progress.current), total: Double(progress.total))
-                                    .progressViewStyle(.linear)
-
-                                HStack {
-                                    Text("Importing: \(progress.current) of \(progress.total) documents")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                }
-
-                                if let docId = progress.currentDocumentId {
-                                    Text("Processing: \(docId)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 HStack {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .scaleEffect(0.8)
-                                    Text(currentImportStatus.isEmpty ? "Preparing import..." : currentImportStatus)
+                                    Text("Select Collection")
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Picker("", selection: $selectedCollection) {
+                                        ForEach(existingCollections, id: \._id) { collection in
+                                            Text(collection.name).tag(collection.name)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .labelsHidden()
+                                }
+                            }
+                        } else {
+                            TextField("New collection name", text: $collectionName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Insert Type")
+                            .font(.headline)
+
+                        HStack(spacing: 16) {
+                            Toggle(isOn: $useInitialInsert) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(useInitialInsert ? "Initial Documents Insert" : "Regular Insert")
+                                        .font(.system(size: 13))
+                                    Text(useInitialInsert
+                                        ? "Use for first-time data import (WITH INITIAL DOCUMENTS)"
+                                        : "Use for adding data to existing collections")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                             }
+                            .toggleStyle(.switch)
                         }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue.opacity(0.1)))
-                    } else if let error = importError {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                FontAwesomeText(icon: StatusIcon.triangleExclamation, size: 14, color: .red)
-                                Text("Error")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.red)
-                                Spacer()
-                                Button(action: {
-                                    #if os(macOS)
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(error, forType: .string)
-                                    #else
-                                    UIPasteboard.general.string = error
-                                    #endif
-                                }, label: {
-                                    HStack(spacing: 4) {
-                                        FontAwesomeText(icon: ActionIcon.copy, size: 12)
-                                        Text("Copy")
-                                            .font(.caption2)
-                                    }
-                                })
-                                .buttonStyle(.plain)
-                                .foregroundColor(.red.opacity(0.8))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.red.opacity(0.1)))
-                                .help("Click to copy error message to clipboard")
-                            }
 
-                            ScrollView {
-                                Text(error)
+                        if useInitialInsert {
+                            HStack(spacing: 4) {
+                                FontAwesomeText(icon: StatusIcon.circleInfo, size: 12, color: .blue)
+                                Text("Initial insert is designed for loading data for the first time and has special optimizations.")
                                     .font(.caption)
-                                    .foregroundColor(.red)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .foregroundColor(.secondary)
                             }
-                            .frame(maxHeight: 150)
+                            .padding(8)
+                            .background(RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.blue.opacity(0.1)))
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.red.opacity(0.1)))
-                    } else if importSuccess {
-                        HStack(alignment: .top, spacing: 8) {
-                            FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
-                            Text(successMessage)
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.green.opacity(0.1)))
                     }
                 }
-                .transition(.opacity)
-                .animation(.easeInOut(duration: 0.3), value: isImporting)
-                .animation(.easeInOut(duration: 0.3), value: importError)
-                .animation(.easeInOut(duration: 0.3), value: importSuccess)
-            }
 
-            Spacer()
-
-            HStack {
-                Button("Cancel") {
-                    isPresented = false
+                // Add more spacing before Status section
+                if isImporting || importError != nil || importSuccess {
+                    Spacer()
+                        .frame(height: 20)
                 }
-                .keyboardShortcut(.escape)
 
+                // Status Section
+                if isImporting || importError != nil || importSuccess {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Status")
+                            .font(.headline)
+
+                        if isImporting {
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let progress = importProgress {
+                                    // Progress bar
+                                    ProgressView(value: Double(progress.current), total: Double(progress.total))
+                                        .progressViewStyle(.linear)
+
+                                    HStack {
+                                        Text("Importing: \(progress.current) of \(progress.total) documents")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                    }
+
+                                    if let docId = progress.currentDocumentId {
+                                        Text("Processing: \(docId)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                } else {
+                                    HStack {
+                                        ProgressView()
+                                            .progressViewStyle(.circular)
+                                            .scaleEffect(0.8)
+                                        Text(currentImportStatus.isEmpty ? "Preparing import..." : currentImportStatus)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.blue.opacity(0.1)))
+                        } else if let error = importError {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    FontAwesomeText(icon: StatusIcon.triangleExclamation, size: 14, color: .red)
+                                    Text("Error")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                    Button(action: {
+                                        #if os(macOS)
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(error, forType: .string)
+                                        #else
+                                        UIPasteboard.general.string = error
+                                        #endif
+                                    }, label: {
+                                        HStack(spacing: 4) {
+                                            FontAwesomeText(icon: ActionIcon.copy, size: 12)
+                                            Text("Copy")
+                                                .font(.caption2)
+                                        }
+                                    })
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.red.opacity(0.8))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.red.opacity(0.1)))
+                                    .help("Click to copy error message to clipboard")
+                                }
+
+                                ScrollView {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(maxHeight: 150)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.red.opacity(0.1)))
+                        } else if importSuccess {
+                            HStack(alignment: .top, spacing: 8) {
+                                FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
+                                Text(successMessage)
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.green.opacity(0.1)))
+                        }
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: isImporting)
+                    .animation(.easeInOut(duration: 0.3), value: importError)
+                    .animation(.easeInOut(duration: 0.3), value: importSuccess)
+                }
+
+                #if os(macOS)
                 Spacer()
 
-                if importSuccess {
-                    Button("Done") {
+                HStack {
+                    Button("Cancel") {
                         isPresented = false
                     }
-                    .keyboardShortcut(.return)
-                } else {
-                    Button("Import") {
-                        performImport()
+                    .keyboardShortcut(.escape)
+
+                    Spacer()
+
+                    if importSuccess {
+                        Button("Done") {
+                            isPresented = false
+                        }
+                        .keyboardShortcut(.return)
+                    } else {
+                        Button("Import") {
+                            performImport()
+                        }
+                        .keyboardShortcut(.return)
+                        .disabled(!canImport || isImporting)
                     }
-                    .keyboardShortcut(.return)
-                    .disabled(!canImport || isImporting)
                 }
+                #endif
             }
-        }
-        .padding(30)
-        .frame(width: 550)
-        .frame(minHeight: 500, maxHeight: 800)
-        .fileImporter(
-            isPresented: $showingFilePicker,
-            allowedContentTypes: [UTType.json],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case let .success(files):
-                if let file = files.first {
-                    // Store the security-scoped URL
-                    selectedFileURL = file
-                    selectedFileName = file.lastPathComponent
+            .padding(30)
+            #if os(macOS)
+                .frame(width: 550)
+                .frame(minHeight: 500, maxHeight: 800)
+            #endif
+                .navigationTitle("Import JSON Data")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { isPresented = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        if importSuccess {
+                            Button("Done") { isPresented = false }
+                        } else {
+                            Button("Import") { performImport() }
+                                .disabled(!canImport || isImporting)
+                        }
+                    }
                 }
-            case let .failure(error):
-                appState.setError(error)
-            }
-        }
-        .onAppear {
-            loadExistingCollections()
-        }
+            #endif
+                .fileImporter(
+                    isPresented: $showingFilePicker,
+                    allowedContentTypes: [UTType.json],
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case let .success(files):
+                        if let file = files.first {
+                            // Store the security-scoped URL
+                            selectedFileURL = file
+                            selectedFileName = file.lastPathComponent
+                        }
+                    case let .failure(error):
+                        appState.setError(error)
+                    }
+                }
+                .onAppear {
+                    loadExistingCollections()
+                }
+        } // NavigationStack
     }
 
     private var canImport: Bool {

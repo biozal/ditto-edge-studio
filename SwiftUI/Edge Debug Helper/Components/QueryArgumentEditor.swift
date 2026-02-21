@@ -53,11 +53,12 @@ struct QueryArgumentEditor: View {
                     )
                     .frame(minWidth: 640, minHeight: 150)
                     #else
-                    CodeEditor(
-                        source: $query,
-                        language: .sql,
-                        theme: .atelierSavannaDark
-                    )
+                    TextEditor(text: $query)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 120)
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     #endif
                     Text("Ex: SELECT * FROM collectionName")
                         .font(.caption)
@@ -77,12 +78,12 @@ struct QueryArgumentEditor: View {
                     )
                     .frame(minWidth: 640, minHeight: 150)
                     #else
-                    CodeEditor(
-                        source: $arguments,
-                        language: .sql,
-                        theme: .atelierSavannaDark
-                    )
-
+                    TextEditor(text: $arguments)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 120)
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     #endif
                     Text("JSON String Format - Ex: [{\"key\": \"value\"}]")
                         .font(.caption)

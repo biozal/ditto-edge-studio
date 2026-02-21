@@ -3,40 +3,67 @@ import SwiftUI
 extension MainStudioView {
     func syncTabsDetailView() -> some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Connected Peers")
-                        .font(.title2)
-                        .bold()
-                    if let statusInfo = viewModel.syncStatusItems.first {
-                        Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            ViewThatFits(in: .horizontal) {
+                // ── Wide layout: all on one row ──────────────────────────────────
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Connected Peers")
+                            .font(.title2)
+                            .bold()
+                        if let statusInfo = viewModel.syncStatusItems.first {
+                            Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
+                    .padding(.leading, 10)
+
+                    Spacer()
+
+                    Picker("", selection: $selectedSyncTab) {
+                        Text("Peers List").tag(0)
+                        Text("Presence Viewer").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("SyncTabPicker")
+
+                    Spacer()
+
+                    TransportSettingsButton()
+                        .padding(.trailing, 5)
                 }
-                .padding(.leading, 10)
 
-                Spacer()
+                // ── Narrow layout: picker + gear on top, title below ─────────────
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Picker("", selection: $selectedSyncTab) {
+                            Text("Peers List").tag(0)
+                            Text("Presence Viewer").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.leading, 10)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("SyncTabPicker")
 
-                // Tab selector (segmented picker with icons)
-                Picker("", selection: $selectedSyncTab) {
-                    Text("Peers List")
-                        .tag(0)
+                        TransportSettingsButton()
+                            .padding(.trailing, 5)
+                    }
 
-                    Text("Presence Viewer")
-                        .tag(1)
+                    VStack(alignment: .leading) {
+                        Text("Connected Peers")
+                            .font(.title2)
+                            .bold()
+                        if let statusInfo = viewModel.syncStatusItems.first {
+                            Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.leading, 10)
+                    .padding(.bottom, 8)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("SyncTabPicker")
-
-                Spacer()
-
-                // Right: Transport settings popover button
-                TransportSettingsButton()
-                    .padding(.trailing, 5)
             }
 
             // Tab content

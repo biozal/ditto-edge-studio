@@ -366,19 +366,21 @@ extension PresenceViewerSK {
             }
 
             presenceObserver = ditto.presence.observe { [weak self] presenceGraph in
-                guard let self else { return }
+                // Ditto presence callbacks fire on a background thread — hop to main before
+                // touching @MainActor state or any SpriteKit node tree APIs.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
 
-                // Already on MainActor, no need for DispatchQueue.main.async
-                localPeer = presenceGraph.localPeer
-                remotePeers = Array(presenceGraph.remotePeers)
-                localPeerKey = presenceGraph.localPeer.peerKeyString
+                    localPeer = presenceGraph.localPeer
+                    remotePeers = Array(presenceGraph.remotePeers)
+                    localPeerKey = presenceGraph.localPeer.peerKeyString
 
-                // Update scene if available
-                if let scene {
-                    scene.updatePresenceGraph(
-                        localPeer: presenceGraph.localPeer,
-                        remotePeers: Array(presenceGraph.remotePeers)
-                    )
+                    if let scene {
+                        scene.updatePresenceGraph(
+                            localPeer: presenceGraph.localPeer,
+                            remotePeers: Array(presenceGraph.remotePeers)
+                        )
+                    }
                 }
             }
         }

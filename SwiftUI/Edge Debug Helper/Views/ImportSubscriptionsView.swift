@@ -15,42 +15,43 @@ struct ImportSubscriptionsView: View {
     }
 
     var body: some View {
+        #if os(iOS)
+        NavigationStack {
+            sharedContent
+                .navigationTitle("Import Subscriptions")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { isPresented = false }
+                            .disabled(viewModel.isImporting)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Import (\(viewModel.selectedCount))") {
+                            Task {
+                                do {
+                                    try await viewModel.importSelectedSubscriptions()
+                                    try await Task.sleep(nanoseconds: 500_000_000)
+                                    isPresented = false
+                                } catch {
+                                    appState.setError(error)
+                                }
+                            }
+                        }
+                        .disabled(viewModel.selectedCount == 0 || viewModel.isImporting)
+                    }
+                }
+        }
+        .task {
+            await viewModel.loadDevicesAndSubscriptions()
+        }
+        #else
         VStack(spacing: 20) {
-            // Header
             Text("Import Subscriptions from Devices")
                 .font(.title2)
                 .bold()
                 .padding(.top)
 
-            if viewModel.isLoading {
-                Spacer()
-                ProgressView("Loading device subscriptions...")
-                Spacer()
-            } else if let error = viewModel.errorMessage {
-                Spacer()
-                ContentUnavailableView(
-                    "Error Loading Subscriptions",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                )
-                Spacer()
-            } else if viewModel.importableSubscriptions.isEmpty {
-                Spacer()
-                ContentUnavailableView(
-                    "No New Subscriptions Found",
-                    systemImage: "checkmark.circle",
-                    description: Text("All device subscriptions are already imported")
-                )
-                Spacer()
-            } else {
-                subscriptionsList
-            }
-
-            // Import status
-            if viewModel.isImporting {
-                ProgressView(viewModel.importStatus)
-                    .padding()
-            }
+            sharedContent
 
             // Actions
             HStack {
@@ -68,7 +69,7 @@ struct ImportSubscriptionsView: View {
                     Task {
                         do {
                             try await viewModel.importSelectedSubscriptions()
-                            try await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
+                            try await Task.sleep(nanoseconds: 500_000_000)
                             isPresented = false
                         } catch {
                             appState.setError(error)
@@ -83,6 +84,39 @@ struct ImportSubscriptionsView: View {
         .frame(width: 700, height: 500)
         .task {
             await viewModel.loadDevicesAndSubscriptions()
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var sharedContent: some View {
+        if viewModel.isLoading {
+            Spacer()
+            ProgressView("Loading device subscriptions...")
+            Spacer()
+        } else if let error = viewModel.errorMessage {
+            Spacer()
+            ContentUnavailableView(
+                "Error Loading Subscriptions",
+                systemImage: "exclamationmark.triangle",
+                description: Text(error)
+            )
+            Spacer()
+        } else if viewModel.importableSubscriptions.isEmpty {
+            Spacer()
+            ContentUnavailableView(
+                "No New Subscriptions Found",
+                systemImage: "checkmark.circle",
+                description: Text("All device subscriptions are already imported")
+            )
+            Spacer()
+        } else {
+            subscriptionsList
+        }
+
+        if viewModel.isImporting {
+            ProgressView(viewModel.importStatus)
+                .padding()
         }
     }
 

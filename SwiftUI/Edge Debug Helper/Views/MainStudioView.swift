@@ -100,22 +100,28 @@ struct MainStudioView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 16))
-                            .padding(6)
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.black)
+                            .frame(width: 56, height: 56)
+                            .background(Color.dittoYellow)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                     }
-                    .buttonStyle(.glass)
-                    .clipShape(Circle())
+                    .buttonStyle(.plain)
                     Spacer()
                     if viewModel.selectedSidebarMenuItem.name == "Collections" {
                         Button {
                             showingImportView = true
                         } label: {
                             Image(systemName: "arrow.up")
-                                .font(.system(size: 16))
-                                .padding(6)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.black)
+                                .frame(width: 56, height: 56)
+                                .background(Color.dittoYellow)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                         }
-                        .buttonStyle(.glass)
-                        .clipShape(Circle())
+                        .buttonStyle(.plain)
                         .help("Import JSON data")
                     }
                 }
