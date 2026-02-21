@@ -1,6 +1,6 @@
-import SwiftUI
-import DittoSwift
 import DittoDiskUsage
+import DittoSwift
+import SwiftUI
 
 struct DiskUsageViewer: View {
     let ditto: Ditto

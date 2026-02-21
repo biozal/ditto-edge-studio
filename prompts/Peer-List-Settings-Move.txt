@@ -1,0 +1,9 @@
+Go into plan mode.  I would like to make more changes to the UI of the Peers List.
+
+In the ConnectedPeersView I would like to change the top right VStack that has the comment  // Right:  Settings button todo.  Instead of drawing the formattedLastUpdate time, I would like to have a cog button that the user can click on.  When the user clicks on the cog button, I would like the Peer-To-Peer transport list that current renders in the Settings tab to appear in a pop-up window below the cog that allows them quickly to turn on and off transports.  I do want to change this though so that it only shows the Peer-to-Peer group along with the Apply Transport Settings button with the warning below the Apply button.  Basically I want to remove the ability to turn on or off websocket sync for now.  Don't remove the code, just remove the option from the UI so that websockets is always on.
+
+This UI should be a Popover from the button for now.  If the UI needs to be bigger we might need to make it a sheet.  For now let's try Popover to test and see if that looks nice.
+
+With this change we can remove the Settings tab as we will only need two tabs moving forward - the Peers List and Presence Viewer tab.  
+
+Create a plan for how to do this change and let me know when you are ready for me to review it.

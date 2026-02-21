@@ -1,0 +1,16 @@
+Go into plan mode:  Ditto's brand colors currenlty are:
+
+RAL 9005 - Black
+RAL 9017 - Dark Grey
+RAL 9022 - Grey
+RAL 9018 - Light Grey
+RAL 1016 - Yellow
+RAL 9016 - white
+
+I would like to update the app background colors for light and dark mode to use more of these colors.  For cards we should be looking at doing gradient based on the colors provide.  For example in light mode we can do gradient between white and light grey where in dark mode we can do between black and dark grey, etc.  
+
+Research the background colors we use on Windows and cards and see where we can incorporate these colors better.  Note DO NOT change colors for presence viewer lines or the cards we use on the peer list since those colors are special based on the rainbow connections.  Make a list of suggestions on how we can improve the colors and also meet our brand color guidance.  
+
+We need to make sure anytime we change colors that the font on top of the color is still readable.  Make a plan of suggestions on what we can do.  Cards like subscriptions should be updated to use gradiants for background color like we did in the peer listing because that looks very nice.
+
+Once you have a plan idea let me know so I can review.

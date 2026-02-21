@@ -1,6 +1,7 @@
 import Foundation
+import SwiftUI
 
-// Custom enum for peer operating system information
+/// Custom enum for peer operating system information
 enum PeerOS: Equatable, Codable {
     case iOS(version: String?)
     case android(version: String?)
@@ -11,23 +12,23 @@ enum PeerOS: Equatable, Codable {
 
     var displayName: String {
         switch self {
-        case .iOS(let version):
+        case let .iOS(version):
             return version.map { "iOS \($0)" } ?? "iOS"
-        case .android(let version):
+        case let .android(version):
             return version.map { "Android \($0)" } ?? "Android"
-        case .macOS(let version):
+        case let .macOS(version):
             return version.map { "macOS \($0)" } ?? "macOS"
-        case .linux(let version):
+        case let .linux(version):
             return version.map { "Linux \($0)" } ?? "Linux"
-        case .windows(let version):
+        case let .windows(version):
             return version.map { "Windows \($0)" } ?? "Windows"
-        case .unknown(let name):
+        case let .unknown(name):
             return name ?? "Unknown OS"
         }
     }
 }
 
-// Custom enum for connection types
+/// Custom enum for connection types
 enum ConnectionType: Equatable, Codable {
     case bluetooth
     case accessPoint
@@ -45,38 +46,58 @@ enum ConnectionType: Equatable, Codable {
             return "P2P WiFi"
         case .webSocket:
             return "WebSocket"
-        case .unknown(let name):
+        case let .unknown(name):
             return name
         }
     }
 
-    var iconName: String {
+    var icon: FAIcon {
         switch self {
         case .bluetooth:
-            return "dot.radiowaves.forward"
+            return ConnectivityIcon.bluetooth
         case .accessPoint:
-            return "wifi.router"
+            return ConnectivityIcon.broadcastTower
         case .p2pWiFi:
-            return "antenna.radiowaves.left.and.right"
+            return ConnectivityIcon.wifi
         case .webSocket:
-            return "network"
+            return ConnectivityIcon.network
         case .unknown:
-            return "questionmark.circle"
+            return SystemIcon.question
+        }
+    }
+
+    var cardColor: Color {
+        switch self {
+        case .bluetooth: return Color(red: 0.0, green: 0.40, blue: 0.85)
+        case .accessPoint: return Color(red: 0.05, green: 0.52, blue: 0.25)
+        case .p2pWiFi: return Color(red: 0.78, green: 0.10, blue: 0.22)
+        case .webSocket: return Color(red: 0.85, green: 0.48, blue: 0.00)
+        case .unknown: return Color(red: 0.35, green: 0.35, blue: 0.40)
+        }
+    }
+
+    var cardDarkColor: Color {
+        switch self {
+        case .bluetooth: return Color(red: 0.0, green: 0.20, blue: 0.60)
+        case .accessPoint: return Color(red: 0.02, green: 0.32, blue: 0.14)
+        case .p2pWiFi: return Color(red: 0.50, green: 0.04, blue: 0.12)
+        case .webSocket: return Color(red: 0.60, green: 0.30, blue: 0.00)
+        case .unknown: return Color(red: 0.20, green: 0.20, blue: 0.25)
         }
     }
 }
 
-// Custom struct for peer address information
+/// Custom struct for peer address information
 struct PeerAddressInfo: Equatable, Codable {
-    let connectionType: String  // e.g., "WiFi", "Bluetooth", "WebSocket"
-    let description: String     // Human-readable address
+    let connectionType: String // e.g., "WiFi", "Bluetooth", "WebSocket"
+    let description: String // Human-readable address
 
     var displayText: String {
         "\(connectionType): \(description)"
     }
 }
 
-// Custom struct for connection information
+/// Custom struct for connection information
 struct ConnectionInfo: Identifiable, Equatable, Codable {
     let id: String
     let type: ConnectionType
@@ -99,17 +120,18 @@ struct ConnectionInfo: Identifiable, Equatable, Codable {
     var otherPeerKey: String {
         // Return the peer key that isn't the local peer
         // This will be determined when displaying
-        return peerKeyString2
+        peerKeyString2
     }
 }
 
-// Helper struct for passing peer enrichment data
+/// Helper struct for passing peer enrichment data
 struct PeerEnrichmentData {
     let deviceName: String?
     let osInfo: PeerOS?
     let dittoSDKVersion: String?
     let addressInfo: PeerAddressInfo?
     let identityMetadata: String?
+    let peerMetadata: String?
     let connections: [ConnectionInfo]?
 }
 
@@ -126,31 +148,33 @@ struct SyncStatusInfo: Identifiable, Equatable {
     let dittoSDKVersion: String?
     let addressInfo: PeerAddressInfo?
     let identityMetadata: String?
+    let peerMetadata: String?
     let connections: [ConnectionInfo]?
 
     init(from dictionary: [String: Any], peerEnrichment: PeerEnrichmentData? = nil) {
-        self.id = dictionary["_id"] as? String ?? UUID().uuidString
-        self.isDittoServer = dictionary["is_ditto_server"] as? Bool ?? false
-        
+        id = dictionary["_id"] as? String ?? UUID().uuidString
+        isDittoServer = dictionary["is_ditto_server"] as? Bool ?? false
+
         if let documents = dictionary["documents"] as? [String: Any] {
-            self.syncSessionStatus = documents["sync_session_status"] as? String ?? "Unknown"
-            self.syncedUpToLocalCommitId = documents["synced_up_to_local_commit_id"] as? Int
-            self.lastUpdateReceivedTime = documents["last_update_received_time"] as? TimeInterval
+            syncSessionStatus = documents["sync_session_status"] as? String ?? "Unknown"
+            syncedUpToLocalCommitId = documents["synced_up_to_local_commit_id"] as? Int
+            lastUpdateReceivedTime = documents["last_update_received_time"] as? TimeInterval
         } else {
-            self.syncSessionStatus = "Unknown"
-            self.syncedUpToLocalCommitId = nil
-            self.lastUpdateReceivedTime = nil
+            syncSessionStatus = "Unknown"
+            syncedUpToLocalCommitId = nil
+            lastUpdateReceivedTime = nil
         }
 
         // Peer enrichment fields
-        self.deviceName = peerEnrichment?.deviceName
-        self.osInfo = peerEnrichment?.osInfo
-        self.dittoSDKVersion = peerEnrichment?.dittoSDKVersion
-        self.addressInfo = peerEnrichment?.addressInfo
-        self.identityMetadata = peerEnrichment?.identityMetadata
-        self.connections = peerEnrichment?.connections
+        deviceName = peerEnrichment?.deviceName
+        osInfo = peerEnrichment?.osInfo
+        dittoSDKVersion = peerEnrichment?.dittoSDKVersion
+        addressInfo = peerEnrichment?.addressInfo
+        identityMetadata = peerEnrichment?.identityMetadata
+        peerMetadata = peerEnrichment?.peerMetadata
+        connections = peerEnrichment?.connections
     }
-    
+
     init?(_ data: Data) {
         do {
             if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -167,30 +191,30 @@ struct SyncStatusInfo: Identifiable, Equatable {
 
     static func == (lhs: SyncStatusInfo, rhs: SyncStatusInfo) -> Bool {
         // Compare the properties that define equality
-        return lhs.id == rhs.id &&
-        lhs.peerType == rhs.peerType &&
-        lhs.syncSessionStatus == rhs.syncSessionStatus &&
-        lhs.syncedUpToLocalCommitId == rhs.syncedUpToLocalCommitId &&
-        lhs.deviceName == rhs.deviceName &&
-        lhs.osInfo == rhs.osInfo &&
-        lhs.dittoSDKVersion == rhs.dittoSDKVersion
+        lhs.id == rhs.id &&
+            lhs.peerType == rhs.peerType &&
+            lhs.syncSessionStatus == rhs.syncSessionStatus &&
+            lhs.syncedUpToLocalCommitId == rhs.syncedUpToLocalCommitId &&
+            lhs.deviceName == rhs.deviceName &&
+            lhs.osInfo == rhs.osInfo &&
+            lhs.dittoSDKVersion == rhs.dittoSDKVersion
         // Note: addressInfo and identityMetadata intentionally excluded
     }
 
     var formattedLastUpdate: String {
-        guard let lastUpdateReceivedTime = lastUpdateReceivedTime else {
+        guard let lastUpdateReceivedTime else {
             return "Never"
         }
-        
+
         let date = Date(timeIntervalSince1970: lastUpdateReceivedTime / 1000.0)
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
         formatter.doesRelativeDateFormatting = true
-        
+
         return formatter.string(from: date)
     }
-    
+
     var statusColor: String {
         switch syncSessionStatus {
         case "Connected":
@@ -203,8 +227,13 @@ struct SyncStatusInfo: Identifiable, Equatable {
             return "gray"
         }
     }
-    
+
     var peerType: String {
-        return isDittoServer ? "Cloud Server" : "Peer Device"
+        isDittoServer ? "Cloud Server" : "Peer Device"
     }
+}
+
+extension SyncStatusInfo {
+    static let cloudCardColor = Color(red: 0.45, green: 0.15, blue: 0.72)
+    static let cloudCardDarkColor = Color(red: 0.28, green: 0.07, blue: 0.48)
 }

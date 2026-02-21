@@ -8,10 +8,10 @@ struct QueryToolbarView: View {
     @Binding var selectedQuery: String
 
     var body: some View {
-        VStack{
-            HStack{
-               Spacer()
-                Picker("", selection: $toolbarMode){
+        VStack {
+            HStack {
+                Spacer()
+                Picker("", selection: $toolbarMode) {
                     Label("Collections", systemImage: "square.stack.fill")
                         .labelStyle(.iconOnly)
                         .tag("collections")
@@ -30,7 +30,7 @@ struct QueryToolbarView: View {
             }
             .padding(.leading, 10)
             .padding(.trailing, 10)
-            
+
             // Content based on toolbarMode
             if toolbarMode == "history" {
                 Text("History")
@@ -46,12 +46,12 @@ struct QueryToolbarView: View {
                     }
                     #if os(macOS)
                     .contextMenu {
-                        Button ("Delete"){
+                        Button("Delete") {
                             Task {
-                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
-                                }
+                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
                             }
-                        Button ("Favorite"){
+                        }
+                        Button("Favorite") {
                             Task {
                                 try await FavoritesRepository.shared.saveFavorite(query)
                             }
@@ -59,27 +59,27 @@ struct QueryToolbarView: View {
                     }
                     #else
                     .swipeActions(edge: .trailing) {
-                        Button(role: .cancel) {
-                            Task {
-                                try await FavoritesRepository.shared
-                                    .saveFavorite(query)
+                            Button(role: .cancel) {
+                                Task {
+                                    try await FavoritesRepository.shared
+                                        .saveFavorite(query)
+                                }
+                            } label: {
+                                Label("Favorite", systemImage: "star")
                             }
-                        } label: {
-                            Label("Favorite", systemImage: "star")
-                        }
-                        
-                        Button(role: .destructive) {
-                            Task {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+
+                            Button(role: .destructive) {
+                                Task {
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
                         }
-                    }
                     #endif
                     Divider()
                 }
-                Button  {
+                Button {
                     Task {
                         try await HistoryRepository.shared.clearQueryHistory()
                     }
@@ -98,25 +98,25 @@ struct QueryToolbarView: View {
                     .onTapGesture {
                         selectedQuery = query.query
                     }
-#if os(macOS)
+                    #if os(macOS)
                     .contextMenu {
-                        Button ("Delete"){
+                        Button("Delete") {
                             Task {
                                 try await FavoritesRepository.shared.deleteFavorite(query.id)
                             }
                         }
                     }
-#else
+                    #else
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task {
-                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                            Button(role: .destructive) {
+                                Task {
+                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
                         }
-                    }
-#endif
+                    #endif
                     Divider()
                 }
             } else {
@@ -132,7 +132,6 @@ struct QueryToolbarView: View {
             Spacer()
         }
     }
-
 }
 
 #Preview {
@@ -142,7 +141,7 @@ struct QueryToolbarView: View {
             "users",
             "products"
         ]),
-        favorites:  .constant([
+        favorites: .constant([
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
@@ -183,7 +182,6 @@ struct QueryToolbarView: View {
             )
         ]),
         toolbarMode: .constant("collections"),
-        selectedQuery: .constant("SELECT * FROM movies"),
+        selectedQuery: .constant("SELECT * FROM movies")
     )
 }
-

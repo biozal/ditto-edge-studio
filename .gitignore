@@ -3,6 +3,7 @@ SwiftUI/build
 SwiftUI/Ditto Edge Studio.xcodeproj/project.xcworkspace/xcuserdata
 .DS_Store
 SwiftUI/Ditto Edge Studio/dittoConfig.plist
+SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 SwiftUI/scripts/*.dmg
 SwiftUI/scripts/*.dmg.zip
 rust/.idea
@@ -12,3 +13,13 @@ rust/.vscode
 rust/debug
 rust/designs
 .claude
+fontawesome
+SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
+SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
+.periphery_baseline.json
+
+# Test coverage reports
+SwiftUI/TestResults.xcresult
+SwiftUI/coverage.json
+SwiftUI/coverage.txt
+SwiftUI/coverage_files.txt

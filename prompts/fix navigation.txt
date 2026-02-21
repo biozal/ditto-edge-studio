@@ -1,0 +1,21 @@
+We are planning a new feature.  For some reason we are no longer using a picker in the MainStudioView body NavigationSplitView that draws the sidebar, yet the inspectorView is using a Picker.  I think the UI for the picker is better, but the icons are too small.  Research making both a picker and making the icons larger for both - but the same size.  They should both use the liquidGlassToolbar so they look nice.  
+
+For the sidebar the icons that should be used are:
+
+Subscriptions:  arrow.trianglehead.2.clockwise.rotate.90
+Collections:  macpro.gen2
+Observers:  eye
+
+This will mean you need to update the MenuItem class and then the ViewModel for MainStudioView.  Also the InspectorTab enum shouldn't be needed - this should use the same MenuItem class as the Sidebar View.  The MainStudioView ViewModel should be updated to include  two new items:
+
+var selectedInspectorMenuItem: MenuItem
+var inspectorMenuItems: [MenuItem] = []
+
+The inspectorView should use this to loop through the items to add to the Picker.  The picker size should be increased on both to match the size of Xcode's sidebar and inspector menus.  You can see the size by reviewing the xcode.png and xcode-resize images in teh designs folder.  I would like pickers, if possible to strech to the size of the sidebar and inspector width.  If this isn't possible, that's fine, but in the inspector we have a lot of wasted space with small navigation menu that is hard to click on larger screens.  Xcode's icons are much larger and easier to click.
+
+Create a plan to make these updates and let me review it.  Update the Claude.md file stating Sidebar and Inspector menus must always be pickers and they should be the same styling.  If we change styling of one, the other should also get changed so they match.  Once you have a plan in place I'll review it and make a decision on how to move forward.
+
+
+
+
+

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142462F44220F0023BC0C /* CocoaLumberjack */; };
+		0D1142492F44220F0023BC0C /* CocoaLumberjackSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */; };
+		0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */ = {isa = PBXBuildFile; productRef = 0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */; };
 		0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */; };
 		0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28362DDA0EA7004A69D1 /* DittoAllToolsMenu */; };
 		0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F28382DDA0EA7004A69D1 /* DittoDataBrowser */; };
@@ -21,118 +24,60 @@
 		0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */; };
 		0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284D2DDA0EC1004A69D1 /* DittoObjC */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
+		0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 0DEBB4512F3BDD1700C11449 /* Textual */; };
+		0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0DHIGHLT2E10000000000003 /* HighlightSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		0D3F27E22DDA00FB004A69D1 /* PBXContainerItemProxy */ = {
+		0DD95EA62F4584EF0063C203 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 0D3F27CB2DDA00FA004A69D1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 0D3F27D22DDA00FA004A69D1;
-			remoteInfo = "Ditto Edge Studio";
+			remoteInfo = "Edge Debug Helper";
 		};
-		0D3F27EC2DDA00FB004A69D1 /* PBXContainerItemProxy */ = {
+		0DD95EB32F4585270063C203 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 0D3F27CB2DDA00FA004A69D1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 0D3F27D22DDA00FA004A69D1;
-			remoteInfo = "Ditto Edge Studio";
+			remoteInfo = "Edge Debug Helper";
+		};
+		0DD95EC02F4585430063C203 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0D3F27CB2DDA00FA004A69D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0D3F27D22DDA00FA004A69D1;
+			remoteInfo = "Edge Debug Helper";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Edge Debug Helper.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		0D3F27E12DDA00FB004A69D1 /* Edge Debug HelperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Edge Debug HelperTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		0D3F27EB2DDA00FB004A69D1 /* Edge Debug HelperUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Edge Debug HelperUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ditto Edge Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				EdgeStudioIcon.icon,
-				Models/AuthMode.swift,
-				Models/DittoAppConfig.swift,
-			);
-			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
-		};
-		0D026A212E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug Helper" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				AppConfigTests.swift,
-				Ditto_Edge_StudioTests.swift,
-				DQLGeneratorTests.swift,
-				QueryResultsViewTests.swift,
-				ResultJsonViewerRegressionTests.swift,
-				ResultTableViewerTests.swift,
-				TableResultsParserTests.swift,
-			);
-			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
-		};
-		0D026A222E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug HelperTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				AppConfigTests.swift,
-				Ditto_Edge_StudioTests.swift,
-				DQLGeneratorTests.swift,
-				QueryResultsViewTests.swift,
-				ResultJsonViewerRegressionTests.swift,
-				ResultTableViewerTests.swift,
-				TableResultsParserTests.swift,
-			);
-			target = 0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */;
-		};
-		0D026A242E0606C30072B715 /* Exceptions for "Edge Debugg Helper UITests" folder in "Edge Debug Helper" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Ditto_Edge_StudioUITests.swift,
-				Ditto_Edge_StudioUITestsLaunchTests.swift,
-			);
-			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
-		};
-		0D026A252E0606C30072B715 /* Exceptions for "Edge Debugg Helper UITests" folder in "Edge Debug HelperUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Ditto_Edge_StudioUITests.swift,
-				Ditto_Edge_StudioUITestsLaunchTests.swift,
-			);
-			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
-		};
-		0D75AA8C2F22796F00172FDD /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				EdgeStudioIcon.icon,
-			);
-			target = 0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0D02662B2E06059D0072B715 /* Edge Debug Helper */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0D0266812E06059D0072B715 /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperTests" target */,
-				0D75AA8C2F22796F00172FDD /* Exceptions for "Edge Debug Helper" folder in "Edge Debug HelperUITests" target */,
-			);
 			path = "Edge Debug Helper";
 			sourceTree = "<group>";
 		};
-		0D026A202E0606990072B715 /* Edge Debug Helper Tests */ = {
+		0DD95EA32F4584EF0063C203 /* EdgeStudioUnitTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0D026A212E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug Helper" target */,
-				0D026A222E0606AB0072B715 /* Exceptions for "Edge Debug Helper Tests" folder in "Edge Debug HelperTests" target */,
-			);
-			path = "Edge Debug Helper Tests";
+			path = EdgeStudioUnitTests;
 			sourceTree = "<group>";
 		};
-		0D026A232E0606B30072B715 /* Edge Debugg Helper UITests */ = {
+		0DD95EB02F4585270063C203 /* EdgeStudioIntegrationTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0D026A242E0606C30072B715 /* Exceptions for "Edge Debugg Helper UITests" folder in "Edge Debug Helper" target */,
-				0D026A252E0606C30072B715 /* Exceptions for "Edge Debugg Helper UITests" folder in "Edge Debug HelperUITests" target */,
-			);
-			path = "Edge Debugg Helper UITests";
+			path = EdgeStudioIntegrationTests;
+			sourceTree = "<group>";
+		};
+		0DD95EBD2F4585430063C203 /* EdgeStudioUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = EdgeStudioUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -144,7 +89,9 @@
 			files = (
 				0D3F283B2DDA0EA7004A69D1 /* DittoDiskUsage in Frameworks */,
 				0D3F283F2DDA0EA7004A69D1 /* DittoExportLogs in Frameworks */,
+				0D1142492F44220F0023BC0C /* CocoaLumberjackSwift in Frameworks */,
 				0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */,
+				0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */,
 				0D3F28392DDA0EA7004A69D1 /* DittoDataBrowser in Frameworks */,
 				0D3F28492DDA0EA7004A69D1 /* DittoPresenceDegradation in Frameworks */,
 				0D3F28372DDA0EA7004A69D1 /* DittoAllToolsMenu in Frameworks */,
@@ -153,20 +100,30 @@
 				0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */,
 				0D3F28432DDA0EA7004A69D1 /* DittoHeartbeat in Frameworks */,
 				0D3F28472DDA0EA7004A69D1 /* DittoPermissionsHealth in Frameworks */,
+				0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */,
 				0D3F28412DDA0EA7004A69D1 /* DittoHealthMetrics in Frameworks */,
 				0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */,
+				0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */,
+				0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */,
 				0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27DE2DDA00FB004A69D1 /* Frameworks */ = {
+		0DD95E9F2F4584EF0063C203 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27E82DDA00FB004A69D1 /* Frameworks */ = {
+		0DD95EAC2F4585270063C203 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0DD95EB92F4585430063C203 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -179,9 +136,10 @@
 		0D3F27CA2DDA00FA004A69D1 = {
 			isa = PBXGroup;
 			children = (
-				0D026A232E0606B30072B715 /* Edge Debugg Helper UITests */,
-				0D026A202E0606990072B715 /* Edge Debug Helper Tests */,
 				0D02662B2E06059D0072B715 /* Edge Debug Helper */,
+				0DD95EA32F4584EF0063C203 /* EdgeStudioUnitTests */,
+				0DD95EB02F4585270063C203 /* EdgeStudioIntegrationTests */,
+				0DD95EBD2F4585430063C203 /* EdgeStudioUITests */,
 				0DE5B1F22DF8FD3D001574F6 /* Frameworks */,
 				0D3F27D42DDA00FA004A69D1 /* Products */,
 			);
@@ -190,9 +148,10 @@
 		0D3F27D42DDA00FA004A69D1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */,
-				0D3F27E12DDA00FB004A69D1 /* Edge Debug HelperTests.xctest */,
-				0D3F27EB2DDA00FB004A69D1 /* Edge Debug HelperUITests.xctest */,
+				0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */,
+				0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */,
+				0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */,
+				0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -211,6 +170,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0D3F27F52DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug Helper" */;
 			buildPhases = (
+				DF26CBE95104437198DF0CCB /* SwiftFormat */,
+				F272A47F5E02439F8645D427 /* SwiftLint */,
 				0D3F27CF2DDA00FA004A69D1 /* Sources */,
 				0D3F27D02DDA00FA004A69D1 /* Frameworks */,
 				0D3F27D12DDA00FA004A69D1 /* Resources */,
@@ -221,8 +182,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0D02662B2E06059D0072B715 /* Edge Debug Helper */,
-				0D026A202E0606990072B715 /* Edge Debug Helper Tests */,
-				0D026A232E0606B30072B715 /* Edge Debugg Helper UITests */,
 			);
 			name = "Edge Debug Helper";
 			packageProductDependencies = (
@@ -240,50 +199,83 @@
 				0D3F284D2DDA0EC1004A69D1 /* DittoObjC */,
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
 				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
+				0DEBB4512F3BDD1700C11449 /* Textual */,
+				0D1142462F44220F0023BC0C /* CocoaLumberjack */,
+				0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */,
+				0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */,
 			);
 			productName = "Ditto Edge Studio";
-			productReference = 0D3F27D32DDA00FA004A69D1 /* Edge Debug Helper.app */;
+			productReference = 0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */;
 			productType = "com.apple.product-type.application";
 		};
-		0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */ = {
+		0DD95EA12F4584EF0063C203 /* EdgeStudioUnitTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0D3F27F82DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug HelperTests" */;
+			buildConfigurationList = 0DD95EA82F4584EF0063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioUnitTests" */;
 			buildPhases = (
-				0D3F27DD2DDA00FB004A69D1 /* Sources */,
-				0D3F27DE2DDA00FB004A69D1 /* Frameworks */,
-				0D3F27DF2DDA00FB004A69D1 /* Resources */,
+				0DD95E9E2F4584EF0063C203 /* Sources */,
+				0DD95E9F2F4584EF0063C203 /* Frameworks */,
+				0DD95EA02F4584EF0063C203 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				0D3F27E32DDA00FB004A69D1 /* PBXTargetDependency */,
+				0DD95EA72F4584EF0063C203 /* PBXTargetDependency */,
 			);
-			name = "Edge Debug HelperTests";
+			fileSystemSynchronizedGroups = (
+				0DD95EA32F4584EF0063C203 /* EdgeStudioUnitTests */,
+			);
+			name = EdgeStudioUnitTests;
 			packageProductDependencies = (
 			);
-			productName = "Ditto Edge StudioTests";
-			productReference = 0D3F27E12DDA00FB004A69D1 /* Edge Debug HelperTests.xctest */;
+			productName = EdgeStudioUnitTests;
+			productReference = 0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */ = {
+		0DD95EAE2F4585270063C203 /* EdgeStudioIntegrationTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0D3F27FB2DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug HelperUITests" */;
+			buildConfigurationList = 0DD95EB52F4585270063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioIntegrationTests" */;
 			buildPhases = (
-				0D3F27E72DDA00FB004A69D1 /* Sources */,
-				0D3F27E82DDA00FB004A69D1 /* Frameworks */,
-				0D3F27E92DDA00FB004A69D1 /* Resources */,
+				0DD95EAB2F4585270063C203 /* Sources */,
+				0DD95EAC2F4585270063C203 /* Frameworks */,
+				0DD95EAD2F4585270063C203 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				0D3F27ED2DDA00FB004A69D1 /* PBXTargetDependency */,
+				0DD95EB42F4585270063C203 /* PBXTargetDependency */,
 			);
-			name = "Edge Debug HelperUITests";
+			fileSystemSynchronizedGroups = (
+				0DD95EB02F4585270063C203 /* EdgeStudioIntegrationTests */,
+			);
+			name = EdgeStudioIntegrationTests;
 			packageProductDependencies = (
 			);
-			productName = "Ditto Edge StudioUITests";
-			productReference = 0D3F27EB2DDA00FB004A69D1 /* Edge Debug HelperUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
+			productName = EdgeStudioIntegrationTests;
+			productReference = 0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		0DD95EBB2F4585430063C203 /* EdgeStudioUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0DD95EC22F4585430063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioUITests" */;
+			buildPhases = (
+				0DD95EB82F4585430063C203 /* Sources */,
+				0DD95EB92F4585430063C203 /* Frameworks */,
+				0DD95EBA2F4585430063C203 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0DD95EC12F4585430063C203 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0DD95EBD2F4585430063C203 /* EdgeStudioUITests */,
+			);
+			name = EdgeStudioUITests;
+			packageProductDependencies = (
+			);
+			productName = EdgeStudioUITests;
+			productReference = 0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -292,18 +284,22 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1630;
-				LastUpgradeCheck = 2620;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					0D3F27D22DDA00FA004A69D1 = {
 						CreatedOnToolsVersion = 16.3;
 					};
-					0D3F27E02DDA00FB004A69D1 = {
-						CreatedOnToolsVersion = 16.3;
+					0DD95EA12F4584EF0063C203 = {
+						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 0D3F27D22DDA00FA004A69D1;
 					};
-					0D3F27EA2DDA00FB004A69D1 = {
-						CreatedOnToolsVersion = 16.3;
+					0DD95EAE2F4585270063C203 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 0D3F27D22DDA00FA004A69D1;
+					};
+					0DD95EBB2F4585430063C203 = {
+						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 0D3F27D22DDA00FA004A69D1;
 					};
 				};
@@ -321,6 +317,9 @@
 				0D3F28352DDA0EA7004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftTools" */,
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
 				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
+				0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */,
+				0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */,
+				0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0D3F27D42DDA00FA004A69D1 /* Products */;
@@ -328,8 +327,9 @@
 			projectRoot = "";
 			targets = (
 				0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */,
-				0D3F27E02DDA00FB004A69D1 /* Edge Debug HelperTests */,
-				0D3F27EA2DDA00FB004A69D1 /* Edge Debug HelperUITests */,
+				0DD95EA12F4584EF0063C203 /* EdgeStudioUnitTests */,
+				0DD95EAE2F4585270063C203 /* EdgeStudioIntegrationTests */,
+				0DD95EBB2F4585430063C203 /* EdgeStudioUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -342,14 +342,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27DF2DDA00FB004A69D1 /* Resources */ = {
+		0DD95EA02F4584EF0063C203 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27E92DDA00FB004A69D1 /* Resources */ = {
+		0DD95EAD2F4585270063C203 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0DD95EBA2F4585430063C203 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -357,6 +364,49 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DF26CBE95104437198DF0CCB /* SwiftFormat */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.swiftformat",
+			);
+			name = SwiftFormat;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftformat >/dev/null; then\n  if [ -d \"SwiftUI/Edge Debug Helper\" ]; then\n    swiftformat \"SwiftUI/Edge Debug Helper\" --config .swiftformat --quiet || true\n  fi\nelse\n  echo \"warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat\"\nfi\n";
+		};
+		F272A47F5E02439F8645D427 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  swiftlint lint --config .swiftlint.yml --quiet || true\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0D3F27CF2DDA00FA004A69D1 /* Sources */ = {
@@ -366,14 +416,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27DD2DDA00FB004A69D1 /* Sources */ = {
+		0DD95E9E2F4584EF0063C203 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0D3F27E72DDA00FB004A69D1 /* Sources */ = {
+		0DD95EAB2F4585270063C203 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0DD95EB82F4585430063C203 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -383,15 +440,20 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		0D3F27E32DDA00FB004A69D1 /* PBXTargetDependency */ = {
+		0DD95EA72F4584EF0063C203 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
-			targetProxy = 0D3F27E22DDA00FB004A69D1 /* PBXContainerItemProxy */;
+			targetProxy = 0DD95EA62F4584EF0063C203 /* PBXContainerItemProxy */;
 		};
-		0D3F27ED2DDA00FB004A69D1 /* PBXTargetDependency */ = {
+		0DD95EB42F4585270063C203 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
-			targetProxy = 0D3F27EC2DDA00FB004A69D1 /* PBXContainerItemProxy */;
+			targetProxy = 0DD95EB32F4585270063C203 /* PBXContainerItemProxy */;
+		};
+		0DD95EC12F4585430063C203 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0D3F27D22DDA00FA004A69D1 /* Edge Debug Helper */;
+			targetProxy = 0DD95EC02F4585430063C203 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -435,7 +497,7 @@
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -499,7 +561,7 @@
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -534,10 +596,12 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio";
+				INFOPLIST_KEY_CFBundleName = "Ditto Edge Studio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
@@ -555,13 +619,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.2.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Ditto Edge Studio";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Edge Debug Helper/Edge-Debug-Helper-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -589,10 +654,12 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Edge Debug Helper";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio";
+				INFOPLIST_KEY_CFBundleName = "Ditto Edge Studio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
@@ -610,10 +677,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.2.6;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Ditto Edge Studio";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -626,97 +693,167 @@
 			};
 			name = Release;
 		};
-		0D3F27F92DDA00FB004A69D1 /* Debug */ = {
+		0DD95EA92F4584EF0063C203 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.costoda.Ditto-Edge-StudioTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioUnitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "TESTING $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Edge Debug Helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Edge Debug Helper";
-				XROS_DEPLOYMENT_TARGET = 2.4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Debug;
 		};
-		0D3F27FA2DDA00FB004A69D1 /* Release */ = {
+		0DD95EAA2F4584EF0063C203 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.costoda.Ditto-Edge-StudioTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioUnitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "TESTING $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Edge Debug Helper.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Edge Debug Helper";
-				XROS_DEPLOYMENT_TARGET = 2.4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Release;
 		};
-		0D3F27FC2DDA00FB004A69D1 /* Debug */ = {
+		0DD95EB62F4585270063C203 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.costoda.Ditto-Edge-StudioUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioIntegrationTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Ditto Edge Studio";
-				XROS_DEPLOYMENT_TARGET = 2.4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Debug;
 		};
-		0D3F27FD2DDA00FB004A69D1 /* Release */ = {
+		0DD95EB72F4585270063C203 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.costoda.Ditto-Edge-StudioUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioIntegrationTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Ditto Edge Studio";
-				XROS_DEPLOYMENT_TARGET = 2.4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+		0DD95EC32F4585430063C203 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		0DD95EC42F4585430063C203 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = E3FRN9JNGJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.EdgeStudioUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Release;
 		};
@@ -741,20 +878,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0D3F27F82DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug HelperTests" */ = {
+		0DD95EA82F4584EF0063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioUnitTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				0D3F27F92DDA00FB004A69D1 /* Debug */,
-				0D3F27FA2DDA00FB004A69D1 /* Release */,
+				0DD95EA92F4584EF0063C203 /* Debug */,
+				0DD95EAA2F4584EF0063C203 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0D3F27FB2DDA00FB004A69D1 /* Build configuration list for PBXNativeTarget "Edge Debug HelperUITests" */ = {
+		0DD95EB52F4585270063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioIntegrationTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				0D3F27FC2DDA00FB004A69D1 /* Debug */,
-				0D3F27FD2DDA00FB004A69D1 /* Release */,
+				0DD95EB62F4585270063C203 /* Debug */,
+				0DD95EB72F4585270063C203 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0DD95EC22F4585430063C203 /* Build configuration list for PBXNativeTarget "EdgeStudioUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0DD95EC32F4585430063C203 /* Debug */,
+				0DD95EC42F4585430063C203 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -762,6 +908,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/CocoaLumberjack/CocoaLumberjack";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.9.0;
+			};
+		};
 		0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ZeeZide/CodeEditor.git";
@@ -783,12 +937,43 @@
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.14.2;
+				minimumVersion = 4.14.3;
+			};
+		};
+		0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/textual";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.1;
+			};
+		};
+		0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/appstefan/highlightswift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0D1142462F44220F0023BC0C /* CocoaLumberjack */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjack;
+		};
+		0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjackSwift;
+		};
+		0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
+			productName = CocoaLumberjackSwiftLogBackend;
+		};
 		0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */;
@@ -858,6 +1043,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */;
 			productName = DittoSwift;
+		};
+		0DEBB4512F3BDD1700C11449 /* Textual */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */;
+			productName = Textual;
+		};
+		0DHIGHLT2E10000000000003 /* HighlightSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */;
+			productName = HighlightSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

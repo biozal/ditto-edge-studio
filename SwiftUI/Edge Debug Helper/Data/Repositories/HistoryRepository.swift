@@ -1,175 +1,177 @@
-import DittoSwift
 import Foundation
 
+/// Repository for managing query history with secure encrypted storage
+///
+/// **Storage Strategy:**
+/// - Per-database isolation (each database has its own history in SQLCipher)
+/// - In-memory cache during session
+/// - Write-through persistence to encrypted database
+///
+/// **Security:**
+/// - All history encrypted at rest with AES-256 (SQLCipher)
+/// - Indexed for fast queries (databaseId, createdDate DESC)
+///
+/// **Lifecycle:**
+/// 1. Load: Called when database opens → loads from SQLCipher
+/// 2. Cache: All operations update in-memory cache first
+/// 3. Persist: Write-through to SQLCipher after every change
+/// 4. Clear: Called when database closes → clears in-memory cache
 actor HistoryRepository {
     static let shared = HistoryRepository()
-    
-    private let dittoManager = DittoManager.shared
+
+    private var sqlCipher: SQLCipherService {
+        SQLCipherContext.current
+    }
+
     private var appState: AppState?
-    private var historyObserver: DittoStoreObserver?
-    
-    // Store the callback inside the actor
+
+    // In-memory cache for current database session
+    private var cachedHistory: [DittoQueryHistory] = []
+    private var currentDatabaseId: String?
+
+    /// Callback for UI updates
     private var onHistoryUpdate: (([DittoQueryHistory]) -> Void)?
-    
-    private init() { }
-    
-    deinit {
-        historyObserver?.cancel()
+
+    private init() {}
+
+    // MARK: - Public API
+
+    /// Loads query history for a specific database into memory
+    /// - Parameter databaseId: Database identifier
+    /// - Returns: Array of query history items (most recent first)
+    /// - Throws: Error if load fails
+    func loadHistory(for databaseId: String) async throws -> [DittoQueryHistory] {
+        currentDatabaseId = databaseId
+
+        // Load from SQLCipher (ordered by createdDate DESC)
+        let rows = try await sqlCipher.getHistory(databaseId: databaseId, limit: 1000)
+
+        // Convert SQLCipherService.HistoryRow to DittoQueryHistory
+        let history = rows.map { row in
+            DittoQueryHistory(
+                id: row._id,
+                query: row.query,
+                createdDate: row.createdDate
+            )
+        }
+
+        // Update in-memory cache
+        cachedHistory = history
+
+        return history
     }
-    
-    func clearQueryHistory() async throws {
-        guard let ditto = await dittoManager.dittoLocal,
-              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
-            throw InvalidStateError(message: "No Ditto local database or selected app available")
-        }
-        
-        let query = "DELETE FROM dittoqueryhistory WHERE selectedApp_id = :selectedApp_id"
-        let arguments: [String: Any] = ["selectedApp_id": selectedAppConfig._id]
-        
-        do {
-            let _ = try await ditto.store.execute(query: query, arguments: arguments)
-        } catch {
-            self.appState?.setError(error)
-            throw error
-        }
-    }
-    
-    func deleteQueryHistory(_ id: String) async throws {
-        guard let ditto = await dittoManager.dittoLocal else {
-            throw InvalidStateError(message: "No Ditto local database available")
-        }
-        
-        let query = "DELETE FROM dittoqueryhistory WHERE _id = :id"
-        let arguments: [String: Any] = ["id": id]
-        
-        do {
-            let _ = try await ditto.store.execute(query: query, arguments: arguments)
-        } catch {
-            self.appState?.setError(error)
-            throw error
-        }
-    }
-    
-    func hydrateQueryHistory() async throws -> [DittoQueryHistory] {
-        guard let ditto = await dittoManager.dittoLocal,
-              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
-            throw InvalidStateError(message: "No Ditto local database or selected app available")
-        }
-        
-        let appStateRef = self.appState  // Capture reference before closure
-        let query = "SELECT * FROM dittoqueryhistory WHERE selectedApp_id = :selectedAppId ORDER BY createdDate DESC"
-        let arguments = ["selectedAppId": selectedAppConfig._id]
-        let decoder = JSONDecoder()
-        
-        do {
-            // Hydrate the initial data from the database
-            let historyResults = try await ditto.store.execute(query: query, arguments: arguments)
-            let historyItems = historyResults.items.compactMap { item in
-                do {
-                    let result = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
-                    item.dematerialize()
-                    return result
-                } catch {
-                    appStateRef?.setError(error)
-                    return nil
-                }
-            }
-            
-            // Register for any changes in the database
-            historyObserver = try ditto.store.registerObserver(
-                query: query,
-                arguments: arguments
-            ) { [weak self] results in
-                Task { [weak self] in
-                    guard let self else { return }
-                    
-                    let historyItems = results.items.compactMap { item in
-                        do {
-                            let result =  try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
-                            item.dematerialize()
-                            return result
-                        } catch {
-                            appStateRef?.setError(error)
-                            return nil
-                        }
-                    }
-                    
-                    // Call the callback to update the ViewModel's published property
-                    await self.onHistoryUpdate?(historyItems)
-                }
-            }
-            
-            return historyItems
-        } catch {
-            self.appState?.setError(error)
-            throw error
-        }
-    }
-    
+
+    /// Saves a query to history (write-through to SQLCipher)
+    /// - Parameter history: Query history item to save
+    /// - Throws: Error if save fails
     func saveQueryHistory(_ history: DittoQueryHistory) async throws {
-        guard let ditto = await dittoManager.dittoLocal,
-              let selectedAppConfig = await dittoManager.dittoSelectedAppConfig else {
-            throw InvalidStateError(message: "No Ditto local database or selected app available")
+        guard let databaseId = currentDatabaseId else {
+            throw InvalidStateError(message: "No database selected - call loadHistory() first")
         }
-        
+
         do {
-            // Check if we already have the query; if so, update the date, otherwise insert new record
-            let queryCheck = "SELECT * FROM dittoqueryhistory WHERE query = :query AND selectedApp_id = :selectedAppId"
-            let argumentsCheck: [String: Any] = [
-                "query": history.query,
-                "selectedAppId": selectedAppConfig._id
-            ]
-            let resultsCheck = try await ditto.store.execute(query: queryCheck, arguments: argumentsCheck)
-            
-            if resultsCheck.items.count > 0 {
-                let decoder = JSONDecoder()
-                guard let item = resultsCheck.items.first else {
-                    return
-                }
-                let existingHistory = try decoder.decode(DittoQueryHistory.self, from: item.jsonData())
-                let query = "UPDATE dittoqueryhistory SET createdDate = :createdDate WHERE _id = :id"
-                let arguments: [String: Any] = [
-                    "id": existingHistory.id,
-                    "createdDate": Date().ISO8601Format()
-                ]
-                let _ = try await ditto.store.execute(query: query, arguments: arguments)
-                item.dematerialize()
-            } else {
-                let query = "INSERT INTO dittoqueryhistory DOCUMENTS (:queryHistory)"
-                let arguments: [String: Any] = [
-                    "queryHistory": [
-                        "_id": history.id,
-                        "query": history.query,
-                        "createdDate": history.createdDate,
-                        "selectedApp_id": selectedAppConfig._id
-                    ]
-                ]
-                let _ = try await ditto.store.execute(query: query, arguments: arguments)
+            // Check if query already exists in SQLCipher (for deduplication)
+            let existing = try await sqlCipher.getHistory(databaseId: databaseId, limit: 1000)
+
+            if let match = existing.first(where: { $0.query == history.query }) {
+                // Delete old entry (will re-insert with new timestamp)
+                try await sqlCipher.deleteHistory(id: match._id)
             }
+
+            // Insert with current timestamp
+            let row = SQLCipherService.HistoryRow(
+                _id: history.id,
+                databaseId: databaseId,
+                query: history.query,
+                createdDate: Date().ISO8601Format()
+            )
+            try await sqlCipher.insertHistory(row)
+
+            // Reload cache from SQLCipher (to maintain proper ordering)
+            cachedHistory = try await loadHistory(for: databaseId)
+
+            // Notify UI
+            notifyHistoryUpdate()
+
+            Log.debug("Saved query history: \(history.query.prefix(50))...")
         } catch {
-            self.appState?.setError(error)
+            Log.error("Failed to save query history: \(error)")
+            appState?.setError(error)
             throw error
         }
     }
-    
+
+    /// Deletes a query from history
+    /// - Parameter id: History item ID to delete
+    /// - Throws: Error if delete fails
+    func deleteQueryHistory(_ id: String) async throws {
+        guard currentDatabaseId != nil else {
+            throw InvalidStateError(message: "No database selected")
+        }
+
+        do {
+            // Delete from SQLCipher
+            try await sqlCipher.deleteHistory(id: id)
+
+            // Remove from in-memory cache
+            cachedHistory.removeAll { $0.id == id }
+
+            // Notify UI
+            notifyHistoryUpdate()
+
+            Log.debug("Deleted query history: \(id)")
+        } catch {
+            Log.error("Failed to delete query history: \(error)")
+            appState?.setError(error)
+            throw error
+        }
+    }
+
+    /// Clears all query history for current database
+    /// - Throws: Error if clear fails
+    func clearQueryHistory() async throws {
+        guard let databaseId = currentDatabaseId else {
+            throw InvalidStateError(message: "No database selected")
+        }
+
+        do {
+            // Delete all from SQLCipher
+            try await sqlCipher.deleteAllHistory(databaseId: databaseId)
+
+            // Clear in-memory cache
+            cachedHistory = []
+
+            // Notify UI
+            notifyHistoryUpdate()
+
+            Log.info("Cleared all query history for database: \(databaseId)")
+        } catch {
+            Log.error("Failed to clear query history: \(error)")
+            appState?.setError(error)
+            throw error
+        }
+    }
+
+    /// Clears in-memory cache (called when database closes)
+    func clearCache() {
+        cachedHistory = []
+        currentDatabaseId = nil
+        Log.debug("HistoryRepository cache cleared")
+    }
+
+    // MARK: - State Management
+
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
-    
+
     func setOnHistoryUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
-        self.onHistoryUpdate = callback
+        onHistoryUpdate = callback
     }
-    
-    func stopObserver() {
-        // Use Task to ensure observer cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performObserverCleanup()
-        }
-    }
-    
-    private func performObserverCleanup() {
-        historyObserver?.cancel()
-        historyObserver = nil
+
+    // MARK: - Private Helpers
+
+    private func notifyHistoryUpdate() {
+        onHistoryUpdate?(cachedHistory)
     }
 }

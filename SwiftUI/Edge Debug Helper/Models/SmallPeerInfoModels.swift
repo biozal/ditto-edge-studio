@@ -8,7 +8,9 @@ struct SmallPeerInfo: Codable, Identifiable {
     let ditto_sdk_version: String?
     let local_subscriptions: LocalSubscriptions?
 
-    var id: String { _id }
+    var id: String {
+        _id
+    }
 
     var displayName: String {
         device_name ?? id
@@ -28,9 +30,9 @@ struct LocalSubscriptions: Codable {
 struct QueryInfo: Codable {
     let query: String
 
-    // Extract collection name from query string
-    // e.g., "SELECT * FROM comments" -> "comments"
-    // e.g., "SELECT * FROM COLLECTION __presence WHERE..." -> "__presence"
+    /// Extract collection name from query string
+    /// e.g., "SELECT * FROM comments" -> "comments"
+    /// e.g., "SELECT * FROM COLLECTION __presence WHERE..." -> "__presence"
     var collectionName: String? {
         let components = query.components(separatedBy: " ")
 
@@ -68,5 +70,5 @@ struct ImportableSubscription: Identifiable {
     let deviceInfo: String
     let collectionName: String
     let query: String
-    var isSelected: Bool = false
+    var isSelected = false
 }

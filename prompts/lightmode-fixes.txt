@@ -1,0 +1,12 @@
+Go into planning mode.  We have some rendering issues in light mode specifically.  You can look at the two screenshots:
+
+light-peer-to-peer.png 
+light-query.png
+
+On the Peer-to-Peer listing the Subscription card looks out of place because of it's color.  We need to check to see if it's light mode and if so we need to invert the colors so it's grey with black text.  It should still be a gradiant.
+
+The settings button (TransportSettingsButton) should also detect if light or dark mode and invert the color to be white background with black for the font color.
+
+On the query screen the QueryEditor should know if it's light or dark mode and adjust the Query Editor.
+
+Make a plan on how to handle these changes and then let me kow when you are ready to review.

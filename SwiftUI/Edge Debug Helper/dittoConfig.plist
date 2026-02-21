@@ -4,13 +4,13 @@
 <dict>
 	<key>name</key>
 	<string>ditto-app-studio</string>
-	<key>appId</key>
+	<key>databaseId</key>
 	<string>cee54872-63ff-4d1d-8e68-bd05e4db530b</string>
 	<key>authUrl</key>
 	<string>https://m1tpgv.cloud.dittolive.app</string>
 	<key>websocketUrl</key>
 	<string>wss://m1tpgv.cloud.dittolive.app</string>
-	<key>authToken</key>
+	<key>token</key>
 	<string>50fa273f-9ef5-46c7-93cc-4a43fa459faf</string>
 	<key>httpApiUrl</key>
 	<string></string>

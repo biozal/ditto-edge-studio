@@ -1,0 +1,9 @@
+Go into planning mode.  Ditto Edge Studio currently saves all information into the following location:
+
+~/Library/Containers/Edge Debug Helper/
+
+this is the reason we have LegacyDataCleanupService and we also warn people about the upgrade.  I would like to change the path we store information to:
+
+~/Library/Containers/DittoEdgeStudio/
+
+I don't care about migrations and I don't care that I'll have to re-create my database configs.  Create a plan that configures the app to save everything in this directory.  Once completed remove teh LegacyDataCleanupService as it's no longer needed and any code that checks and displays messages about the new version not being compatible with the older version.  Once you have a plan on how to do this let me know so I can review.

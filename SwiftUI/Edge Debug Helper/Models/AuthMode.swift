@@ -1,22 +1,19 @@
 import Foundation
 
 enum AuthMode: String, CaseIterable, Codable {
-    case onlinePlayground = "onlineplayground"
-    case offlinePlayground = "offlineplayground"
-    case sharedKey = "sharedkey"
-    
+    case server
+    case smallPeersOnly = "smallpeersonly"
+
     var displayName: String {
         switch self {
-        case .onlinePlayground:
-            return "Online Playground"
-        case .offlinePlayground:
-            return "Offline Playground"
-        case .sharedKey:
-            return "Shared Key"
+        case .server:
+            return "Server"
+        case .smallPeersOnly:
+            return "Small Peers Only"
         }
     }
-    
+
     static var `default`: AuthMode {
-        return .onlinePlayground
+        .server
     }
 }

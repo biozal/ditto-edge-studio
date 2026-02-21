@@ -1,0 +1,19 @@
+Go into plan mode.  When no databases are registered, we see a screen like shown in the screenshot no-database-config.png.  
+
+I would like to make changes to this.   The wording underneath it states "No databases have been added yet.  Click the plus button to add your first app".  This is wrong.  The text should say:
+
+"No Ditto databases have been registered.  Click the plus button to register your first Ditto Database. Note you must get this information from the Ditto portal."
+ 
+The words Ditto portal should be a link that opens the web browser and goes to "https://portal.ditto.live".
+
+Underneath this there should be a new message:
+"No Ditto Portal account?  You can learn how to create one from here."
+
+The word here should be a link to this page:  "https://docs.ditto.live/cloud/portal/creating-a-ditto-account"
+
+Below that message should be a new message:
+
+"Want to learn Ditto?  Edge Studio has a built in Learning Path that can help you understand Ditto better."
+
+
+Make a plan to make these changes.  

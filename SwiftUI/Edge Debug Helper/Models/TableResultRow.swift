@@ -2,9 +2,9 @@ import Foundation
 
 /// Represents a single row in the table view
 struct TableResultRow: Identifiable {
-    let id: UUID = UUID()
+    let id = UUID()
     let rowIndex: Int
-    let originalJson: String  // For copying entire row
+    let originalJson: String // For copying entire row
     let cells: [String: TableCellValue]
 }
 
@@ -14,21 +14,21 @@ enum TableCellValue {
     case number(Double)
     case bool(Bool)
     case null
-    case nested(String)  // Objects/arrays rendered as JSON strings
+    case nested(String) // Objects/arrays rendered as JSON strings
 
     /// Get the display string for this cell value
     var displayValue: String {
         switch self {
-        case .string(let s):
+        case let .string(s):
             return s
-        case .number(let n):
+        case let .number(n):
             // Format numbers cleanly (remove trailing zeros)
             return String(format: "%g", n)
-        case .bool(let b):
+        case let .bool(b):
             return b ? "true" : "false"
         case .null:
             return "null"
-        case .nested(let json):
+        case let .nested(json):
             return json
         }
     }

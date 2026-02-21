@@ -9,14 +9,17 @@ struct ResultTableViewer: View {
     @State private var isLoading = false
     @State private var selectedRowId: UUID?
     @State private var copiedRowId: UUID?
-    
+
+    /// Callback for JSON selection (opens in inspector)
+    var onJsonSelected: ((String) -> Void)?
+
     private let defaultColumnWidth: CGFloat = 200
 
     private var pagedItems: [String] {
         let start = (currentPage - 1) * pageSize
         let end = min(start + pageSize, resultText.count)
         guard start < resultText.count else { return [] }
-        return Array(resultText[start..<end])
+        return Array(resultText[start ..< end])
     }
 
     var body: some View {
@@ -33,6 +36,7 @@ struct ResultTableViewer: View {
                 emptyStateView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: pagedItems.count) {
             await loadTableData()
         }
@@ -57,9 +61,7 @@ struct ResultTableViewer: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "tablecells")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
+            FontAwesomeText(icon: DataIcon.table, size: 48, color: .secondary)
             Text("No Results")
                 .font(.headline)
             Text("Execute a query to see results in table format")
@@ -75,7 +77,7 @@ struct ResultTableViewer: View {
     private func macOSTableView(data: TableResultsData) -> some View {
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     Section {
                         // Data rows
                         ForEach(data.rows) { row in
@@ -111,9 +113,9 @@ struct ResultTableViewer: View {
                                 Divider()
                             }
                             .frame(minWidth: geometry.size.width)
-                            .background(
-                                (row.rowIndex % 2 == 0 ? Color(NSColor.textBackgroundColor) : Color(NSColor.controlBackgroundColor).opacity(0.3))
-                            )
+                            .background(row.rowIndex % 2 == 0
+                                ? Color(NSColor.textBackgroundColor)
+                                : Color(NSColor.controlBackgroundColor).opacity(0.3))
                             .onTapGesture(count: 2) {
                                 copyRowToClipboard(row)
                             }
@@ -146,6 +148,7 @@ struct ResultTableViewer: View {
                         .background(Color(NSColor.windowBackgroundColor))
                     }
                 }
+                .frame(minHeight: geometry.size.height, alignment: .top)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -192,9 +195,7 @@ struct ResultTableViewer: View {
 
                             Divider()
                         }
-                        .background(
-                            (row.rowIndex % 2 == 0 ? Color(UIColor.systemBackground) : Color(UIColor.secondarySystemBackground).opacity(0.3))
-                        )
+                        .background(row.rowIndex % 2 == 0 ? Color(UIColor.systemBackground) : Color(UIColor.secondarySystemBackground).opacity(0.3))
                         .onTapGesture(count: 2) {
                             copyRowToClipboard(row)
                         }
@@ -252,6 +253,9 @@ struct ResultTableViewer: View {
         UIPasteboard.general.string = row.originalJson
         #endif
 
+        // Trigger inspector callback
+        onJsonSelected?(row.originalJson)
+
         // Visual feedback
         withAnimation {
             copiedRowId = row.id
@@ -277,7 +281,7 @@ private struct TableCellView: View {
 
     var body: some View {
         Group {
-            if let value = value {
+            if let value {
                 Text(value.displayValue)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(3)

@@ -1,0 +1,2 @@
+Go into plan mode.  Look at the screenshot settings-warning.png.  This is in the TransportConfigView - the warning message color has some kind of background color that isn't the same as the container so now you see three colors:  The window background color, the container background color, and the warning background color and it looks out of place.  Make a plan to fix this by making the warning background color the entire size of the container.
+

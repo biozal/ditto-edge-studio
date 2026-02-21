@@ -4,13 +4,13 @@ struct SecureField: View {
     let label: String
     let value: String
     @Binding var isRevealed: Bool
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Button(action: { isRevealed.toggle() }) {
+            Button(action: { isRevealed.toggle() }, label: {
                 Text(isRevealed ? value : String(repeating: "•", count: max(value.count, 6)))
                     .font(.body.monospaced())
                     .foregroundColor(.primary)
@@ -19,13 +19,13 @@ struct SecureField: View {
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 // Remove extra background, match card
-#if os(iOS)
+                #if os(iOS)
                     .background(Color(.secondarySystemBackground))
-#else
+                #else
                     .background(Color(NSColor.windowBackgroundColor))
-#endif
+                #endif
                     .cornerRadius(8)
-            }
+            })
             .buttonStyle(PlainButtonStyle())
         }
     }

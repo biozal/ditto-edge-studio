@@ -1,17 +1,29 @@
-import SwiftUI
-import Combine
 import DittoSwift
+import SwiftUI
 
 struct MainStudioView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
-    @State private var viewModel: MainStudioView.ViewModel
+    @State var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
+    @State var selectedSyncTab = 0 // Persists tab selection
+    @State var queryCurrentPage = 1
+    @State var queryPageSize = 10
+    @State var observerCurrentPage = 1
+    @State var observerPageSize = 25
+    @State var queryIsExporting = false
+    @State var queryCopiedDQLNotification: String?
 
+    /// Inspector state
+    @State var showInspector = false
 
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// Column visibility control - keeps sidebar always visible
+    @State var columnVisibility: NavigationSplitViewVisibility = .all
+    @State var preferredCompactColumn: NavigationSplitViewColumn = .detail
 
-    //used for editing observers and subscriptions
+    /// used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
         Binding<Bool>(
             get: { viewModel.actionSheetMode != .none },
@@ -25,46 +37,64 @@ struct MainStudioView: View {
 
     init(
         isMainStudioViewPresented: Binding<Bool>,
-        dittoAppConfig: DittoAppConfig
+        dittoAppConfig: DittoConfigForDatabase
     ) {
-        self._isMainStudioViewPresented = isMainStudioViewPresented
-        self._viewModel = State(initialValue: ViewModel(dittoAppConfig))
+        _isMainStudioViewPresented = isMainStudioViewPresented
+        _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading) {
+                #if os(iOS)
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    HStack {
+                        Spacer()
+                        Button {
+                            preferredCompactColumn = .detail
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss sidebar")
+                        .accessibilityIdentifier("SidebarDismissButton")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
+                #endif
                 HStack {
                     Spacer()
-                    Picker("", selection: $viewModel.selectedMenuItem) {
-                        ForEach(viewModel.mainMenuItems, id: \.id) { item in
-                            Label(item.name, systemImage: item.icon)
-                                .labelStyle(.iconOnly)
+                    Picker("", selection: $viewModel.selectedSidebarMenuItem) {
+                        ForEach(viewModel.sidebarMenuItems) { item in
+                            item.image
                                 .tag(item)
+                                .font(.system(size: 20))
+                                .accessibilityIdentifier("NavigationItem_\(item.name)")
+                                .accessibilityLabel(item.name)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 250)
-                    .animation(.default, value: viewModel.selectedMenuItem)
+                    .controlSize(ControlSize.extraLarge)
+                    .labelsHidden()
+                    .accessibilityIdentifier("NavigationSegmentedPicker")
                     Spacer()
                 }
-                switch viewModel.selectedMenuItem.name {
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                switch viewModel.selectedSidebarMenuItem.name {
                 case "Collections":
                     collectionsSidebarView()
-                case "History":
-                    historySidebarView()
-                case "Favorites":
-                    favoritesSidebarView()
                 case "Observer":
                     observeSidebarView()
-                case "Ditto Tools":
-                    dittoToolsSidebarView()
                 default:
                     subscriptionSidebarView()
                 }
                 Spacer()
 
-                //Bottom Toolbar in Sidebar
+                // Bottom Toolbar in Sidebar
                 HStack {
                     Menu {
                         Button(
@@ -80,111 +110,127 @@ struct MainStudioView: View {
                             viewModel.actionSheetMode = .observer
                         }
 
+                        if viewModel.selectedSidebarMenuItem.name == "Collections" {
+                            Button("Import JSON Data", systemImage: "arrow.up") {
+                                showingImportView = true
+                            }
+                        }
+
                         // Only show Import from Server when HTTP API is configured
-                        if viewModel.selectedMenuItem.name == "Subscriptions" &&
-                           !viewModel.selectedApp.httpApiUrl.isEmpty &&
-                           !viewModel.selectedApp.httpApiKey.isEmpty {
+                        if viewModel.selectedSidebarMenuItem.name == "Subscriptions" &&
+                            !viewModel.selectedApp.httpApiUrl.isEmpty &&
+                            !viewModel.selectedApp.httpApiKey.isEmpty
+                        {
                             Button("Import from Server", systemImage: "arrow.down.circle") {
                                 showingImportSubscriptionsView = true
                             }
                         }
                     } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.title2)
-                            .padding(4)
+                        Image(systemName: "plus")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.black)
+                            .frame(width: 56, height: 56)
+                            .background(Color.dittoYellow)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                     }
-                    Spacer()
-                    if viewModel.selectedMenuItem.name == "History" {
-                        Button {
-                            Task {
-                                try await HistoryRepository.shared
-                                    .clearQueryHistory()
-                            }
-                        } label: {
-                            Label("Clear History", systemImage: "trash")
-                                .labelStyle(.iconOnly)
-                        }
-                    } else if viewModel.selectedMenuItem.name == "Collections" {
-                        Button("Import") {
-                            showingImportView = true
-                        }
-                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.leading, 4)
-                .padding(.bottom, 6)
+                .padding(.leading, 12)
+                #if os(iOS)
+                    .padding(.bottom, 28)
+                #else
+                    .padding(.bottom, 12)
+                #endif
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 8)
-            .padding(.top, 4)
-
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 16) // Add padding for status bar height
+            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
-            switch viewModel.selectedMenuItem.name {
-            case "Collections", "History", "Favorites":
-                queryDetailView()
-            case "Observer":
-                observeDetailView()
-            case "Ditto Tools":
-                dittoToolsDetailView()
-            default:
-                syncDetailView()
+            Group {
+                switch viewModel.selectedSidebarMenuItem.name {
+                case "Collections":
+                    queryDetailView()
+                case "Observer":
+                    observeDetailView()
+                default:
+                    syncTabsDetailView()
+                }
             }
+            .id(viewModel.selectedSidebarMenuItem)
+            .transition(.blurReplace)
+            .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
         }
         .navigationTitle(viewModel.selectedApp.name)
-        .sheet(
-            isPresented: isSheetPresented
-        ) {
-            if let subscription = viewModel.editorSubscription {
-                QueryArgumentEditor(
-                    title: subscription.name.isEmpty
-                        ? "New Query Argument" : subscription.name,
-                    name: subscription.name,
-                    query: subscription.query,
-                    arguments: subscription.args ?? "",
-                    onSave: viewModel.formSaveSubscription,
-                    onCancel: viewModel.formCancel
-                ).environmentObject(appState)
-            } else if let observer = viewModel.editorObservable {
-                QueryArgumentEditor(
-                    title: observer.name.isEmpty
-                        ? "New Observer" : observer.name,
-                    name: observer.name,
-                    query: observer.query,
-                    arguments: observer.args ?? "",
-                    onSave: viewModel.formSaveObserver,
-                    onCancel: viewModel.formCancel
-                ).environmentObject(appState)
+        #if os(macOS)
+            .navigationSplitViewStyle(.prominentDetail)
+            .background(WindowFrameRestorer())
+        #endif
+            .inspector(isPresented: $showInspector) {
+                inspectorView()
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.medium, .large])
+                    .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
             }
-        
-        }
-        .sheet(isPresented: $showingImportView) {
-            ImportDataView(isPresented: $showingImportView)
+            .sheet(isPresented: isSheetPresented) {
+                if let subscription = viewModel.editorSubscription {
+                    QueryArgumentEditor(
+                        title: subscription.name.isEmpty
+                            ? "New Query Argument"
+                            : subscription.name,
+                        name: subscription.name,
+                        query: subscription.query,
+                        arguments: subscription.args ?? "",
+                        onSave: viewModel.formSaveSubscription,
+                        onCancel: viewModel.formCancel
+                    ).environmentObject(appState)
+                } else if let observer = viewModel.editorObservable {
+                    QueryArgumentEditor(
+                        title: observer.name.isEmpty
+                            ? "New Observer"
+                            : observer.name,
+                        name: observer.name,
+                        query: observer.query,
+                        arguments: observer.args ?? "",
+                        onSave: viewModel.formSaveObserver,
+                        onCancel: viewModel.formCancel
+                    ).environmentObject(appState)
+                }
+            }
+            .sheet(isPresented: $showingImportView) {
+                ImportDataView(isPresented: $showingImportView)
+                    .environmentObject(appState)
+            }
+            .sheet(isPresented: $showingImportSubscriptionsView) {
+                ImportSubscriptionsView(
+                    isPresented: $showingImportSubscriptionsView,
+                    existingSubscriptions: viewModel.subscriptions,
+                    selectedAppId: viewModel.selectedApp._id
+                )
                 .environmentObject(appState)
-        }
-        .sheet(isPresented: $showingImportSubscriptionsView) {
-            ImportSubscriptionsView(
-                isPresented: $showingImportSubscriptionsView,
-                existingSubscriptions: viewModel.subscriptions,
-                selectedAppId: viewModel.selectedApp._id
-            )
-            .environmentObject(appState)
-        }
-        .onAppear {
-            // No longer needed - using DittoManager state directly
-        }
+            }
         #if os(macOS)
             .toolbar {
                 syncToolbarButton()
                 closeToolbarButton()
+                inspectorToggleButton() // Rightmost, after close button
             }
         #endif
+        #if os(iOS)
+            .onChange(of: viewModel.selectedSidebarMenuItem) { _, _ in
+                preferredCompactColumn = .detail
+        }
+        #endif
     }
-    
+
     func appNameToolbarLabel() -> some ToolbarContent {
         ToolbarItem(placement: .principal) {
             Text(viewModel.selectedApp.name).font(.headline).bold()
         }
     }
-    
+
     func syncToolbarButton() -> some ToolbarContent {
         ToolbarItem(id: "syncButton", placement: .primaryAction) {
             Button {
@@ -196,13 +242,16 @@ struct MainStudioView: View {
                     }
                 }
             } label: {
-                Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
-                    .foregroundColor(viewModel.isSyncEnabled ? .green : .red)
+                Image(systemName: "arrow.2.circlepath")
+                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
             }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
+            .accessibilityIdentifier("SyncButton")
         }
     }
-    
+
     func closeToolbarButton() -> some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -212,969 +261,83 @@ struct MainStudioView: View {
                 }
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
+                    .foregroundStyle(.red)
             }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
             .help("Close App")
+            .accessibilityIdentifier("CloseButton")
         }
     }
+
+    func inspectorToggleButton() -> some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showInspector.toggle()
+            } label: {
+                Image(systemName: "sidebar.right")
+                    .foregroundColor(showInspector ? .primary : .secondary)
+            }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
+            .help("Toggle Inspector")
+            .accessibilityIdentifier("Toggle Inspector")
+        }
+    }
+
+    #if os(iOS)
+    func sidebarToggleButton() -> some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                preferredCompactColumn = .sidebar
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .accessibilityIdentifier("SidebarToggleButton")
+        }
+    }
+    #endif
 
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
     }
-
 }
 
-//MARK: Sidebar Views
-extension MainStudioView {
-    
-    func subscriptionSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Subscriptions")
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading Subscriptions...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.subscriptions.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Subscriptions",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No apps have been added yet. Click the plus button in the bottom left corner to add your first subscription."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                SubscriptionList(
-                    subscriptions: $viewModel.subscriptions,
-                    onEdit: viewModel.showSubscriptionEditor,
-                    onDelete: viewModel.deleteSubscription,
-                    appState: appState
-                )
-            }
-        }
-    }
+// MARK: ViewModel
 
-    private func collectionsHeaderView() -> some View {
-        HStack {
-            Spacer()
-
-            Text("Ditto Collections")
-                .padding(.top, 4)
-
-            Spacer()
-
-            Button {
-                Task {
-                    await viewModel.refreshCollectionCounts()
-                }
-            } label: {
-                if viewModel.isRefreshingCollections {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14))
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isRefreshingCollections)
-            .help("Refresh document counts")
-            .padding(.trailing, 8)
-            .padding(.top, 4)
-        }
-    }
-
-    func collectionsSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            collectionsHeaderView()
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading Collections...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.collections.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No Collections",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No Collections found. Add some data or use the Import button to load data into the database."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                List(viewModel.collections, id: \._id) { collection in
-                    HStack {
-                        Text(collection.name)
-
-                        Spacer()
-
-                        // Badge showing document count (like Mail.app)
-                        if let count = collection.documentCount {
-                            Text("\(count)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.2))
-                                .cornerRadius(10)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.selectedQuery =
-                            "SELECT * FROM \(collection.name)"
-                    }
-                    Divider()
-                }
-                Spacer()
-            }
-        }
-    }
-
-    func historySidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "History")
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(
-                    ProgressView("Loading History...")
-                        .progressViewStyle(.circular)
-                )
-                Spacer()
-            } else if viewModel.history.isEmpty {
-                Spacer()
-                AnyView(
-                    ContentUnavailableView(
-                        "No History",
-                        systemImage:
-                            "exclamationmark.triangle.fill",
-                        description: Text(
-                            "No queries have been ran or query history has been cleared."
-                        )
-                    )
-                )
-                Spacer()
-            } else {
-                List(viewModel.history) { query in
-                    VStack(alignment: .leading) {
-                        Text(query.query)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .font(.system(.body, design: .monospaced))
-                    }
-                    .onTapGesture {
-                        viewModel.selectedQuery = query.query
-                    }
-                    #if os(macOS)
-                        .contextMenu {
-                            Button {
-                                Task {
-                                    do {
-                                        try await HistoryRepository.shared
-                                        .deleteQueryHistory(query.id)
-                                    }catch{
-                                        appState.setError(error)
-                                    }
-                                }
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
-                            Button {
-                                Task {
-                                    do {
-                                        try await FavoritesRepository.shared.saveFavorite(query)
-                                    }catch{
-                                        appState.setError(error)
-                                    }
-                                }
-                            } label: {
-                                Label(
-                                    "Favorite",
-                                    systemImage: "star"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
-                        }
-                    #else
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .cancel) {
-                                Task {
-                                    try await FavoritesRepository.shared
-                                    .saveFavorite(query)
-                                }
-                            } label: {
-                                Label("Favorite", systemImage: "star")
-                            }
-
-                            Button(role: .destructive) {
-                                Task {
-                                    try await DittoManager.shared
-                                    .deleteQueryHistory(query.id)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                    #endif
-                    Divider()
-                }
-            }
-        }
-    }
-
-    func favoritesSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Favorites")
-            List(viewModel.favorites) { query in
-                VStack(alignment: .leading) {
-                    Text(query.query)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .font(.system(.body, design: .monospaced))
-                }
-                .onTapGesture {
-                    viewModel.selectedQuery = query.query
-                }
-                #if os(macOS)
-                    .contextMenu {
-                        Button {
-                            Task {
-                                do {
-                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
-                                }catch{
-                                    appState.setError(error)
-                                }
-                            }
-                        } label: {
-                            Label(
-                                "Delete",
-                                systemImage: "trash"
-                            )
-                            .labelStyle(.titleAndIcon)
-                        }
-                    }
-                #else
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task {
-                                try await FavoritesRepository.shared.deleteFavorite(
-                                    query.id
-                                )
-                            }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                #endif
-                Divider()
-            }
-            Spacer()
-        }
-    }
-
-    func observeSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Observers")
-            if viewModel.observerables.isEmpty {
-                Spacer()
-                ContentUnavailableView(
-                    "No Observers",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "No observers have been added yet. Click the plus button to add your first observers."
-                    )
-                )
-            } else {
-                List(viewModel.observerables) { observer in
-                    observerCard(observer: observer)
-                        .onTapGesture {
-                            viewModel.selectedObservable = observer
-                            Task {
-                                await viewModel.loadObservedEvents()
-                            }
-                        }
-                        #if os(macOS)
-                            .contextMenu {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                                                                          
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Activate",
-                                            systemImage: "play.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(
-                                            "Stop",
-                                            systemImage: "stop.circle"
-                                        )
-                                        .labelStyle(.titleAndIcon)
-                                    }
-                                }
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.deleteObservable(observer)
-                                        }catch{
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        "Delete",
-                                        systemImage: "trash"
-                                    )
-                                    .labelStyle(.titleAndIcon)
-                                }
-                            }
-                        #else
-                            .swipeActions(edge: .trailing) {
-                                if observer.storeObserver == nil {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.registerStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Activate", systemImage: "play.circle")
-                                    }
-                                } else {
-                                    Button {
-                                        Task {
-                                            do {
-                                                try await viewModel.removeStoreObserver(observer)
-                                            } catch {
-                                                appState.setError(error)
-                                            }
-                                        }
-                                    } label: {
-                                        Label("Stop", systemImage: "stop.circle")
-                                    }
-                                }
-                                Button(role: .destructive) {
-                                    Task {
-                                        do {
-                                            try await viewModel.deleteObservable(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                        #endif
-                    Divider()
-                }
-            }
-            Spacer()
-        }
-    }
-
-    func dittoToolsSidebarView() -> some View {
-        return VStack(alignment: .leading) {
-            headerView(title: "Ditto Tools")
-            List(viewModel.dittoToolsFeatures, id: \.self) { tool in
-                Text(tool)
-                    .onTapGesture {
-                        viewModel.selectedDataTool = tool
-                    }
-                Divider()
-            }
-            Spacer()
-        }
-    }
-
-    private func observerCard(observer: DittoObservable) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill((observer.storeObserver == nil ? Color.gray.opacity(0.15) : Color.green.opacity(0.15)))
-                .shadow(radius: 1)
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(observer.name)
-                        .font(.headline)
-                        .bold()
-                  
-                }
-                Spacer()
-                if (observer.storeObserver == nil){
-                    Text("Idle")
-                        .font(.subheadline)
-                        .padding(.trailing, 4)
-                } else {
-                    Text("Active")
-                        .font(.subheadline)
-                        .bold()
-                        .padding(.trailing, 4)
-                }
-            }
-            .padding()
-        }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
-    }
-
-    func headerView(title: String) -> some View {
-        return HStack {
-            Spacer()
-            Text(title)
-                .padding(.top, 4)
-            Spacer()
-        }
-    }
-}
-//MARK: Detail Views
-extension MainStudioView {
-
-    func syncDetailView() -> some View {
-        return VStack(alignment: viewModel.syncStatusItems.isEmpty ? .center : .leading) {
-            // Header with last update time
-            HStack {
-                Text("Connected Peers")
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                if let lastUpdate = viewModel.syncStatusItems.first?.lastUpdateReceivedTime {
-                    Text("Last updated: \(Date(timeIntervalSince1970: lastUpdate / 1000.0), formatter: dateFormatter)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top)
-            
-            if viewModel.syncStatusItems.isEmpty {
-                Spacer()
-                HStack {
-                    Spacer()
-                    ContentUnavailableView(
-                        "No Sync Status Available",
-                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                        description: Text("Enable sync to see connected peers and their status")
-                    )
-                    Spacer()
-                }
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(viewModel.syncStatusItems) { statusInfo in
-                            syncStatusCard(for: statusInfo)
-                        }
-                    }
-                    .padding()
-                }
-            }
-        }
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
-    }
-    
-    private func syncStatusCard(for status: SyncStatusInfo) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with peer type and connection status
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    // Show device name if available, otherwise peer type
-                    Text(status.deviceName ?? status.peerType)
-                        .font(.headline)
-                        .bold()
-
-                    // Show OS info if available
-                    if let osInfo = status.osInfo {
-                        HStack(spacing: 4) {
-                            Image(systemName: osIconName(for: osInfo))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(osInfo.displayName)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Text(status.id)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
-
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusColor(for: status.syncSessionStatus))
-                        .frame(width: 8, height: 8)
-                    Text(status.syncSessionStatus)
-                        .font(.subheadline)
-                        .foregroundColor(statusColor(for: status.syncSessionStatus))
-                }
-            }
-
-            Divider()
-
-            // Peer information (new enrichment fields)
-            VStack(alignment: .leading, spacing: 8) {
-                // SDK Version
-                if let sdkVersion = status.dittoSDKVersion {
-                    HStack {
-                        Image(systemName: "apps.iphone")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                        Text("Ditto SDK: \(sdkVersion)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                // Connection address
-                if let addressInfo = status.addressInfo {
-                    HStack {
-                        Image(systemName: connectionIcon(for: addressInfo.connectionType))
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                        Text(addressInfo.displayText)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-
-                // Identity metadata (collapsible with chevron)
-                if let metadata = status.identityMetadata {
-                    DisclosureGroup {
-                        ScrollView {
-                            Text(metadata)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .textSelection(.enabled)
-                                .padding(.vertical, 4)
-                        }
-                        .frame(maxHeight: 150)
-                    } label: {
-                        HStack {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                            Text("Identity Metadata")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                // Active connections (collapsible with chevron)
-                if let connections = status.connections, !connections.isEmpty {
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(connections) { connection in
-                                connectionBadge(for: connection, currentPeerId: status.id)
-                            }
-                        }
-                        .padding(.top, 4)
-                    } label: {
-                        HStack {
-                            Image(systemName: "link.circle")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                            Text("Active Connections (\(connections.count))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                // Existing sync information
-                if let commitId = status.syncedUpToLocalCommitId {
-                    HStack {
-                        Image(systemName: "checkmark.circle")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Synced to commit: \(commitId)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                HStack {
-                    Image(systemName: "clock")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Text("Last update: \(status.formattedLastUpdate)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(NSColor.controlBackgroundColor))
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-        )
-    }
-    
-    private func statusColor(for status: String) -> Color {
-        switch status {
-        case "Connected":
-            return .green
-        case "Connecting":
-            return .orange
-        case "Disconnected":
-            return .red
-        default:
-            return .gray
-        }
-    }
-    
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .medium
-        return formatter
-    }
-
-    private func osIconName(for os: PeerOS) -> String {
-        switch os {
-        case .iOS:
-            return "iphone"
-        case .android:
-            return "circle.filled.iphone"
-        case .macOS:
-            return "laptopcomputer"
-        case .linux:
-            return "server.rack"
-        case .windows:
-            return "pc"
-        case .unknown:
-            return "questionmark.circle"
-        }
-    }
-
-    private func connectionIcon(for connectionType: String) -> String {
-        let type = connectionType.lowercased()
-        if type.contains("wifi") || type.contains("wireless") {
-            return "wifi"
-        } else if type.contains("bluetooth") || type.contains("ble") {
-            return "bluetooth"
-        } else if type.contains("websocket") || type.contains("internet") {
-            return "network"
-        } else if type.contains("lan") || type.contains("ethernet") {
-            return "cable.connector"
-        } else {
-            return "antenna.radiowaves.left.and.right"
-        }
-    }
-
-    private func connectionBadge(for connection: ConnectionInfo, currentPeerId: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: connection.type.iconName)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(connection.type.displayName)
-                    .font(.caption)
-                    .foregroundColor(.primary)
-
-                if let distance = connection.displayDistance {
-                    Text("Distance: \(distance)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        )
-    }
-
-    func queryDetailView() -> some View {
-        return VStack(alignment: .leading) {
-            #if os(macOS)
-                VSplitView {
-                    //top half
-                    QueryEditorView(
-                        queryText: $viewModel.selectedQuery,
-                        executeModes: $viewModel.executeModes,
-                        selectedExecuteMode: $viewModel.selectedExecuteMode,
-                        isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
-                    )
-
-                    //bottom half
-                    QueryResultsView(
-                        jsonResults: $viewModel.jsonResults,
-                        onGetLastQuery: { viewModel.selectedQuery },
-                        onInsertQuery: { dql in
-                            viewModel.selectedQuery = dql
-                        }
-                    )
-                }
-            #else
-                VStack {
-                    //top half
-                    QueryEditorView(
-                        queryText: $viewModel.selectedQuery,
-                        executeModes: $viewModel.executeModes,
-                        selectedExecuteMode: $viewModel.selectedExecuteMode,
-                        isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
-                    )
-                    .frame(minHeight: 100, idealHeight: 150, maxHeight: 200)
-
-                    //bottom half
-                    QueryResultsView(
-                        jsonResults: $viewModel.jsonResults,
-                        onGetLastQuery: { viewModel.selectedQuery },
-                        onInsertQuery: { dql in
-                            viewModel.selectedQuery = dql
-                        }
-                    )
-                }
-                .navigationBarTitleDisplayMode(.inline)
-            #endif
-        }
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
-    }
-
-    func observeDetailView() -> some View {
-        return VStack(alignment: .trailing) {
-#if os(macOS)
-            VSplitView {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                        .frame(minHeight: 200)
-
-                } else {
-                    observableEventsList()
-                        .frame(minHeight: 200)
-                }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-            }
-#else
-            VStack {
-                if viewModel.selectedObservable == nil {
-                    observableDetailNoContent()
-                } else {
-                    observableEventsList()
-                }
-                observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-            }
-#endif
-        }
-        #if os(iOS)
-            .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-            }
-        #endif
-    }
-
-    func dittoToolsDetailView() -> some View {
-        return ToolsViewer(selectedDataTool: $viewModel.selectedDataTool)
-            #if os(iOS)
-                .toolbar {
-                    appNameToolbarLabel()
-                    syncToolbarButton()
-                    closeToolbarButton()
-                }
-            #endif
-    }
-
-}
-
-//MARK: Observe functions
-extension MainStudioView {
-    
-    fileprivate func observableEventsList() -> some View {
-        return VStack {
-            if viewModel.observableEvents.isEmpty {
-                ContentUnavailableView(
-                    "No Observer Events",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text(
-                        "Activate an observer to see observable events."
-                    )
-                )
-            } else {
-                Table(viewModel.observableEvents, selection: Binding<Set<String>>(get: {
-                    if let selectedId = viewModel.selectedEventId {
-                        return Set([selectedId])
-                    } else {
-                        return Set<String>()
-                    }
-                }, set: { newValue in
-                    if let first = newValue.first {
-                        viewModel.selectedEventId = first
-                    } else {
-                        viewModel.selectedEventId = nil
-                    }
-                })) {
-                    TableColumn("Time") { event in
-                        Text(event.eventTime)
-                    }
-                    TableColumn("Count") { event in
-                        Text("\(event.data.count)")
-                    }
-                    TableColumn("Inserted") { event in
-                        Text("\(event.insertIndexes.count)")
-                    }
-                    TableColumn("Updated") { event in
-                        Text("\(event.updatedIndexes.count)")
-                    }
-                    TableColumn("Deleted") { event in
-                        Text("\(event.deletedIndexes.count)")
-                    }
-                    TableColumn("Moves") { event in
-                        Text("\(event.movedIndexes.count)")
-                    }
-                }
-                .navigationTitle("Observer Events")
-            }
-        }
-    }
-    
-    fileprivate func observableDetailNoContent() -> some View {
-        return VStack {
-            ContentUnavailableView(
-                "No Observer Selected",
-                systemImage: "exclamationmark.triangle.fill",
-                description: Text(
-                    "Please select an observer from the siderbar to view events."
-                )
-            )
-        }
-    }
-    
-    fileprivate func observableDetailSelectedEvent(observeEvent: DittoObserveEvent?) -> some View {
-        return VStack(alignment: .leading, spacing: 0) {
-            if let event = observeEvent {
-                Picker("", selection: $viewModel.eventMode) {
-                    Text("Items")
-                        .tag("items")
-                    Text("Inserted")
-                        .tag("inserted")
-                    Text("Updated")
-                        .tag("updated")
-                }
-#if os(macOS)
-                .padding(.top, 24)
-#else
-                .padding(.top, 8)
-#endif
-                .padding(.bottom, 8)
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-                switch viewModel.eventMode {
-                    case "inserted":
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.getInsertedData())
-                        }
-                    case "updated":
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.getUpdatedData())
-                        }
-                    default:
-                        VStack(alignment: .leading, spacing: 0) {
-                            ResultJsonViewer(resultText: event.data)
-                        }
-                }
-                Spacer()
-            
-            } else {
-                ResultJsonViewer(resultText: [])
-            }
-        }
-        .padding(.leading, 12)
-    }
-    
-}
-
-//MARK: ViewModel
 extension MainStudioView {
     @Observable
     @MainActor
     class ViewModel {
-        var selectedApp: DittoAppConfig
+        var selectedApp: DittoConfigForDatabase
 
-        //used for displaying action sheets
-        var actionSheetMode: ActionSheetMode = ActionSheetMode.none
+        // used for displaying action sheets
+        var actionSheetMode = ActionSheetMode.none
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
-       
+
         var selectedObservable: DittoObservable?
         var selectedEventId: String?
-        var selectedDataTool: String?
-        
+
         // Sync status properties
         var syncStatusItems: [SyncStatusInfo] = []
-        var isSyncEnabled = true  // Track sync status here
+        var isSyncEnabled = true // Track sync status here
+        var connectionsByTransport: ConnectionsByTransport = .empty
+
+        // Local peer info
+        var localPeerDeviceName: String?
+        var localPeerSDKLanguage: String?
+        var localPeerSDKPlatform: String?
+        var localPeerSDKVersion: String?
+
+        // Note: PeerFilter enum removed in favor of presence-first architecture
+        // syncStatusItems now always contains only connected peers (filtered at source)
 
         var isLoading = false
         var isQueryExecuting = false
         var isRefreshingCollections = false
 
         var eventMode = "items"
-        let dittoToolsFeatures = [
-            "Presence Viewer", "Peers List", "Permissions Health", "Disk Usage",
-        ]
         var subscriptions: [DittoSubscription] = []
         var history: [DittoQueryHistory] = []
         var favorites: [DittoQueryHistory] = []
@@ -1183,63 +346,89 @@ extension MainStudioView {
         var observableEvents: [DittoObserveEvent] = []
         var selectedObservableEvents: [DittoObserveEvent] = []
 
-        //query editor view
+        // query editor view
         var selectedQuery: String
         var executeModes: [String]
         var selectedExecuteMode: String
 
-        //results view
+        /// results view
         var jsonResults: [String]
 
-        //MainMenu Toolbar
-        var selectedMenuItem: MenuItem
-        var mainMenuItems: [MenuItem] = []
+        // Sidebar Toolbar
+        var selectedSidebarMenuItem: MenuItem
+        var sidebarMenuItems: [MenuItem] = []
 
-        init(_ dittoAppConfig: DittoAppConfig) {
-            self.selectedApp = dittoAppConfig
+        // Inspector Toolbar (used only when Collections tab is active)
+        var selectedQueryInspectorMenuItem: MenuItem
+        var queryInspectorMenuItems: [MenuItem] = []
+
+        /// JSON Inspector State
+        var selectedJsonForInspector: String?
+
+        init(_ dittoAppConfig: DittoConfigForDatabase) {
+            selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
                 id: 1,
                 name: "Subscriptions",
-                icon: "arrow.trianglehead.2.clockwise"
+                systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"
             )
 
-            self.selectedMenuItem = subscriptionItem
-            self.mainMenuItems = [
+            selectedSidebarMenuItem = subscriptionItem
+            sidebarMenuItems = [
                 subscriptionItem,
-                MenuItem(id: 2, name: "Collections", icon: "square.stack.fill"),
-                MenuItem(id: 3, name: "History", icon: "clock"),
-                MenuItem(id: 4, name: "Favorites", icon: "star"),
-                MenuItem(id: 5, name: "Observer", icon: "eye"),
-                MenuItem(id: 6, name: "Ditto Tools", icon: "gearshape"),
+                MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
+                MenuItem(id: 3, name: "Observer", systemIcon: "eye")
             ]
 
-            //query section
-            self.selectedQuery = ""
-            self.selectedExecuteMode = "Local"
+            // query section
+            selectedQuery = ""
+            selectedExecuteMode = "Local"
             if dittoAppConfig.httpApiUrl == ""
                 || dittoAppConfig.httpApiKey == ""
             {
-                self.executeModes = ["Local"]
-
+                executeModes = ["Local"]
             } else {
-                self.executeModes = ["Local", "HTTP"]
+                executeModes = ["Local", "HTTP"]
             }
 
-            //query results section
-            self.jsonResults = []
+            // query results section
+            jsonResults = []
 
-            //default the tool to presence viewer
-            selectedDataTool = "Presence Viewer"
-            
+            // Inspector toolbar (used only when Collections tab is active)
+            let historyItem = MenuItem(id: 5, name: "History", systemIcon: "clock")
+            queryInspectorMenuItems = [
+                historyItem,
+                MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
+                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill"),
+                MenuItem(id: 8, name: "Help", systemIcon: "questionmark")
+            ]
+            selectedQueryInspectorMenuItem = historyItem
+
             // Setup SystemRepository callback
             Task {
-                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems in
+                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
                     Task { @MainActor in
                         self?.syncStatusItems = statusItems
+
+                        // CRITICAL: Signal completion AFTER UI update dispatches
+                        Task {
+                            // 50ms delay allows SwiftUI LazyVGrid rendering to complete
+                            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                            completion()
+                        }
                     }
                 }
             }
-            
+
+            // Setup connections callback
+            Task {
+                await SystemRepository.shared.setOnConnectionsUpdate { [weak self] connections in
+                    Task { @MainActor in
+                        self?.connectionsByTransport = connections
+                    }
+                }
+            }
+
             // Setup ObservableRepository callback
             Task {
                 await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
@@ -1248,7 +437,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
+
             // Setup FavoritesRepository callback
             Task {
                 await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
@@ -1257,7 +446,7 @@ extension MainStudioView {
                     }
                 }
             }
-            
+
             // Setup HistoryRepository callback
             Task {
                 await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
@@ -1269,26 +458,28 @@ extension MainStudioView {
 
             Task {
                 isLoading = true
-                
+
                 await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
                     self.subscriptions = newSubscriptions
                 }
-                subscriptions = try await SubscriptionsRepository.shared.hydrateDittoSubscriptions()
+                // Load subscription metadata from secure storage (sync subscriptions will be re-registered as needed)
+                subscriptions = try await SubscriptionsRepository.shared.loadSubscriptions(for: selectedApp.databaseId)
 
                 await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
                     self.collections = newCollections
                 }
                 collections = try await CollectionsRepository.shared.hydrateCollections()
 
-                history = try await HistoryRepository.shared.hydrateQueryHistory()
+                // Load per-database history, favorites, and observers from secure storage
+                history = try await HistoryRepository.shared.loadHistory(for: selectedApp.databaseId)
 
-                favorites = try await FavoritesRepository.shared.hydrateQueryFavorites()
-                
-                // Start observing observables through repository
+                favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
+
+                // Load observer metadata (without live observers - those must be re-registered)
                 do {
-                    try await ObservableRepository.shared.registerObservablesObserver(for: selectedApp._id)
+                    observerables = try await ObservableRepository.shared.loadObservers(for: selectedApp.databaseId)
                 } catch {
-                    assertionFailure("Failed to register observables observer: \(error)")
+                    assertionFailure("Failed to load observers: \(error)")
                 }
 
                 if collections.isEmpty {
@@ -1297,26 +488,58 @@ extension MainStudioView {
                     selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
                 }
 
-                // Start observing sync status
+                // Start observing connections via presence graph (drives bottom status bar)
                 do {
-                    try await SystemRepository.shared.registerSyncStatusObserver()
+                    try await SystemRepository.shared.registerConnectionsPresenceObserver()
                 } catch {
-                    assertionFailure("Failed to register sync status observer: \(error)")
+                    // Not a programming error — can happen if the database was closed before
+                    // this async Task completed (e.g. user switched databases quickly).
+                    Log.error("Failed to register connections presence observer: \(error.localizedDescription)")
+                }
+
+                // Note: sync-status observer is registered by syncTabsDetailView().onAppear
+                // (which fires before this Task reaches here). No eager registration needed —
+                // it caused double-registration and backpressure pipeline deadlocks.
+
+                // Fetch local peer info via local query
+                do {
+                    let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
+                    let jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
+
+                    // Parse first result (should only be one - local peer)
+                    if let firstResult = jsonResults.first,
+                       let data = firstResult.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                    {
+                        localPeerDeviceName = "Edge Studio"
+                        localPeerSDKLanguage = json["ditto_sdk_language"] as? String
+                        localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
+                        localPeerSDKVersion = json["ditto_sdk_version"] as? String
+                    }
+                } catch {
+                    // Fail silently - not critical to app functionality
+                    Log.error("Failed to fetch local peer info: \(error.localizedDescription)")
                 }
 
                 isLoading = false
             }
         }
 
-        var selectedEventObject: DittoObserveEvent? {
-            get {
-                guard let selectedId = selectedEventId else { return nil }
-                return observableEvents.first(where: { $0.id == selectedId })
+        /// Shows JSON in the inspector panel
+        func showJsonInInspector(_ json: String) {
+            selectedJsonForInspector = json
+            if let jsonTab = queryInspectorMenuItems.first(where: { $0.name == "JSON" }) {
+                selectedQueryInspectorMenuItem = jsonTab
             }
         }
 
+        var selectedEventObject: DittoObserveEvent? {
+            guard let selectedId = selectedEventId else { return nil }
+            return observableEvents.first(where: { $0.id == selectedId })
+        }
+
         func addQueryToHistory(appState: AppState) async {
-            if !selectedQuery.isEmpty && selectedQuery.count > 0 {
+            if !selectedQuery.isEmpty && !selectedQuery.isEmpty {
                 let queryHistory = DittoQueryHistory(
                     id: UUID().uuidString,
                     query: selectedQuery,
@@ -1341,7 +564,7 @@ extension MainStudioView {
                 collections = try await CollectionsRepository.shared.refreshDocumentCounts()
             } catch {
                 // Error will be set in repository via appState
-                print("Failed to refresh collection counts: \(error)")
+                Log.error("Failed to refresh collection counts: \(error.localizedDescription)")
             }
         }
 
@@ -1351,7 +574,7 @@ extension MainStudioView {
             editorSubscription = nil
             selectedEventId = nil
             selectedObservable = nil
-            
+
             subscriptions = []
             collections = []
             history = []
@@ -1359,16 +582,23 @@ extension MainStudioView {
             observerables = []
             observableEvents = []
             syncStatusItems = []
+            connectionsByTransport = .empty
             isSyncEnabled = false
-            
+
+            // Clear peer info
+            localPeerDeviceName = nil
+            localPeerSDKLanguage = nil
+            localPeerSDKPlatform = nil
+            localPeerSDKVersion = nil
+
             // Perform heavy cleanup operations on background queue to avoid priority inversion
             await performCleanupOperations()
         }
-        
+
         private func performCleanupOperations() async {
             // Capture observables on main actor before moving to background queues
             let observablesToCleanup = observerables
-            
+
             // Use TaskGroup to run cleanup operations concurrently on background queues
             await withTaskGroup(of: Void.self) { group in
                 group.addTask(priority: .utility) {
@@ -1377,57 +607,54 @@ extension MainStudioView {
                         observable.storeObserver?.cancel()
                     }
                 }
-                
+
                 group.addTask(priority: .utility) {
-                    // Stop repository observers (now using detached tasks internally)
+                    // Clear repository caches (secure storage migration)
+                    await HistoryRepository.shared.clearCache()
+                    await FavoritesRepository.shared.clearCache()
+                    await ObservableRepository.shared.clearCache()
+                    await SubscriptionsRepository.shared.clearCache()
+
+                    // Stop other repository observers
                     await SystemRepository.shared.stopObserver()
-                    await ObservableRepository.shared.stopObserver()
-                    await FavoritesRepository.shared.stopObserver()
-                    await HistoryRepository.shared.stopObserver()
                     await CollectionsRepository.shared.stopObserver()
-                    await SubscriptionsRepository.shared.cancelAllSubscriptions()
-                    await DatabaseRepository.shared.stopDatabaseConfigSubscription()
                 }
-                
+
                 group.addTask(priority: .utility) {
                     // Close DittoManager selected app
-                    await DittoManager.shared.closeDittoSelectedApp()
+                    await DittoManager.shared.closeDittoSelectedDatabase()
                 }
             }
         }
-        
+
         func toggleSync() async throws {
             if isSyncEnabled {
-                await DittoManager.shared.selectedAppStopSync()
+                // Disable sync
+                await DittoManager.shared.selectedDatabaseStopSync()
+
+                // Reset connection counts
+                connectionsByTransport = .empty
+                syncStatusItems = []
+
                 isSyncEnabled = false
             } else {
-                try await DittoManager.shared.selectedAppStartSync()
+                // Enable sync
+                try await DittoManager.shared.selectedDatabaseStartSync()
                 isSyncEnabled = true
             }
         }
-        
-        func startSync() async throws {
-            try await DittoManager.shared.selectedAppStartSync()
-            isSyncEnabled = true
-        }
-        
-        func stopSync() async {
-            await DittoManager.shared.selectedAppStopSync()
-            isSyncEnabled = false
-        }
 
         func deleteObservable(_ observable: DittoObservable) async throws {
-            
             if let storeObserver = observable.storeObserver {
                 storeObserver.cancel()
             }
-            
+
             try await ObservableRepository.shared.removeDittoObservable(observable)
-            
-            //remove events for the observable
-            observableEvents.removeAll(where: {$0.observeId == observable.id})
-            
-            if (selectedObservable?.id == observable.id) {
+
+            // remove events for the observable
+            observableEvents.removeAll(where: { $0.observeId == observable.id })
+
+            if selectedObservable?.id == observable.id {
                 selectedObservable = nil
             }
             if selectedEventObject?.observeId == observable.id {
@@ -1435,8 +662,7 @@ extension MainStudioView {
             }
         }
 
-        func deleteSubscription(_ subscription: DittoSubscription) async throws
-        {
+        func deleteSubscription(_ subscription: DittoSubscription) async throws {
             try await SubscriptionsRepository.shared.removeDittoSubscription(subscription)
         }
 
@@ -1444,7 +670,7 @@ extension MainStudioView {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
-                     jsonResults = try await QueryService.shared
+                    jsonResults = try await QueryService.shared
                         .executeSelectedAppQuery(query: selectedQuery)
                 } else {
                     jsonResults = try await QueryService.shared
@@ -1479,9 +705,7 @@ extension MainStudioView {
                 }
                 Task {
                     do {
-                        try await SubscriptionsRepository.shared.saveDittoSubscription(
-                            subscription
-                        )
+                        try await SubscriptionsRepository.shared.saveDittoSubscription(subscription)
                     } catch {
                         appState.setError(error)
                     }
@@ -1490,7 +714,7 @@ extension MainStudioView {
             }
             actionSheetMode = .none
         }
-        
+
         func formSaveObserver(
             name: String,
             query: String,
@@ -1524,7 +748,7 @@ extension MainStudioView {
                 selectedObservableEvents = []
             }
         }
-        
+
         func registerStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
@@ -1535,26 +759,34 @@ extension MainStudioView {
             if observerables[index].storeObserver != nil {
                 throw InvalidStoreState(message: "Observer already registered")
             }
-            
-            //if you activate an observable it's instantly selected
+
+            // if you activate an observable it's instantly selected
             selectedObservable = observable
-            
-            //used for calculating the diffs
+
+            // used for calculating the diffs
             let dittoDiffer = DittoDiffer()
-            
-            //TODO: fix arguments serialization
+
+            // Deserialize arguments from JSON string
+            var arguments: [String: Any?] = [:]
+            if let argsString = observable.args, !argsString.isEmpty,
+               let argsData = argsString.data(using: .utf8),
+               let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any]
+            {
+                arguments = argsDict
+            }
+
             let observer = try ditto.store.registerObserver(
                 query: observable.query,
-                arguments: [:]
+                arguments: arguments
             ) { [weak self] results in
-                //required to show the end user when the event fired
+                // required to show the end user when the event fired
                 var event = DittoObserveEvent.new(observeId: observable.id)
 
                 let diff = dittoDiffer.diff(results.items)
 
                 event.eventTime = Date().ISO8601Format()
 
-                //set diff information
+                // set diff information
                 event.insertIndexes = Array(diff.insertions)
                 event.deletedIndexes = Array(diff.deletions)
                 event.updatedIndexes = Array(diff.updates)
@@ -1566,17 +798,17 @@ extension MainStudioView {
                 }
 
                 self?.observableEvents.append(event)
-                
-                //if this is the selected observable, add it to the selectedEvents array too
+
+                // if this is the selected observable, add it to the selectedEvents array too
                 if let selectedObservableId = self?.selectedObservable?.id {
-                    if (event.observeId == selectedObservableId) {
+                    if event.observeId == selectedObservableId {
                         self?.selectedObservableEvents.append(event)
                     }
                 }
             }
             observerables[index].storeObserver = observer
         }
-        
+
         func removeStoreObserver(_ observable: DittoObservable) async throws {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
@@ -1600,17 +832,22 @@ extension MainStudioView {
     }
 }
 
-//MARK: Helpers
+// MARK: Helpers
 
 enum ActionSheetMode: String {
-    case none = "none"
-    case subscription = "subscription"
-    case observer = "observer"
+    case none
+    case subscription
+    case observer
 }
 
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
-    var icon: String
-}
+    var systemIcon: String // SF Symbol name (e.g., "clock", "bookmark")
 
+    /// Computed property for rendering in pickers
+    var image: some View {
+        Image(systemName: systemIcon)
+            .font(.system(size: 48))
+    }
+}
