@@ -251,5 +251,12 @@ extension MainStudioView {
         DispatchQueue.main.async { [self] in
             columnVisibility = .all
         }
+
+        // On iPhone, dismiss the inspector so the editor is immediately visible
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            showInspector = false
+        }
+        #endif
     }
 }

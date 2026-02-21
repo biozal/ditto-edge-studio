@@ -3,41 +3,38 @@ import SwiftUI
 extension MainStudioView {
     func syncTabsDetailView() -> some View {
         VStack(spacing: 0) {
-            ViewThatFits(in: .horizontal) {
-                // ── Wide layout: all on one row ──────────────────────────────────
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Connected Peers")
-                            .font(.title2)
-                            .bold()
-                        if let statusInfo = viewModel.syncStatusItems.first {
-                            Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.leading, 10)
-
-                    Spacer()
-
-                    Picker("", selection: $selectedSyncTab) {
-                        Text("Peers List").tag(0)
-                        Text("Presence Viewer").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .accessibilityIdentifier("SyncTabPicker")
-
-                    Spacer()
-
-                    TransportSettingsButton()
-                        .padding(.trailing, 5)
-                }
-
-                // ── Narrow layout: picker + gear on top, title below ─────────────
-                VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                ViewThatFits(in: .horizontal) {
+                    // ── Wide layout: title on left, picker centered ───────────────
                     HStack {
+                        VStack(alignment: .leading) {
+                            Text("Connected Peers")
+                                .font(.title2)
+                                .bold()
+                            if let statusInfo = viewModel.syncStatusItems.first {
+                                Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.leading, 10)
+
+                        Spacer()
+
+                        Picker("", selection: $selectedSyncTab) {
+                            Text("Peers List").tag(0)
+                            Text("Presence Viewer").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("SyncTabPicker")
+
+                        Spacer()
+                    }
+
+                    // ── Narrow layout: picker on top, title below ─────────────────
+                    VStack(alignment: .leading, spacing: 0) {
                         Picker("", selection: $selectedSyncTab) {
                             Text("Peers List").tag(0)
                             Text("Presence Viewer").tag(1)
@@ -47,23 +44,24 @@ extension MainStudioView {
                         .padding(.vertical, 8)
                         .accessibilityIdentifier("SyncTabPicker")
 
-                        TransportSettingsButton()
-                            .padding(.trailing, 5)
-                    }
-
-                    VStack(alignment: .leading) {
-                        Text("Connected Peers")
-                            .font(.title2)
-                            .bold()
-                        if let statusInfo = viewModel.syncStatusItems.first {
-                            Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        VStack(alignment: .leading) {
+                            Text("Connected Peers")
+                                .font(.title2)
+                                .bold()
+                            if let statusInfo = viewModel.syncStatusItems.first {
+                                Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .padding(.leading, 10)
+                        .padding(.bottom, 8)
                     }
-                    .padding(.leading, 10)
-                    .padding(.bottom, 8)
                 }
+
+                // Single TransportSettingsButton — stable identity regardless of ViewThatFits layout
+                TransportSettingsButton()
+                    .padding(.trailing, 5)
             }
 
             // Tab content
@@ -82,6 +80,7 @@ extension MainStudioView {
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
         #endif
         .onAppear {
             // Only start observer if Peers List tab (tab 0) is selected
@@ -115,10 +114,40 @@ extension MainStudioView {
         }
         #if os(iOS)
         .toolbar {
-            appNameToolbarLabel()
-            syncToolbarButton()
-            closeToolbarButton()
-            inspectorToggleButton()
+            if horizontalSizeClass == .compact {
+                sidebarToggleButton()
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 16) {
+                        Button {
+                            Task {
+                                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.2.circlepath")
+                                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                        }
+                        .accessibilityIdentifier("SyncButton")
+
+                        Button {
+                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                        }
+                        .accessibilityIdentifier("CloseButton")
+
+                        Button { showInspector.toggle() } label: {
+                            Image(systemName: "sidebar.right")
+                                .foregroundColor(showInspector ? .primary : .secondary)
+                        }
+                        .accessibilityIdentifier("Toggle Inspector")
+                    }
+                }
+            } else {
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+                inspectorToggleButton()
+            }
         }
         #endif
     }
@@ -178,14 +207,8 @@ extension MainStudioView {
             // Content split — GeometryReader fills all remaining space
             GeometryReader { geometry in
                 VStack(spacing: 0) {
-                    QueryEditorView(
-                        queryText: $viewModel.selectedQuery,
-                        executeModes: $viewModel.executeModes,
-                        selectedExecuteMode: $viewModel.selectedExecuteMode,
-                        isLoading: $viewModel.isQueryExecuting,
-                        onExecuteQuery: executeQuery
-                    )
-                    .frame(height: geometry.size.height * 0.5)
+                    QueryEditorView(queryText: $viewModel.selectedQuery)
+                        .frame(height: geometry.size.height * 0.5)
 
                     Divider()
 
@@ -204,8 +227,36 @@ extension MainStudioView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
 
+            #if os(iOS)
+            if horizontalSizeClass != .compact {
+                DetailBottomBar(connections: viewModel.connectionsByTransport) {
+                    if !viewModel.jsonResults.isEmpty {
+                        PaginationControls(
+                            totalCount: queryResultsCount,
+                            currentPage: $queryCurrentPage,
+                            pageCount: queryPageCount,
+                            pageSize: $queryPageSize,
+                            pageSizes: queryPageSizes,
+                            onPageChange: { newPage in
+                                queryCurrentPage = max(1, min(newPage, queryPageCount))
+                            },
+                            onPageSizeChange: { newSize in
+                                queryPageSize = newSize
+                                queryCurrentPage = 1
+                            }
+                        )
+                        queryGenerateDQLButton
+                        Button { queryIsExporting = true } label: {
+                            FontAwesomeText(icon: ActionIcon.download, size: 14)
+                        }
+                        .help("Export query results to JSON file")
+                    }
+                }
+            }
+            #else
             DetailBottomBar(connections: viewModel.connectionsByTransport) {
                 if !viewModel.jsonResults.isEmpty {
                     PaginationControls(
@@ -229,6 +280,7 @@ extension MainStudioView {
                     .help("Export query results to JSON file")
                 }
             }
+            #endif
         }
         .fileExporter(
             isPresented: $queryIsExporting,
@@ -257,11 +309,183 @@ extension MainStudioView {
         .animation(.easeInOut(duration: 0.25), value: queryCopiedDQLNotification)
         #if os(iOS)
             .toolbar {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()
+                if horizontalSizeClass == .compact {
+                    // COMPACT: Single ToolbarItem with all 6 controls — prevents any iOS overflow
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        HStack(spacing: 8) {
+                            // Sidebar toggle
+                            Button { preferredCompactColumn = .sidebar } label: {
+                                Image(systemName: "sidebar.left")
+                            }
+                            .accessibilityIdentifier("SidebarToggleButton")
+
+                            Divider().frame(height: 18)
+
+                            // Execute mode picker
+                            Picker("", selection: $viewModel.selectedExecuteMode) {
+                                ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 85)
+
+                            // Execute play button
+                            Button { Task { await executeQuery() } } label: {
+                                FontAwesomeText(
+                                    icon: NavigationIcon.play,
+                                    size: 14,
+                                    color: viewModel.isQueryExecuting ? .gray : .green
+                                )
+                                .accessibilityLabel("Execute Query")
+                            }
+                            .disabled(viewModel.isQueryExecuting)
+
+                            Divider().frame(height: 18)
+
+                            // Sync toggle
+                            Button {
+                                Task {
+                                    do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.2.circlepath")
+                                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                            }
+                            .accessibilityIdentifier("SyncButton")
+
+                            // Close
+                            Button {
+                                Task {
+                                    await viewModel.closeSelectedApp()
+                                    isMainStudioViewPresented = false
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
+                            .accessibilityIdentifier("CloseButton")
+
+                            // Inspector toggle
+                            Button { showInspector.toggle() } label: {
+                                Image(systemName: "sidebar.right")
+                                    .foregroundColor(showInspector ? .primary : .secondary)
+                            }
+                            .accessibilityIdentifier("Toggle Inspector")
+                        }
+                    }
+                } else {
+                    // REGULAR (iPad): keep original split layout
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        HStack(spacing: 2) {
+                            Picker("", selection: $viewModel.selectedExecuteMode) {
+                                ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 90)
+
+                            Divider().frame(height: 18)
+
+                            Button { Task { await executeQuery() } } label: {
+                                FontAwesomeText(
+                                    icon: NavigationIcon.play,
+                                    size: 14,
+                                    color: viewModel.isQueryExecuting ? .gray : .green
+                                )
+                                .accessibilityLabel("Execute Query")
+                                .padding(.horizontal, 4)
+                            }
+                            .disabled(viewModel.isQueryExecuting)
+                        }
+                    }
+                    appNameToolbarLabel()
+                    syncToolbarButton()
+                    closeToolbarButton()
+                    inspectorToggleButton()
+                }
+
+                // BOTTOM BAR — iPhone only (unchanged)
+                if horizontalSizeClass == .compact {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        ConnectionStatusMenu(
+                            connections: viewModel.connectionsByTransport,
+                            pageSize: $queryPageSize,
+                            pageSizes: queryPageSizes,
+                            onPageSizeChange: { newSize in
+                                queryPageSize = newSize
+                                queryCurrentPage = 1
+                            }
+                        )
+
+                        Spacer()
+
+                        if !viewModel.jsonResults.isEmpty {
+                            Button {
+                                queryCurrentPage = max(1, queryCurrentPage - 1)
+                            } label: {
+                                Image(systemName: "chevron.left")
+                            }
+                            .disabled(queryCurrentPage <= 1)
+
+                            if queryPageCount > 1 {
+                                Menu {
+                                    ForEach(1 ... queryPageCount, id: \.self) { page in
+                                        Button("Page \(page)") { queryCurrentPage = page }
+                                    }
+                                } label: {
+                                    Text("Pg \(queryCurrentPage)")
+                                        .font(.caption.monospacedDigit())
+                                }
+                            } else {
+                                Text("Pg 1")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Button {
+                                queryCurrentPage = min(queryPageCount, queryCurrentPage + 1)
+                            } label: {
+                                Image(systemName: "chevron.right")
+                            }
+                            .disabled(queryCurrentPage >= queryPageCount)
+
+                            Spacer()
+
+                            Menu {
+                                Button("Export JSON") { queryIsExporting = true }
+                                Divider()
+                                Button("Generate SELECT") { queryGenerateAndInsert(.select) }
+                                Button("Generate INSERT") { queryGenerateAndInsert(.insert) }
+                                Button("Generate UPDATE") { queryGenerateAndInsert(.update) }
+                                Button("Generate DELETE") { queryGenerateAndInsert(.delete) }
+                                Button("Generate EVICT") { queryGenerateAndInsert(.evict) }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
+                        }
+                    }
+                }
             }
+        #endif
+        #if os(macOS)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Picker("", selection: $viewModel.selectedExecuteMode) {
+                    ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 100)
+            }
+            ToolbarItem(placement: .navigation) {
+                Button { Task { await executeQuery() } } label: {
+                    FontAwesomeText(
+                        icon: NavigationIcon.play,
+                        size: 14,
+                        color: viewModel.isQueryExecuting ? .gray : .green
+                    )
+                    .accessibilityLabel("Execute Query")
+                }
+                .disabled(viewModel.isQueryExecuting)
+            }
+        }
         #endif
     }
 
@@ -354,8 +578,31 @@ extension MainStudioView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
 
+            #if os(iOS)
+            if horizontalSizeClass != .compact {
+                DetailBottomBar(connections: viewModel.connectionsByTransport) {
+                    if !viewModel.observableEvents.isEmpty {
+                        PaginationControls(
+                            totalCount: observerEventsCount,
+                            currentPage: $observerCurrentPage,
+                            pageCount: observerPageCount,
+                            pageSize: $observerPageSize,
+                            pageSizes: observerPageSizes,
+                            onPageChange: { newPage in
+                                observerCurrentPage = max(1, min(newPage, observerPageCount))
+                            },
+                            onPageSizeChange: { newSize in
+                                observerPageSize = newSize
+                                observerCurrentPage = 1
+                            }
+                        )
+                    }
+                }
+            }
+            #else
             DetailBottomBar(connections: viewModel.connectionsByTransport) {
                 if !viewModel.observableEvents.isEmpty {
                     PaginationControls(
@@ -374,6 +621,7 @@ extension MainStudioView {
                     )
                 }
             }
+            #endif
         }
         .onChange(of: viewModel.observableEvents.count) { _, _ in
             observerCurrentPage = 1
@@ -383,10 +631,89 @@ extension MainStudioView {
         }
         #if os(iOS)
         .toolbar {
-            appNameToolbarLabel()
-            syncToolbarButton()
-            closeToolbarButton()
-            inspectorToggleButton()
+            if horizontalSizeClass == .compact {
+                sidebarToggleButton()
+                // Single right-side ToolbarItem prevents overflow
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 18) {
+                        Button {
+                            Task {
+                                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.2.circlepath")
+                                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                        }
+                        .accessibilityIdentifier("SyncButton")
+
+                        Button {
+                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                        }
+                        .accessibilityIdentifier("CloseButton")
+
+                        Button { showInspector.toggle() } label: {
+                            Image(systemName: "sidebar.right")
+                                .foregroundColor(showInspector ? .primary : .secondary)
+                        }
+                        .accessibilityIdentifier("Toggle Inspector")
+                    }
+                }
+            } else {
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+                inspectorToggleButton()
+            }
+
+            // iPhone bottom bar
+            if horizontalSizeClass == .compact {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    ConnectionStatusMenu(
+                        connections: viewModel.connectionsByTransport,
+                        pageSize: $observerPageSize,
+                        pageSizes: observerPageSizes,
+                        onPageSizeChange: { newSize in
+                            observerPageSize = newSize
+                            observerCurrentPage = 1
+                        }
+                    )
+
+                    Spacer()
+
+                    if !viewModel.observableEvents.isEmpty {
+                        Button {
+                            observerCurrentPage = max(1, observerCurrentPage - 1)
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .disabled(observerCurrentPage <= 1)
+
+                        if observerPageCount > 1 {
+                            Menu {
+                                ForEach(1 ... observerPageCount, id: \.self) { page in
+                                    Button("Page \(page)") { observerCurrentPage = page }
+                                }
+                            } label: {
+                                Text("Pg \(observerCurrentPage)")
+                                    .font(.caption.monospacedDigit())
+                            }
+                        } else {
+                            Text("Pg 1")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            observerCurrentPage = min(observerPageCount, observerCurrentPage + 1)
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                        .disabled(observerCurrentPage >= observerPageCount)
+                    }
+                }
+            }
         }
         #endif
     }

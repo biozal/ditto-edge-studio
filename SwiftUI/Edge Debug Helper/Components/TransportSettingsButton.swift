@@ -5,6 +5,7 @@ import SwiftUI
 /// Used in ConnectedPeersView and PresenceViewerSK.
 struct TransportSettingsButton: View {
     @State private var showPopover = false
+    @State private var selectedDetent: PresentationDetent = .large
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -22,7 +23,7 @@ struct TransportSettingsButton: View {
         #if os(iOS)
             .sheet(isPresented: $showPopover) {
                 TransportConfigView()
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.medium, .large], selection: $selectedDetent)
                     .presentationDragIndicator(.visible)
             }
         #else

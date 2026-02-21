@@ -20,6 +20,7 @@ struct QueryResultsView: View {
     @State private var selectedTab: ResultViewTab = .raw
     @Binding var currentPage: Int
     @Binding var pageSize: Int
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var pageSizes: [Int] {
         switch resultCount {
@@ -54,6 +55,60 @@ struct QueryResultsView: View {
     }
 
     var body: some View {
+        Group {
+            if horizontalSizeClass == .compact {
+                compactLayout
+            } else {
+                tabLayout
+            }
+        }
+        .onChange(of: pageSize) { _, _ in
+            currentPage = max(1, min(currentPage, pageCount))
+        }
+        .onChange(of: jsonResults) { _, _ in
+            currentPage = 1
+            if !pageSizes.contains(pageSize) {
+                pageSize = pageSizes.first ?? 25
+            }
+        }
+    }
+
+    private var compactLayout: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                ForEach(ResultViewTab.allCases, id: \.self) { tab in
+                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Group {
+                switch selectedTab {
+                case .raw:
+                    ResultJsonViewer(
+                        resultText: $jsonResults,
+                        externalCurrentPage: $currentPage,
+                        externalPageSize: $pageSize,
+                        showPaginationControls: false,
+                        showExportButton: false,
+                        onJsonSelected: onJsonSelected
+                    )
+                case .table:
+                    ResultTableViewer(
+                        resultText: $jsonResults,
+                        currentPage: $currentPage,
+                        pageSize: $pageSize,
+                        onJsonSelected: onJsonSelected
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var tabLayout: some View {
         TabView(selection: $selectedTab) {
             ResultJsonViewer(
                 resultText: $jsonResults,
@@ -78,15 +133,6 @@ struct QueryResultsView: View {
         #if os(macOS)
         .background(.regularMaterial)
         #endif
-        .onChange(of: pageSize) { _, _ in
-            currentPage = max(1, min(currentPage, pageCount))
-        }
-        .onChange(of: jsonResults) { _, _ in
-            currentPage = 1
-            if !pageSizes.contains(pageSize) {
-                pageSize = pageSizes.first ?? 25
-            }
-        }
     }
 }
 

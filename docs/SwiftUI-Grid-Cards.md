@@ -40,6 +40,19 @@ LazyVGrid(
 | iPad Pro 12.9" portrait (1024pt)  | ~992pt          | 3       |
 | Mac detail pane (~900pt)          | ~868pt          | 2–3     |
 
+### Column counts at `minimum: 340` (ConnectedPeersView)
+
+| Device / Context                                        | Available width | Columns |
+|---------------------------------------------------------|-----------------|---------|
+| iPhone 15 portrait (393pt)                              | ~361pt          | 1       |
+| iPad Air 11" landscape, inspector open (ideal widths)   | ~548pt          | 1       |
+| iPad Pro 11" M4 landscape, inspector open (ideal widths)| ~578pt          | 1       |
+| iPad Air 11" landscape, inspector closed                | ~898pt          | 2       |
+| iPad Pro 11" M4 landscape, inspector closed             | ~928pt          | 2       |
+| Mac wide detail pane (~1100pt)                          | ~1068pt         | 3       |
+
+This minimum was chosen so that opening the inspector (which consumes ~350pt at ideal width) is the natural breakpoint between 2 and 1 columns on iPad 11" devices.
+
 Columns reflow automatically on rotation and Split View resizes.
 
 ### When to add `maximum`
@@ -99,13 +112,13 @@ columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2)
 
 | View | `minimum` | `maximum` | Notes |
 |------|-----------|-----------|-------|
-| `ConnectedPeersView` peer grid | 460 | 520 | Max 2 cols on iPad Pro; 1 col on iPhone/iPad mini |
-| `ConnectedPeersView` network interface grid | 460 | 520 | Same grid, same constraint |
+| `ConnectedPeersView` peer grid | 340 | 520 | 2 cols on iPad 11" (inspector closed); 1 col when inspector open |
+| `ConnectedPeersView` network interface grid | 340 | 520 | Same grid, same constraint |
 | `ContentView` database listing (iOS) | 300 | — | Cards expand to fill column naturally |
 
 ### Which views use which API
 
-- **`ConnectedPeersView`** — `GridItem(.adaptive(minimum: 460, maximum: 520))` for both peer and network-interface grids
+- **`ConnectedPeersView`** — `GridItem(.adaptive(minimum: 340, maximum: 520))` for both peer and network-interface grids
 - **`ContentView` (iOS)** — `GridItem(.adaptive(minimum: 300))` inside `ScrollView` + `LazyVGrid`
 - **`DatabaseListPanel` (macOS)** — single-column `List` in a 340pt-wide panel; grid is unnecessary
 

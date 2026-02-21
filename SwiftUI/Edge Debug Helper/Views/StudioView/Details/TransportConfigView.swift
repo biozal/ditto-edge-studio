@@ -128,7 +128,9 @@ struct TransportConfigView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
+                .tint(.dittoYellow)
+                .foregroundColor(.black)
             }
         }
         .formStyle(.grouped)
@@ -252,10 +254,11 @@ extension TransportConfigView {
         /// Applies transport configuration changes with proper sync and observer lifecycle
         /// Follows the MainStudioView.toggleSync() pattern for observer management
         func applyTransportConfig(appState: AppState) async {
+            guard currentStep == .idle else { return }
             currentStep = .stoppingSync
 
             do {
-                // STEP 1: STOP SYNC (following MainStudioView.stopSync pattern)
+                // STEP 1: STOP SYNC
                 await DittoManager.shared.selectedDatabaseStopSync()
 
                 // Stop observers to prevent stale data updates
@@ -281,7 +284,7 @@ extension TransportConfigView {
                     try await DatabaseRepository.shared.updateDittoAppConfig(appConfig)
                 }
 
-                // STEP 3: RESTART SYNC (following MainStudioView.startSync pattern)
+                // STEP 3: RESTART SYNC
                 currentStep = .restartingSync
 
                 try await DittoManager.shared.selectedDatabaseStartSync()
@@ -292,13 +295,11 @@ extension TransportConfigView {
                     try await SystemRepository.shared.registerConnectionsPresenceObserver()
                 } catch {
                     Log.warning("Failed to restart observers: \(error.localizedDescription)")
-                    // Non-fatal - sync is running even if observers failed
                 }
 
                 // STEP 4: SUCCESS
                 currentStep = .complete
 
-                // Update original values after successful save (reset change detection)
                 originalBluetoothLeEnabled = isBluetoothLeEnabled
                 originalLanEnabled = isLanEnabled
                 originalAwdlEnabled = isAwdlEnabled

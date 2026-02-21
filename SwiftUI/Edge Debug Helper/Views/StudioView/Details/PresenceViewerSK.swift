@@ -16,8 +16,10 @@ struct PresenceViewerSK: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             // Test mode toggle bar
             testModeToggle
+            #endif
 
             // Main scene view with overlays
             ZStack(alignment: .bottomTrailing) {

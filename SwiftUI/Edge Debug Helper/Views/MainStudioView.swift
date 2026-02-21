@@ -18,8 +18,10 @@ struct MainStudioView: View {
     /// Inspector state
     @State var showInspector = false
 
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     /// Column visibility control - keeps sidebar always visible
     @State var columnVisibility: NavigationSplitViewVisibility = .all
+    @State var preferredCompactColumn: NavigationSplitViewColumn = .detail
 
     /// used for editing observers and subscriptions
     private var isSheetPresented: Binding<Bool> {
@@ -42,8 +44,27 @@ struct MainStudioView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading) {
+                #if os(iOS)
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    HStack {
+                        Spacer()
+                        Button {
+                            preferredCompactColumn = .detail
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss sidebar")
+                        .accessibilityIdentifier("SidebarDismissButton")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
+                #endif
                 HStack {
                     Spacer()
                     Picker("", selection: $viewModel.selectedSidebarMenuItem) {
@@ -144,10 +165,13 @@ struct MainStudioView: View {
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
+            .navigationSplitViewStyle(.prominentDetail)
             .background(WindowFrameRestorer())
         #endif
             .inspector(isPresented: $showInspector) {
                 inspectorView()
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.medium, .large])
                     .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
             }
             .sheet(isPresented: isSheetPresented) {
@@ -193,6 +217,11 @@ struct MainStudioView: View {
                 closeToolbarButton()
                 inspectorToggleButton() // Rightmost, after close button
             }
+        #endif
+        #if os(iOS)
+            .onChange(of: viewModel.selectedSidebarMenuItem) { _, _ in
+                preferredCompactColumn = .detail
+        }
         #endif
     }
 
@@ -255,6 +284,19 @@ struct MainStudioView: View {
             .accessibilityIdentifier("Toggle Inspector")
         }
     }
+
+    #if os(iOS)
+    func sidebarToggleButton() -> some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                preferredCompactColumn = .sidebar
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .accessibilityIdentifier("SidebarToggleButton")
+        }
+    }
+    #endif
 
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
@@ -353,14 +395,14 @@ extension MainStudioView {
             jsonResults = []
 
             // Inspector toolbar (used only when Collections tab is active)
-            let helpItem = MenuItem(id: 4, name: "Help", systemIcon: "questionmark")
+            let historyItem = MenuItem(id: 5, name: "History", systemIcon: "clock")
             queryInspectorMenuItems = [
-                helpItem,
-                MenuItem(id: 5, name: "History", systemIcon: "clock"),
+                historyItem,
                 MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
-                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill")
+                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill"),
+                MenuItem(id: 8, name: "Help", systemIcon: "questionmark")
             ]
-            selectedQueryInspectorMenuItem = helpItem
+            selectedQueryInspectorMenuItem = historyItem
 
             // Setup SystemRepository callback
             Task {

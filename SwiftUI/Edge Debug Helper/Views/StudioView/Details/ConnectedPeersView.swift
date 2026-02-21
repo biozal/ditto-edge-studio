@@ -30,7 +30,7 @@ struct ConnectedPeersView: View {
                     VStack(spacing: 0) {
                         // Peer cards grid
                         LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 460, maximum: 520))],
+                            columns: [GridItem(.adaptive(minimum: 340, maximum: 520))],
                             spacing: 16
                         ) {
                             ForEach(viewModel.syncStatusItems) { statusInfo in
@@ -76,7 +76,7 @@ struct ConnectedPeersView: View {
                             .padding(.vertical, 16)
 
                             LazyVGrid(
-                                columns: [GridItem(.adaptive(minimum: 460, maximum: 520))],
+                                columns: [GridItem(.adaptive(minimum: 340, maximum: 520))],
                                 spacing: 16
                             ) {
                                 ForEach(networkInterfaces) { iface in
@@ -181,6 +181,7 @@ struct ConnectedPeersView: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundColor(.white.opacity(0.80))
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
                         }
                         .frame(maxHeight: 150)
@@ -203,6 +204,7 @@ struct ConnectedPeersView: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundColor(.white.opacity(0.80))
                                 .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
                         }
                         .frame(maxHeight: 150)
