@@ -89,6 +89,12 @@ struct MainStudioView: View {
                             viewModel.actionSheetMode = .observer
                         }
 
+                        if viewModel.selectedSidebarMenuItem.name == "Collections" {
+                            Button("Import JSON Data", systemImage: "arrow.up") {
+                                showingImportView = true
+                            }
+                        }
+
                         // Only show Import from Server when HTTP API is configured
                         if viewModel.selectedSidebarMenuItem.name == "Subscriptions" &&
                             !viewModel.selectedApp.httpApiUrl.isEmpty &&
@@ -108,22 +114,6 @@ struct MainStudioView: View {
                             .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                     }
                     .buttonStyle(.plain)
-                    Spacer()
-                    if viewModel.selectedSidebarMenuItem.name == "Collections" {
-                        Button {
-                            showingImportView = true
-                        } label: {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.black)
-                                .frame(width: 56, height: 56)
-                                .background(Color.dittoYellow)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Import JSON data")
-                    }
                 }
                 .padding(.leading, 12)
                 #if os(iOS)
