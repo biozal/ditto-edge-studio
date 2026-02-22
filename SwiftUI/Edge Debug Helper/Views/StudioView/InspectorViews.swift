@@ -75,14 +75,44 @@ extension MainStudioView {
     }
 
     func observeDetailInspectorView() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Observable Help").font(.headline)
-                Divider()
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Picker("", selection: $viewModel.selectedObserveInspectorMenuItem) {
+                    ForEach(viewModel.observeInspectorMenuItems) { item in
+                        item.image
+                            .tag(item)
+                            .font(.system(size: 20))
+                    }
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.extraLarge)
+                .labelsHidden()
+                .accessibilityIdentifier("ObserveInspectorSegmentedPicker")
+                Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top)
-            HelpContentView(markdownContent: loadMarkdown(named: "observe"))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            if viewModel.selectedObserveInspectorMenuItem.name == "Help" {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Observable Help").font(.headline)
+                        Divider()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top)
+                    HelpContentView(markdownContent: loadMarkdown(named: "observe"))
+                }
+            } else {
+                ScrollView {
+                    jsonInspectorContent()
+                }
+                .scrollIndicators(.hidden)
+                .padding()
+            }
         }
     }
 

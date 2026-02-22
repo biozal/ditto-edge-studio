@@ -202,6 +202,24 @@ extension MainStudioView {
         return Array(viewModel.observableEvents[start ..< end])
     }
 
+    // MARK: - Pagination helpers (used by observe detail pane)
+
+    private var observeDetailPageSizes: [Int] {
+        let count = observeDetailFilteredData.count
+        switch count {
+        case 0 ... 10: return [10]
+        case 11 ... 25: return [10, 25]
+        case 26 ... 50: return [10, 25, 50]
+        case 51 ... 100: return [10, 25, 50, 100]
+        case 101 ... 200: return [10, 25, 50, 100, 200]
+        default: return [10, 25, 50, 100, 200, 250]
+        }
+    }
+
+    private var observeDetailPageCount: Int {
+        max(1, Int(ceil(Double(observeDetailFilteredData.count) / Double(observeDetailPageSize))))
+    }
+
     func queryDetailView() -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Content split — GeometryReader fills all remaining space
@@ -584,19 +602,19 @@ extension MainStudioView {
             #if os(iOS)
             if horizontalSizeClass != .compact {
                 DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                    if !viewModel.observableEvents.isEmpty {
+                    if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
                         PaginationControls(
-                            totalCount: observerEventsCount,
-                            currentPage: $observerCurrentPage,
-                            pageCount: observerPageCount,
-                            pageSize: $observerPageSize,
-                            pageSizes: observerPageSizes,
+                            totalCount: observeDetailFilteredData.count,
+                            currentPage: $observeDetailCurrentPage,
+                            pageCount: observeDetailPageCount,
+                            pageSize: $observeDetailPageSize,
+                            pageSizes: observeDetailPageSizes,
                             onPageChange: { newPage in
-                                observerCurrentPage = max(1, min(newPage, observerPageCount))
+                                observeDetailCurrentPage = max(1, min(newPage, observeDetailPageCount))
                             },
                             onPageSizeChange: { newSize in
-                                observerPageSize = newSize
-                                observerCurrentPage = 1
+                                observeDetailPageSize = newSize
+                                observeDetailCurrentPage = 1
                             }
                         )
                     }
@@ -604,7 +622,129 @@ extension MainStudioView {
             }
             #else
             DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                if !viewModel.observableEvents.isEmpty {
+                if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+                    PaginationControls(
+                        totalCount: observeDetailFilteredData.count,
+                        currentPage: $observeDetailCurrentPage,
+                        pageCount: observeDetailPageCount,
+                        pageSize: $observeDetailPageSize,
+                        pageSizes: observeDetailPageSizes,
+                        onPageChange: { newPage in
+                            observeDetailCurrentPage = max(1, min(newPage, observeDetailPageCount))
+                        },
+                        onPageSizeChange: { newSize in
+                            observeDetailPageSize = newSize
+                            observeDetailCurrentPage = 1
+                        }
+                    )
+                }
+            }
+            #endif
+        }
+        .onChange(of: viewModel.observableEvents.count) { _, _ in
+            observerCurrentPage = 1
+            if !observerPageSizes.contains(observerPageSize) {
+                observerPageSize = observerPageSizes.first ?? 25
+            }
+        }
+        .onChange(of: viewModel.selectedEventId) { _, _ in refreshObserveDetailData() }
+        .onChange(of: viewModel.eventMode) { _, _ in refreshObserveDetailData() }
+        #if os(iOS)
+            .toolbar {
+                if horizontalSizeClass == .compact {
+                    sidebarToggleButton()
+                    // Single right-side ToolbarItem prevents overflow
+                    ToolbarItem(placement: .primaryAction) {
+                        HStack(spacing: 18) {
+                            Button {
+                                Task {
+                                    do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.2.circlepath")
+                                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                            }
+                            .accessibilityIdentifier("SyncButton")
+
+                            Button {
+                                Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                            }
+                            .accessibilityIdentifier("CloseButton")
+
+                            Button { showInspector.toggle() } label: {
+                                Image(systemName: "sidebar.right")
+                                    .foregroundColor(showInspector ? .primary : .secondary)
+                            }
+                            .accessibilityIdentifier("Toggle Inspector")
+                        }
+                    }
+                } else {
+                    appNameToolbarLabel()
+                    syncToolbarButton()
+                    closeToolbarButton()
+                    inspectorToggleButton()
+                }
+
+                // iPhone bottom bar
+                if horizontalSizeClass == .compact {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        ConnectionStatusMenu(
+                            connections: viewModel.connectionsByTransport,
+                            pageSize: $observeDetailPageSize,
+                            pageSizes: observeDetailPageSizes,
+                            onPageSizeChange: { newSize in
+                                observeDetailPageSize = newSize
+                                observeDetailCurrentPage = 1
+                            }
+                        )
+
+                        Spacer()
+
+                        if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+                            Button {
+                                observeDetailCurrentPage = max(1, observeDetailCurrentPage - 1)
+                            } label: {
+                                Image(systemName: "chevron.left")
+                            }
+                            .disabled(observeDetailCurrentPage <= 1)
+
+                            if observeDetailPageCount > 1 {
+                                Menu {
+                                    ForEach(1 ... observeDetailPageCount, id: \.self) { page in
+                                        Button("Page \(page)") { observeDetailCurrentPage = page }
+                                    }
+                                } label: {
+                                    Text("Pg \(observeDetailCurrentPage)")
+                                        .font(.caption.monospacedDigit())
+                                }
+                            } else {
+                                Text("Pg 1")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Button {
+                                observeDetailCurrentPage = min(observeDetailPageCount, observeDetailCurrentPage + 1)
+                            } label: {
+                                Image(systemName: "chevron.right")
+                            }
+                            .disabled(observeDetailCurrentPage >= observeDetailPageCount)
+                        }
+                    }
+                }
+            }
+        #endif
+    }
+
+    // Observe helper views
+
+    private func observableEventsList() -> some View {
+        VStack(spacing: 0) {
+            if !viewModel.observableEvents.isEmpty {
+                HStack {
+                    Spacer()
                     PaginationControls(
                         totalCount: observerEventsCount,
                         currentPage: $observerCurrentPage,
@@ -619,109 +759,13 @@ extension MainStudioView {
                             observerCurrentPage = 1
                         }
                     )
-                }
-            }
-            #endif
-        }
-        .onChange(of: viewModel.observableEvents.count) { _, _ in
-            observerCurrentPage = 1
-            if !observerPageSizes.contains(observerPageSize) {
-                observerPageSize = observerPageSizes.first ?? 25
-            }
-        }
-        #if os(iOS)
-        .toolbar {
-            if horizontalSizeClass == .compact {
-                sidebarToggleButton()
-                // Single right-side ToolbarItem prevents overflow
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 18) {
-                        Button {
-                            Task {
-                                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
-                            }
-                        } label: {
-                            Image(systemName: "arrow.2.circlepath")
-                                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
-                        }
-                        .accessibilityIdentifier("SyncButton")
-
-                        Button {
-                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        }
-                        .accessibilityIdentifier("CloseButton")
-
-                        Button { showInspector.toggle() } label: {
-                            Image(systemName: "sidebar.right")
-                                .foregroundColor(showInspector ? .primary : .secondary)
-                        }
-                        .accessibilityIdentifier("Toggle Inspector")
-                    }
-                }
-            } else {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()
-            }
-
-            // iPhone bottom bar
-            if horizontalSizeClass == .compact {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    ConnectionStatusMenu(
-                        connections: viewModel.connectionsByTransport,
-                        pageSize: $observerPageSize,
-                        pageSizes: observerPageSizes,
-                        onPageSizeChange: { newSize in
-                            observerPageSize = newSize
-                            observerCurrentPage = 1
-                        }
-                    )
-
                     Spacer()
-
-                    if !viewModel.observableEvents.isEmpty {
-                        Button {
-                            observerCurrentPage = max(1, observerCurrentPage - 1)
-                        } label: {
-                            Image(systemName: "chevron.left")
-                        }
-                        .disabled(observerCurrentPage <= 1)
-
-                        if observerPageCount > 1 {
-                            Menu {
-                                ForEach(1 ... observerPageCount, id: \.self) { page in
-                                    Button("Page \(page)") { observerCurrentPage = page }
-                                }
-                            } label: {
-                                Text("Pg \(observerCurrentPage)")
-                                    .font(.caption.monospacedDigit())
-                            }
-                        } else {
-                            Text("Pg 1")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Button {
-                            observerCurrentPage = min(observerPageCount, observerCurrentPage + 1)
-                        } label: {
-                            Image(systemName: "chevron.right")
-                        }
-                        .disabled(observerCurrentPage >= observerPageCount)
-                    }
                 }
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial)
+                Divider()
             }
-        }
-        #endif
-    }
 
-    // Observe helper views
-
-    private func observableEventsList() -> some View {
-        VStack {
             if viewModel.selectedObservable == nil {
                 ContentUnavailableView(
                     "No Observer Selected",
@@ -735,85 +779,155 @@ extension MainStudioView {
                     description: Text("Activate an observer to see observable events.")
                 )
             } else {
-                Table(
-                    pagedObservableEvents,
-                    selection: Binding<Set<String>>(
-                        get: {
-                            if let selectedId = viewModel.selectedEventId {
-                                return Set([selectedId])
-                            } else {
-                                return Set<String>()
-                            }
-                        },
-                        set: { newValue in
-                            if let first = newValue.first {
-                                viewModel.selectedEventId = first
-                            } else {
-                                viewModel.selectedEventId = nil
-                            }
-                        }
-                    )
-                ) {
-                    TableColumn("Time") { event in
-                        Text(event.eventTime)
-                    }
-                    TableColumn("Count") { event in
-                        Text("\(event.data.count)")
-                    }
-                    TableColumn("Inserted") { event in
-                        Text("\(event.insertIndexes.count)")
-                    }
-                    TableColumn("Updated") { event in
-                        Text("\(event.updatedIndexes.count)")
-                    }
-                    TableColumn("Deleted") { event in
-                        Text("\(event.deletedIndexes.count)")
-                    }
-                    TableColumn("Moves") { event in
-                        Text("\(event.movedIndexes.count)")
-                    }
-                }
-                .navigationTitle("Observer Events")
+                observableEventsTable()
+                    .navigationTitle("Observer Events")
             }
         }
     }
 
+    @ViewBuilder
+    private func observableEventsTable() -> some View {
+        let columnDefs: [(header: String, width: CGFloat)] = [
+            ("Time", 180), ("Count", 70), ("Inserted", 80),
+            ("Updated", 80), ("Deleted", 70), ("Moves", 70)
+        ]
+        #if os(macOS)
+        let evenBackground = Color(NSColor.textBackgroundColor)
+        let oddBackground = Color(NSColor.controlBackgroundColor).opacity(0.3)
+        let headerBackground = Color(NSColor.windowBackgroundColor)
+        #else
+        let evenBackground = Color(UIColor.systemBackground)
+        let oddBackground = Color(UIColor.secondarySystemBackground).opacity(0.3)
+        let headerBackground = Color(UIColor.systemBackground)
+        #endif
+
+        ScrollView([.horizontal, .vertical]) {
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    ForEach(Array(pagedObservableEvents.enumerated()), id: \.element.id) { index, event in
+                        let isSelected = viewModel.selectedEventId == event.id
+                        let values = [
+                            event.eventTime,
+                            "\(event.data.count)",
+                            "\(event.insertIndexes.count)",
+                            "\(event.updatedIndexes.count)",
+                            "\(event.deletedIndexes.count)",
+                            "\(event.movedIndexes.count)"
+                        ]
+                        HStack(spacing: 0) {
+                            ForEach(columnDefs.indices, id: \.self) { colIdx in
+                                if colIdx > 0 { Divider() }
+                                Text(values[colIdx])
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(1)
+                                    .frame(width: columnDefs[colIdx].width, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                        .background(
+                            isSelected
+                                ? Color.accentColor.opacity(0.2)
+                                : (index % 2 == 0 ? evenBackground : oddBackground)
+                        )
+                        .onTapGesture {
+                            viewModel.selectedEventId = isSelected ? nil : event.id
+                        }
+                    }
+                } header: {
+                    HStack(spacing: 0) {
+                        ForEach(columnDefs.indices, id: \.self) { colIdx in
+                            if colIdx > 0 { Divider() }
+                            Text(columnDefs[colIdx].header)
+                                .font(.system(.headline, design: .monospaced))
+                                .frame(width: columnDefs[colIdx].width, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 8)
+                                .background(headerBackground)
+                        }
+                    }
+                    .background(headerBackground)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func filteredObserveEventData(_ event: DittoObserveEvent) -> [String] {
+        switch viewModel.eventMode {
+        case "inserted": return event.getInsertedData()
+        case "updated": return event.getUpdatedData()
+        default: return event.data
+        }
+    }
+
+    private func refreshObserveDetailData() {
+        guard let event = viewModel.selectedEventObject else {
+            observeDetailFilteredData = []
+            return
+        }
+        observeDetailFilteredData = filteredObserveEventData(event)
+        observeDetailCurrentPage = 1
+    }
+
     private func observableDetailSelectedEvent(observeEvent: DittoObserveEvent?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let event = observeEvent {
-                Picker("", selection: $viewModel.eventMode) {
-                    Text("Items")
-                        .tag("items")
-                    Text("Inserted")
-                        .tag("inserted")
-                    Text("Updated")
-                        .tag("updated")
+            if observeEvent != nil {
+                HStack(spacing: 8) {
+                    Picker("", selection: $observeDetailViewMode) {
+                        ForEach(ResultViewTab.allCases, id: \.self) { tab in
+                            Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                    .labelsHidden()
+
+                    Spacer()
+
+                    Picker("Filter", selection: $viewModel.eventMode) {
+                        Text("Items").tag("items")
+                        Text("Inserted").tag("inserted")
+                        Text("Updated").tag("updated")
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 120)
                 }
-                #if os(macOS)
-                .padding(.top, 24)
-                #else
-                .padding(.top, 8)
-                #endif
-                .padding(.bottom, 8)
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-                switch viewModel.eventMode {
-                case "inserted":
-                    VStack(alignment: .leading, spacing: 0) {
-                        ResultJsonViewer(resultText: event.getInsertedData())
-                    }
-                case "updated":
-                    VStack(alignment: .leading, spacing: 0) {
-                        ResultJsonViewer(resultText: event.getUpdatedData())
-                    }
-                default:
-                    VStack(alignment: .leading, spacing: 0) {
-                        ResultJsonViewer(resultText: event.data)
-                    }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+
+                Divider()
+
+                switch observeDetailViewMode {
+                case .raw:
+                    ResultJsonViewer(
+                        resultText: $observeDetailFilteredData,
+                        externalCurrentPage: $observeDetailCurrentPage,
+                        externalPageSize: $observeDetailPageSize,
+                        showPaginationControls: false,
+                        showExportButton: false,
+                        onJsonSelected: { json in
+                            viewModel.showJsonInObserveInspector(json)
+                            showInspector = true
+                        }
+                    )
+                case .table:
+                    ResultTableViewer(
+                        resultText: $observeDetailFilteredData,
+                        currentPage: $observeDetailCurrentPage,
+                        pageSize: $observeDetailPageSize,
+                        onJsonSelected: { json in
+                            viewModel.showJsonInObserveInspector(json)
+                            showInspector = true
+                        }
+                    )
                 }
-                Spacer()
             } else {
-                ResultJsonViewer(resultText: [])
+                ContentUnavailableView(
+                    "No Event Selected",
+                    systemImage: "eye.slash",
+                    description: Text("Select an event from the list above to view its details.")
+                )
             }
         }
         .padding(.leading, 12)

@@ -20,7 +20,7 @@ struct SubscriptionList: View {
                             await onEdit(subscription)
                         }
                     }
-                    .swipeActions(edge: .trailing) {
+                    .swipeActions(edge: .leading) {
                         Button(role: .destructive) {
                             Task {
                                 do {

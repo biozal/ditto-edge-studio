@@ -15,6 +15,12 @@ struct MainStudioView: View {
     @State var queryIsExporting = false
     @State var queryCopiedDQLNotification: String?
 
+    // Observe detail pane state
+    @State var observeDetailViewMode: ResultViewTab = .raw
+    @State var observeDetailCurrentPage = 1
+    @State var observeDetailPageSize = 10
+    @State var observeDetailFilteredData: [String] = []
+
     /// Inspector state
     @State var showInspector = false
 
@@ -362,6 +368,10 @@ extension MainStudioView {
         var selectedQueryInspectorMenuItem: MenuItem
         var queryInspectorMenuItems: [MenuItem] = []
 
+        // Observer Inspector toolbar
+        var selectedObserveInspectorMenuItem: MenuItem
+        var observeInspectorMenuItems: [MenuItem] = []
+
         /// JSON Inspector State
         var selectedJsonForInspector: String?
 
@@ -403,6 +413,14 @@ extension MainStudioView {
                 MenuItem(id: 8, name: "Help", systemIcon: "questionmark")
             ]
             selectedQueryInspectorMenuItem = historyItem
+
+            // Observer Inspector toolbar
+            let jsonObserveItem = MenuItem(id: 9, name: "JSON", systemIcon: "text.document.fill")
+            observeInspectorMenuItems = [
+                jsonObserveItem,
+                MenuItem(id: 10, name: "Help", systemIcon: "questionmark")
+            ]
+            selectedObserveInspectorMenuItem = jsonObserveItem
 
             // Setup SystemRepository callback
             Task {
@@ -530,6 +548,14 @@ extension MainStudioView {
             selectedJsonForInspector = json
             if let jsonTab = queryInspectorMenuItems.first(where: { $0.name == "JSON" }) {
                 selectedQueryInspectorMenuItem = jsonTab
+            }
+        }
+
+        /// Shows JSON in the observe inspector panel
+        func showJsonInObserveInspector(_ json: String) {
+            selectedJsonForInspector = json
+            if let jsonTab = observeInspectorMenuItems.first(where: { $0.name == "JSON" }) {
+                selectedObserveInspectorMenuItem = jsonTab
             }
         }
 

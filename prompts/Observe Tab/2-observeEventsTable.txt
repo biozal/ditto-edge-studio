@@ -1,0 +1,9 @@
+Go into plan mode.  On iPhone I went into the observations and activated one.  The UI screenshot is in iphone-observe-table.png.
+
+I'm going to talk about code in DetailViews.swift in the StudioView\Details folder.
+
+The UI seems off because the table in observableEventsTable on small screens only shows a single field and it's not scrollable to see the other fields.  
+
+We also have an event we render a table in observableDetailSelectedEvent.  In this table it shows all the columns regardless if they fit by scrolling left to the right.  
+
+I would the table in observableEventsTable to show all the columns on iPhone.  Why doesn't it do this and what options are available to make it operate more like the table in observableDetailSelectedEvent?  Use XCode MCP for research. 

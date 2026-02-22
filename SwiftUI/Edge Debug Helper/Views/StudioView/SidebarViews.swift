@@ -204,6 +204,8 @@ extension MainStudioView {
                                     Label("Stop", systemImage: "stop.circle")
                                 }
                             }
+                        }
+                        .swipeActions(edge: .leading) {
                             Button(role: .destructive) {
                                 Task {
                                     do {

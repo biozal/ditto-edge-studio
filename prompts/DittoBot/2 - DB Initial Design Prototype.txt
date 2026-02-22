@@ -1,0 +1,101 @@
+I'm looking to think about a new feature from a high level.  This feature would be a workflow type engine.  Let me explain.
+
+The goal of this would be to allow a user to configure a workflow to test performance of syncing simulated information using the Ditto SDK.  You can read about what Ditto's tech is here:
+https://docs.ditto.live/home/about-ditto
+https://docs.ditto.live/key-concepts/mesh-networking
+https://docs.ditto.live/key-concepts/syncing-data
+https://docs.ditto.live/key-concepts/document-model
+
+A lot of users companies run into problems with there data models because they don't understand that with large models come challenges when you are trying to sync information over a slower network transport like Bluetooth.  
+
+The goal of this feature would allow them to instruct one or many devices to "simulate" a real world environment of working with data. I'm going to call these devices "bots" for lack of better term.  
+
+Here is how I picture it working: 
+
+A user starts up all the physical devices, which I'll call bots (phones, tablets).  They run the "ditto bot app" on them, which is a custom app.  They can use the camera to scan in a configuration that is generated from the seperate app Ditto Edge Studio (which is what we are working on the design for) that they can then use to connect to a ditto database.  For each bot they want to use in the simulation they need to start it up and scan in this code from the "orchestrator" which is the screens that the developer uses to setup the simulation.  
+
+Now I'm going to describe this new feature of Ditto Edge Studio, which is a MacOS SwiftUI based app.  
+
+A user would be able to create a new "simulation" or "workflow".  What they should be able to do is select each device that has joined the presence graph which are our bots for the simulation and then assign that device a list of instructions to do over a period of time.  For the POC of this - the instructions would be:
+
+- Sleep for x milliseconds
+- Ditto SDK Start Sync
+- Ditto SDK Stop Sync
+- Ditto SDK Change Transport Configuration
+- Ditto SDK Setup Subscription
+- Ditto SDK Observe Changes 
+	- When change found schedule new work to do, which could be any of the tasks I'm listing in this list 
+- Ditto SDK Execute - DQL Statement
+	- Insert 
+	- Update
+	- Evict (local device only)
+- Call Ditto REST API
+- Write to Log File 
+- Update Device Screen with information
+
+This list of instructions would just be a JSON file that we could provide the schema for so that they can have AI LLMs generate the sample data.   
+
+They would have the option to upload the file then it would list out the work that that bot to do over a period of time.  
+
+As part of the simulation we would want to have a time that everyone agrees the simulation would start and agree on when the simulation would end.  Once the simulation is completed everyone would sync there log information back so that Ditto Edge Studio could provide a UI of the results of the simulation.
+
+Let's think about about this from a high level and look at it from a mobile developer trying to use Ditto with fast food restraunt:
+
+For the simulation you would need one bot that simulates taking orders doing DQL Insert Statements.  You need one bot that is doing the preparing of the order - the kitchen display unit.  You have one bot that is accepting payment by doing a DQL Update statement, and then one bot that is giving the order to the customer and marking it complete by executing a DQL Statement.  Finally you could have a bot that is making orders via a REST API call to the Ditto SDK or even the MongoDB Connector to test orders coming in from an outside resource like a consume based mobile app.  Using the REST API to Insert data then we could simulate those orders coming in with a predetermined time they need to be added to a queue of work.  They might also have a bot that is simulating a KIOS, so we have to assume that multiple bots could be inserting orders.
+
+Things take time - so the Kitchen display unit would wait for orders to come in, once they get a order they would need to know which is the next order in the queue that they need to process from one of the bots that inserting orders.  
+
+If we could simulate this kind of work and traffic, we could help the developer understand performance over a period of time with there modeled data.  They provide the data that we are using DQL statements.  If the data they are inserting or updating is too large the simulation would show the issues to the developer (we would need to think about how do we benchmark how long something took to process, that's a separate problem outside of the UI for Ditto Edge Studio).
+
+If I fed each bot a list of DQL statements, I could simulate that workflow process of:
+
+Taking an order from a worker, the public REST API, or a kios (DQL insert statements)
+processing payment (DQL update statements)
+making the order (observe orders, pick next one in queue, sleep, then update it's complete)
+giving the order to the end user (observe order, see it's status is set to ready to give to customer, sleep for a period of time, then update status as done)
+
+In the end I want to build a simulator that allows the average developer the ability to simulate using Ditto's Mesh and Sync abilities and then iterate over how they model the data and network conditions.  One workflow step could be after 10 order inserts stop sync and turn off wifi then turn sync back on to simulate the wifi going down. 
+
+We should have some other guard rails like if one of the bots runs into an error or soemthing like that it should be able to display I'm broken and send in some kind of alert to tell the developer something is wrong.
+
+So based on this I want to start desiging the actual editor of a simulator.  The simulator editor would start with some pieces of information:
+
+1.  A name of the simulation
+2.  The date and time that the simulation should start
+3.  The date and time the simualtion should end
+4.  We need to let them select a list of bots from the Ditto Presence Graph.
+5.  For each device we need to then allow them to give it a set of instructions.  For now we could just force them to upload a file, but we would also need to design something that they could use in the UI to manually build out the instructions of what it should do.  
+
+Once they have the simulation ready - we should have some kind of summary screen showing them the simulation setup of how many devices are involved in it when it stops and starts.  They should be able to select each device and get a list break down of what that device is supposed to do during the simulation.  Once the user is happy with the simulation setup it should have the ability to send an order to the bots to accept the configuration of the simulation.  
+
+At this point the user should have the simulation in the status of waiting confirmation.  Each bot would get the ditto configuration via sync to an internal collection __des_sim_bot_orders and they would update when they have received the orders a different document so that we can update the UI in Ditto Edge Studio with what the status of each bot is.  The actual bots wouldn't start until they have a confirmation back from Ditto Edge Studio, which I'm going to call the orchestrator in this example.  Once all the bots confirm they have orders then the end user would have some kind of button to tell them that the simulation is now scheduled to run.
+
+While the simulation is running - it should be able to see from the UI a listing of bots and if any of them have sent a message back that they are having a problem (they simply insert a document into a seperate collection called __des_sim_bot_problems).  The end user could then select the problem from the list and get viewer up that would display the text of what the bot sent back as the error message.  
+
+Once the simulation is complete we would want to have some kind of report UI that would take all the information back from the bots which they would write everytime they got information and did something so we could generate a report showing them where things were slow, etc.
+
+So to me how the simulation needs to structure it's data as a list of steps and which bot will do which step.  Then each bot would just log for step 4 for this order I received it at this time, I did this at this time so we have a log file that we can use for reporting back useful information.
+
+Things the simulator could point out is that the bot for doing the REST API insert of an order for example did the order at 1:00 PM, but the kitchen display unit bot didn't receive the order until 1:20 because it had the wifi turned off and couldn't sync the information from the cloud.  If we give the bots the ability to change network configuration we can simulate network outages and show were Ditto can provide value or where maybe there data sizes are too large to sync over android devices with Bluetooth.
+
+I would like your help in helping me design a few things:
+
+1.  My MacOS app simulator feature inside of my existing app Ditto Edge Studio.  Assume it's a SwiftUI app and they would have a menu option to launch a new window that they could interact with the Simulator UI that I need your help in designing.
+
+2.  A bot application that runs on mobile devices like Android phones, iPhones and Tablets.  This bot app would be written in Kotlin Multiplatform using Kotlin so it can run on a wide range of devices and still have native performance.  The bot app's UI can be pretty basic.  It needs to have the ability to scan in a QR code to load in the Ditto Configuration of the ditto database it should connect to.  Then it just listens on an observer for any work that comes it's way that is set to it's "Peer Key".  Once it sees that information it would auto send a message back that it received it and as long as it's not got something scheduled during that job like another simulation it would write in the file it's going to schedule it.  The UI in the bot would need to have a UI that lists the simulations that are scheduled once it scans in the inforation from the QR Code and connects to the mesh network.  
+
+While the simulation is running there could be a task that tells the "bot" to update the screen with this string information.  So we would need to have a screen to show them the simulation is running, for how much longer it's running, and the current status along with any information that the bot was told to tell them.  If the bot encounters a problem - it would need to update the screen and stop running the simulation on it.  
+
+My ultimate goal is to have a simulator dashboard that you could see from a high level all the bots running and what the status was and what they were about to do next.  Since we know the "script" because we gave it the things to do and we know if the script says to pause, we should "know" what is the next step each bot is about to do.  
+
+I've had this concept that the bots should be given a unit of work.  This unit of work is repeatable steps in a workflow.  so for example you might say create an order and the process of creating an order is to:
+
+- Read sample data for the next simulated order
+- Update the the order date field to be the current date
+- Save this to the database
+- Mark this unit of work completed and log it. 
+
+Then this unit of work could just be repeated over and over again different data and a pause between them.   
+
+
+
