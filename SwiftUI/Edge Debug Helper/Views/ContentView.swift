@@ -212,7 +212,7 @@ extension ContentView {
             set: { viewModel.isShowingQRCode = $0 }
         )) {
             if let config = viewModel.qrCodeConfig {
-                QRCodeDisplayView(config: config)
+                QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                     .frame(minWidth: 360, minHeight: 420)
             }
         }
@@ -220,8 +220,8 @@ extension ContentView {
             get: { viewModel.isShowingQRScanner },
             set: { viewModel.isShowingQRScanner = $0 }
         )) {
-            QRCodeScannerView { config in
-                Task { await viewModel.importFromQRCode(config, appState: appState) }
+            QRCodeScannerView { config, favorites in
+                Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
             }
             .frame(minWidth: 480, minHeight: 360)
         }
@@ -258,15 +258,15 @@ extension ContentView {
                 set: { viewModel.isShowingQRCode = $0 }
             )) {
                 if let config = viewModel.qrCodeConfig {
-                    QRCodeDisplayView(config: config)
+                    QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                 }
             }
             .sheet(isPresented: Binding(
                 get: { viewModel.isShowingQRScanner },
                 set: { viewModel.isShowingQRScanner = $0 }
             )) {
-                QRCodeScannerView { config in
-                    Task { await viewModel.importFromQRCode(config, appState: appState) }
+                QRCodeScannerView { config, favorites in
+                    Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
                 }
             }
     }
@@ -306,7 +306,7 @@ extension ContentView {
                                     }
                                     .contextMenu {
                                         Button { viewModel.showAppEditor(app) } label: { Label("Edit", systemImage: "pencil") }
-                                        Button { viewModel.showQRCode(app) } label: { Label("QR Code", systemImage: "qrcode") }
+                                        Button { Task { await viewModel.showQRCode(app) } } label: { Label("QR Code", systemImage: "qrcode") }
                                         Divider()
                                         Button(role: .destructive) {
                                             Task { await viewModel.deleteApp(app, appState: appState) }
@@ -388,6 +388,7 @@ extension ContentView {
         // used for QR code display
         var isShowingQRCode = false
         var qrCodeConfig: DittoConfigForDatabase?
+        var qrCodeFavorites: [FavoriteQueryItem] = []
 
         /// used for QR scanner
         var isShowingQRScanner = false
@@ -445,7 +446,9 @@ extension ContentView {
             isPresented = true
         }
 
-        func showQRCode(_ config: DittoConfigForDatabase) {
+        func showQRCode(_ config: DittoConfigForDatabase) async {
+            let favorites = await (try? FavoritesRepository.shared.loadFavorites(for: config.databaseId)) ?? []
+            qrCodeFavorites = favorites.map { FavoriteQueryItem(q: $0.query) }
             qrCodeConfig = config
             isShowingQRCode = true
         }
@@ -454,9 +457,20 @@ extension ContentView {
             isShowingQRScanner = true
         }
 
-        func importFromQRCode(_ config: DittoConfigForDatabase, appState: AppState) async {
+        func importFromQRCode(_ config: DittoConfigForDatabase, favorites: [FavoriteQueryItem], appState: AppState) async {
             do {
                 try await databaseRepository.addDittoAppConfig(config)
+                if !favorites.isEmpty {
+                    _ = try? await FavoritesRepository.shared.loadFavorites(for: config.databaseId)
+                    for item in favorites {
+                        let fav = DittoQueryHistory(
+                            id: UUID().uuidString,
+                            query: item.q,
+                            createdDate: Date().ISO8601Format()
+                        )
+                        try? await FavoritesRepository.shared.saveFavorite(fav)
+                    }
+                }
             } catch {
                 appState.setError(error)
             }

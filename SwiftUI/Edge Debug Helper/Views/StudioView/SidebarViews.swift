@@ -1,9 +1,29 @@
 import SwiftUI
 
 extension MainStudioView {
+    private func subscriptionHeaderView() -> some View {
+        HStack {
+            Spacer()
+            Text("Subscriptions")
+                .padding(.top, 4)
+            Spacer()
+            Button {
+                showingSubscriptionQRDisplay = true
+            } label: {
+                Image(systemName: "qrcode")
+            }
+            .buttonStyle(.glass)
+            .clipShape(Circle())
+            .disabled(viewModel.subscriptions.isEmpty)
+            .help("Export subscriptions as QR Code")
+            .padding(.trailing, 8)
+            .padding(.top, 4)
+        }
+    }
+
     func subscriptionSidebarView() -> some View {
         VStack(alignment: .leading) {
-            headerView(title: "Subscriptions")
+            subscriptionHeaderView()
             if viewModel.isLoading {
                 Spacer()
                 AnyView(ProgressView("Loading Subscriptions...")

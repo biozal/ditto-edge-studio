@@ -7,6 +7,8 @@ struct MainStudioView: View {
     @State var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
+    @State var showingSubscriptionQRDisplay = false
+    @State var showingSubscriptionQRScanner = false
     @State var selectedSyncTab = 0 // Persists tab selection
     @State var queryCurrentPage = 1
     @State var queryPageSize = 10
@@ -137,6 +139,10 @@ struct MainStudioView: View {
                                 showingImportSubscriptionsView = true
                             }
                         }
+
+                        Button("Import Subscriptions from QR Code", systemImage: "qrcode.viewfinder") {
+                            showingSubscriptionQRScanner = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 22, weight: .bold))
@@ -224,6 +230,19 @@ struct MainStudioView: View {
                     selectedAppId: viewModel.selectedApp._id
                 )
                 .environmentObject(appState)
+            }
+            .sheet(isPresented: $showingSubscriptionQRDisplay) {
+                SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {
+                    SubscriptionQRItem(name: $0.name, query: $0.query, args: $0.args)
+                })
+            }
+            .sheet(isPresented: $showingSubscriptionQRScanner) {
+                SubscriptionQRScannerView { items, onProgress in
+                    await viewModel.importSubscriptionsFromQR(items, appState: appState, onProgress: onProgress)
+                }
+                #if os(macOS)
+                .frame(minWidth: 480, minHeight: 360)
+                #endif
             }
         #if os(macOS)
             .toolbar {
@@ -801,6 +820,31 @@ extension MainStudioView {
                 }
             }
             actionSheetMode = .none
+        }
+
+        func importSubscriptionsFromQR(
+            _ items: [SubscriptionQRItem],
+            appState: AppState,
+            onProgress: @escaping @MainActor (Int, Int) -> Void
+        ) async {
+            let total = items.count
+            for (index, item) in items.enumerated() {
+                var sub = DittoSubscription(id: UUID().uuidString)
+                sub.name = item.name
+                sub.query = item.query
+                sub.args = item.args
+                do {
+                    try await SubscriptionsRepository.shared.saveDittoSubscription(sub)
+                } catch {
+                    appState.setError(error)
+                }
+                onProgress(index + 1, total)
+            }
+            // Explicitly refresh subscriptions on @MainActor so SwiftUI sees the update
+            // before the sheet dismissal re-render fires. The cross-actor callback
+            // (onSubscriptionsUpdate) races with the dismiss re-render; reading the
+            // cache here on @MainActor eliminates that race.
+            subscriptions = await SubscriptionsRepository.shared.getCachedSubscriptions()
         }
 
         func loadObservedEvents() async {

@@ -1,25 +1,39 @@
 import SwiftUI
 
-struct QRCodeScannerView: View {
-    let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
+struct SubscriptionQRScannerView: View {
+    let onScanned: (_ items: [SubscriptionQRItem], _ progress: @escaping @MainActor (Int, Int) -> Void) async -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var isImporting = false
+
+    private enum ScanState: Equatable {
+        case scanning
+        case importing(current: Int, total: Int)
+    }
+
+    @State private var scanState: ScanState = .scanning
 
     var body: some View {
         NavigationStack {
             ZStack {
-                QRCameraPreview(onScanned: { config, favorites in handleScanned(config, favorites: favorites) })
-                    .ignoresSafeArea()
-
-                if isImporting {
-                    Color.black.opacity(0.5)
+                if case .scanning = scanState {
+                    SubscriptionQRCameraPreview(onScanned: handleScanned)
                         .ignoresSafeArea()
-                    ProgressView("Importing...")
-                        .foregroundStyle(.white)
-                        .tint(.white)
+                } else {
+                    Color.black.ignoresSafeArea()
+                }
+
+                if case let .importing(current, total) = scanState {
+                    VStack(spacing: 20) {
+                        ProgressView(value: Double(current), total: Double(total))
+                            .progressViewStyle(.linear)
+                            .tint(.white)
+                            .padding(.horizontal, 40)
+                        Text("Importing \(current) of \(total)…")
+                            .foregroundStyle(.white)
+                            .font(.headline)
+                    }
                 }
             }
-            .navigationTitle("Scan QR Code")
+            .navigationTitle("Scan Subscriptions QR")
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -31,10 +45,15 @@ struct QRCodeScannerView: View {
         }
     }
 
-    private func handleScanned(_ config: DittoConfigForDatabase, favorites: [FavoriteQueryItem]) {
-        guard !isImporting else { return }
-        isImporting = true
-        onScanned(config, favorites)
+    private func handleScanned(_ items: [SubscriptionQRItem]) {
+        guard case .scanning = scanState else { return }
+        scanState = .importing(current: 0, total: items.count)
+        Task { @MainActor in
+            await onScanned(items) { current, total in
+                scanState = .importing(current: current, total: total)
+            }
+            dismiss()
+        }
     }
 }
 
@@ -43,8 +62,8 @@ struct QRCodeScannerView: View {
 #if os(iOS)
 import VisionKit
 
-private struct QRCameraPreview: UIViewControllerRepresentable {
-    let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
+private struct SubscriptionQRCameraPreview: UIViewControllerRepresentable {
+    let onScanned: ([SubscriptionQRItem]) -> Void
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let vc = DataScannerViewController(
@@ -68,10 +87,10 @@ private struct QRCameraPreview: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
-        private let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
+        private let onScanned: ([SubscriptionQRItem]) -> Void
         private var hasScanned = false
 
-        init(onScanned: @escaping (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void) {
+        init(onScanned: @escaping ([SubscriptionQRItem]) -> Void) {
             self.onScanned = onScanned
         }
 
@@ -80,11 +99,11 @@ private struct QRCameraPreview: UIViewControllerRepresentable {
             for item in addedItems {
                 if case let .barcode(barcode) = item,
                    let payload = barcode.payloadStringValue,
-                   let decoded = QRCodeGenerator.decode(from: payload)
+                   let items = QRCodeGenerator.decodeSubscriptions(from: payload)
                 {
                     hasScanned = true
                     dataScanner.stopScanning()
-                    onScanned(decoded.config, decoded.favorites)
+                    onScanned(items)
                     return
                 }
             }
@@ -97,8 +116,8 @@ private struct QRCameraPreview: UIViewControllerRepresentable {
 #elseif os(macOS)
 import AVFoundation
 
-private struct QRCameraPreview: NSViewRepresentable {
-    let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
+private struct SubscriptionQRCameraPreview: NSViewRepresentable {
+    let onScanned: ([SubscriptionQRItem]) -> Void
 
     func makeNSView(context: Context) -> PreviewNSView {
         let view = PreviewNSView()
@@ -160,10 +179,10 @@ private struct QRCameraPreview: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
-        private let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
+        private let onScanned: ([SubscriptionQRItem]) -> Void
         private var hasScanned = false
 
-        init(onScanned: @escaping (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void) {
+        init(onScanned: @escaping ([SubscriptionQRItem]) -> Void) {
             self.onScanned = onScanned
         }
 
@@ -172,10 +191,10 @@ private struct QRCameraPreview: NSViewRepresentable {
             for object in metadataObjects {
                 if let qrObject = object as? AVMetadataMachineReadableCodeObject,
                    let payload = qrObject.stringValue,
-                   let decoded = QRCodeGenerator.decode(from: payload)
+                   let items = QRCodeGenerator.decodeSubscriptions(from: payload)
                 {
                     hasScanned = true
-                    onScanned(decoded.config, decoded.favorites)
+                    onScanned(items)
                     return
                 }
             }

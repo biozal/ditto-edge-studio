@@ -1,0 +1,10 @@
+Go into planning mode.  Use XCode MCP for all code discovery.  I would like to update the QR code feature we have that allows you to generate a QR code with the configuration of a database.  Currently today we just share the DittoConfigtForDatabase.  I would like to add in the favorite queries into the QR code and then if you get these in the QR code to add them into the database automatically.  Can you look into how complex this will be.  I know QR codes also have limiations in size - is this possible?  
+
+
+Go into plan.   Use XCode MCP for all code discovery. I would like to add a new feature to export subscriptions as a QR code to save users from typing when they want to use Edge Studio on there iPhone for example.  How this would work is the following:
+
+In the sidebar for Subscriptions - we would offer a QR Code button in the header right justified.  When the end user clicks or taps on this button it would grab all the subcriptions and generate a QR code for them.  
+
+On any device the + icon for adding subscriptions, observers, and importing from Ditto Cloud would have a new option to Import Subscription from QR Code.  When the user selects this it would bring up QR Code scanner just like we do with Database Configurations.  This feature should work exactly like how the Database Config import feature works.  
+
+Create a plan for implementing this and let me know when you are ready for review.

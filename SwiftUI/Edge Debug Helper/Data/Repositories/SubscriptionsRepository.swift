@@ -174,6 +174,12 @@ actor SubscriptionsRepository {
         onSubscriptionsUpdate = callback
     }
 
+    /// Returns the current in-memory subscription cache without modifying it.
+    /// Use after `saveDittoSubscription` calls to read the updated state on @MainActor.
+    func getCachedSubscriptions() -> [DittoSubscription] {
+        cachedSubscriptions
+    }
+
     // MARK: - Private Helpers
 
     private func notifySubscriptionsUpdate() {
