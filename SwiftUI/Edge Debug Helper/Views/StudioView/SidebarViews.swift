@@ -26,8 +26,12 @@ extension MainStudioView {
             subscriptionHeaderView()
             if viewModel.isLoading {
                 Spacer()
-                AnyView(ProgressView("Loading Subscriptions...")
-                    .progressViewStyle(.circular))
+                HStack {
+                    Spacer()
+                    ProgressView("Loading Subscriptions...")
+                        .progressViewStyle(.circular)
+                    Spacer()
+                }
                 Spacer()
             } else if viewModel.subscriptions.isEmpty {
                 Spacer()

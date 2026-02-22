@@ -120,7 +120,7 @@ struct QueryToolbarView: View {
                     Divider()
                 }
             } else {
-                Text("Ditto Collections")
+                Text("Collections")
                 List(collections, id: \.self) { collection in
                     Text(collection)
                         .onTapGesture {

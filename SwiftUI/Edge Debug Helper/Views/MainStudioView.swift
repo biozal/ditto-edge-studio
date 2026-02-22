@@ -129,6 +129,8 @@ struct MainStudioView: View {
                             viewModel.actionSheetMode = .addIndex
                         }
 
+                        Divider()
+
                         if viewModel.selectedSidebarMenuItem.name == "Collections" {
                             Button("Import JSON Data", systemImage: "arrow.up") {
                                 showingImportView = true
@@ -145,7 +147,9 @@ struct MainStudioView: View {
                             }
                         }
 
-                        Button("Import Subscriptions from QR Code", systemImage: "qrcode.viewfinder") {
+                        Divider()
+
+                        Button("Import Subscriptions 􀄫 QR Code", systemImage: "qrcode.viewfinder") {
                             showingSubscriptionQRScanner = true
                         }
                     } label: {
