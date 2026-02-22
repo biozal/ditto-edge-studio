@@ -22,9 +22,12 @@ actor QueryService {
         let results = try await ditto.store.execute(query: query)
         let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
 
-        // Record metrics (fire-and-forget via detached tasks internally)
-        queryCounter.increment()
-        queryTimer.recordMilliseconds(elapsedMs)
+        // Record metrics only when collection is enabled (reads UserDefaults synchronously)
+        let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+        if isMetricsEnabled {
+            queryCounter.increment()
+            queryTimer.recordMilliseconds(elapsedMs)
+        }
 
         // Build result strings
         let resultStrings: [String]
@@ -64,15 +67,17 @@ actor QueryService {
             resultStrings = resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
         }
 
-        // Capture EXPLAIN output (errors stored as string, never surface to user)
-        let resultCount = results.items.count + results.mutatedDocumentIDs().count
-        let explainOutput = await runExplain(ditto: ditto, query: query)
-        await QueryMetricsRepository.shared.capture(
-            dql: query,
-            executionTimeMs: elapsedMs,
-            resultCount: resultCount,
-            explainOutput: explainOutput
-        )
+        // Capture EXPLAIN + per-query metrics only when collection is enabled
+        if isMetricsEnabled {
+            let resultCount = results.items.count + results.mutatedDocumentIDs().count
+            let explainOutput = await runExplain(ditto: ditto, query: query)
+            await QueryMetricsRepository.shared.capture(
+                dql: query,
+                executionTimeMs: elapsedMs,
+                resultCount: resultCount,
+                explainOutput: explainOutput
+            )
+        }
 
         return resultStrings
     }

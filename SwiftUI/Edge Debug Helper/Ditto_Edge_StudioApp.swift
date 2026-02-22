@@ -28,6 +28,13 @@ struct Ditto_Edge_StudioApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
+        // Register UserDefaults defaults so preference values are correct before the user
+        // has ever opened the macOS Settings window or the iOS Settings app.
+        // Without this, UserDefaults.bool(forKey:) returns false (not true) for absent keys.
+        UserDefaults.standard.register(defaults: [
+            "metricsEnabled": true
+        ])
+
         #if os(macOS)
         // On macOS, programmatic registration ensures fonts are available before first render.
         // On iOS, UIAppFonts in Info.plist handles registration — manual call causes duplicates.
@@ -80,6 +87,14 @@ struct Ditto_Edge_StudioApp: App {
         }
 
         #if os(macOS)
+
+        // MARK: - Native Settings Window (macOS only)
+
+        // Automatically adds "Settings…" (⌘,) to the app menu.
+
+        Settings {
+            AppPreferencesView()
+        }
 
         // MARK: - Utility Windows (macOS only)
 

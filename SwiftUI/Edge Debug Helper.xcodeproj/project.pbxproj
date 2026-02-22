@@ -24,6 +24,7 @@
 		0D3F284B2DDA0EA7004A69D1 /* DittoPresenceViewer in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284A2DDA0EA7004A69D1 /* DittoPresenceViewer */; };
 		0D3F284E2DDA0EC1004A69D1 /* DittoObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284D2DDA0EC1004A69D1 /* DittoObjC */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
+		0D46D2972F4B8C2A00C50F45 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0D46D2962F4B8C2A00C50F45 /* Settings.bundle */; };
 		0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 0DEBB4512F3BDD1700C11449 /* Textual */; };
 		0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0DHIGHLT2E10000000000003 /* HighlightSwift */; };
 /* End PBXBuildFile section */
@@ -54,6 +55,7 @@
 
 /* Begin PBXFileReference section */
 		0D3F27D32DDA00FA004A69D1 /* Ditto Edge Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ditto Edge Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D46D2962F4B8C2A00C50F45 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		0DD95EA22F4584EF0063C203 /* EdgeStudioUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DD95EAF2F4585270063C203 /* EdgeStudioIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EdgeStudioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -142,6 +144,7 @@
 				0DD95EBD2F4585430063C203 /* EdgeStudioUITests */,
 				0DE5B1F22DF8FD3D001574F6 /* Frameworks */,
 				0D3F27D42DDA00FA004A69D1 /* Products */,
+				0D46D2962F4B8C2A00C50F45 /* Settings.bundle */,
 			);
 			sourceTree = "<group>";
 		};
@@ -339,6 +342,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D46D2972F4B8C2A00C50F45 /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -21,6 +21,10 @@ struct MainStudioView: View {
     @State var observeDetailPageSize = 10
     @State var observeDetailFilteredData: [String] = []
 
+    /// Mirrors the UserDefaults "metricsEnabled" key; drives sidebar visibility.
+    /// Updated by the macOS Settings window or iOS Settings app via @AppStorage KVO.
+    @AppStorage("metricsEnabled") private var metricsEnabled = true
+
     /// Inspector state
     @State var showInspector = false
 
@@ -228,10 +232,23 @@ struct MainStudioView: View {
                 inspectorToggleButton() // Rightmost, after close button
             }
         #endif
+            // Sync sidebar items on first render (picks up the UserDefaults value after registerDefaults)
+            .task {
+                viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(
+                    metricsEnabled: metricsEnabled
+                )
+            }
+            // React to metrics setting changes (macOS Settings window or iOS Settings app)
+            .onChange(of: metricsEnabled) { _, enabled in
+                viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(metricsEnabled: enabled)
+                if !enabled, viewModel.selectedSidebarMenuItem.name == "Metrics" {
+                    viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems[0]
+                }
+            }
         #if os(iOS)
             .onChange(of: viewModel.selectedSidebarMenuItem) { _, _ in
                 preferredCompactColumn = .detail
-        }
+            }
         #endif
     }
 
@@ -392,12 +409,9 @@ extension MainStudioView {
             )
 
             selectedSidebarMenuItem = subscriptionItem
-            sidebarMenuItems = [
-                subscriptionItem,
-                MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observer", systemIcon: "eye"),
-                MenuItem(id: 4, name: "Metrics", systemIcon: "chart.line.uptrend.xyaxis")
-            ]
+            sidebarMenuItems = Self.buildSidebarItems(
+                metricsEnabled: UserDefaults.standard.bool(forKey: "metricsEnabled")
+            )
 
             // query section
             selectedQuery = ""
@@ -550,6 +564,19 @@ extension MainStudioView {
 
                 isLoading = false
             }
+        }
+
+        /// Builds the sidebar menu items based on whether metrics collection is enabled.
+        static func buildSidebarItems(metricsEnabled: Bool) -> [MenuItem] {
+            var items: [MenuItem] = [
+                MenuItem(id: 1, name: "Subscriptions", systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"),
+                MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
+                MenuItem(id: 3, name: "Observer", systemIcon: "eye")
+            ]
+            if metricsEnabled {
+                items.append(MenuItem(id: 4, name: "Metrics", systemIcon: "chart.line.uptrend.xyaxis"))
+            }
+            return items
         }
 
         /// Shows JSON in the inspector panel
