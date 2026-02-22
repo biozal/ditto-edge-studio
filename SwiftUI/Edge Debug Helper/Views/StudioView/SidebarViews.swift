@@ -99,29 +99,60 @@ extension MainStudioView {
                 Spacer()
             } else {
                 List(viewModel.collections, id: \._id) { collection in
-                    HStack {
-                        Text(collection.name)
-
-                        Spacer()
-
-                        // Badge showing document count (like Mail.app)
-                        if let count = collection.documentCount {
-                            Text("\(count)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.2))
-                                .cornerRadius(10)
+                    DisclosureGroup(isExpanded: expandedBinding(for: collection)) {
+                        ForEach(collection.indexes) { index in
+                            DisclosureGroup {
+                                ForEach(index.fields, id: \.self) { field in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "capsule.fill")
+                                            .foregroundStyle(.tertiary)
+                                        Text(field.strippingBackticks)
+                                    }
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 4)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "i.circle")
+                                        .foregroundStyle(.secondary)
+                                    Text(index.displayName)
+                                }
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            HStack(spacing: 8) {
+                                Image(systemName: "book.pages")
+                                    .foregroundStyle(.secondary)
+                                Text(collection.name)
+                            }
+                            Spacer()
+                            if let count = collection.documentCount {
+                                Text("\(count)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(colorScheme == .dark ? .black : Color.dittoYellow)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(colorScheme == .dark ? Color.dittoYellow : Color.black)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
                         }
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.selectedQuery =
-                            "SELECT * FROM \(collection.name)"
-                    }
-                    Divider()
+                    #if os(iOS)
+                    .listRowBackground(Color.clear)
+                    #endif
                 }
+                #if os(iOS)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                #endif
                 Spacer()
             }
         }
@@ -238,9 +269,17 @@ extension MainStudioView {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     #endif
+                    #if os(macOS)
                     Divider()
+                    #endif
                 }
+                #if os(iOS)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                #endif
             }
             Spacer()
         }

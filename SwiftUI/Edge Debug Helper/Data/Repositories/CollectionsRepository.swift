@@ -9,7 +9,7 @@ actor CollectionsRepository {
     private var collectionsObserver: DittoStoreObserver?
 
     // Store the callback inside the actor
-    private var onCollectionsUpdate: (([DittoCollection]) -> Void)?
+    private var onCollectionsUpdate: (@MainActor ([DittoCollection]) -> Void)?
     private let decoder = JSONDecoder()
 
     private init() {}
@@ -54,6 +54,12 @@ actor CollectionsRepository {
                 collections[i].documentCount = counts[collectionName]
             }
 
+            // Fetch indexes and attach to each collection
+            let indexesByCollection = try await fetchIndexes(for: collections)
+            for i in collections.indices {
+                collections[i].indexes = indexesByCollection[collections[i].name] ?? []
+            }
+
             // Register for any changes in the database
             collectionsObserver = try ditto.store.registerObserver(query: query) { [weak self] results in
                 Task { [weak self] in
@@ -83,16 +89,41 @@ actor CollectionsRepository {
                         }
                     }
 
-                    // Call the callback to update collections
-                    await onCollectionsUpdate?(updatedCollections)
+                    // Fetch indexes and attach to each collection
+                    if let indexesByCollection = try? await fetchIndexes(for: updatedCollections) {
+                        for i in updatedCollections.indices {
+                            updatedCollections[i].indexes = indexesByCollection[updatedCollections[i].name] ?? []
+                        }
+                    }
+
+                    // Call the callback to update collections on main actor
+                    await notifyCollectionsUpdate(updatedCollections.sorted { $0.name < $1.name })
                 }
             }
 
-            return collections
+            return collections.sorted { $0.name < $1.name }
         } catch {
             self.appState?.setError(error)
             throw error
         }
+    }
+
+    private func fetchIndexes(for collections: [DittoCollection]) async throws -> [String: [DittoIndex]] {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw InvalidStateError(message: "No Ditto selected app available")
+        }
+        let results = try await ditto.store.execute(query: "SELECT * FROM system:indexes")
+        var indexesByCollection: [String: [DittoIndex]] = [:]
+        for item in results.items {
+            do {
+                let index = try decoder.decode(DittoIndex.self, from: item.jsonData())
+                item.dematerialize()
+                indexesByCollection[index.collection, default: []].append(index)
+            } catch {
+                item.dematerialize()
+            }
+        }
+        return indexesByCollection
     }
 
     private func fetchDocumentCounts(for collections: [DittoCollection]) async throws -> [String: Int] {
@@ -123,7 +154,7 @@ actor CollectionsRepository {
         return countsByCollection
     }
 
-    func refreshDocumentCounts() async throws -> [DittoCollection] {
+    func refreshCollections() async throws -> [DittoCollection] {
         guard let ditto = await dittoManager.dittoSelectedApp,
               let appState else
         {
@@ -158,17 +189,39 @@ actor CollectionsRepository {
             collections[i].documentCount = counts[collectionName]
         }
 
-        // Trigger the update callback to refresh UI
-        onCollectionsUpdate?(collections)
+        // Fetch indexes and attach to each collection
+        let indexesByCollection = try await fetchIndexes(for: collections)
+        for i in collections.indices {
+            collections[i].indexes = indexesByCollection[collections[i].name] ?? []
+        }
 
-        return collections
+        // Trigger the update callback to refresh UI on main actor
+        let sorted = collections.sorted { $0.name < $1.name }
+        await notifyCollectionsUpdate(sorted)
+
+        return sorted
+    }
+
+    func createIndex(collection: String, fieldName: String) async throws {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            throw InvalidStateError(message: "No Ditto selected app available")
+        }
+        let safeName = "idx_\(collection)_\(fieldName)"
+            .replacingOccurrences(of: ".", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        let query = "CREATE INDEX IF NOT EXISTS \(safeName) ON \(collection) (\(fieldName))"
+        _ = try await ditto.store.execute(query: query)
+    }
+
+    private func notifyCollectionsUpdate(_ collections: [DittoCollection]) async {
+        await onCollectionsUpdate?(collections)
     }
 
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
 
-    func setOnCollectionsUpdate(_ callback: @escaping ([DittoCollection]) -> Void) {
+    func setOnCollectionsUpdate(_ callback: @escaping @MainActor ([DittoCollection]) -> Void) {
         onCollectionsUpdate = callback
     }
 

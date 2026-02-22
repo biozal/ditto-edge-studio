@@ -12,7 +12,7 @@ import SwiftUI
 ///   .background(WindowFrameRestorer())
 struct WindowFrameRestorer: NSViewRepresentable {
     private static let frameKey = "EdgeStudio.MainStudioWindowFrame"
-    private static let minimumSize = CGSize(width: 1200, height: 700)
+    private static let minimumSize = CGSize(width: 1400, height: 820)
 
     func makeCoordinator() -> Coordinator {
         Coordinator()

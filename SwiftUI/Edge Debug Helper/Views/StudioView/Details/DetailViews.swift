@@ -6,18 +6,14 @@ extension MainStudioView {
             HStack(spacing: 0) {
                 ViewThatFits(in: .horizontal) {
                     // ── Wide layout: title on left, picker centered ───────────────
+                    // NOTE: No dynamic data inside ViewThatFits — avoids onChange(of: Layout)
+                    // feedback loop caused by measuring both alternatives while syncStatusItems
+                    // updates rapidly. The "Last updated" subtitle lives below this HStack.
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text("Connected Peers")
-                                .font(.title2)
-                                .bold()
-                            if let statusInfo = viewModel.syncStatusItems.first {
-                                Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.leading, 10)
+                        Text("Connected Peers")
+                            .font(.title2)
+                            .bold()
+                            .padding(.leading, 10)
 
                         Spacer()
 
@@ -44,24 +40,28 @@ extension MainStudioView {
                         .padding(.vertical, 8)
                         .accessibilityIdentifier("SyncTabPicker")
 
-                        VStack(alignment: .leading) {
-                            Text("Connected Peers")
-                                .font(.title2)
-                                .bold()
-                            if let statusInfo = viewModel.syncStatusItems.first {
-                                Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.leading, 10)
-                        .padding(.bottom, 8)
+                        Text("Connected Peers")
+                            .font(.title2)
+                            .bold()
+                            .padding(.leading, 10)
+                            .padding(.bottom, 8)
                     }
                 }
 
                 // Single TransportSettingsButton — stable identity regardless of ViewThatFits layout
                 TransportSettingsButton()
                     .padding(.trailing, 5)
+            }
+
+            // Dynamic subtitle outside ViewThatFits — updating this text no longer
+            // invalidates the layout-fitting measurement loop above.
+            if let statusInfo = viewModel.syncStatusItems.first {
+                Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 10)
+                    .padding(.bottom, 4)
             }
 
             // Tab content

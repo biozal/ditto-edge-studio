@@ -597,6 +597,20 @@ xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" 
 
 ## Build Commands
 
+### CRITICAL: Always Build for Both Platforms After Code Changes
+
+**MANDATORY: After ANY code change, you MUST build for both macOS and iOS before considering the work done. Building for macOS only is not sufficient — iOS has different API availability and will catch errors that macOS builds miss (e.g., `List` initializers, `listStyle` variants, and other APIs that differ between platforms).**
+
+```bash
+# REQUIRED: Build for macOS
+xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -configuration Debug -destination "platform=macOS,arch=arm64" build
+
+# REQUIRED: Build for iOS (iPad simulator)
+xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" -scheme "Edge Studio" -configuration Debug -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5)" build
+```
+
+Both builds must succeed with no errors before any implementation task is complete.
+
 ### SwiftUI (macOS/iPadOS)
 ```bash
 # Build the app (ARM64 only to avoid multiple destination warnings)

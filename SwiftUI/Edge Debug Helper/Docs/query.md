@@ -75,3 +75,49 @@ EVICT FROM tasks WHERE _id = 'task1-1'
 ## JSON Viewer
 
 When you select a JSON document in the RAW or Table view a copy of that document is put in the clip board and the JSON Viewer is loaded so you can see the information better.  
+
+---
+
+## Indexes
+
+Indexes improve query performance on frequently-filtered fields. Available in Ditto SDK v4.12+.
+
+### View Existing Indexes
+
+```sql
+SELECT * FROM system:indexes
+```
+
+### Create an Index
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)
+```
+
+- Index names must be unique per collection.
+- Only a **single field** per index is supported (no composite indexes).
+- Use `IF NOT EXISTS` to avoid errors on re-creation.
+
+### Drop an Index
+
+```sql
+DROP INDEX IF EXISTS idx_tasks_status ON tasks
+```
+
+### Multi-Index Query Optimization
+
+DQL v4.13+ supports **union and intersect scans**, allowing the optimizer to use multiple indexes in a single query:
+
+```sql
+-- Uses separate indexes on status and priority via union scan
+SELECT * FROM tasks WHERE status = 'active' OR priority = 'high'
+```
+
+### Restrictions
+
+- **Single field only** — composite indexes are not supported.
+- **Sub-field indexing** — `WHERE a.b = 1` requires an explicit index on `(a.b)`.
+- **Functional predicates** like `LOWER(field)` or `ILIKE` cannot use indexes.
+- `registerSubscription` does not support indexed queries.
+- The HTTP API does not support custom indexes.
+- Only the latest data-type variant of a field is indexed.

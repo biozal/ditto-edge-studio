@@ -1,0 +1,62 @@
+Go into plan mode.  Use XCode MCP for all code discovery and code research.  Ditto has a new feature around indexes.  You can read about the feature here:
+https://docs.ditto.live/dql/indexing
+
+To start out we can get a list of indexes by running this DQL Statement:
+SELECT * FROM system:indexes
+
+Results would come back as a list of this:
+{
+  "_id": "index_name",
+  "collection": "collection_name",
+  "fields": ["field1", "field2"]
+}
+
+The Docs have pretty good example of this:
+let result = await ditto.store.execute(
+  query: "SELECT * FROM system:indexes")
+
+I would like to update UI of the sidebar for collections, this is handled in the SidebarViews.swift file in the collectionsSidebarView function.  Currenlty we show the name of eacch collection and then a count of how many documents that collection has.  I would like to turn this into a tree view where bellow it we give all the indexes that the collection is using.  Below the name of the collection we would list the fields.  This would be in a tree view so we would have collection names and count label as the root of the tree, the index name as leaf of the name, and then the fields as leafs of the index name.  
+
+The document count badge I would like to change the background color to be Ditto Yellow and the text color to be black.  This would be for dark mode.  For light mode invert the colors so that black is the background color and ditto yellow is the text color. 
+
+When the refresh button is clicked or tapped, it should update the indexes listing removing any indexes that have been dropped and it should then make sure the valid list of indexes at that time are rendered.
+
+I would like to generate a new option for users to add indexes.  This should be located under the + button (floating action button) we show in all sidebars. This is located in MainStudioView.swift in the NavigationSplitView setup (line 112).  This new option would be called Add Index and should be located below Add Observer.  When the user selects this a new sheet window should appear similar to how we allow users to add in subscriptions.  A picker should allow them to select an existing collection name to add the index to.  They should have text entry box where they can enter the name of a single field.  There should be a warning below the box stating:
+
+"DQL limits indexes to a single field on a collection.  You can create multiple indexes on a single collection.  
+
+DQL supports union and intersect scans for queries with OR, IN, and AND operators. This allows the query optimizer to use multiple indexes simultaneously in a single query. For example, a query like WHERE status = ‘active’ OR priority = ‘high’ can leverage separate indexes on both status and priority fields, combining results through a union scan."
+
+There should be a button to create the index and a button to cancel out.  When they click the create button we would run the DQL:
+
+CREATE INDEX index_name ON collection_name (field1)
+
+The code to do this should live in the CollectionsRepository.  The hydrageCollections function in the CollectionsRepository will need to be modified along with the DittoCollection model to support listing out the indexes.  
+
+The documentation in the Docs folder for query (query.md) must be updated to explain indexes.  We should summarize the information here:
+https://docs.ditto.live/dql/indexing
+
+It needs to point out the restrictions of indexes here:
+https://docs.ditto.live/dql/indexing#restrictions
+
+The main docs under the root folder docs should be updated with a new file called INDEXES.md that explains the indexing feature and how it works.
+
+Do research and make a plan to implement this new feature.  Let me know when it's ready to review.
+
+
+
+
+----
+
+
+Go back into plan mode we have a few issues.  First look at addindex.png.  This UI clearly is missing some padding for the labels on the left and the UI should be aligned to the top as there is so much spacing at the top that isn't needed.  This doesn't look attractive at all.  Make a plan to update this with padding and making the window smaller so we don't have all this wasted space on macos.  
+
+Next the Collections Sidebar changes you made - while they are functional, they don't look attractive.  I'm realizing that XCode always uses an icon next to the chevron for opening and closing because right now this looks very strange.  For collection names add the icon book.pages between the chevron and the colleciton name.  Also make sure there is a little bit of padding between the cheveron and the icon - check the Apple HID https://developer.apple.com/design/human-interface-guidelines to see if there is guidelines on how much space should be between the chervon and the icon in a tree control like this (or search the internet).  
+
+The font used for the index names is very hard to read.  Can we make that a bit larger so it's eaiser to read.  Can we also strip out the collection name, we already know that so when we list the name "comments.idx_comments_movie_id" it's not helpful to have "comments." we already know the collection name and then it's repeated again after "idx_".   When we make the collection name are we adding this or is this something the SDK is giving back?  If we are adding this when we create it remove it so that the name is idx_collectionName_fieldName.
+
+We also can strip out the quotations in the field name.  
+
+For the index name and field name we need icons for these.  For the index name use the icon i.circle before the index name and after the cheveron.  For the field name or property name use the capsule.file icon.  
+
+Make a plan for these changes and let me know when you are ready to review.

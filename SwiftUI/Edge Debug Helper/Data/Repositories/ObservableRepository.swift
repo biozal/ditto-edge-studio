@@ -32,7 +32,7 @@ actor ObservableRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onObservablesUpdate: (([DittoObservable]) -> Void)?
+    private var onObservablesUpdate: (@MainActor ([DittoObservable]) -> Void)?
 
     private init() {}
 
@@ -62,7 +62,7 @@ actor ObservableRepository {
 
         // Update in-memory cache and notify UI
         cachedObservables = observables
-        notifyObservablesUpdate()
+        await notifyObservablesUpdate()
 
         return observables
     }
@@ -114,7 +114,7 @@ actor ObservableRepository {
             }
 
             // Notify UI
-            notifyObservablesUpdate()
+            await notifyObservablesUpdate()
 
             Log.debug("Saved observable: \(observable.name)")
         } catch {
@@ -143,7 +143,7 @@ actor ObservableRepository {
             cachedObservables.removeAll { $0.id == observable.id }
 
             // Notify UI
-            notifyObservablesUpdate()
+            await notifyObservablesUpdate()
 
             Log.debug("Removed observable: \(observable.name)")
         } catch {
@@ -171,13 +171,13 @@ actor ObservableRepository {
         self.appState = appState
     }
 
-    func setOnObservablesUpdate(_ callback: @escaping ([DittoObservable]) -> Void) {
+    func setOnObservablesUpdate(_ callback: @escaping @MainActor ([DittoObservable]) -> Void) {
         onObservablesUpdate = callback
     }
 
     // MARK: - Private Helpers
 
-    private func notifyObservablesUpdate() {
-        onObservablesUpdate?(cachedObservables)
+    private func notifyObservablesUpdate() async {
+        await onObservablesUpdate?(cachedObservables)
     }
 }

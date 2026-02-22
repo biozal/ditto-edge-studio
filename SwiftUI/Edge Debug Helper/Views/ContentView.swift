@@ -28,16 +28,16 @@ struct ContentView: View {
         }
         #if os(macOS)
         .frame(
-            minWidth: viewModel.isMainStudioViewPresented ? 1200 : 800,
+            minWidth: viewModel.isMainStudioViewPresented ? 1400 : 800,
             maxWidth: viewModel.isMainStudioViewPresented ? .infinity : 800,
-            minHeight: viewModel.isMainStudioViewPresented ? 700 : 540,
+            minHeight: viewModel.isMainStudioViewPresented ? 820 : 540,
             maxHeight: viewModel.isMainStudioViewPresented ? .infinity : 540
         )
         .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
             guard let window = NSApplication.shared.windows.first(where: { $0.isMainWindow }) else { return }
             if isPresented {
                 window.styleMask.insert(.resizable)
-                window.minSize = NSSize(width: 1200, height: 700)
+                window.minSize = NSSize(width: 1400, height: 820)
                 window.maxSize = NSSize(width: 10000, height: 10000)
                 window.standardWindowButton(.zoomButton)?.isHidden = false
             } else {

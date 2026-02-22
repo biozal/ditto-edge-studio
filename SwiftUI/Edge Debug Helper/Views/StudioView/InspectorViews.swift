@@ -118,6 +118,190 @@ extension MainStudioView {
         }
     }
 
+    // MARK: - Metrics Inspector
+
+    func metricsInspectorView() -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Picker("", selection: $viewModel.selectedMetricsInspectorMenuItem) {
+                    ForEach(viewModel.metricsInspectorMenuItems) { item in
+                        item.image
+                            .tag(item)
+                            .font(.system(size: 20))
+                    }
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.extraLarge)
+                .labelsHidden()
+                .accessibilityIdentifier("MetricsInspectorSegmentedPicker")
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            if viewModel.selectedMetricsInspectorMenuItem.name == "Docs" {
+                metricsDocsInspectorContent()
+            } else {
+                metricsExportInspectorContent()
+            }
+        }
+        .task {
+            await loadMetricsExportSettings()
+        }
+    }
+
+    private func metricsDocsInspectorContent() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Metrics Help").font(.headline)
+                Divider()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            HelpContentView(markdownContent: loadMarkdown(named: "metrics"))
+        }
+    }
+
+    private func metricsExportInspectorContent() -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Export Section
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Prometheus Export", systemImage: "arrow.up.to.line")
+                        .font(.headline)
+
+                    Text("Pushgateway URL")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("http://localhost:9091 (optional)", text: $viewModel.metricsPrometheusURLText)
+                    #if os(macOS)
+                        .textFieldStyle(.roundedBorder)
+                    #endif
+                        .autocorrectionDisabled()
+
+                    HStack {
+                        Text("Export interval:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("60", text: $viewModel.metricsPrometheusIntervalText)
+                        #if os(macOS)
+                            .textFieldStyle(.roundedBorder)
+                        #endif
+                            .frame(width: 60)
+                        Text("seconds")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+
+                    Button("Apply") {
+                        Task { await applyMetricsExportSettings() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Divider()
+
+                // Status Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Export Status", systemImage: "antenna.radiowaves.left.and.right")
+                        .font(.headline)
+
+                    if viewModel.metricsPrometheusStatusMessage.isEmpty {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.secondary.opacity(0.5))
+                                .frame(width: 8, height: 8)
+                            Text("Not configured")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(viewModel.metricsPrometheusStatusMessage.hasPrefix("Error") ? Color.red : Color.green)
+                                .frame(width: 8, height: 8)
+                            Text(viewModel.metricsPrometheusStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(viewModel.metricsPrometheusStatusMessage.hasPrefix("Error") ? .red : .primary)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Actions Section
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Actions", systemImage: "bolt")
+                        .font(.headline)
+
+                    Button {
+                        Task { await pushMetricsNow() }
+                    } label: {
+                        Label("Push Now", systemImage: "arrow.up.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.metricsPrometheusIsConfigured)
+
+                    Button {
+                        Task { await clearAllMetrics() }
+                    } label: {
+                        Label("Clear All Metrics", systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundStyle(.red)
+                }
+            }
+            .padding()
+        }
+    }
+
+    private func loadMetricsExportSettings() async {
+        let url = await PrometheusExportBackend.shared.pushgatewayURL
+        let interval = await PrometheusExportBackend.shared.exportIntervalSeconds
+        let lastPush = await PrometheusExportBackend.shared.lastPushDate
+        let lastError = await PrometheusExportBackend.shared.lastPushError
+
+        viewModel.metricsPrometheusURLText = url?.absoluteString ?? ""
+        viewModel.metricsPrometheusIntervalText = "\(interval)"
+        viewModel.metricsPrometheusIsConfigured = url != nil
+
+        if let error = lastError {
+            viewModel.metricsPrometheusStatusMessage = "Error: \(error)"
+        } else if let date = lastPush {
+            let elapsed = Int(Date().timeIntervalSince(date))
+            viewModel.metricsPrometheusStatusMessage = "Last push: \(elapsed)s ago"
+        } else if url != nil {
+            viewModel.metricsPrometheusStatusMessage = "Configured — awaiting first push"
+        } else {
+            viewModel.metricsPrometheusStatusMessage = ""
+        }
+    }
+
+    private func applyMetricsExportSettings() async {
+        let trimmed = viewModel.metricsPrometheusURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = trimmed.isEmpty ? nil : URL(string: trimmed)
+        let interval = Int(viewModel.metricsPrometheusIntervalText) ?? 60
+        await PrometheusExportBackend.shared.configure(url: url, intervalSeconds: interval)
+        await loadMetricsExportSettings()
+    }
+
+    private func pushMetricsNow() async {
+        await PrometheusExportBackend.shared.pushNow()
+        await loadMetricsExportSettings()
+    }
+
+    private func clearAllMetrics() async {
+        await InMemoryMetricsStore.shared.reset()
+        await QueryMetricsRepository.shared.clearRecords()
+        await loadMetricsExportSettings()
+    }
+
     // MARK: - Help Content
 
     private func helpQueryInspectorContent() -> some View {

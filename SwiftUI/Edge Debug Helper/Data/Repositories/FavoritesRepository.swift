@@ -30,7 +30,7 @@ actor FavoritesRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onFavoritesUpdate: (([DittoQueryHistory]) -> Void)?
+    private var onFavoritesUpdate: (@MainActor ([DittoQueryHistory]) -> Void)?
 
     private init() {}
 
@@ -90,7 +90,7 @@ actor FavoritesRepository {
             cachedFavorites = try await loadFavorites(for: databaseId)
 
             // Notify UI
-            notifyFavoritesUpdate()
+            await notifyFavoritesUpdate()
 
             Log.debug("Saved favorite query: \(favorite.query.prefix(50))...")
         } catch {
@@ -116,7 +116,7 @@ actor FavoritesRepository {
             cachedFavorites.removeAll { $0.id == id }
 
             // Notify UI
-            notifyFavoritesUpdate()
+            await notifyFavoritesUpdate()
 
             Log.debug("Deleted favorite: \(id)")
         } catch {
@@ -139,13 +139,13 @@ actor FavoritesRepository {
         self.appState = appState
     }
 
-    func setOnFavoritesUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
+    func setOnFavoritesUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) {
         onFavoritesUpdate = callback
     }
 
     // MARK: - Private Helpers
 
-    private func notifyFavoritesUpdate() {
-        onFavoritesUpdate?(cachedFavorites)
+    private func notifyFavoritesUpdate() async {
+        await onFavoritesUpdate?(cachedFavorites)
     }
 }

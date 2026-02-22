@@ -33,7 +33,7 @@ actor SubscriptionsRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onSubscriptionsUpdate: (([DittoSubscription]) -> Void)?
+    private var onSubscriptionsUpdate: (@MainActor ([DittoSubscription]) -> Void)?
 
     private init() {}
 
@@ -104,7 +104,7 @@ actor SubscriptionsRepository {
             }
 
             // Notify UI
-            notifySubscriptionsUpdate()
+            await notifySubscriptionsUpdate()
 
             Log.debug("Saved subscription: \(subscription.name)")
         } catch {
@@ -133,7 +133,7 @@ actor SubscriptionsRepository {
             cachedSubscriptions.removeAll { $0.id == subscription.id }
 
             // Notify UI
-            notifySubscriptionsUpdate()
+            await notifySubscriptionsUpdate()
 
             Log.debug("Removed subscription: \(subscription.name)")
         } catch {
@@ -170,7 +170,7 @@ actor SubscriptionsRepository {
         self.appState = appState
     }
 
-    func setOnSubscriptionsUpdate(_ callback: @escaping ([DittoSubscription]) -> Void) {
+    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor ([DittoSubscription]) -> Void) {
         onSubscriptionsUpdate = callback
     }
 
@@ -182,17 +182,17 @@ actor SubscriptionsRepository {
 
     // MARK: - Private Helpers
 
-    private func notifySubscriptionsUpdate() {
-        onSubscriptionsUpdate?(cachedSubscriptions)
+    private func notifySubscriptionsUpdate() async {
+        await onSubscriptionsUpdate?(cachedSubscriptions)
     }
 
-    private func performSubscriptionCleanup() {
+    private func performSubscriptionCleanup() async {
         // Cancel all subscriptions
         for subscription in cachedSubscriptions {
             subscription.syncSubscription?.cancel()
         }
 
         // Notify UI that subscriptions list is now empty
-        onSubscriptionsUpdate?([])
+        await onSubscriptionsUpdate?([])
     }
 }

@@ -33,9 +33,12 @@ struct SubscriptionList: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
-                Divider()
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         #else
         List(subscriptions, id: \.id) { subscription in
             SubscriptionCard(subscription: subscription)

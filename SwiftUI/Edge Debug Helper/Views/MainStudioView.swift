@@ -16,6 +16,7 @@ struct MainStudioView: View {
     @State var observerPageSize = 25
     @State var queryIsExporting = false
     @State var queryCopiedDQLNotification: String?
+    @State private var expandedCollectionIds: Set<String> = []
 
     // Observe detail pane state
     @State var observeDetailViewMode: ResultViewTab = .raw
@@ -31,6 +32,7 @@ struct MainStudioView: View {
     @State var showInspector = false
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.colorScheme) var colorScheme
     /// Column visibility control - keeps sidebar always visible
     @State var columnVisibility: NavigationSplitViewVisibility = .all
     @State var preferredCompactColumn: NavigationSplitViewColumn = .detail
@@ -122,6 +124,9 @@ struct MainStudioView: View {
                         Button("Add Observer", systemImage: "eye") {
                             viewModel.editorObservable = DittoObservable.new()
                             viewModel.actionSheetMode = .observer
+                        }
+                        Button("Add Index", systemImage: "plus.magnifyingglass") {
+                            viewModel.actionSheetMode = .addIndex
                         }
 
                         if viewModel.selectedSidebarMenuItem.name == "Collections" {
@@ -216,6 +221,15 @@ struct MainStudioView: View {
                         arguments: observer.args ?? "",
                         onSave: viewModel.formSaveObserver,
                         onCancel: viewModel.formCancel
+                    ).environmentObject(appState)
+                } else if viewModel.actionSheetMode == .addIndex {
+                    AddIndexView(
+                        collections: viewModel.collections,
+                        onCancel: { viewModel.actionSheetMode = .none },
+                        onCreated: {
+                            viewModel.actionSheetMode = .none
+                            Task { await viewModel.refreshCollectionCounts() }
+                        }
                     ).environmentObject(appState)
                 }
             }
@@ -347,6 +361,15 @@ struct MainStudioView: View {
     func executeQuery() async {
         await viewModel.executeQuery(appState: appState)
     }
+
+    func expandedBinding(for collection: DittoCollection) -> Binding<Bool> {
+        Binding(
+            get: { expandedCollectionIds.contains(collection._id) },
+            set: { isExpanded in
+                if isExpanded { expandedCollectionIds.insert(collection._id) } else { expandedCollectionIds.remove(collection._id) }
+            }
+        )
+    }
 }
 
 // MARK: ViewModel
@@ -416,6 +439,16 @@ extension MainStudioView {
         var selectedObserveInspectorMenuItem: MenuItem
         var observeInspectorMenuItems: [MenuItem] = []
 
+        // Metrics Inspector toolbar
+        var metricsInspectorMenuItems: [MenuItem] = []
+        var selectedMetricsInspectorMenuItem: MenuItem
+
+        // Metrics Inspector – Prometheus export form state (ephemeral UI, owned by ViewModel)
+        var metricsPrometheusURLText = ""
+        var metricsPrometheusIntervalText = "60"
+        var metricsPrometheusStatusMessage = ""
+        var metricsPrometheusIsConfigured = false
+
         /// JSON Inspector State
         var selectedJsonForInspector: String?
 
@@ -463,6 +496,14 @@ extension MainStudioView {
                 MenuItem(id: 10, name: "Help", systemIcon: "questionmark")
             ]
             selectedObserveInspectorMenuItem = jsonObserveItem
+
+            // Metrics Inspector toolbar
+            let metricsDocsItem = MenuItem(id: 11, name: "Docs", systemIcon: "book.closed")
+            metricsInspectorMenuItems = [
+                metricsDocsItem,
+                MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
+            ]
+            selectedMetricsInspectorMenuItem = metricsDocsItem
 
             // Setup SystemRepository callback
             Task {
@@ -642,7 +683,7 @@ extension MainStudioView {
             defer { isRefreshingCollections = false }
 
             do {
-                collections = try await CollectionsRepository.shared.refreshDocumentCounts()
+                collections = try await CollectionsRepository.shared.refreshCollections()
             } catch {
                 // Error will be set in repository via appState
                 Log.error("Failed to refresh collection counts: \(error.localizedDescription)")
@@ -944,6 +985,7 @@ enum ActionSheetMode: String {
     case none
     case subscription
     case observer
+    case addIndex
 }
 
 struct MenuItem: Identifiable, Equatable, Hashable {

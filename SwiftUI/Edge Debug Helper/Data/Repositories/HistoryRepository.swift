@@ -30,7 +30,7 @@ actor HistoryRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onHistoryUpdate: (([DittoQueryHistory]) -> Void)?
+    private var onHistoryUpdate: (@MainActor ([DittoQueryHistory]) -> Void)?
 
     private init() {}
 
@@ -91,7 +91,7 @@ actor HistoryRepository {
             cachedHistory = try await loadHistory(for: databaseId)
 
             // Notify UI
-            notifyHistoryUpdate()
+            await notifyHistoryUpdate()
 
             Log.debug("Saved query history: \(history.query.prefix(50))...")
         } catch {
@@ -117,7 +117,7 @@ actor HistoryRepository {
             cachedHistory.removeAll { $0.id == id }
 
             // Notify UI
-            notifyHistoryUpdate()
+            await notifyHistoryUpdate()
 
             Log.debug("Deleted query history: \(id)")
         } catch {
@@ -142,7 +142,7 @@ actor HistoryRepository {
             cachedHistory = []
 
             // Notify UI
-            notifyHistoryUpdate()
+            await notifyHistoryUpdate()
 
             Log.info("Cleared all query history for database: \(databaseId)")
         } catch {
@@ -165,13 +165,13 @@ actor HistoryRepository {
         self.appState = appState
     }
 
-    func setOnHistoryUpdate(_ callback: @escaping ([DittoQueryHistory]) -> Void) {
+    func setOnHistoryUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) {
         onHistoryUpdate = callback
     }
 
     // MARK: - Private Helpers
 
-    private func notifyHistoryUpdate() {
-        onHistoryUpdate?(cachedHistory)
+    private func notifyHistoryUpdate() async {
+        await onHistoryUpdate?(cachedHistory)
     }
 }
