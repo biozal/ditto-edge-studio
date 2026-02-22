@@ -5,6 +5,8 @@ actor QueryService {
     static let shared = QueryService()
 
     private let dittoManager = DittoManager.shared
+    private let queryCounter = AppMetricsCounter(label: "edge_studio.queries.total")
+    private let queryTimer = AppMetricsTimer(label: "edge_studio.query.latency_ms")
 
     private init() {}
 
@@ -15,7 +17,17 @@ actor QueryService {
             return ["No results found"]
         }
 
+        // Instrument: measure execution time
+        let startDate = Date()
         let results = try await ditto.store.execute(query: query)
+        let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
+
+        // Record metrics (fire-and-forget via detached tasks internally)
+        queryCounter.increment()
+        queryTimer.recordMilliseconds(elapsedMs)
+
+        // Build result strings
+        let resultStrings: [String]
         if results.items.isEmpty {
             if !results.mutatedDocumentIDs().isEmpty {
                 var resultsStrings = results.mutatedDocumentIDs().compactMap {
@@ -26,17 +38,14 @@ actor QueryService {
                 } else {
                     resultsStrings.append("Commit ID: N/A")
                 }
-                return resultsStrings
+                resultStrings = resultsStrings
             } else {
-                return ["No results found"]
+                resultStrings = ["No results found"]
             }
         } else {
             let resultJsonStrings = results.items.compactMap { item -> String? in
                 // Convert [String: Any?] to [String: Any] by removing nil values
-                let cleanedValue = item.value.compactMapValues {
-                    $0
-                }
-
+                let cleanedValue = item.value.compactMapValues { $0 }
                 do {
                     let data = try JSONSerialization.data(
                         withJSONObject: cleanedValue,
@@ -52,7 +61,37 @@ actor QueryService {
                     return nil
                 }
             }
-            return resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
+            resultStrings = resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
+        }
+
+        // Capture EXPLAIN output (errors stored as string, never surface to user)
+        let resultCount = results.items.count + results.mutatedDocumentIDs().count
+        let explainOutput = await runExplain(ditto: ditto, query: query)
+        await QueryMetricsRepository.shared.capture(
+            dql: query,
+            executionTimeMs: elapsedMs,
+            resultCount: resultCount,
+            explainOutput: explainOutput
+        )
+
+        return resultStrings
+    }
+
+    private func runExplain(ditto: Ditto, query: String) async -> String {
+        // Guard against recursive EXPLAIN calls
+        guard !query.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("EXPLAIN") else {
+            return ""
+        }
+        do {
+            let explainResults = try await ditto.store.execute(query: "EXPLAIN \(query)")
+            if let firstItem = explainResults.items.first {
+                let cleaned = firstItem.value.compactMapValues { $0 }
+                let pairs = cleaned.map { "\($0.key): \($0.value)" }.sorted()
+                return pairs.joined(separator: "\n")
+            }
+            return "No explain output"
+        } catch {
+            return "EXPLAIN failed: \(error.localizedDescription)"
         }
     }
 

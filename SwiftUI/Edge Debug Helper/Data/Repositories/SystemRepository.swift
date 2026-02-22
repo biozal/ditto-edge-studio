@@ -202,33 +202,23 @@ actor SystemRepository {
                 // Step 1: Extract connected peers from presence graph (source of truth)
                 let connectedPeers = presenceGraph.remotePeers
 
-                // Step 2: Query DQL for sync metrics (all peers with full documents object)
-                let query = """
-                SELECT *
-                FROM system:data_sync_info
-                """
-
-                // Query DQL for sync metrics; on failure degrade to presence-only data
-                // so cards still render without commit info (rather than showing empty state).
-                var jsonResults: [String] = []
+                // Step 2: Query DQL for sync metrics directly (bypassing QueryService so these
+                // internal system queries are invisible to Query Metrics).
+                // On failure degrade to presence-only data so cards still render.
+                var syncMetricsLookup: [String: [String: Any]] = [:]
                 do {
-                    jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
+                    let results = try await ditto.store.execute(query: "SELECT * FROM system:data_sync_info")
+                    for item in results.items {
+                        let dict = item.value.compactMapValues { $0 }
+                        if let peerId = dict["_id"] as? String {
+                            syncMetricsLookup[peerId] = dict
+                        }
+                        item.dematerialize()
+                    }
                 } catch {
                     Log.error("Failed to query system:data_sync_info: \(error.localizedDescription)")
-                    // Fall through with empty jsonResults — presence graph is still the source
-                    // of truth for which peers are connected, so cards will still render.
-                }
-
-                // Step 3: Build sync metrics lookup map from DQL results
-                var syncMetricsLookup: [String: [String: Any]] = [:]
-                for jsonString in jsonResults {
-                    guard let data = jsonString.data(using: .utf8),
-                          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let peerId = dict["_id"] as? String else
-                    {
-                        continue
-                    }
-                    syncMetricsLookup[peerId] = dict
+                    // Fall through with empty syncMetricsLookup — presence graph is still the
+                    // source of truth for which peers are connected, so cards will still render.
                 }
 
                 // Step 4: Build status items for ALL connected peers (presence is source of truth)

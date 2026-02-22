@@ -95,6 +95,8 @@ struct MainStudioView: View {
                     collectionsSidebarView()
                 case "Observer":
                     observeSidebarView()
+                case "Metrics":
+                    metricsSidebarView()
                 default:
                     subscriptionSidebarView()
                 }
@@ -161,6 +163,8 @@ struct MainStudioView: View {
                     queryDetailView()
                 case "Observer":
                     observeDetailView()
+                case "Metrics":
+                    metricsDetailView()
                 default:
                     syncTabsDetailView()
                 }
@@ -364,6 +368,10 @@ extension MainStudioView {
         var selectedSidebarMenuItem: MenuItem
         var sidebarMenuItems: [MenuItem] = []
 
+        // Metrics sub-navigation
+        var selectedMetricsSubItem = "App"
+        let metricsSubItems: [String] = ["App", "Query"]
+
         // Inspector Toolbar (used only when Collections tab is active)
         var selectedQueryInspectorMenuItem: MenuItem
         var queryInspectorMenuItems: [MenuItem] = []
@@ -387,7 +395,8 @@ extension MainStudioView {
             sidebarMenuItems = [
                 subscriptionItem,
                 MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observer", systemIcon: "eye")
+                MenuItem(id: 3, name: "Observer", systemIcon: "eye"),
+                MenuItem(id: 4, name: "Metrics", systemIcon: "chart.line.uptrend.xyaxis")
             ]
 
             // query section
@@ -519,20 +528,20 @@ extension MainStudioView {
                 // (which fires before this Task reaches here). No eager registration needed —
                 // it caused double-registration and backpressure pipeline deadlocks.
 
-                // Fetch local peer info via local query
+                // Fetch local peer info directly (bypassing QueryService so this startup
+                // query is invisible to Query Metrics).
                 do {
                     let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
-                    let jsonResults = try await QueryService.shared.executeSelectedAppQuery(query: query)
-
-                    // Parse first result (should only be one - local peer)
-                    if let firstResult = jsonResults.first,
-                       let data = firstResult.data(using: .utf8),
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                    {
-                        localPeerDeviceName = "Edge Studio"
-                        localPeerSDKLanguage = json["ditto_sdk_language"] as? String
-                        localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
-                        localPeerSDKVersion = json["ditto_sdk_version"] as? String
+                    if let ditto = await DittoManager.shared.dittoSelectedApp {
+                        let results = try await ditto.store.execute(query: query)
+                        if let firstItem = results.items.first {
+                            let json = firstItem.value.compactMapValues { $0 }
+                            firstItem.dematerialize()
+                            localPeerDeviceName = "Edge Studio"
+                            localPeerSDKLanguage = json["ditto_sdk_language"] as? String
+                            localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
+                            localPeerSDKVersion = json["ditto_sdk_version"] as? String
+                        }
                     }
                 } catch {
                     // Fail silently - not critical to app functionality
