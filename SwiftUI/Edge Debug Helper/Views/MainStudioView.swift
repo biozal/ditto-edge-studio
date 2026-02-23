@@ -16,7 +16,9 @@ struct MainStudioView: View {
     @State var observerPageSize = 25
     @State var queryIsExporting = false
     @State var queryCopiedDQLNotification: String?
-    @State private var expandedCollectionIds: Set<String> = []
+    @State var expandedCollectionIds: Set<String> = []
+    @State var expandedSubscriptionIds: Set<String> = []
+    @State var expandedObserverIds: Set<String> = []
 
     // Observe detail pane state
     @State var observeDetailViewMode: ResultViewTab = .raw
@@ -26,7 +28,7 @@ struct MainStudioView: View {
 
     /// Mirrors the UserDefaults "metricsEnabled" key; drives sidebar visibility.
     /// Updated by the macOS Settings window or iOS Settings app via @AppStorage KVO.
-    @AppStorage("metricsEnabled") private var metricsEnabled = true
+    @AppStorage("metricsEnabled") var metricsEnabled = true
 
     /// Inspector state
     @State var showInspector = false
@@ -79,36 +81,7 @@ struct MainStudioView: View {
                     .padding(.top, 8)
                 }
                 #endif
-                HStack {
-                    Spacer()
-                    Picker("", selection: $viewModel.selectedSidebarMenuItem) {
-                        ForEach(viewModel.sidebarMenuItems) { item in
-                            item.image
-                                .tag(item)
-                                .font(.system(size: 20))
-                                .accessibilityIdentifier("NavigationItem_\(item.name)")
-                                .accessibilityLabel(item.name)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(ControlSize.extraLarge)
-                    .labelsHidden()
-                    .accessibilityIdentifier("NavigationSegmentedPicker")
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                switch viewModel.selectedSidebarMenuItem.name {
-                case "Collections":
-                    collectionsSidebarView()
-                case "Observer":
-                    observeSidebarView()
-                case "Metrics":
-                    metricsSidebarView()
-                default:
-                    subscriptionSidebarView()
-                }
-                Spacer()
+                unifiedSidebarView()
 
                 // Bottom Toolbar in Sidebar
                 HStack {
@@ -131,26 +104,23 @@ struct MainStudioView: View {
 
                         Divider()
 
-                        if viewModel.selectedSidebarMenuItem.name == "Collections" {
-                            Button("Import JSON Data", systemImage: "arrow.up") {
-                                showingImportView = true
-                            }
+                        Button("Import Subscriptions → QR Code", systemImage: "qrcode.viewfinder") {
+                            showingSubscriptionQRScanner = true
                         }
 
                         // Only show Import from Server when HTTP API is configured
-                        if viewModel.selectedSidebarMenuItem.name == "Subscriptions" &&
-                            !viewModel.selectedApp.httpApiUrl.isEmpty &&
+                        if !viewModel.selectedApp.httpApiUrl.isEmpty &&
                             !viewModel.selectedApp.httpApiKey.isEmpty
                         {
-                            Button("Import from Server", systemImage: "arrow.down.circle") {
+                            Button("Import Subscriptions → Server", systemImage: "arrow.down.circle") {
                                 showingImportSubscriptionsView = true
                             }
                         }
 
                         Divider()
 
-                        Button("Import Subscriptions 􀄫 QR Code", systemImage: "qrcode.viewfinder") {
-                            showingSubscriptionQRScanner = true
+                        Button("Import JSON Data", systemImage: "arrow.up") {
+                            showingImportView = true
                         }
                     } label: {
                         Image(systemName: "plus")
@@ -178,9 +148,9 @@ struct MainStudioView: View {
         } detail: {
             Group {
                 switch viewModel.selectedSidebarMenuItem.name {
-                case "Collections":
+                case "Collections", "Query":
                     queryDetailView()
-                case "Observer":
+                case "Observers":
                     observeDetailView()
                 case "Metrics":
                     metricsDetailView()
@@ -372,6 +342,20 @@ struct MainStudioView: View {
             set: { isExpanded in
                 if isExpanded { expandedCollectionIds.insert(collection._id) } else { expandedCollectionIds.remove(collection._id) }
             }
+        )
+    }
+
+    func expandedSubscriptionBinding(for sub: DittoSubscription) -> Binding<Bool> {
+        Binding(
+            get: { expandedSubscriptionIds.contains(sub.id) },
+            set: { if $0 { expandedSubscriptionIds.insert(sub.id) } else { expandedSubscriptionIds.remove(sub.id) } }
+        )
+    }
+
+    func expandedObserverBinding(for obs: DittoObservable) -> Binding<Bool> {
+        Binding(
+            get: { expandedObserverIds.contains(obs.id) },
+            set: { if $0 { expandedObserverIds.insert(obs.id) } else { expandedObserverIds.remove(obs.id) } }
         )
     }
 }
@@ -634,8 +618,8 @@ extension MainStudioView {
         static func buildSidebarItems(metricsEnabled: Bool) -> [MenuItem] {
             var items: [MenuItem] = [
                 MenuItem(id: 1, name: "Subscriptions", systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"),
-                MenuItem(id: 2, name: "Collections", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observer", systemIcon: "eye")
+                MenuItem(id: 2, name: "Query", systemIcon: "macpro.gen2"),
+                MenuItem(id: 3, name: "Observers", systemIcon: "eye")
             ]
             if metricsEnabled {
                 items.append(MenuItem(id: 4, name: "Metrics", systemIcon: "chart.line.uptrend.xyaxis"))

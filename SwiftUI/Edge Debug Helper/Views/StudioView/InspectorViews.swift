@@ -4,9 +4,9 @@ extension MainStudioView {
     func inspectorView() -> some View {
         Group {
             switch viewModel.selectedSidebarMenuItem.name {
-            case "Collections":
+            case "Collections", "Query":
                 queryTabInspectorView()
-            case "Observer":
+            case "Observers":
                 observeDetailInspectorView()
             case "Metrics":
                 metricsInspectorView()

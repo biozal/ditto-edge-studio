@@ -61,7 +61,7 @@ struct QueryMetricsDetailView: View {
             ContentUnavailableView(
                 "No Query Records",
                 systemImage: "text.magnifyingglass",
-                description: Text("Run DQL queries from the Collections view to see EXPLAIN output here.")
+                description: Text("Run DQL queries from the Query view to see EXPLAIN output here.")
             )
         } else {
             GeometryReader { geometry in

@@ -1,305 +1,361 @@
 import SwiftUI
 
 extension MainStudioView {
-    private func subscriptionHeaderView() -> some View {
-        HStack {
-            Spacer()
-            Text("Subscriptions")
-                .padding(.top, 4)
-            Spacer()
-            Button {
-                showingSubscriptionQRDisplay = true
-            } label: {
-                Image(systemName: "qrcode")
-            }
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .disabled(viewModel.subscriptions.isEmpty)
-            .help("Export subscriptions as QR Code")
-            .padding(.trailing, 8)
-            .padding(.top, 4)
-        }
-    }
+    // MARK: - Unified Sidebar
 
-    func subscriptionSidebarView() -> some View {
-        VStack(alignment: .leading) {
-            subscriptionHeaderView()
-            if viewModel.isLoading {
-                Spacer()
-                HStack {
-                    Spacer()
-                    ProgressView("Loading Subscriptions...")
-                        .progressViewStyle(.circular)
-                    Spacer()
-                }
-                Spacer()
-            } else if viewModel.subscriptions.isEmpty {
-                Spacer()
-                AnyView(ContentUnavailableView(
-                    "No Subscriptions",
-                    systemImage:
-                    "exclamationmark.triangle.fill",
-                    description: Text("No apps have been added yet. Click the plus button in the bottom left corner to add your first subscription.")
-                ))
-                Spacer()
-            } else {
-                SubscriptionList(
-                    subscriptions: $viewModel.subscriptions,
-                    onEdit: viewModel.showSubscriptionEditor,
-                    onDelete: viewModel.deleteSubscription,
-                    appState: appState
-                )
-            }
-        }
-    }
-
-    private func collectionsHeaderView() -> some View {
-        HStack {
-            Spacer()
-
-            Text("Ditto Collections")
-                .padding(.top, 4)
-
-            Spacer()
-
-            Button {
-                Task {
-                    await viewModel.refreshCollectionCounts()
-                }
-            } label: {
-                if viewModel.isRefreshingCollections {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .disabled(viewModel.isRefreshingCollections)
-            .help("Refresh document counts")
-            .padding(.trailing, 8)
-            .padding(.top, 4)
-        }
-    }
-
-    func collectionsSidebarView() -> some View {
-        VStack(alignment: .leading) {
-            collectionsHeaderView()
-            if viewModel.isLoading {
-                Spacer()
-                AnyView(ProgressView("Loading Collections...")
-                    .progressViewStyle(.circular))
-                Spacer()
-            } else if viewModel.collections.isEmpty {
-                Spacer()
-                AnyView(ContentUnavailableView(
-                    "No Collections",
-                    systemImage:
-                    "exclamationmark.triangle.fill",
-                    description: Text("No Collections found. Add some data or use the Import button to load data into the database.")
-                ))
-                Spacer()
-            } else {
-                List(viewModel.collections, id: \._id) { collection in
-                    DisclosureGroup(isExpanded: expandedBinding(for: collection)) {
-                        ForEach(collection.indexes) { index in
-                            DisclosureGroup {
-                                ForEach(index.fields, id: \.self) { field in
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "capsule.fill")
-                                            .foregroundStyle(.tertiary)
-                                        Text(field.strippingBackticks)
-                                    }
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.leading, 4)
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "i.circle")
-                                        .foregroundStyle(.secondary)
-                                    Text(index.displayName)
-                                }
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            }
-                        }
+    func unifiedSidebarView() -> some View {
+        List {
+            // ── Top Navigation Items ─────────────────────────────────────
+            // Like Apple Music's Search / Home / New / Radio rows — these
+            // are the primary way to switch the detail view on the right.
+            Section {
+                ForEach(viewModel.sidebarMenuItems) { item in
+                    Button {
+                        viewModel.selectedSidebarMenuItem = item
                     } label: {
-                        HStack {
-                            HStack(spacing: 8) {
-                                Image(systemName: "book.pages")
-                                    .foregroundStyle(.secondary)
-                                Text(collection.name)
-                            }
-                            Spacer()
-                            if let count = collection.documentCount {
-                                Text("\(count)")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(colorScheme == .dark ? .black : Color.dittoYellow)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(colorScheme == .dark ? Color.dittoYellow : Color.black)
-                                    .cornerRadius(10)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                        Label(item.name, systemImage: item.systemIcon)
+                            .foregroundStyle(
+                                viewModel.selectedSidebarMenuItem == item
+                                    ? Color.primary
+                                    : Color.primary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(
+                        viewModel.selectedSidebarMenuItem == item
+                            ? Color.accentColor.opacity(0.18)
+                            : Color.clear
+                    )
+                }
+            }
+
+            // ── Subscriptions Content Section ────────────────────────────
+            Section {
+                if viewModel.isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView().scaleEffect(0.7)
+                        Text("Loading…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(Color.clear)
+                } else if viewModel.subscriptions.isEmpty {
+                    Text("No Subscriptions")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
+                } else {
+                    subscriptionTreeRows()
+                }
+            } header: {
+                HStack(spacing: 6) {
+                    Text("SUBSCRIPTIONS")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        showingSubscriptionQRDisplay = true
+                    } label: {
+                        Image(systemName: "qrcode")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.subscriptions.isEmpty)
+                }
+            }
+
+            // ── Collections Content Section ──────────────────────────────
+            Section {
+                if viewModel.collections.isEmpty {
+                    Text("No Collections")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
+                } else {
+                    collectionTreeRows()
+                }
+            } header: {
+                HStack(spacing: 6) {
+                    Text("COLLECTIONS")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await viewModel.refreshCollectionCounts() }
+                    } label: {
+                        if viewModel.isRefreshingCollections {
+                            ProgressView().scaleEffect(0.6)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    #if os(iOS)
-                    .listRowBackground(Color.clear)
-                    #endif
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isRefreshingCollections)
                 }
-                #if os(iOS)
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                #endif
-                Spacer()
             }
-        }
-    }
 
-    func observeSidebarView() -> some View {
-        VStack(alignment: .leading) {
-            headerView(title: "Observers")
-            if viewModel.observerables.isEmpty {
-                Spacer()
-                ContentUnavailableView(
-                    "No Observers",
-                    systemImage: "exclamationmark.triangle.fill",
-                    description: Text("No observers have been added yet. Click the plus button to add your first observers.")
-                )
-            } else {
-                List(viewModel.observerables) { observer in
-                    ObserverCard(observer: observer)
-                        .onTapGesture {
-                            viewModel.selectedObservable = observer
-                            Task {
-                                await viewModel.loadObservedEvents()
-                            }
-                        }
-                    #if os(macOS)
-                        .contextMenu {
-                            if observer.storeObserver == nil {
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.registerStoreObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        "Activate",
-                                        systemImage: "play.circle"
-                                    )
-                                    .labelStyle(.titleAndIcon)
-                                }
-                            } else {
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.removeStoreObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        "Stop",
-                                        systemImage: "stop.circle"
-                                    )
-                                    .labelStyle(.titleAndIcon)
-                                }
-                            }
-                            Button {
-                                Task {
-                                    do {
-                                        try await viewModel.deleteObservable(observer)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
-                                }
-                            } label: {
-                                Label(
-                                    "Delete",
-                                    systemImage: "trash"
-                                )
-                                .labelStyle(.titleAndIcon)
-                            }
-                        }
-                    #else
-                        .swipeActions(edge: .trailing) {
-                            if observer.storeObserver == nil {
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.registerStoreObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Activate", systemImage: "play.circle")
-                                }
-                            } else {
-                                Button {
-                                    Task {
-                                        do {
-                                            try await viewModel.removeStoreObserver(observer)
-                                        } catch {
-                                            appState.setError(error)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Stop", systemImage: "stop.circle")
-                                }
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button(role: .destructive) {
-                                Task {
-                                    do {
-                                        try await viewModel.deleteObservable(observer)
-                                    } catch {
-                                        appState.setError(error)
-                                    }
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
+            // ── Observers Content Section ────────────────────────────────
+            Section {
+                if viewModel.observerables.isEmpty {
+                    Text("No Observers")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                         .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    #endif
-                    #if os(macOS)
-                    Divider()
-                    #endif
+                } else {
+                    observerTreeRows()
                 }
-                #if os(iOS)
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                #endif
+            } header: {
+                Text("OBSERVERS")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
+
+            // ── Metrics Content Section (when enabled) ───────────────────
+            if metricsEnabled {
+                Section {
+                    metricsRows()
+                } header: {
+                    Text("METRICS")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        #if os(macOS)
+        .listStyle(.sidebar)
+        #else
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        #endif
+    }
+
+    // MARK: - Subscription Tree
+
+    private func subscriptionTreeRows() -> some View {
+        ForEach(viewModel.subscriptions) { sub in
+            DisclosureGroup(isExpanded: expandedSubscriptionBinding(for: sub)) {
+                HStack(spacing: 6) {
+                    Image(systemName: "note.text")
+                        .foregroundStyle(.tertiary)
+                    Text(sub.query.isEmpty ? "No query" : sub.query)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                .padding(.leading, 4)
+            } label: {
+                Button {
+                    expandedSubscriptionIds.formSymmetricDifference([sub.id])
+                    viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Subscriptions" } ?? viewModel
+                        .sidebarMenuItems[0]
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                            .foregroundStyle(.secondary)
+                        Text(sub.name)
+                            .font(.body)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .contextMenu {
+                Button("Edit") { viewModel.showSubscriptionEditor(sub) }
+                Divider()
+                Button("Delete", role: .destructive) {
+                    Task {
+                        do { try await viewModel.deleteSubscription(sub) } catch { appState.setError(error) }
+                    }
+                }
+            }
         }
     }
 
-    func headerView(title: String) -> some View {
-        HStack {
-            Spacer()
-            Text(title)
-                .padding(.top, 4)
-            Spacer()
+    // MARK: - Collection Tree
+
+    private func collectionTreeRows() -> some View {
+        ForEach(viewModel.collections, id: \._id) { collection in
+            DisclosureGroup(isExpanded: expandedBinding(for: collection)) {
+                ForEach(collection.indexes) { index in
+                    DisclosureGroup {
+                        ForEach(index.fields, id: \.self) { field in
+                            HStack(spacing: 6) {
+                                Image(systemName: "capsule.fill")
+                                    .foregroundStyle(.tertiary)
+                                Text(field.strippingBackticks)
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "i.circle")
+                                .foregroundStyle(.secondary)
+                            Text(index.displayName)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            } label: {
+                Button {
+                    expandedCollectionIds.formSymmetricDifference([collection._id])
+                    /*
+                     viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                     viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Query" } ?? viewModel.sidebarMenuItems[0]
+                      */
+                } label: {
+                    HStack {
+                        HStack(spacing: 8) {
+                            Image(systemName: "book.pages")
+                                .foregroundStyle(.secondary)
+                            Text(collection.name)
+                        }
+                        Spacer()
+                        if let count = collection.documentCount {
+                            Text("\(count)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(colorScheme == .dark ? .black : Color.dittoYellow)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(colorScheme == .dark ? Color.dittoYellow : Color.black)
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
         }
+    }
+
+    // MARK: - Observer Tree
+
+    private func observerTreeRows() -> some View {
+        ForEach(viewModel.observerables) { observer in
+            DisclosureGroup(isExpanded: expandedObserverBinding(for: observer)) {
+                HStack(spacing: 6) {
+                    Image(systemName: "note.text")
+                        .foregroundStyle(.tertiary)
+                    Text(observer.query.isEmpty ? "No query" : observer.query)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                .padding(.leading, 4)
+            } label: {
+                Button {
+                    expandedObserverIds.formSymmetricDifference([observer.id])
+                    viewModel.selectedObservable = observer
+                    viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Observers" } ?? viewModel.sidebarMenuItems[0]
+                    Task { await viewModel.loadObservedEvents() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "eye")
+                            .foregroundStyle(.secondary)
+                        Text(observer.name)
+                            .font(.body)
+                        Spacer()
+                        if observer.storeObserver != nil {
+                            Text("Active")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            #if os(macOS)
+            .contextMenu {
+                if observer.storeObserver == nil {
+                    Button {
+                        Task {
+                            do { try await viewModel.registerStoreObserver(observer) } catch { appState.setError(error) }
+                        }
+                    } label: {
+                        Label("Activate", systemImage: "play.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                } else {
+                    Button {
+                        Task {
+                            do { try await viewModel.removeStoreObserver(observer) } catch { appState.setError(error) }
+                        }
+                    } label: {
+                        Label("Stop", systemImage: "stop.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+                Button {
+                    Task {
+                        do { try await viewModel.deleteObservable(observer) } catch { appState.setError(error) }
+                    }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            #else
+            .swipeActions(edge: .trailing) {
+                    if observer.storeObserver == nil {
+                        Button {
+                            Task {
+                                do { try await viewModel.registerStoreObserver(observer) } catch { appState.setError(error) }
+                            }
+                        } label: { Label("Activate", systemImage: "play.circle") }
+                    } else {
+                        Button {
+                            Task {
+                                do { try await viewModel.removeStoreObserver(observer) } catch { appState.setError(error) }
+                            }
+                        } label: { Label("Stop", systemImage: "stop.circle") }
+                    }
+                }
+                .swipeActions(edge: .leading) {
+                    Button(role: .destructive) {
+                        Task {
+                            do { try await viewModel.deleteObservable(observer) } catch { appState.setError(error) }
+                        }
+                    } label: { Label("Delete", systemImage: "trash") }
+                }
+            #endif
+        }
+    }
+
+    // MARK: - Metrics Rows
+
+    @ViewBuilder
+    private func metricsRows() -> some View {
+        #if os(macOS)
+        Button {
+            viewModel.selectedMetricsSubItem = "App"
+            viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Metrics" } ?? viewModel.sidebarMenuItems[0]
+        } label: {
+            Label("App", systemImage: "cpu")
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 2)
+        #endif
+
+        Button {
+            viewModel.selectedMetricsSubItem = "Query"
+            viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Metrics" } ?? viewModel.sidebarMenuItems[0]
+        } label: {
+            Label("Query", systemImage: "text.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 2)
     }
 }
 
-// MARK: - ObserverCard
+// MARK: - ObserverCard (kept for potential reuse)
 
 struct ObserverCard: View {
     let observer: DittoObservable
