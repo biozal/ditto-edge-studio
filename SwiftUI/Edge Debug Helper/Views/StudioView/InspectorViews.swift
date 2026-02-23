@@ -8,7 +8,7 @@ extension MainStudioView {
                 queryTabInspectorView()
             case "Observers":
                 observeDetailInspectorView()
-            case "Metrics":
+            case "App Metrics", "Query Metrics":
                 metricsInspectorView()
             default: // "Subscriptions"
                 syncTabsInspectorView()

@@ -144,7 +144,11 @@ struct MainStudioView: View {
             .padding(.trailing, 16)
             .padding(.top, 12)
             .padding(.bottom, 16) // Add padding for status bar height
-            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
+            .navigationSplitViewColumnWidth(
+                min: isIPadRegular ? 250 : 200,
+                ideal: isIPadRegular ? 300 : 250,
+                max: isIPadRegular ? 380 : 300
+            )
         } detail: {
             Group {
                 switch viewModel.selectedSidebarMenuItem.name {
@@ -152,8 +156,10 @@ struct MainStudioView: View {
                     queryDetailView()
                 case "Observers":
                     observeDetailView()
-                case "Metrics":
-                    metricsDetailView()
+                case "App Metrics":
+                    AppMetricsDetailView()
+                case "Query Metrics":
+                    QueryMetricsDetailView()
                 default:
                     syncTabsDetailView()
                 }
@@ -248,7 +254,10 @@ struct MainStudioView: View {
             // React to metrics setting changes (macOS Settings window or iOS Settings app)
             .onChange(of: metricsEnabled) { _, enabled in
                 viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(metricsEnabled: enabled)
-                if !enabled, viewModel.selectedSidebarMenuItem.name == "Metrics" {
+                if !enabled,
+                   viewModel.selectedSidebarMenuItem.name == "App Metrics" ||
+                   viewModel.selectedSidebarMenuItem.name == "Query Metrics"
+                {
                     viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems[0]
                 }
             }
@@ -414,10 +423,6 @@ extension MainStudioView {
         // Sidebar Toolbar
         var selectedSidebarMenuItem: MenuItem
         var sidebarMenuItems: [MenuItem] = []
-
-        // Metrics sub-navigation
-        var selectedMetricsSubItem = "App"
-        let metricsSubItems: [String] = ["App", "Query"]
 
         // Inspector Toolbar (used only when Collections tab is active)
         var selectedQueryInspectorMenuItem: MenuItem
@@ -616,15 +621,11 @@ extension MainStudioView {
 
         /// Builds the sidebar menu items based on whether metrics collection is enabled.
         static func buildSidebarItems(metricsEnabled: Bool) -> [MenuItem] {
-            var items: [MenuItem] = [
+            [
                 MenuItem(id: 1, name: "Subscriptions", systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"),
                 MenuItem(id: 2, name: "Query", systemIcon: "macpro.gen2"),
                 MenuItem(id: 3, name: "Observers", systemIcon: "eye")
             ]
-            if metricsEnabled {
-                items.append(MenuItem(id: 4, name: "Metrics", systemIcon: "chart.line.uptrend.xyaxis"))
-            }
-            return items
         }
 
         /// Shows JSON in the inspector panel

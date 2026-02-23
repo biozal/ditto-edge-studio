@@ -150,13 +150,19 @@ struct QueryMetricsDetailView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Label("EXPLAIN Output", systemImage: "doc.text.magnifyingglass")
                                 .font(.headline)
-                            Text(record.explainOutput.isEmpty ? "(no output)" : record.explainOutput)
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(8)
+                            if record.explainOutput.isEmpty {
+                                Text("(no output)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(10)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(8)
+                            } else {
+                                JsonSyntaxView(jsonString: record.explainOutput)
+                                    .background(Color.secondary.opacity(0.05))
+                                    .cornerRadius(8)
+                            }
                         }
                     }
                     .padding()

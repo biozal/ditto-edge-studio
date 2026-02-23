@@ -91,8 +91,11 @@ actor QueryService {
             let explainResults = try await ditto.store.execute(query: "EXPLAIN \(query)")
             if let firstItem = explainResults.items.first {
                 let cleaned = firstItem.value.compactMapValues { $0 }
-                let pairs = cleaned.map { "\($0.key): \($0.value)" }.sorted()
-                return pairs.joined(separator: "\n")
+                let data = try JSONSerialization.data(
+                    withJSONObject: cleaned,
+                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                )
+                return String(data: data, encoding: .utf8) ?? "No explain output"
             }
             return "No explain output"
         } catch {
