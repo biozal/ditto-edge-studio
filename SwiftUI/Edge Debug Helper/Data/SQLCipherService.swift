@@ -1,11 +1,3 @@
-//
-//  SQLCipherService.swift
-//  Edge Debug Helper
-//
-//  Created by Claude Code on 2026-02-17.
-//  Copyright © 2026 Ditto. All rights reserved.
-//
-
 import Foundation
 import LocalAuthentication
 import SQLite3

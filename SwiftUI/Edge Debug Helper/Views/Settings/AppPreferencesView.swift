@@ -1,11 +1,3 @@
-//
-//  AppPreferencesView.swift
-//  Edge Debug Helper
-//
-//  Created by Claude Code on 2026-02-22.
-//  Copyright © 2026 Ditto. All rights reserved.
-//
-
 #if os(macOS)
 import SwiftUI
 

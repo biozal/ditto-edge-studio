@@ -66,6 +66,8 @@ extension MainStudioView {
                         favoritesInspectorContent()
                     case "JSON":
                         jsonInspectorContent()
+                    case "Metrics":
+                        queryMetricsInspectorContent()
                     default:
                         historyInspectorContent()
                     }
@@ -442,6 +444,103 @@ extension MainStudioView {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+    }
+
+    private func queryMetricsInspectorContent() -> some View {
+        Group {
+            if let record = viewModel.lastQueryMetricsRecord {
+                VStack(alignment: .leading, spacing: 16) {
+                    // DQL Statement
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("DQL Statement", systemImage: "text.page")
+                            .font(.headline)
+                        Text(record.dql)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+
+                    // Stat badges — first row: Time, Results, Index
+                    HStack(spacing: 12) {
+                        metricsStatBadge(
+                            label: "Time",
+                            value: record.formattedExecutionTime,
+                            color: metricsLatencyColor(record.executionTimeMs)
+                        )
+                        metricsStatBadge(label: "Results", value: "\(record.resultCount)", color: .secondary)
+                        metricsStatBadge(
+                            label: "Index",
+                            value: record.usedIndex ? "✓ Yes" : "✗ No",
+                            color: record.usedIndex ? .green : .orange
+                        )
+                        Spacer()
+                    }
+                    // Timestamp on its own row to avoid overflow on narrow inspector
+                    metricsStatBadge(label: "At", value: record.formattedTimestamp, color: .secondary)
+
+                    // EXPLAIN Output
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("EXPLAIN Output", systemImage: "doc.text.magnifyingglass")
+                            .font(.headline)
+                        if record.explainOutput.isEmpty {
+                            Text("(no output)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(10)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(8)
+                        } else {
+                            JsonSyntaxView(jsonString: record.explainOutput)
+                                .background(Color.secondary.opacity(0.05))
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+            } else {
+                // Empty state — centered vertically and horizontally
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: "text.magnifyingglass")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("No Query Executed")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("Run a query to see its performance metrics here.")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 250)
+            }
+        }
+    }
+
+    private func metricsStatBadge(label: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption)
+                .bold()
+                .foregroundStyle(color)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(6)
+    }
+
+    private func metricsLatencyColor(_ ms: Double) -> Color {
+        if ms < 10 { return .green }
+        if ms < 100 { return .primary }
+        return .orange
     }
 
     // MARK: - Inspector Helper Methods

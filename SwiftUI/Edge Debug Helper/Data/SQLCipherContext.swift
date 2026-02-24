@@ -1,11 +1,3 @@
-//
-//  SQLCipherContext.swift
-//  Edge Debug Helper
-//
-//  Created by Claude Code on 2026-02-18.
-//  Copyright © 2026 Ditto. All rights reserved.
-//
-
 import Foundation
 
 /// Routes access to SQLCipherService through a per-Swift-task context.

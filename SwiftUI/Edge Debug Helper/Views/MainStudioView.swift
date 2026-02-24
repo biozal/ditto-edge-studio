@@ -250,16 +250,31 @@ struct MainStudioView: View {
                 viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(
                     metricsEnabled: metricsEnabled
                 )
+                // Sync inspector items with current metrics setting on first render
+                viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(
+                    metricsEnabled: metricsEnabled
+                )
             }
             // React to metrics setting changes (macOS Settings window or iOS Settings app)
             .onChange(of: metricsEnabled) { _, enabled in
                 viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(metricsEnabled: enabled)
-                if !enabled,
-                   viewModel.selectedSidebarMenuItem.name == "App Metrics" ||
-                   viewModel.selectedSidebarMenuItem.name == "Query Metrics"
-                {
-                    viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems[0]
+                viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
+                if !enabled {
+                    // Auto-navigate away from metrics sidebar items
+                    if viewModel.selectedSidebarMenuItem.name == "App Metrics" ||
+                        viewModel.selectedSidebarMenuItem.name == "Query Metrics"
+                    {
+                        viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems[0]
+                    }
+                    // Auto-navigate away from Metrics inspector tab
+                    if viewModel.selectedQueryInspectorMenuItem.name == "Metrics" {
+                        viewModel.selectedQueryInspectorMenuItem = viewModel.queryInspectorMenuItems[0]
+                    }
                 }
+            }
+            // Refresh metrics record whenever query results change
+            .onChange(of: viewModel.jsonResults) { _, _ in
+                Task { await viewModel.refreshLastQueryMetrics() }
             }
         #if os(iOS)
             .onChange(of: viewModel.selectedSidebarMenuItem) { _, _ in
@@ -428,6 +443,9 @@ extension MainStudioView {
         var selectedQueryInspectorMenuItem: MenuItem
         var queryInspectorMenuItems: [MenuItem] = []
 
+        /// Metrics Inspector – last executed query record
+        var lastQueryMetricsRecord: QueryExplainRecord?
+
         // Observer Inspector toolbar
         var selectedObserveInspectorMenuItem: MenuItem
         var observeInspectorMenuItems: [MenuItem] = []
@@ -473,14 +491,11 @@ extension MainStudioView {
             jsonResults = []
 
             // Inspector toolbar (used only when Collections tab is active)
-            let historyItem = MenuItem(id: 5, name: "History", systemIcon: "clock")
-            queryInspectorMenuItems = [
-                historyItem,
-                MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
-                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill"),
-                MenuItem(id: 8, name: "Help", systemIcon: "questionmark")
-            ]
-            selectedQueryInspectorMenuItem = historyItem
+            let builtQueryInspectorItems = Self.buildQueryInspectorItems(
+                metricsEnabled: UserDefaults.standard.bool(forKey: "metricsEnabled")
+            )
+            queryInspectorMenuItems = builtQueryInspectorItems
+            selectedQueryInspectorMenuItem = builtQueryInspectorItems[0] // History
 
             // Observer Inspector toolbar
             let jsonObserveItem = MenuItem(id: 9, name: "JSON", systemIcon: "text.document.fill")
@@ -619,6 +634,20 @@ extension MainStudioView {
             }
         }
 
+        /// Builds the query inspector tab items, conditionally including the Metrics tab.
+        static func buildQueryInspectorItems(metricsEnabled: Bool) -> [MenuItem] {
+            var items = [
+                MenuItem(id: 5, name: "History", systemIcon: "clock"),
+                MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
+                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill")
+            ]
+            if metricsEnabled {
+                items.append(MenuItem(id: 13, name: "Metrics", systemIcon: "text.magnifyingglass"))
+            }
+            items.append(MenuItem(id: 8, name: "Help", systemIcon: "questionmark"))
+            return items
+        }
+
         /// Builds the sidebar menu items based on whether metrics collection is enabled.
         static func buildSidebarItems(metricsEnabled: Bool) -> [MenuItem] {
             [
@@ -626,6 +655,10 @@ extension MainStudioView {
                 MenuItem(id: 2, name: "Query", systemIcon: "macpro.gen2"),
                 MenuItem(id: 3, name: "Observers", systemIcon: "eye")
             ]
+        }
+
+        func refreshLastQueryMetrics() async {
+            lastQueryMetricsRecord = await QueryMetricsRepository.shared.allRecords().first
         }
 
         /// Shows JSON in the inspector panel

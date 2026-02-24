@@ -1,11 +1,3 @@
-//
-//  JsonSyntaxView.swift
-//  Edge Debug Helper
-//
-//  Created by Claude Code on 2026-02-09.
-//  Reusable JSON syntax highlighting view using HighlightSwift
-//
-
 import HighlightSwift
 import SwiftUI
 
