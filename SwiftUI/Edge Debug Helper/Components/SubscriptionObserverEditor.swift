@@ -1,33 +1,25 @@
-import CodeEditor
 import SwiftUI
 
-struct QueryArgumentEditor: View {
+struct SubscriptionObserverEditor: View {
     @EnvironmentObject private var appState: AppState
 
     @State var title: String
     @State var name: String
     @State var query: String
-    @State var arguments: String
 
-    let onSave: (String, String, String?, AppState) -> Void
+    let onSave: (String, String, AppState) -> Void
     let onCancel: () -> Void
-
-    #if os(macOS)
-    @AppStorage("fontsize") var fontSize = Int(NSFont.systemFontSize)
-    #endif
 
     init(
         title: String = "",
         name: String = "",
         query: String = "",
-        arguments: String = "",
-        onSave: @escaping (String, String, String?, AppState) -> Void,
+        onSave: @escaping (String, String, AppState) -> Void,
         onCancel: @escaping () -> Void
     ) {
         _title = State(initialValue: title)
         _name = State(initialValue: name)
         _query = State(initialValue: query)
-        _arguments = State(initialValue: arguments)
 
         self.onSave = onSave
         self.onCancel = onCancel
@@ -41,54 +33,16 @@ struct QueryArgumentEditor: View {
                         .padding(.bottom, 20)
                 }
                 Section("Query") {
-                    #if os(macOS)
-                    CodeEditor(
-                        source: $query,
-                        language: .sql,
-                        theme: .atelierSavannaDark,
-                        fontSize: .init(
-                            get: { CGFloat(fontSize) },
-                            set: { fontSize = Int($0) }
-                        )
-                    )
-                    .frame(minWidth: 640, minHeight: 150)
-                    #else
                     TextEditor(text: $query)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 120)
                         .padding(6)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                    #endif
                     Text("Ex: SELECT * FROM collectionName")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 20)
-                }
-                Section("Arguments (Optional)") {
-                    #if os(macOS)
-                    CodeEditor(
-                        source: $arguments,
-                        language: .sql,
-                        theme: .atelierSavannaDark,
-                        fontSize: .init(
-                            get: { CGFloat(fontSize) },
-                            set: { fontSize = Int($0) }
-                        )
-                    )
-                    .frame(minWidth: 640, minHeight: 150)
-                    #else
-                    TextEditor(text: $arguments)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 120)
-                        .padding(6)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    #endif
-                    Text("JSON String Format - Ex: [{\"key\": \"value\"}]")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 10)
                 }
             }
             #if os(macOS)
@@ -109,7 +63,7 @@ struct QueryArgumentEditor: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             Task {
-                                onSave(name, query, arguments.isEmpty ? nil : arguments, appState)
+                                onSave(name, query, appState)
                             }
                         }
                         .disabled(name.isEmpty || query.isEmpty)
@@ -120,14 +74,13 @@ struct QueryArgumentEditor: View {
 }
 
 #Preview {
-    let onSave: (String, String, String?, AppState) -> Void = { _, _, _, _ in }
+    let onSave: (String, String, AppState) -> Void = { _, _, _ in }
     let onCancel: () -> Void = {}
 
-    QueryArgumentEditor(
+    SubscriptionObserverEditor(
         title: "Test Title",
         name: "test Query",
         query: "SELECT * FROM test",
-        arguments: "[{\"key\": \"value\"}]",
         onSave: onSave,
         onCancel: onCancel
     )

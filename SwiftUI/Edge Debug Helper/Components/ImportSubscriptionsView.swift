@@ -254,7 +254,6 @@ extension ImportSubscriptionsView {
                 var newSubscription = DittoSubscription(id: UUID().uuidString)
                 newSubscription.name = "Imported: \(sub.collectionName)"
                 newSubscription.query = sub.query
-                newSubscription.args = nil
 
                 try await SubscriptionsRepository.shared.saveDittoSubscription(newSubscription)
             }

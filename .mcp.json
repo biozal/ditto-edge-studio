@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ditto-edge-studio": {
+      "type": "sse",
+      "url": "http://localhost:65269/mcp"
+    }
+  }
+}

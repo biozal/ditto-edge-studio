@@ -181,24 +181,22 @@ struct MainStudioView: View {
             }
             .sheet(isPresented: isSheetPresented) {
                 if let subscription = viewModel.editorSubscription {
-                    QueryArgumentEditor(
+                    SubscriptionObserverEditor(
                         title: subscription.name.isEmpty
                             ? "New Query Argument"
                             : subscription.name,
                         name: subscription.name,
                         query: subscription.query,
-                        arguments: subscription.args ?? "",
                         onSave: viewModel.formSaveSubscription,
                         onCancel: viewModel.formCancel
                     ).environmentObject(appState)
                 } else if let observer = viewModel.editorObservable {
-                    QueryArgumentEditor(
+                    SubscriptionObserverEditor(
                         title: observer.name.isEmpty
                             ? "New Observer"
                             : observer.name,
                         name: observer.name,
                         query: observer.query,
-                        arguments: observer.args ?? "",
                         onSave: viewModel.formSaveObserver,
                         onCancel: viewModel.formCancel
                     ).environmentObject(appState)
@@ -227,7 +225,7 @@ struct MainStudioView: View {
             }
             .sheet(isPresented: $showingSubscriptionQRDisplay) {
                 SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {
-                    SubscriptionQRItem(name: $0.name, query: $0.query, args: $0.args)
+                    SubscriptionQRItem(name: $0.name, query: $0.query, args: nil)
                 })
             }
             .sheet(isPresented: $showingSubscriptionQRScanner) {
@@ -836,17 +834,11 @@ extension MainStudioView {
         func formSaveSubscription(
             name: String,
             query: String,
-            args: String?,
             appState: AppState
         ) {
             if var subscription = editorSubscription {
                 subscription.name = name
                 subscription.query = query
-                if let argsString = args {
-                    subscription.args = argsString
-                } else {
-                    subscription.args = nil
-                }
                 Task {
                     do {
                         try await SubscriptionsRepository.shared.saveDittoSubscription(subscription)
@@ -862,17 +854,11 @@ extension MainStudioView {
         func formSaveObserver(
             name: String,
             query: String,
-            args: String?,
             appState: AppState
         ) {
             if var observer = editorObservable {
                 observer.name = name
                 observer.query = query
-                if let argsString = args {
-                    observer.args = argsString
-                } else {
-                    observer.args = nil
-                }
                 Task {
                     do {
                         try await ObservableRepository.shared.saveDittoObservable(observer)
@@ -895,7 +881,6 @@ extension MainStudioView {
                 var sub = DittoSubscription(id: UUID().uuidString)
                 sub.name = item.name
                 sub.query = item.query
-                sub.args = item.args
                 do {
                     try await SubscriptionsRepository.shared.saveDittoSubscription(sub)
                 } catch {
@@ -936,17 +921,8 @@ extension MainStudioView {
             let dittoDiffer = DittoDiffer()
 
             // Deserialize arguments from JSON string
-            var arguments: [String: Any?] = [:]
-            if let argsString = observable.args, !argsString.isEmpty,
-               let argsData = argsString.data(using: .utf8),
-               let argsDict = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any]
-            {
-                arguments = argsDict
-            }
-
             let observer = try ditto.store.registerObserver(
-                query: observable.query,
-                arguments: arguments
+                query: observable.query
             ) { [weak self] results in
                 // required to show the end user when the event fired
                 var event = DittoObserveEvent.new(observeId: observable.id)

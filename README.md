@@ -226,6 +226,66 @@ git push --no-verify
 
 **Also see CLAUDE.md** for testing requirements and mandatory testing policy.
 
+## Claude Code MCP Integration
+
+Edge Studio embeds an MCP (Model Context Protocol) server that lets Claude Code query and manage your Ditto databases directly — no separate setup, no CLI binary. When Edge Studio is running with MCP enabled, Claude Code connects automatically.
+
+### Enable in Edge Studio
+
+1. Open Edge Studio
+2. Go to **Edge Studio → Settings…** (⌘,)
+3. Toggle **Enable MCP Server** ON
+4. A green dot confirms it's running on port 65269
+
+### Connect Claude Code
+
+**Option A — This repo (auto-discovered)**
+
+The `.mcp.json` at the root of this repo is picked up automatically by Claude Code when you work in this project. No extra steps.
+
+**Option B — Global (available in all projects)**
+
+```bash
+claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp
+```
+
+Verify it's connected:
+
+```bash
+claude mcp list
+# ditto-edge-studio (sse) http://localhost:65269/mcp
+```
+
+### What you can ask Claude
+
+Once connected and with a database selected in Edge Studio:
+
+- *"List the collections in my active database and their document counts"*
+- *"Run `SELECT * FROM orders WHERE status = 'pending' LIMIT 5`"*
+- *"Create an index on the users collection for the email field"*
+- *"Show me the sync status and which transports are active"*
+- *"Disable Bluetooth sync and show me the peer count"*
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `execute_dql` | Run any DQL query (SELECT, INSERT, UPDATE, EVICT) |
+| `list_databases` | List all configured databases |
+| `get_active_database` | Details on the currently selected database |
+| `list_collections` | Collections with document counts and indexes |
+| `create_index` | Index a collection field |
+| `drop_index` | Remove an index by name |
+| `get_query_metrics` | Recent query timing and EXPLAIN output |
+| `get_sync_status` | Connected peer count and transport config |
+| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+
+> **Note:** All tools operate on the database currently selected in the Edge Studio UI. The MCP server stops automatically when Edge Studio quits.
+
+For the full setup guide, troubleshooting, and security considerations see [docs/MCP_SERVER.md](docs/MCP_SERVER.md).
+
+---
+
 ## ⚠️ DISCLAIMER
 
 **THIS SOFTWARE IS PROVIDED "AS-IS" WITHOUT WARRANTY OF ANY KIND.**

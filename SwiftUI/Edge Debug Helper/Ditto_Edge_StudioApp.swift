@@ -25,7 +25,9 @@ struct Ditto_Edge_StudioApp: App {
         // has ever opened the macOS Settings window or the iOS Settings app.
         // Without this, UserDefaults.bool(forKey:) returns false (not true) for absent keys.
         UserDefaults.standard.register(defaults: [
-            "metricsEnabled": true
+            "metricsEnabled": true,
+            "mcpServerEnabled": false,
+            "mcpServerPort": 65269
         ])
 
         #if os(macOS)
@@ -34,6 +36,8 @@ struct Ditto_Edge_StudioApp: App {
         FontAwesomeRegistration.registerFonts()
         #endif
     }
+
+    @AppStorage("mcpServerEnabled") private var mcpServerEnabled = false
 
     var body: some Scene {
         WindowGroup {
@@ -65,6 +69,25 @@ struct Ditto_Edge_StudioApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenHelpWindow"))) { _ in
                     openWindow(id: "help-window")
                 }
+            #if os(macOS)
+                .onAppear {
+                    if mcpServerEnabled {
+                        Task { await MCPServerService.shared.start() }
+                    }
+                }
+                .onChange(of: mcpServerEnabled) { _, enabled in
+                    Task {
+                        if enabled {
+                            await MCPServerService.shared.start()
+                        } else {
+                            await MCPServerService.shared.stop()
+                        }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    Task { await MCPServerService.shared.stop() }
+                }
+            #endif
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 800, height: 540)

@@ -351,9 +351,12 @@ extension MainStudioView {
                     Button {
                         Task {
                             do {
-                                try await viewModel.registerStoreObserver(
-                                    observer
-                                )
+                                try await viewModel.registerStoreObserver(observer)
+                                viewModel.selectedObservable = observer
+                                viewModel.selectedSidebarMenuItem =
+                                    viewModel.sidebarMenuItems.first { $0.name == "Observers" }
+                                        ?? viewModel.sidebarMenuItems[0]
+                                await viewModel.loadObservedEvents()
                             } catch { appState.setError(error) }
                         }
                     } label: {
@@ -391,9 +394,12 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await viewModel.registerStoreObserver(
-                                        observer
-                                    )
+                                    try await viewModel.registerStoreObserver(observer)
+                                    viewModel.selectedObservable = observer
+                                    viewModel.selectedSidebarMenuItem =
+                                        viewModel.sidebarMenuItems.first { $0.name == "Observers" }
+                                            ?? viewModel.sidebarMenuItems[0]
+                                    await viewModel.loadObservedEvents()
                                 } catch { appState.setError(error) }
                             }
                         } label: {

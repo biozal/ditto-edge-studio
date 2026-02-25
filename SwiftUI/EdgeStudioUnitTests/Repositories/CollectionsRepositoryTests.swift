@@ -40,15 +40,15 @@ struct CollectionsRepositoryTests {
             }
         }
 
-        @Test("refreshDocumentCounts with no selected app throws InvalidStateError", .tags(.repository))
-        func testRefreshDocumentCountsWithNoSelectedAppThrows() async throws {
+        @Test("refreshCollections with no selected app throws InvalidStateError", .tags(.repository))
+        func testRefreshCollectionsWithNoSelectedAppThrows() async throws {
             // ARRANGE — No selected app
 
             let repo = CollectionsRepository.shared
 
             // ACT & ASSERT — should throw because dittoSelectedApp is nil
             await #expect(throws: (any Error).self) {
-                _ = try await repo.refreshDocumentCounts()
+                _ = try await repo.refreshCollections()
             }
         }
     }

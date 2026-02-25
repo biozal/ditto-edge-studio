@@ -1,0 +1,26 @@
+Go into plan mode.  Use Xcode MCP for all discovery of code, project setup, etc.
+
+I would like to add an MCP server to Ditto Edge Studio that would allow AI agents and LLMs like Claude the ability to directly do things in Ditto Edge Studio.  Is this possible?  Research options for doing this.  
+
+The baseline features would be:
+
+Use a Database Configuration in Dito Edge Studio to perform basic DQL operations of:
+
+- SELECT to read information from the Database
+- INSERT data into the Database
+- UPDATE data in the Database
+- EVICT and Delete data from the Database
+- Create new index(es)
+- Delete index(es)
+- Look at Query Metrics after running a query
+- Turn off or on certain transports
+
+There is a Ditto Claude Plugin that I have downloaded from Github in this location:
+
+~/Developer/claude-code-plugins
+
+I would like to have something similar for Ditto Edge Studio where there is a plugin that will tell it how to use the MCP Server.  Also it has great advice on DQL so we should update our documentation as part of this that you should install this plugin in order to make our MCP Server and plugin useful.
+
+ I'm assuming the MCP Server would only run when Ditto Edge Studio is running - similar to how XCode's MCP Server works.  We need to also check to see if any entitltements, etc have to be updated.  This MCP server would only work on MacOS and there should be an option for turnining if off/on in the Settings like we allow for metrics. 
+
+ Please do research on how we can set this up and any best practices on how to set this up and keep performance good.

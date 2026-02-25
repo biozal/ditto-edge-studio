@@ -15,8 +15,19 @@ import Testing
 /// ```
 extension Tag {
     
+    // MARK: - MCP Tags
+
+    /// All MCP server tests
+    @Tag static var mcp: Tag
+
+    /// MCP server lifecycle tests (start, stop, health)
+    @Tag static var mcpServer: Tag
+
+    /// MCP tool manifest and dispatch tests
+    @Tag static var mcpTools: Tag
+
     // MARK: - Component Tags
-    
+
     /// Tests related to encryption (SQLCipher, Keychain)
     @Tag static var encryption: Tag
     

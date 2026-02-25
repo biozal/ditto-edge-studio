@@ -53,7 +53,6 @@ actor ObservableRepository {
             var observable = DittoObservable(id: row._id)
             observable.name = row.name
             observable.query = row.query
-            observable.args = row.args
             observable.isActive = row.isActive
             observable.lastUpdated = row.lastUpdated
             // Note: storeObserver is NOT restored (must be re-registered by caller)
@@ -86,7 +85,6 @@ actor ObservableRepository {
                     databaseId: databaseId,
                     name: observable.name,
                     query: observable.query,
-                    args: observable.args,
                     isActive: observable.isActive,
                     lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
                 )
@@ -103,7 +101,6 @@ actor ObservableRepository {
                     databaseId: databaseId,
                     name: observable.name,
                     query: observable.query,
-                    args: observable.args,
                     isActive: observable.isActive,
                     lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
                 )

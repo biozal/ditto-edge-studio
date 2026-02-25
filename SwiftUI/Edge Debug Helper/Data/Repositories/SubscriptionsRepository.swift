@@ -54,7 +54,6 @@ actor SubscriptionsRepository {
             var subscription = DittoSubscription(id: row._id)
             subscription.name = row.name
             subscription.query = row.query
-            subscription.args = row.args
             // Note: syncSubscription is NOT restored (must be re-registered by caller)
             return subscription
         }
@@ -94,8 +93,7 @@ actor SubscriptionsRepository {
                     _id: subscription.id,
                     databaseId: databaseId,
                     name: subscription.name,
-                    query: subscription.query,
-                    args: subscription.args
+                    query: subscription.query
                 )
                 try await sqlCipher.insertSubscription(row)
 

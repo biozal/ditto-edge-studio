@@ -25,7 +25,13 @@ struct ImportService {
     }
 
     func validateJSON(_ data: Data) throws -> [[String: Any]] {
-        guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+        let parsed: Any
+        do {
+            parsed = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw ImportError.invalidJSON("File must contain an array of JSON objects")
+        }
+        guard let jsonArray = parsed as? [[String: Any]] else {
             throw ImportError.invalidJSON("File must contain an array of JSON objects")
         }
 
@@ -191,6 +197,86 @@ struct ImportService {
                                 total: totalDocuments,
                                 currentDocumentId: documentId
                             ))
+                        }
+                    }
+                }
+            }
+
+            return ImportResult(
+                successCount: successCount,
+                failureCount: failureCount,
+                errors: errors
+            )
+        }
+
+        return await task.value
+    }
+
+    /// Imports JSON documents from raw data into a Ditto collection using batch processing.
+    ///
+    /// Unlike `importData(from:to:insertType:progressHandler:)`, this overload is **not**
+    /// `@MainActor` and is safe to call from any async context (e.g. the MCP server).
+    /// The caller is responsible for reading the file data off the main thread.
+    ///
+    /// - Parameters:
+    ///   - documentData: Raw JSON data containing an array of objects.
+    ///                   Each object must have an `_id` field.
+    ///   - collection: Target collection name. Only letters, numbers, and underscores allowed.
+    ///   - insertType: `.initial` (INITIAL DOCUMENTS) or `.regular` (ON ID CONFLICT DO UPDATE).
+    ///
+    /// - Returns: `ImportResult` with success count, failure count, and per-document errors.
+    func importData(
+        documentData: Data,
+        to collection: String,
+        insertType: InsertType = .regular
+    ) async throws -> ImportResult {
+        let documents = try validateJSON(documentData)
+
+        guard collection.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+            throw ImportError
+                .invalidCollectionName("Collection name contains invalid characters. Only letters, numbers, and underscores are allowed.")
+        }
+
+        guard let ditto = await DittoManager.shared.dittoSelectedApp else {
+            throw ImportError.noDittoInstance("No Ditto instance available")
+        }
+
+        let task = Task.detached(priority: .utility) {
+            var successCount = 0
+            var failureCount = 0
+            var errors: [String] = []
+
+            let batchSize = 50
+            for (batchIndex, batch) in documents.chunked(into: batchSize).enumerated() {
+                let batchStartIndex = batchIndex * batchSize
+
+                do {
+                    let query = buildBatchInsertQuery(
+                        collection: collection,
+                        batchSize: batch.count,
+                        insertType: insertType
+                    )
+                    let arguments = try buildBatchArguments(batch: batch)
+                    _ = try await ditto.store.execute(query: query, arguments: arguments)
+                    successCount += batch.count
+                } catch {
+                    for (indexInBatch, document) in batch.enumerated() {
+                        let documentId = document["_id"] as? String ?? "unknown"
+
+                        do {
+                            try await insertSingleDocument(
+                                document: document,
+                                collection: collection,
+                                insertType: insertType,
+                                ditto: ditto
+                            )
+                            successCount += 1
+                        } catch let importError as ImportError {
+                            failureCount += 1
+                            errors.append(importError.localizedDescription)
+                        } catch {
+                            failureCount += 1
+                            errors.append("Document \(documentId) (index \(batchStartIndex + indexInBatch)): \(error.localizedDescription)")
                         }
                     }
                 }

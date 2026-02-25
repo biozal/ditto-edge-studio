@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Xcode MCP — Required for All Code Operations
+## Xcode MCP — Required for All Code Operations and Discovery of the code
 
 **CRITICAL: Use the Xcode MCP server for ALL code operations in this project:**
 - ✅ Reading source files → `XcodeRead`
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ Moving/renaming files → `XcodeMV`
 - ✅ Creating new directories/groups → `XcodeMakeDir`
 
-Standard tools (Read, Grep, Glob, Write) are for documentation (`.md`) and config files outside the Xcode project only.
+Standard tools (Read, Grep, Glob, Write) are for documentation (`.md`) and config files outside the Xcode project only.  Never use grep, ls, or other shell tools to discover code unless Xcode MCP is not available.
 
 ## Plans
 

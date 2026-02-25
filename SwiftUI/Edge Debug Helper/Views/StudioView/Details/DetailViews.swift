@@ -584,13 +584,14 @@ extension MainStudioView {
                 VStack(spacing: 0) {
                     // Top pane (50%) — events list, or "no observer" / "no events" states inline
                     observableEventsList()
-                        .frame(height: geometry.size.height * 0.5)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: geometry.size.height * 0.5, alignment: .top)
 
                     Divider()
 
                     // Bottom pane (50%) — selected event detail
                     observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
-                        .frame(height: geometry.size.height * 0.5)
+                        .frame(height: geometry.size.height * 0.5, alignment: .top)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -650,6 +651,7 @@ extension MainStudioView {
         .onChange(of: viewModel.selectedEventId) { _, _ in refreshObserveDetailData() }
         .onChange(of: viewModel.eventMode) { _, _ in refreshObserveDetailData() }
         #if os(iOS)
+            .navigationTitle("Observer Events")
             .toolbar {
                 if horizontalSizeClass == .compact {
                     sidebarToggleButton()
@@ -779,78 +781,12 @@ extension MainStudioView {
                     description: Text("Activate an observer to see observable events.")
                 )
             } else {
-                observableEventsTable()
-                    .navigationTitle("Observer Events")
+                ObserverEventsTableView(
+                    events: pagedObservableEvents,
+                    selectedEventId: $viewModel.selectedEventId
+                )
             }
         }
-    }
-
-    @ViewBuilder
-    private func observableEventsTable() -> some View {
-        let columnDefs: [(header: String, width: CGFloat)] = [
-            ("Time", 180), ("Count", 70), ("Inserted", 80),
-            ("Updated", 80), ("Deleted", 70), ("Moves", 70)
-        ]
-        #if os(macOS)
-        let evenBackground = Color(NSColor.textBackgroundColor)
-        let oddBackground = Color(NSColor.controlBackgroundColor).opacity(0.3)
-        let headerBackground = Color(NSColor.windowBackgroundColor)
-        #else
-        let evenBackground = Color(UIColor.systemBackground)
-        let oddBackground = Color(UIColor.secondarySystemBackground).opacity(0.3)
-        let headerBackground = Color(UIColor.systemBackground)
-        #endif
-
-        ScrollView([.horizontal, .vertical]) {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    ForEach(Array(pagedObservableEvents.enumerated()), id: \.element.id) { index, event in
-                        let isSelected = viewModel.selectedEventId == event.id
-                        let values = [
-                            event.eventTime,
-                            "\(event.data.count)",
-                            "\(event.insertIndexes.count)",
-                            "\(event.updatedIndexes.count)",
-                            "\(event.deletedIndexes.count)",
-                            "\(event.movedIndexes.count)"
-                        ]
-                        HStack(spacing: 0) {
-                            ForEach(columnDefs.indices, id: \.self) { colIdx in
-                                if colIdx > 0 { Divider() }
-                                Text(values[colIdx])
-                                    .font(.system(.body, design: .monospaced))
-                                    .lineLimit(1)
-                                    .frame(width: columnDefs[colIdx].width, alignment: .leading)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 8)
-                            }
-                        }
-                        .background(
-                            isSelected
-                                ? Color.accentColor.opacity(0.2)
-                                : (index % 2 == 0 ? evenBackground : oddBackground)
-                        )
-                        .onTapGesture {
-                            viewModel.selectedEventId = isSelected ? nil : event.id
-                        }
-                    }
-                } header: {
-                    HStack(spacing: 0) {
-                        ForEach(columnDefs.indices, id: \.self) { colIdx in
-                            if colIdx > 0 { Divider() }
-                            Text(columnDefs[colIdx].header)
-                                .font(.system(.headline, design: .monospaced))
-                                .frame(width: columnDefs[colIdx].width, alignment: .leading)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 8)
-                                .background(headerBackground)
-                        }
-                    }
-                    .background(headerBackground)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func filteredObserveEventData(_ event: DittoObserveEvent) -> [String] {

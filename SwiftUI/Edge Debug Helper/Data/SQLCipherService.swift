@@ -545,27 +545,23 @@ actor SQLCipherService {
         let databaseId: String
         let name: String
         let query: String
-        let args: String?
     }
 
     func insertSubscription(_ subscription: SubscriptionRow) async throws {
-        let sql = "INSERT INTO subscriptions (_id, databaseId, name, query, args) VALUES (?, ?, ?, ?, ?)"
-        try await execute(sql, subscription._id, subscription.databaseId, subscription.name, subscription.query, subscription.args)
+        let sql = "INSERT INTO subscriptions (_id, databaseId, name, query) VALUES (?, ?, ?, ?)"
+        try await execute(sql, subscription._id, subscription.databaseId, subscription.name, subscription.query)
     }
 
     func getSubscriptions(databaseId: String) async throws -> [SubscriptionRow] {
-        let sql = "SELECT _id, databaseId, name, query, args FROM subscriptions WHERE databaseId = ?"
+        let sql = "SELECT _id, databaseId, name, query FROM subscriptions WHERE databaseId = ?"
 
         var results: [SubscriptionRow] = []
         try await query(sql, databaseId) { statement in
-            let args = sqlite3_column_type(statement, 4) == SQLITE_NULL ? nil : String(cString: sqlite3_column_text(statement, 4))
-
             results.append(SubscriptionRow(
                 _id: String(cString: sqlite3_column_text(statement, 0)),
                 databaseId: String(cString: sqlite3_column_text(statement, 1)),
                 name: String(cString: sqlite3_column_text(statement, 2)),
-                query: String(cString: sqlite3_column_text(statement, 3)),
-                args: args
+                query: String(cString: sqlite3_column_text(statement, 3))
             ))
         }
 
@@ -669,32 +665,29 @@ actor SQLCipherService {
         let databaseId: String
         let name: String
         let query: String
-        let args: String?
         let isActive: Bool
         let lastUpdated: String?
     }
 
     func insertObservable(_ observable: ObservableRow) async throws {
-        let sql = "INSERT INTO observables (_id, databaseId, name, query, args, isActive, lastUpdated) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        let sql = "INSERT INTO observables (_id, databaseId, name, query, isActive, lastUpdated) VALUES (?, ?, ?, ?, ?, ? )"
         try await execute(
             sql,
             observable._id,
             observable.databaseId,
             observable.name,
             observable.query,
-            observable.args,
             observable.isActive ? 1 : 0,
             observable.lastUpdated
         )
     }
 
     func updateObservable(_ observable: ObservableRow) async throws {
-        let sql = "UPDATE observables SET name = ?, query = ?, args = ?, isActive = ?, lastUpdated = ? WHERE _id = ?"
+        let sql = "UPDATE observables SET name = ?, query = ?, isActive = ?, lastUpdated = ? WHERE _id = ?"
         try await execute(
             sql,
             observable.name,
             observable.query,
-            observable.args,
             observable.isActive ? 1 : 0,
             observable.lastUpdated,
             observable._id
@@ -702,11 +695,10 @@ actor SQLCipherService {
     }
 
     func getObservables(databaseId: String) async throws -> [ObservableRow] {
-        let sql = "SELECT _id, databaseId, name, query, args, isActive, lastUpdated FROM observables WHERE databaseId = ?"
+        let sql = "SELECT _id, databaseId, name, query, isActive, lastUpdated FROM observables WHERE databaseId = ?"
 
         var results: [ObservableRow] = []
         try await query(sql, databaseId) { statement in
-            let args = sqlite3_column_type(statement, 4) == SQLITE_NULL ? nil : String(cString: sqlite3_column_text(statement, 4))
             let lastUpdated = sqlite3_column_type(statement, 6) == SQLITE_NULL ? nil : String(cString: sqlite3_column_text(statement, 6))
 
             results.append(ObservableRow(
@@ -714,7 +706,6 @@ actor SQLCipherService {
                 databaseId: String(cString: sqlite3_column_text(statement, 1)),
                 name: String(cString: sqlite3_column_text(statement, 2)),
                 query: String(cString: sqlite3_column_text(statement, 3)),
-                args: args,
                 isActive: sqlite3_column_int(statement, 5) != 0,
                 lastUpdated: lastUpdated
             ))
