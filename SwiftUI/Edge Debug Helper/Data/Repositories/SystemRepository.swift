@@ -459,6 +459,96 @@ actor SystemRepository {
         onConnectionsUpdate = callback
     }
 
+    /// One-time peer snapshot for MCP tools.
+    ///
+    /// Reads the presence graph and queries `system:data_sync_info` for commit IDs without
+    /// registering a persistent observer. The two reads run sequentially on a utility queue
+    /// so neither blocks the main thread.
+    ///
+    /// - Returns: An array of serializable peer dictionaries, or an empty array if no peers
+    ///   are connected or no database is active. Commit IDs are omitted gracefully if the
+    ///   `system:data_sync_info` query fails (e.g. sync is stopped).
+    func fetchPeersOnce() async -> [[String: Any]] {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            return []
+        }
+
+        // Read presence peers on a utility queue (synchronous property access)
+        let remotePeers = await Task.detached(priority: .utility) {
+            ditto.presence.graph.remotePeers
+        }.value
+
+        guard !remotePeers.isEmpty else { return [] }
+
+        // Query sync metrics for commit IDs — degrades gracefully if unavailable
+        var syncMetricsLookup: [String: [String: Any]] = [:]
+        do {
+            let results = try await ditto.store.execute(query: "SELECT * FROM system:data_sync_info")
+            for item in results.items {
+                let dict = item.value.compactMapValues { $0 }
+                if let peerId = dict["_id"] as? String {
+                    syncMetricsLookup[peerId] = dict
+                }
+                item.dematerialize()
+            }
+        } catch {
+            Log.warning("fetchPeersOnce: system:data_sync_info unavailable, commit IDs will be omitted")
+        }
+
+        // Enrich each peer using the same private enrichment logic as the observer
+        var peerDicts: [[String: Any]] = []
+        for peer in remotePeers {
+            let enrichment = extractPeerEnrichment(from: peer)
+            let peerId = peer.peerKeyString
+            let syncMetrics = syncMetricsLookup[peerId]
+
+            // Map PeerOS enum to a display string
+            let osType: String = {
+                switch enrichment.osInfo {
+                case .iOS: return "iOS"
+                case .android: return "Android"
+                case .macOS: return "macOS"
+                case .linux: return "Linux"
+                case .windows: return "Windows"
+                case let .unknown(name): return name ?? "Unknown"
+                case nil: return "Unknown"
+                }
+            }()
+
+            // Map each ConnectionInfo to a serializable dict
+            let connectionsList: [[String: Any]] = (enrichment.connections ?? []).map { conn in
+                let typeName: String = switch conn.type {
+                case .bluetooth: "Bluetooth LE"
+                case .accessPoint: "Access Point"
+                case .p2pWiFi: "P2P WiFi"
+                case .webSocket: "WebSocket"
+                case let .unknown(t): t
+                }
+                var entry: [String: Any] = ["type": typeName]
+                if let dist = conn.approximateDistanceInMeters {
+                    entry["distanceMeters"] = (dist * 10).rounded() / 10
+                }
+                return entry
+            }
+
+            let peerDict: [String: Any] = [
+                "peerKey": peerId,
+                "deviceName": enrichment.deviceName ?? "Unknown",
+                "osType": osType,
+                "sdkVersion": enrichment.dittoSDKVersion ?? "",
+                "connectionStatus": "Connected",
+                "addressInfo": enrichment.addressInfo?.description ?? "",
+                "connections": connectionsList,
+                "identityMetadata": enrichment.identityMetadata ?? "",
+                "peerMetadata": enrichment.peerMetadata ?? "",
+                "syncedUpToCommitId": syncMetrics?["synced_up_to_local_commit_id"] as? String ?? ""
+            ]
+            peerDicts.append(peerDict)
+        }
+
+        return peerDicts
+    }
+
     /// Stops only the sync-status observer (called when leaving the Peers List tab).
     ///
     /// Preserves the connections-presence observer (which drives the status bar) and all

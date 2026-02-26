@@ -68,7 +68,7 @@ curl -X POST http://localhost:65269/mcp \
 
 | Tool | Description |
 |------|-------------|
-| `execute_dql` | Execute a DQL query against the active database |
+| `execute_dql` | Execute a DQL query against the active database (local or HTTP) |
 | `list_databases` | List all configured databases (name, ID, mode) |
 | `get_active_database` | Get details about the currently selected database |
 | `list_collections` | List collections with document counts and indexes |
@@ -77,13 +77,27 @@ curl -X POST http://localhost:65269/mcp \
 | `get_query_metrics` | Get recent query execution metrics and EXPLAIN output |
 | `get_sync_status` | Get peer count and transport configuration |
 | `configure_transport` | Enable/disable Bluetooth, LAN, AWDL, or Cloud Sync |
+| `insert_documents_from_file` | Insert documents from a local JSON file |
+| `set_sync` | Start or stop sync for the active database |
+| `get_peers` | Get a one-time snapshot of all connected peers with full details |
 
 ### Tool Details
 
 #### `execute_dql`
 ```
-Arguments: { "query": "SELECT * FROM myCollection LIMIT 10" }
-Returns: JSON array of result documents, or mutation IDs for writes
+Arguments:
+  query     (required) DQL statement to execute
+  transport (optional) "local" (default) or "http"
+
+Returns:
+  "local":  JSON array of result documents, or mutation IDs for writes
+  "http":   Same format, routed through the HTTP API endpoint
+
+Notes:
+  - "local" executes against the embedded Ditto database — no network required
+  - "http" requires httpApiUrl and httpApiKey to be configured on the database;
+    returns a structured error if they are missing (see HTTP Transport section below)
+  - Both paths support SELECT, INSERT, UPDATE, EVICT, and all DQL statements
 ```
 
 #### `list_databases`
@@ -139,6 +153,98 @@ Returns: Applied configuration summary
 Note: Omitted parameters are unchanged. Stops and restarts sync automatically.
 ```
 
+#### `insert_documents_from_file`
+```
+Arguments:
+  file_path  (required) Absolute path to a JSON file (must be in ~/Downloads)
+  collection (required) Target collection name
+  mode       (optional) "insert" (default, upserts) or "insert_initial" (skips existing)
+
+Returns: { inserted, failed, mode, collection, errors }
+Note: File must contain a JSON array; each object must have an _id field.
+```
+
+#### `set_sync`
+```
+Arguments: { "enabled": bool }
+Returns: { sync: "started"|"stopped", enabled: bool }
+
+Examples:
+  { "enabled": false }  →  { "sync": "stopped", "enabled": false }
+  { "enabled": true  }  →  { "sync": "started", "enabled": true  }
+
+Note: Mirrors the sync toggle button in the Edge Studio toolbar. Use to pause
+sync before bulk operations and resume it after. Does not affect transport
+configuration — use configure_transport to change which transports are active.
+```
+
+#### `get_peers`
+```
+Arguments: (none)
+Returns:
+  {
+    "count": 2,
+    "peers": [
+      {
+        "peerKey":            "abc123...",
+        "deviceName":         "iPhone 15 Pro",
+        "osType":             "iOS",
+        "sdkVersion":         "4.9.1",
+        "connectionStatus":   "Connected",
+        "addressInfo":        "192.168.1.42",
+        "connections": [
+          { "type": "Bluetooth LE", "distanceMeters": 1.2 },
+          { "type": "P2P WiFi" }
+        ],
+        "identityMetadata":   "{ ... }",
+        "peerMetadata":       "{ ... }",
+        "syncedUpToCommitId": "commit-xyz"
+      }
+    ]
+  }
+
+Notes:
+  - Returns { "peers": [], "count": 0 } if no peers are currently connected
+  - This is a one-time read from the presence graph; it does not register an
+    observer and will not reflect subsequent connection changes
+  - distanceMeters is only present for Bluetooth LE connections
+  - syncedUpToCommitId may be empty if sync info is unavailable
+  - identityMetadata and peerMetadata are JSON strings (empty string if absent)
+```
+
+---
+
+## Query Transport Options
+
+`execute_dql` supports two execution paths selectable via the `transport` parameter.
+
+### Local (default)
+
+Queries run directly against the embedded Ditto database process on this machine. No network connectivity required. This is the path used by the Edge Studio query editor and is tested and stable.
+
+```
+{ "query": "SELECT * FROM orders LIMIT 5" }
+{ "query": "SELECT * FROM orders LIMIT 5", "transport": "local" }
+```
+
+### HTTP
+
+Queries are sent to the Ditto HTTP API endpoint configured on the active database. This targets the cloud/server-side database rather than the local replica.
+
+```
+{ "query": "SELECT * FROM orders LIMIT 5", "transport": "http" }
+```
+
+**Requirements:** The active database must have both `httpApiUrl` and `httpApiKey` configured. If either is missing, the tool returns a structured error instead of throwing:
+
+```json
+{
+  "error": "http_not_configured",
+  "message": "You asked to run this via HTTP, but this database hasn't been introduced to the cloud yet. Add httpApiUrl and httpApiKey to this database's configuration — then it'll know where to show up.",
+  "hint": "Open database configuration → set httpApiUrl and httpApiKey"
+}
+```
+
 ---
 
 ## Example Workflows
@@ -173,6 +279,30 @@ Note: Omitted parameters are unchanged. Stops and restarts sync automatically.
 → Claude calls list_collections, then execute_dql for each collection
 ```
 
+### Pause sync for a bulk import
+```
+"Stop sync, insert all documents from ~/Downloads/seed.json into the orders collection, then restart sync"
+→ Claude calls set_sync(enabled=false), insert_documents_from_file, set_sync(enabled=true)
+```
+
+### Compare local vs cloud data
+```
+"Run SELECT * FROM orders WHERE status = 'pending' against both local and the HTTP API and compare the results"
+→ Claude calls execute_dql twice — once with transport="local", once with transport="http"
+```
+
+### Inspect connected peers
+```
+"Show me all currently connected peers and what transport they're using"
+→ Claude calls get_peers, summarizes the connections array for each peer
+```
+
+### Check peer SDK versions before a migration
+```
+"Are any connected peers running an older SDK version than 4.9?"
+→ Claude calls get_peers, filters by sdkVersion field
+```
+
 ---
 
 ## Security Considerations
@@ -181,6 +311,7 @@ Note: Omitted parameters are unchanged. Stops and restarts sync automatically.
 - No authentication by default — any process on your Mac can connect
 - All tools target the **currently selected database in the Edge Studio UI** — be mindful of what database is active
 - The `execute_dql` tool can perform writes (INSERT, UPDATE, EVICT) — use with care
+- `set_sync(enabled: false)` stops all replication for the active database until re-enabled
 
 ### Recommendations for shared machines
 - Disable the MCP server when not actively using it (Settings toggle)
@@ -202,6 +333,12 @@ Select a database in Edge Studio by clicking on it in the database list. Tools l
 ### Metrics tools return "disabled" message
 Enable metrics in Settings → General → Metrics.
 
+### execute_dql with transport="http" returns http_not_configured
+Open the database configuration in Edge Studio and set both `httpApiUrl` and `httpApiKey`. These fields are only required for HTTP transport — local queries work without them.
+
+### get_peers returns empty peers array
+No peers are currently connected to the active database. Check sync status with `get_sync_status` and ensure sync is running with `set_sync(enabled: true)`.
+
 ### Claude Code doesn't show `ditto-edge-studio` in `claude mcp list`
 - Ensure `.mcp.json` is at the project root (it is, in this repo)
 - Or run: `claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp`
@@ -218,4 +355,4 @@ The MCP server implements the [MCP SSE transport](https://spec.modelcontextproto
 - **`POST /mcp`** — Direct JSON-RPC (for HTTP transport clients); response in HTTP body
 - **`GET /health`** — Simple health check returning `200 OK`
 
-No external Swift packages are required. The implementation is ~350 lines across three files in `Edge Debug Helper/Data/MCPServer/`.
+No external Swift packages are required. The implementation is ~600 lines across three files in `Edge Debug Helper/Data/MCPServer/`.

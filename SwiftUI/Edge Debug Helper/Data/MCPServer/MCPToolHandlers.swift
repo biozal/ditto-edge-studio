@@ -33,20 +33,25 @@ enum MCPError: Error, LocalizedError {
 
 // MARK: - Tool Handlers
 
-/// Defines and executes all 9 MCP tools.
+/// Defines and executes all 13 MCP tools.
 enum MCPToolHandlers {
     // MARK: Tool Manifest
 
     static let allTools: [MCPTool] = [
         MCPTool(
             name: "execute_dql",
-            description: "Execute a DQL query against the currently active Ditto database in Edge Studio. Supports SELECT, INSERT, UPDATE, EVICT, and other DQL statements.",
+            description: "Execute a DQL query against the currently active Ditto database in Edge Studio. Supports SELECT, INSERT, UPDATE, EVICT, and other DQL statements. By default queries run against the local embedded database. Set transport to 'http' to route through the HTTP API (requires httpApiUrl and httpApiKey configured on the database).",
             inputSchema: [
                 "type": "object",
                 "properties": [
                     "query": [
                         "type": "string",
                         "description": "The DQL query to execute (e.g. 'SELECT * FROM myCollection LIMIT 10')"
+                    ],
+                    "transport": [
+                        "type": "string",
+                        "enum": ["local", "http"],
+                        "description": "Execution transport. 'local' (default) uses the embedded Ditto database. 'http' routes through the HTTP API — requires httpApiUrl and httpApiKey to be set on the database configuration."
                     ]
                 ],
                 "required": ["query"]
@@ -171,6 +176,28 @@ enum MCPToolHandlers {
                 ],
                 "required": ["file_path", "collection"]
             ]
+        ),
+        MCPTool(
+            name: "set_sync",
+            description: "Start or stop sync for the currently selected database. Use this to pause sync before bulk operations or resume it after transport configuration changes.",
+            inputSchema: [
+                "type": "object",
+                "properties": [
+                    "enabled": [
+                        "type": "boolean",
+                        "description": "true to start sync, false to stop sync"
+                    ]
+                ],
+                "required": ["enabled"]
+            ]
+        ),
+        MCPTool(
+            name: "get_peers",
+            description: "Get a one-time snapshot of all currently connected remote peers and their full details — device name, OS, SDK version, connection types, distances, and metadata. Returns an empty peers array if no peers are connected.",
+            inputSchema: [
+                "type": "object",
+                "properties": [String: Any]()
+            ]
         )
     ]
 
@@ -188,6 +215,8 @@ enum MCPToolHandlers {
         case "get_sync_status": return try await getSyncStatus()
         case "configure_transport": return try await configureTransport(arguments: arguments)
         case "insert_documents_from_file": return try await insertDocumentsFromFile(arguments: arguments)
+        case "set_sync": return try await setSync(arguments: arguments)
+        case "get_peers": return try await getPeers()
         default:
             throw MCPError.unknownTool(toolName)
         }
@@ -200,13 +229,42 @@ enum MCPToolHandlers {
             throw MCPError.missingArgument("query")
         }
 
-        let results = try await QueryService.shared.executeSelectedAppQuery(query: query)
+        let transport = arguments["transport"] as? String ?? "local"
 
+        if transport == "http" {
+            // HTTP path — validate config before attempting the call
+            guard let config = await DittoManager.shared.dittoSelectedAppConfig else {
+                throw MCPError.noActiveDatabase
+            }
+            let httpUrl = config.httpApiUrl
+            let httpKey = config.httpApiKey
+            guard !httpUrl.isEmpty, !httpKey.isEmpty else {
+                let errorResponse: [String: Any] = [
+                    "error": "http_not_configured",
+                    "message": "You asked to run this via HTTP, but this database hasn't been introduced to the cloud yet. Add httpApiUrl and httpApiKey to this database's configuration — then it'll know where to show up.",
+                    "hint": "Open database configuration → set httpApiUrl and httpApiKey"
+                ]
+                guard let data = try? JSONSerialization.data(withJSONObject: errorResponse, options: .prettyPrinted),
+                      let json = String(data: data, encoding: .utf8) else
+                {
+                    return "{\"error\": \"http_not_configured\"}"
+                }
+                return json
+            }
+            let results = try await QueryService.shared.executeSelectedAppQueryHttp(query: query)
+            return formatQueryResults(results)
+        } else {
+            // EXISTING local path — unchanged
+            let results = try await QueryService.shared.executeSelectedAppQuery(query: query)
+            return formatQueryResults(results)
+        }
+    }
+
+    /// Formats DQL result strings into a JSON array response.
+    private static func formatQueryResults(_ results: [String]) -> String {
         if results == ["No results found"] || results == ["No Ditto app selected"] {
             return results.joined(separator: "\n")
         }
-
-        // Format as JSON array for structured output
         guard let data = try? JSONSerialization.data(withJSONObject: results, options: [.prettyPrinted, .withoutEscapingSlashes]),
               let json = String(data: data, encoding: .utf8) else
         {
@@ -487,6 +545,59 @@ enum MCPToolHandlers {
               let json = String(data: data, encoding: .utf8) else
         {
             return "Inserted \(result.successCount) documents into '\(collection)', \(result.failureCount) failed."
+        }
+        return json
+    }
+
+    // MARK: set_sync
+
+    private static func setSync(arguments: [String: Any]) async throws -> String {
+        guard let enabled = arguments["enabled"] as? Bool else {
+            throw MCPError.missingArgument("enabled")
+        }
+        guard await DittoManager.shared.dittoSelectedApp != nil else {
+            throw MCPError.noActiveDatabase
+        }
+
+        if enabled {
+            try await DittoManager.shared.selectedDatabaseStartSync()
+            let result: [String: Any] = ["sync": "started", "enabled": true]
+            guard let data = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
+                  let json = String(data: data, encoding: .utf8) else
+            {
+                return "{\"sync\": \"started\", \"enabled\": true}"
+            }
+            return json
+        } else {
+            await DittoManager.shared.selectedDatabaseStopSync()
+            let result: [String: Any] = ["sync": "stopped", "enabled": false]
+            guard let data = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
+                  let json = String(data: data, encoding: .utf8) else
+            {
+                return "{\"sync\": \"stopped\", \"enabled\": false}"
+            }
+            return json
+        }
+    }
+
+    // MARK: get_peers
+
+    private static func getPeers() async throws -> String {
+        guard await DittoManager.shared.dittoSelectedApp != nil else {
+            throw MCPError.noActiveDatabase
+        }
+
+        let peers = await SystemRepository.shared.fetchPeersOnce()
+
+        let output: [String: Any] = [
+            "peers": peers,
+            "count": peers.count
+        ]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: output, options: .prettyPrinted),
+              let json = String(data: data, encoding: .utf8) else
+        {
+            return "{\"peers\": [], \"count\": 0}"
         }
         return json
     }
