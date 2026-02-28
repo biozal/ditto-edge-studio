@@ -24,7 +24,9 @@ Edge Debug Helper is a comprehensive SwiftUI application for macOS and iPadOS, p
 
 ## Ditto SDK Version
 
-**CRITICAL: This project is migrating to Ditto SDK v5.**
+**This project uses Ditto SDK 5.0 (currently 5.0.0-preview.5).**
+
+API Reference: https://software.ditto.live/cocoa/DittoSwift/5.0.0-preview.5/api-reference/documentation/dittoswift/
 
 ### Terminology Changes (v5)
 

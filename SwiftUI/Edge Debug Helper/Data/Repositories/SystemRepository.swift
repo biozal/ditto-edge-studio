@@ -46,7 +46,7 @@ actor SystemRepository {
     private func extractPeerEnrichment(from peer: DittoPeer) -> PeerEnrichmentData {
         // Convert DittoPeerOS to custom PeerOS
         let osInfo: PeerOS? = {
-            guard let dittoOS = peer.osV2 else { return nil }
+            guard let dittoOS = peer.os else { return nil }
 
             // Map DittoPeerOS to custom PeerOS enum
             let osString = "\(dittoOS)"

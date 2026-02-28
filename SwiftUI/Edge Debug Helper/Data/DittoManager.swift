@@ -24,28 +24,37 @@ actor DittoManager {
     }
 
     /// Creates the appropriate Ditto DatabaseConfig based on selected Database configuration
-    private func createDatabaseConfig(from appConfig: DittoConfigForDatabase) -> DittoIdentity {
+    private func createDatabaseConfig(
+        from appConfig: DittoConfigForDatabase,
+        withDirectory persistenceDirectory: URL
+    ) throws -> DittoConfig {
         switch appConfig.mode {
         case .smallPeersOnly:
-            // Use shared key identity if secret key is provided, otherwise offline playground
             if !appConfig.secretKey.isEmpty {
-                return .sharedKey(appID: appConfig.databaseId, sharedKey: appConfig.secretKey)
+                return DittoConfig(
+                    databaseID: appConfig.databaseId,
+                    connect: .smallPeersOnly(privateKey: appConfig.secretKey)
+                )
             } else {
-                return .offlinePlayground(appID: appConfig.databaseId)
+                return DittoConfig(
+                    databaseID: appConfig.databaseId,
+                    connect: .smallPeersOnly()
+                )
             }
-
         case .server:
-            // Use online playground identity (token is the playground token)
-            return .onlinePlayground(
-                appID: appConfig.databaseId,
-                token: appConfig.token,
-                enableDittoCloudSync: false,
-                customAuthURL: URL(string: appConfig.authUrl)
+            guard !appConfig.authUrl.isEmpty, let url = URL(string: appConfig.authUrl) else {
+                throw AppError.error(message: "Invalid configuration - malformed authUrl")
+            }
+            return DittoConfig(
+                databaseID: appConfig.databaseId,
+                connect: .server(url: url),
+                persistenceDirectory: persistenceDirectory
             )
         }
     }
 
-    func hydrateDittoSelectedDatabase(_ databaseConfig: DittoConfigForDatabase) async throws
+    func hydrateDittoSelectedDatabase(_ databaseConfig: DittoConfigForDatabase)
+        async throws
         -> Bool
     {
         var isSuccess = false
@@ -57,8 +66,10 @@ actor DittoManager {
             // unique directory with /database subdirectory
 
             // Test isolation: Use separate directory for UI tests
-            let localDirectoryPath = Self.localDirectoryPath(for: databaseConfig)
-                .appendingPathComponent("database")
+            let localDirectoryPath = Self.localDirectoryPath(
+                for: databaseConfig
+            )
+            .appendingPathComponent("database")
 
             // Ensure directory exists
             if !FileManager.default.fileExists(atPath: localDirectoryPath.path) {
@@ -71,37 +82,48 @@ actor DittoManager {
             Log.info("Ditto database path: \(localDirectoryPath.path)")
 
             // Validate inputs before trying to create Ditto
-            guard !databaseConfig.databaseId.isEmpty, !databaseConfig.token.isEmpty else {
-                throw AppError.error(message: "Invalid app configuration - missing databaseId or token")
+            guard !databaseConfig.databaseId.isEmpty,
+                  !databaseConfig.token.isEmpty else
+            {
+                throw AppError.error(
+                    message:
+                    "Invalid app configuration - missing databaseId or token"
+                )
             }
 
             // Apply stored log level BEFORE Ditto.init() — required by SDK
-            DittoLogger.minimumLogLevel = Self.dittoLogLevel(from: databaseConfig.logLevel)
+            DittoLogger.minimumLogLevel = Self.dittoLogLevel(
+                from: databaseConfig.logLevel
+            )
             DittoLogger.isEnabled = true
             Log.info("DittoLogger level set to: \(databaseConfig.logLevel)")
 
             // Store the persistence directory for log capture
             activePersistenceDirectory = localDirectoryPath
 
-            // https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
-            // Use Objective-C exception handler to catch NSException from Ditto initialization
             var dittoInstance: Ditto?
-
-            let error = ExceptionCatcher.perform {
-                let identity = self.createDatabaseConfig(from: databaseConfig)
-                dittoInstance = Ditto(
-                    identity: identity,
-                    persistenceDirectory: localDirectoryPath
-                )
-            }
-
-            if let error {
-                let errorMessage = error.localizedDescription
-                throw AppError.error(message: "Failed to initialize Ditto: \(errorMessage)")
-            }
+            let config = try createDatabaseConfig(
+                from: databaseConfig,
+                withDirectory: localDirectoryPath
+            )
+            dittoInstance = try await Ditto.open(config: config)
 
             guard let ditto = dittoInstance else {
                 throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            ditto.auth?.expirationHandler = { dittoAuth, secondsRemaining in
+                dittoAuth.auth?.login(
+                    token: databaseConfig.token,
+                    provider: .development
+                ) { _, error in
+                    if let error {
+                        Task {
+                            await self.appState?.setError(error)
+                        }
+                    } else {
+                        Log.info("Authentication successful \(secondsRemaining)")
+                    }
+                }
             }
 
             // For small peers only mode, set the offline license token (using token field)
@@ -114,20 +136,18 @@ actor DittoManager {
 
             ditto.updateTransportConfig(block: { config in
                 // Configure peer-to-peer transports from saved settings
-                config.peerToPeer.bluetoothLE.isEnabled = databaseConfig.isBluetoothLeEnabled
+                config.peerToPeer.bluetoothLE.isEnabled =
+                    databaseConfig.isBluetoothLeEnabled
                 config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled
                 config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
 
                 // Configure cloud sync from saved settings
                 if !databaseConfig.websocketUrl.isEmpty {
-                    config.connect.webSocketURLs.insert(databaseConfig.websocketUrl)
+                    config.connect.webSocketURLs.insert(
+                        databaseConfig.websocketUrl
+                    )
                 }
             })
-
-            try ditto.disableSyncWithV3()
-
-            // disable strict mode - allows for DQL with counters and objects as CRDT maps, must be called before startSync
-            try await ditto.store.execute(query: "ALTER SYSTEM SET DQL_STRICT_MODE = false")
 
             dittoSelectedAppConfig = databaseConfig
 
@@ -174,7 +194,9 @@ actor DittoManager {
     }
 
     /// Determines if offline license token should be set for the given app configuration
-    private func shouldSetOfflineLicenseToken(for appConfig: DittoConfigForDatabase) -> Bool {
+    private func shouldSetOfflineLicenseToken(
+        for appConfig: DittoConfigForDatabase
+    ) -> Bool {
         appConfig.mode == .smallPeersOnly && !appConfig.token.isEmpty
     }
 
@@ -188,11 +210,21 @@ actor DittoManager {
 
     /// Returns the root directory for a database configuration's local storage.
     /// The Ditto data files live in a `database/` subdirectory within this path.
-    nonisolated static func localDirectoryPath(for databaseConfig: DittoConfigForDatabase) -> URL {
-        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
-        let baseComponent = isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
-        let dbname = databaseConfig.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    nonisolated static func localDirectoryPath(
+        for databaseConfig: DittoConfigForDatabase
+    ) -> URL {
+        let isUITesting = ProcessInfo.processInfo.arguments.contains(
+            "UI-TESTING"
+        )
+        let baseComponent =
+            isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
+        let dbname = databaseConfig.name.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).lowercased()
+        return FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
             .appendingPathComponent(baseComponent)
             .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
     }
@@ -225,7 +257,11 @@ extension DittoManager {
 
         // Create new session with delegate for untrusted certificates
         let delegate = AllowUntrustedCertsDelegate()
-        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        let session = URLSession(
+            configuration: .default,
+            delegate: delegate,
+            delegateQueue: nil
+        )
         Self.cachedUntrustedSession = session
         return session
     }
@@ -273,7 +309,9 @@ extension DittoManager {
 
             // Configure cloud sync via WebSocket
             if isCloudSyncEnabled {
-                if !config.connect.webSocketURLs.contains(appConfig.websocketUrl) {
+                if !config.connect.webSocketURLs.contains(
+                    appConfig.websocketUrl
+                ) {
                     config.connect.webSocketURLs.insert(appConfig.websocketUrl)
                 }
             } else {
@@ -288,7 +326,10 @@ extension DittoManager {
 extension DittoManager {
     /// Changes the SDK log level for a database configuration and persists it.
     /// If the database is currently active, applies the change to DittoLogger immediately.
-    func changeDittoLogLevel(_ levelStr: String, for config: DittoConfigForDatabase) async throws {
+    func changeDittoLogLevel(
+        _ levelStr: String,
+        for config: DittoConfigForDatabase
+    ) async throws {
         config.logLevel = levelStr
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
         if dittoSelectedAppConfig?._id == config._id {

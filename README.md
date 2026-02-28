@@ -25,6 +25,11 @@ Ditto Edge Studio is a set of tools and an application that allows you to create
 - [Swiftformat](https://github.com/swiftlang/swift-format) Installed
 - [Periphery](https://github.com/peripheryapp/periphery) Installed
 
+### Ditto SDK
+This project uses **Ditto SDK 5.0** (currently 5.0.0-preview.5).
+
+API Reference: https://software.ditto.live/cocoa/DittoSwift/5.0.0-preview.5/api-reference/documentation/dittoswift/
+
 Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it will build and run on iOS, it has not been tested on iOS and there are known issues with the SwiftUI app on iOS.
 
 

@@ -37,10 +37,7 @@ struct ResultTableViewer: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .task(id: pagedItems.count) {
-            await loadTableData()
-        }
-        .task(id: currentPage) {
+        .task(id: pagedItems) {
             await loadTableData()
         }
     }

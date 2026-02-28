@@ -22,6 +22,12 @@ protocol ConnectionProtocol {
 
 /// Extend DittoPeer to conform to PeerProtocol
 extension DittoPeer: PeerProtocol {
+    var peerKeyString: String {
+        peerKey
+    } // v5: renamed from peerKeyString
+    var isConnectedToDittoCloud: Bool {
+        isConnectedToDittoServer
+    } // v5: renamed from isConnectedToDittoCloud
     /// Bridge connections array to protocol type
     var connectionProtocols: [any ConnectionProtocol] {
         connections.map { $0 as ConnectionProtocol }
@@ -30,7 +36,15 @@ extension DittoPeer: PeerProtocol {
 
 /// Extend DittoConnection to conform to ConnectionProtocol
 extension DittoConnection: ConnectionProtocol {
-    // Already has required properties: type, id
+    var peerKeyString1: String {
+        peer1
+    } // v5: renamed from peerKeyString1
+    var peerKeyString2: String {
+        peer2
+    } // v5: renamed from peerKeyString2
+    var approximateDistanceInMeters: Double? {
+        nil
+    } // v5: removed; always nil
 }
 
 // MARK: - Mock Implementations for Testing
