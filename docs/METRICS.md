@@ -1,6 +1,6 @@
 # Metrics Feature
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-27
 
 This document describes the Metrics feature in Edge Studio: what is measured, how data is collected, how the two views differ, and how the optional Prometheus export works.
 
@@ -12,6 +12,9 @@ This document describes the Metrics feature in Edge Studio: what is measured, ho
 2. [What Is and Is Not Counted](#what-is-and-is-not-counted)
 3. [Data Collection Architecture](#data-collection-architecture)
 4. [App Metrics View](#app-metrics-view)
+   - [Process Section](#process-section-macos-only)
+   - [Queries Section](#queries-section)
+   - [Storage Section](#storage-section)
 5. [Query Metrics View](#query-metrics-view)
 6. [Prometheus Export](#prometheus-export)
 7. [Data Lifecycle](#data-lifecycle)
@@ -130,6 +133,98 @@ The **Avg Latency** card also renders a sparkline chart from the raw latency sam
 ### Help Popovers
 
 Every `MetricCard` optionally accepts `helpText` and `helpURL` parameters. When provided, a faint `?` button appears in the card header. Tapping it opens a popover with a plain-language explanation of the metric and, for memory and CPU cards, a link to the relevant Apple developer documentation.
+
+### Storage Section
+
+Displays disk usage for the currently selected Ditto database, broken down by directory category and by individual collection. All values are read from the local filesystem via `ditto.diskUsage.exec` — no network query, no sync delay.
+
+**Data source:** `ditto.diskUsage` (from the `DittoDiskUsage` module). Returns a `DiskUsageItem` tree rooted at the Ditto data directory (e.g. `~/Library/Application Support/DittoEdgeStudio/`). The tree is flattened into `(path, sizeInBytes)` tuples and categorized by `StorageRepository.categorizeFiles(_:)`.
+
+#### Directory Categories
+
+The categorization is based on the Ditto SDK's actual on-disk directory layout. **WAL/SHM files are checked first** to prevent double-counting — e.g. `ditto_store/db.sql-wal` is a WAL file, not a store file.
+
+| Card | Matched paths | What it contains |
+|------|--------------|-----------------|
+| **Store** | path contains `/ditto_store/` | SQLite document store (`db.sql` and its files) |
+| **Replication** | path contains `/ditto_replication/` | Per-peer sync state: one SQLite DB per known remote peer under `ditto_replication/{localKey}/{peerKey}/db.sql` |
+| **Attachments** | path contains `/ditto_attachments/` | Binary attachment blobs stored in `ditto_attachments/db.sql` |
+| **Auth** | path contains `/ditto_auth` | Identity and capability token files in `ditto_auth/` and `ditto_auth_tmp/` (matched with substring, covers both directories) |
+| **SQLite WAL/SHM** | suffix `-wal` or `-shm` | SQLite Write-Ahead Log and Shared Memory journal files for any SQLite database |
+| **Logging** | path contains `/ditto_logs/` **or** suffix `.log` **or** suffix `.log.gz` | Ditto log files including gzip-compressed archives |
+| **Other** | anything not matched above | `ditto_metrics/`, `ditto_system_info/`, lock files, etc. |
+
+> **Log detection note:** The log condition uses `/ditto_logs/` (not `/logs/`) to match Ditto's actual directory name. Both `.log` and `.log.gz` suffixes are checked so compressed archives are included.
+
+#### `DiskBreakdown` struct
+
+`StorageRepository.categorizeFiles(_:)` returns a `DiskBreakdown` value:
+
+```swift
+struct DiskBreakdown: Sendable {
+    var storeBytes: Int = 0
+    var replicationBytes: Int = 0
+    var attachmentsBytes: Int = 0
+    var authBytes: Int = 0
+    var walShmBytes: Int = 0
+    var logsBytes: Int = 0
+    var otherBytes: Int = 0
+}
+```
+
+`StorageSnapshot` copies these seven values plus adds a `collectionBreakdown: [CollectionStats]` array.
+
+#### Per-Collection Breakdown
+
+After the seven fixed cards, the Storage section shows one `MetricCard` per collection, sorted largest-first.
+
+**Algorithm (`StorageRepository.computeCollectionBreakdown`):**
+
+1. Execute `SELECT * FROM system:collections` to list all user collection names.
+2. For each collection, execute `SELECT * FROM \`{name}\`` to iterate all documents.
+3. Call `doc.cborData()` on each result item and add `.count` to the collection's running total.
+4. Call `doc.dematerialize()` immediately after to release memory.
+5. Return `[CollectionStats]` sorted by `cborPayloadBytes` descending.
+
+**`CollectionStats` struct:**
+
+```swift
+struct CollectionStats: Sendable, Identifiable {
+    var id: String { name }
+    let name: String
+    let documentCount: Int
+    let cborPayloadBytes: Int
+}
+```
+
+**Why `cborData()` instead of `JSONSerialization`:**
+
+`cborData()` returns the document in Ditto's native CBOR binary format — the same encoding Ditto uses internally before writing to SQLite. JSON serialization (`JSONSerialization.data(withJSONObject: doc.value)`) inflates values by 2–4× because it produces UTF-8 text with verbose field names and no binary compression. Using CBOR gives a far more accurate estimate of the actual storage consumed per document.
+
+**What `cborData()` does and does not include:**
+
+| Included | Not included |
+|----------|-------------|
+| Document field values (in CBOR) | SQLite row overhead (B-tree page headers, rowid) |
+| CRDT register metadata (current value markers) | CRDT vector clock history (past tombstones and versions) |
+| Document `_id` field | SQLite index entries (for indexed fields) |
+| | WAL journal entries for uncommitted writes |
+
+The total of all `cborPayloadBytes` values is accessible via `StorageSnapshot.collectionPayloadBytes` (computed property: `collectionBreakdown.reduce(0) { $0 + $1.cborPayloadBytes }`).
+
+#### Why `__small_peer_info` is not used
+
+Earlier versions queried `__small_peer_info` for device-level disk totals. This was removed because:
+
+1. `__small_peer_info` is populated by the sync engine and can be seconds-to-minutes out of date, especially on a fresh database open before any sync completes.
+2. Taking `items.first` without filtering by local peer key returned whichever peer row the query optimizer chose — often a remote peer with a different (smaller) storage footprint.
+3. `ditto.diskUsage.exec` reads directly from the filesystem and is always current.
+
+#### Performance notes
+
+- `ditto.diskUsage.exec` is dispatched in a `Task.detached(priority: .utility)` block to keep it off the main thread.
+- The collection breakdown iterates all documents in all collections and is O(total document count). For very large databases this can take several seconds. The view shows the previous snapshot while a refresh is in progress.
+- The entire storage computation runs as part of the 15-second auto-refresh cycle of `AppMetricsDetailView`.
 
 ---
 
@@ -259,9 +354,11 @@ App closed → all in-memory data discarded
 | `Data/MetricsBackend.swift` | `InMemoryMetricsStore`, `AppMetricsCounter`, `AppMetricsTimer`, `PrometheusExportBackend` |
 | `Data/Repositories/MetricsRepository.swift` | Read-side: builds `ProcessMetricSnapshot` and `QueryMetricSnapshot` from Darwin APIs and `InMemoryMetricsStore` |
 | `Data/Repositories/QueryMetricsRepository.swift` | Per-query record store (actor, capped at 200 records) |
+| `Data/Repositories/StorageRepository.swift` | Storage read-side: `categorizeFiles(_:)` (filesystem categorization), `computeCollectionBreakdown` (per-collection CBOR sizing), `fetchStorageSnapshot()` (public entry point) |
 | `Data/QueryService.swift` | The only write path into the metrics system; instruments `executeSelectedAppQuery()` |
 | `Models/QueryExplainRecord.swift` | Data model for a single captured query record |
+| `Models/StorageModels.swift` | `StorageSnapshot`, `DiskBreakdown`, `CollectionStats`, `StorageSnapshot.formatMB(_:)` |
 | `Components/MetricCard.swift` | Reusable card component with optional help popover |
-| `Views/Metrics/AppMetricsDetailView.swift` | Process + query aggregate view |
+| `Views/Metrics/AppMetricsDetailView.swift` | Process + queries + storage aggregate view |
 | `Views/Metrics/QueryMetricsDetailView.swift` | Per-query log view |
 | `Views/Metrics/MetricsInspectorView.swift` | Prometheus export configuration panel |
