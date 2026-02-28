@@ -9,6 +9,7 @@ struct AppMetricsDetailView: View {
         lastQueryLatencyMs: nil
     )
     @State private var queryLatencySamples: [MetricSample] = []
+    @State private var storageSnapshot: StorageSnapshot?
     @State private var lastUpdated = Date()
 
     var body: some View {
@@ -21,6 +22,7 @@ struct AppMetricsDetailView: View {
                     processSection
                     #endif
                     queriesSection
+                    storageSection
                 }
                 .padding()
             }
@@ -148,6 +150,86 @@ struct AppMetricsDetailView: View {
         }
     }
 
+    private var storageSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Storage", systemImage: "internaldrive")
+                .font(.headline)
+            if let snap = storageSnapshot {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
+                    MetricCard(
+                        title: "Store",
+                        systemImage: "cylinder.split.1x2",
+                        currentValue: StorageSnapshot.formatMB(snap.storeBytes),
+                        samples: [],
+                        helpText: "Size of Ditto's document store database files (ditto_store/ directory). Contains all collection documents, indexes, and CRDT state."
+                    )
+                    MetricCard(
+                        title: "Replication",
+                        systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
+                        currentValue: StorageSnapshot.formatMB(snap.replicationBytes),
+                        samples: [],
+                        helpText: "Sync state stored per connected peer (ditto_replication/ directory). Grows with the number of peers synced with and the amount of data exchanged."
+                    )
+                    MetricCard(
+                        title: "Attachments",
+                        systemImage: "paperclip",
+                        currentValue: StorageSnapshot.formatMB(snap.attachmentsBytes),
+                        samples: [],
+                        helpText: "Binary attachments stored by Ditto (ditto_attachments/ directory)."
+                    )
+                    MetricCard(
+                        title: "Auth",
+                        systemImage: "lock",
+                        currentValue: StorageSnapshot.formatMB(snap.authBytes),
+                        samples: [],
+                        helpText: "Authentication and identity credential files (ditto_auth/ directory). Includes certificate and token CBOR files."
+                    )
+                    MetricCard(
+                        title: "SQLite WAL/SHM",
+                        systemImage: "cylinder",
+                        currentValue: StorageSnapshot.formatMB(snap.walShmBytes),
+                        samples: [],
+                        helpText: "Write-Ahead Log and Shared Memory files used by SQLite for transaction journaling. Present across all ditto_* directories. Shrinks after a checkpoint."
+                    )
+                    MetricCard(
+                        title: "Logging",
+                        systemImage: "doc.plaintext",
+                        currentValue: StorageSnapshot.formatMB(snap.logsBytes),
+                        samples: [],
+                        helpText: "Ditto SDK log files (ditto_logs/ directory). Includes active .log and rotated .log.gz archives."
+                    )
+                    MetricCard(
+                        title: "Other",
+                        systemImage: "archivebox",
+                        currentValue: StorageSnapshot.formatMB(snap.otherBytes),
+                        samples: [],
+                        helpText: "Remaining Ditto files: metrics, system info, lock files, and other internal data not covered by the categories above."
+                    )
+                }
+                if !snap.collectionBreakdown.isEmpty {
+                    Label("Collections (\(snap.collectionBreakdown.count))", systemImage: "tablecells")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
+                        ForEach(snap.collectionBreakdown) { col in
+                            MetricCard(
+                                title: col.name,
+                                systemImage: "doc.text",
+                                currentValue: StorageSnapshot.formatMB(col.cborPayloadBytes),
+                                samples: [],
+                                helpText: "\(col.documentCount) documents. Size estimated from CBOR payload — Ditto's native binary format, read via cborData(). Does not include SQLite row overhead, CRDT history, or index entries."
+                            )
+                        }
+                    }
+                }
+            } else {
+                ProgressView("Computing storage…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     // MARK: - Refresh
 
     private func runRefreshLoop() async {
@@ -161,9 +243,11 @@ struct AppMetricsDetailView: View {
         let pSnap = MetricsRepository.processMetricSnapshot()
         let qSnap = await MetricsRepository.queryMetricSnapshot()
         let latencySamps = await MetricsRepository.samples(for: "edge_studio.query.latency_ms")
+        let sSnap = try? await StorageRepository.fetchStorageSnapshot()
         processSnapshot = pSnap
         querySnapshot = qSnap
         queryLatencySamples = latencySamps
+        storageSnapshot = sSnap
         lastUpdated = Date()
     }
 

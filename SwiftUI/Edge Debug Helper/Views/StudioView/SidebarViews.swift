@@ -49,7 +49,6 @@ extension MainStudioView {
                 }
                 // ── Metrics Content Section (when enabled) ───────────────────
                 if metricsEnabled {
-                    #if os(macOS)
                     Button {
                         viewModel.selectedSidebarMenuItem = MenuItem(
                             id: 4,
@@ -58,6 +57,9 @@ extension MainStudioView {
                         )
                     } label: {
                         Label("App Metrics", systemImage: "cpu")
+                        #if os(iOS)
+                            .font(.subheadline)
+                        #endif
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(
@@ -66,7 +68,6 @@ extension MainStudioView {
                             ? Color.accentColor.opacity(0.18)
                             : Color.clear
                     )
-                    #endif
 
                     Button {
                         viewModel.selectedSidebarMenuItem = MenuItem(

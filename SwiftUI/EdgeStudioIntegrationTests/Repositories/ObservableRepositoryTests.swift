@@ -70,7 +70,7 @@ struct ObservableRepositoryTests {
                 ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId1, name: "Obs1",
-                    query: "SELECT 1", args: nil, isActive: true, lastUpdated: nil
+                    query: "SELECT 1", isActive: true, lastUpdated: nil
                 ))
 
                 let repo = ObservableRepository.shared
@@ -100,7 +100,7 @@ struct ObservableRepositoryTests {
                 ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId, name: "Obs",
-                    query: "SELECT 1", args: nil, isActive: true, lastUpdated: nil
+                    query: "SELECT 1", isActive: true, lastUpdated: nil
                 ))
 
                 // ACT

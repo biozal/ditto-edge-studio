@@ -331,7 +331,6 @@ struct ModelTests {
             #expect(sub.id == "sub-1")
             #expect(sub.name == "")
             #expect(sub.query == "")
-            #expect(sub.args == nil)
             #expect(sub.syncSubscription == nil)
         }
 
@@ -342,7 +341,6 @@ struct ModelTests {
                 "_id": "sub-dict-1",
                 "name": "My Subscription",
                 "query": "SELECT * FROM cars",
-                "args": "{\"color\": \"red\"}"
             ]
 
             // ACT
@@ -352,7 +350,6 @@ struct ModelTests {
             #expect(sub.id == "sub-dict-1")
             #expect(sub.name == "My Subscription")
             #expect(sub.query == "SELECT * FROM cars")
-            #expect(sub.args == "{\"color\": \"red\"}")
         }
 
         @Test("Dictionary init generates UUID when id is missing", .tags(.model, .fast))
@@ -385,22 +382,6 @@ struct ModelTests {
             #expect(sub.name == "Unnamed Subscription")
         }
 
-        @Test("Dictionary init sets nil args when args key absent", .tags(.model, .fast))
-        func testDictionaryInitArgsAbsent() {
-            // ARRANGE — no args key
-            let dict: [String: Any?] = [
-                "_id": "sub-no-args",
-                "name": "No Args",
-                "query": "SELECT 3"
-            ]
-
-            // ACT
-            let sub = DittoSubscription(dict)
-
-            // ASSERT
-            #expect(sub.args == nil)
-        }
-
         @Test("new() factory creates subscription with unique ID and nil syncSubscription", .tags(.model, .fast))
         func testNewFactory() {
             // ACT
@@ -428,7 +409,6 @@ struct ModelTests {
             #expect(obs.id == "obs-1")
             #expect(obs.name == "")
             #expect(obs.query == "")
-            #expect(obs.args == nil)
             #expect(obs.isActive == false)
             #expect(obs.lastUpdated == nil)
             #expect(obs.storeObserver == nil)
@@ -443,7 +423,6 @@ struct ModelTests {
                 "query": "SELECT * FROM items",
                 "isActive": true,
                 "lastUpdated": "2026-01-01T00:00:00Z",
-                "args": "{\"type\": \"premium\"}"
             ]
 
             // ACT
@@ -455,7 +434,6 @@ struct ModelTests {
             #expect(obs.query == "SELECT * FROM items")
             #expect(obs.isActive == true)
             #expect(obs.lastUpdated == "2026-01-01T00:00:00Z")
-            #expect(obs.args == "{\"type\": \"premium\"}")
         }
 
         @Test("Dictionary init generates UUID when id is missing", .tags(.model, .fast))

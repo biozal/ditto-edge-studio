@@ -77,7 +77,7 @@ struct SubscriptionsRepositoryTests {
                 // Insert subscription only for dbId1
                 let subRow = SQLCipherService.SubscriptionRow(
                     _id: UUID().uuidString, databaseId: dbId1,
-                    name: "Sub1", query: "SELECT 1", args: nil
+                    name: "Sub1", query: "SELECT 1"
                 )
                 try await service.insertSubscription(subRow)
 
@@ -107,7 +107,7 @@ struct SubscriptionsRepositoryTests {
                     token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
                 ))
                 try await service.insertSubscription(SQLCipherService.SubscriptionRow(
-                    _id: UUID().uuidString, databaseId: dbId, name: "S", query: "SELECT 1", args: nil
+                    _id: UUID().uuidString, databaseId: dbId, name: "S", query: "SELECT 1"
                 ))
 
                 // ACT

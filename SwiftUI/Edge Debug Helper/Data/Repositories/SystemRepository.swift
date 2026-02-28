@@ -149,25 +149,6 @@ actor SystemRepository {
         )
     }
 
-    private func buildPeerLookupMap(ditto: Ditto) async -> [String: PeerEnrichmentData] {
-        // Access presence graph on background queue
-        await Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return [:] }
-
-            var peerMap: [String: PeerEnrichmentData] = [:]
-
-            // Access remotePeers from presence graph
-            let remotePeers = ditto.presence.graph.remotePeers
-
-            for peer in remotePeers {
-                let enrichment = await extractPeerEnrichment(from: peer)
-                peerMap[peer.peerKeyString] = enrichment
-            }
-
-            return peerMap
-        }.value
-    }
-
     /// Registers a presence-based observer for sync status with manual backpressure handling.
     ///
     /// **Architecture Change (2026-02)**: Flipped from DQL-first to presence-first for real-time updates.
@@ -226,8 +207,27 @@ actor SystemRepository {
                 var statusItems: [SyncStatusInfo] = []
                 var processedPeerIds = Set<String>()
 
-                // First: Add all peers from presence graph
+                // Deduplicate remotePeers by peerKeyString, preferring entries that carry
+                // SDK version information (the SDK can surface both sides of a bidirectional
+                // connection as separate DittoPeer objects, where only one side has dittoSDKVersion set).
+                var bestPeerMap: [String: DittoPeer] = [:]
                 for peer in connectedPeers {
+                    let peerId = peer.peerKeyString
+                    if let existing = bestPeerMap[peerId] {
+                        // Prefer the entry that has SDK version over one that doesn't.
+                        // If both have it (or neither does), keep the first-seen.
+                        if existing.dittoSDKVersion == nil, peer.dittoSDKVersion != nil {
+                            bestPeerMap[peerId] = peer
+                        }
+                    } else {
+                        bestPeerMap[peerId] = peer
+                    }
+                }
+                let dedupedPeers = bestPeerMap.values
+
+                // First: Add deduplicated peers from presence graph (one entry per peerKeyString,
+                // preferring the entry with SDK version populated)
+                for peer in dedupedPeers {
                     let peerId = peer.peerKeyString
 
                     // Extract peer enrichment data from presence

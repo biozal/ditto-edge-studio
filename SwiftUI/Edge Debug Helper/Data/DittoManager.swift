@@ -20,7 +20,7 @@ actor DittoManager {
         dittoSelectedApp = nil
     }
 
-    /// Creates the appropriate DittoCopnfig based on selected Database configuration
+    /// Creates the appropriate Ditto DatabaseConfig based on selected Database configuration
     private func createDatabaseConfig(from appConfig: DittoConfigForDatabase) -> DittoIdentity {
         switch appConfig.mode {
         case .smallPeersOnly:

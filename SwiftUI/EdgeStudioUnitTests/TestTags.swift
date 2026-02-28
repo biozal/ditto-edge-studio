@@ -45,7 +45,10 @@ extension Tag {
     
     /// Tests related to utilities and helpers
     @Tag static var utility: Tag
-    
+
+    /// Tests related to storage metrics and disk usage
+    @Tag static var storage: Tag
+
     // MARK: - Test Type Tags
     
     /// Integration tests (multi-component)

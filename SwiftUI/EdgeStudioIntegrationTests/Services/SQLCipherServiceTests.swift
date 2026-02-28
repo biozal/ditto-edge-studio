@@ -705,9 +705,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
                     name: "All Cars",
-                    query: "SELECT * FROM cars",
-                    args: nil
-                )
+                    query: "SELECT * FROM cars",                )
 
                 // ACT
                 try await service.insertSubscription(row)
@@ -718,38 +716,6 @@ struct SQLCipherServiceTests {
                 #expect(rows[0]._id == row._id)
                 #expect(rows[0].name == "All Cars")
                 #expect(rows[0].query == "SELECT * FROM cars")
-                #expect(rows[0].args == nil)
-            }
-        }
-
-        @Test("Insert subscription with args stores args", .tags(.database, .repository))
-        func testInsertSubscriptionWithArgs() async throws {
-            // ARRANGE
-            try await TestHelpers.withFreshDatabase {
-                let service = SQLCipherContext.current
-                let dbId = "sub-args-\(UUID().uuidString)"
-                try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
-                    _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
-                    mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
-                    isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
-
-                let row = SQLCipherService.SubscriptionRow(
-                    _id: TestHelpers.uniqueTestId(),
-                    databaseId: dbId,
-                    name: "Filtered",
-                    query: "SELECT * FROM cars WHERE color = :color",
-                    args: "{\"color\": \"red\"}"
-                )
-
-                // ACT
-                try await service.insertSubscription(row)
-
-                // ASSERT
-                let rows = try await service.getSubscriptions(databaseId: dbId)
-                #expect(rows.count == 1)
-                #expect(rows[0].args == "{\"color\": \"red\"}")
             }
         }
 
@@ -769,9 +735,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
                     name: "To Delete",
-                    query: "SELECT * FROM items",
-                    args: nil
-                )
+                    query: "SELECT * FROM items",                )
                 try await service.insertSubscription(row)
 
                 // ACT
@@ -800,9 +764,7 @@ struct SQLCipherServiceTests {
                         _id: TestHelpers.uniqueTestId(),
                         databaseId: dbId,
                         name: "Sub \(i)",
-                        query: "SELECT \(i)",
-                        args: nil
-                    )
+                        query: "SELECT \(i)",                    )
                     try await service.insertSubscription(row)
                 }
 
@@ -837,7 +799,6 @@ struct SQLCipherServiceTests {
                     databaseId: dbId,
                     name: "Cars Observer",
                     query: "SELECT * FROM cars",
-                    args: nil,
                     isActive: true,
                     lastUpdated: nil
                 )
@@ -851,7 +812,6 @@ struct SQLCipherServiceTests {
                 #expect(rows[0]._id == row._id)
                 #expect(rows[0].name == "Cars Observer")
                 #expect(rows[0].isActive == true)
-                #expect(rows[0].args == nil)
             }
         }
 
@@ -873,7 +833,6 @@ struct SQLCipherServiceTests {
                         databaseId: dbId,
                         name: "Observer \(i)",
                         query: "SELECT \(i)",
-                        args: nil,
                         isActive: true,
                         lastUpdated: nil
                     )
@@ -905,7 +864,6 @@ struct SQLCipherServiceTests {
                     databaseId: dbId,
                     name: "To Delete",
                     query: "SELECT * FROM items",
-                    args: nil,
                     isActive: false,
                     lastUpdated: nil
                 )
@@ -935,13 +893,13 @@ struct SQLCipherServiceTests {
                 let id = TestHelpers.uniqueTestId()
                 let original = SQLCipherService.ObservableRow(
                     _id: id, databaseId: dbId, name: "Original",
-                    query: "SELECT 1", args: nil, isActive: false, lastUpdated: nil
+                    query: "SELECT 1", isActive: false, lastUpdated: nil
                 )
                 try await service.insertObservable(original)
 
                 let updated = SQLCipherService.ObservableRow(
                     _id: id, databaseId: dbId, name: "Updated",
-                    query: "SELECT 2", args: "{}", isActive: true, lastUpdated: "2026-01-01T00:00:00Z"
+                    query: "SELECT 2", isActive: true, lastUpdated: "2026-01-01T00:00:00Z"
                 )
 
                 // ACT
@@ -953,7 +911,6 @@ struct SQLCipherServiceTests {
                 #expect(rows[0].name == "Updated")
                 #expect(rows[0].query == "SELECT 2")
                 #expect(rows[0].isActive == true)
-                #expect(rows[0].args == "{}")
             }
         }
 
@@ -978,11 +935,11 @@ struct SQLCipherServiceTests {
                 ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1, name: "Obs1",
-                    query: "Q1", args: nil, isActive: true, lastUpdated: nil
+                    query: "Q1", isActive: true, lastUpdated: nil
                 ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId2, name: "Obs2",
-                    query: "Q2", args: nil, isActive: true, lastUpdated: nil
+                    query: "Q2", isActive: true, lastUpdated: nil
                 ))
 
                 // ACT & ASSERT
