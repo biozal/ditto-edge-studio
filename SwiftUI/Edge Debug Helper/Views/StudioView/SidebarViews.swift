@@ -271,10 +271,6 @@ extension MainStudioView {
                     expandedCollectionIds.formSymmetricDifference([
                         collection._id
                     ])
-                    /*
-                     viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
-                     viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems.first { $0.name == "Query" } ?? viewModel.sidebarMenuItems[0]
-                      */
                 } label: {
                     HStack {
                         HStack(spacing: 8) {
@@ -302,6 +298,16 @@ extension MainStudioView {
                     }
                 }
                 .buttonStyle(.plain)
+            }
+            .contextMenu {
+                Button {
+                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.selectedSidebarMenuItem =
+                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
+                            ?? viewModel.sidebarMenuItems[0]
+                } label: {
+                    Label("SELECT * FROM \(collection.name)", systemImage: "arrow.right.doc.on.clipboard")
+                }
             }
         }
     }

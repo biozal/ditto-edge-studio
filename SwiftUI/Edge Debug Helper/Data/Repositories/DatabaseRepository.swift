@@ -22,6 +22,7 @@ actor DatabaseRepository {
         SQLCipherContext.current
     }
 
+    private let dittoManager = DittoManager.shared
     private var appState: AppState?
 
     /// In-memory cache for fast access
@@ -153,7 +154,10 @@ actor DatabaseRepository {
     /// - Throws: Error if delete fails
     func deleteDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws {
         do {
-            // 1. Delete from SQLCipher (includes credentials)
+            // 1. Stop sync and release file handles if this database is currently open
+            await dittoManager.closeDatabaseIfSelected(databaseId: appConfig.databaseId)
+
+            // 2. Delete from SQLCipher (includes credentials)
             // CASCADE DELETE automatically removes:
             // - All subscriptions for this database
             // - All history for this database
@@ -161,10 +165,23 @@ actor DatabaseRepository {
             // - All observables for this database
             try await sqlCipher.deleteDatabaseConfig(databaseId: appConfig.databaseId)
 
-            // 2. Update in-memory cache
+            // 3. Delete database files from disk
+            let dbDirectory = DittoManager.localDirectoryPath(for: appConfig)
+            if FileManager.default.fileExists(atPath: dbDirectory.path) {
+                do {
+                    try FileManager.default.removeItem(at: dbDirectory)
+                    Log.info("Deleted database files at: \(dbDirectory.path)")
+                } catch {
+                    // Log but don't propagate — the SQLCipher record is gone so the database
+                    // won't load again. Orphaned files are benign but worth investigating.
+                    Log.warning("Failed to delete database files at \(dbDirectory.path): \(error.localizedDescription)")
+                }
+            }
+
+            // 4. Update in-memory cache
             cachedConfigs.removeAll { $0._id == appConfig._id }
 
-            // 3. Notify UI
+            // 5. Notify UI
             notifyConfigUpdate()
 
             Log.info("Deleted database configuration: \(appConfig.name)")

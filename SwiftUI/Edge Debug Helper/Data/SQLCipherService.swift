@@ -568,6 +568,11 @@ actor SQLCipherService {
         return results
     }
 
+    func updateSubscription(_ subscription: SubscriptionRow) async throws {
+        let sql = "UPDATE subscriptions SET name = ?, query = ? WHERE _id = ?"
+        try await execute(sql, subscription.name, subscription.query, subscription._id)
+    }
+
     func deleteSubscription(id: String) async throws {
         let sql = "DELETE FROM subscriptions WHERE _id = ?"
         try await execute(sql, id)

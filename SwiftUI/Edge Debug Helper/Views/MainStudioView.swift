@@ -545,42 +545,49 @@ extension MainStudioView {
                 }
             }
 
-            // Setup FavoritesRepository callback
-            Task {
-                await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
-                    Task { @MainActor in
-                        self?.favorites = favorites
-                    }
-                }
-            }
-
-            // Setup HistoryRepository callback
-            Task {
-                await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
-                    Task { @MainActor in
-                        self?.history = history
-                    }
-                }
-            }
-
             Task {
                 isLoading = true
 
                 await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
                     self.subscriptions = newSubscriptions
                 }
-                // Load subscription metadata from secure storage (sync subscriptions will be re-registered as needed)
-                subscriptions = try await SubscriptionsRepository.shared.loadSubscriptions(for: selectedApp.databaseId)
+                // Wrap individually so a failure here does not prevent history/favorites from loading
+                do {
+                    subscriptions = try await SubscriptionsRepository.shared.loadSubscriptions(for: selectedApp.databaseId)
+                } catch {
+                    Log.error("Failed to load subscriptions: \(error.localizedDescription)")
+                }
 
                 await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
                     self.collections = newCollections
                 }
-                collections = try await CollectionsRepository.shared.hydrateCollections()
+                do {
+                    collections = try await CollectionsRepository.shared.hydrateCollections()
+                } catch {
+                    Log.error("Failed to load collections: \(error.localizedDescription)")
+                }
 
-                // Load per-database history, favorites, and observers from secure storage
-                history = try await HistoryRepository.shared.loadHistory(for: selectedApp.databaseId)
+                // Register the history callback BEFORE calling loadHistory so currentDatabaseId
+                // is guaranteed to be set before any user-triggered saveQueryHistory can fire.
+                // Use direct assignment — the closure is already @MainActor, no inner Task needed.
+                await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
+                    self?.history = history
+                }
+                do {
+                    history = try await HistoryRepository.shared.loadHistory(for: selectedApp.databaseId)
+                } catch {
+                    Log.error("Failed to load history: \(error.localizedDescription)")
+                }
 
-                favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
+                // Same pattern for favorites: register callback before loading.
+                await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
+                    self?.favorites = favorites
+                }
+                do {
+                    favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
+                } catch {
+                    Log.error("Failed to load favorites: \(error.localizedDescription)")
+                }
 
                 // Load observer metadata (without live observers - those must be re-registered)
                 do {

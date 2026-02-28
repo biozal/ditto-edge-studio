@@ -49,13 +49,17 @@ actor SubscriptionsRepository {
         // Load from SQLCipher
         let rows = try await sqlCipher.getSubscriptions(databaseId: databaseId)
 
-        // Convert SQLCipherService.SubscriptionRow to DittoSubscription
-        let subscriptions = rows.map { row in
+        // Re-register each subscription with the Ditto sync engine so data flows
+        // immediately on app load. Without this, subscriptions appear in the UI but
+        // the sync engine has no active handles and won't pull documents from peers.
+        let ditto = await dittoManager.dittoSelectedApp
+        var subscriptions: [DittoSubscription] = []
+        for row in rows {
             var subscription = DittoSubscription(id: row._id)
             subscription.name = row.name
             subscription.query = row.query
-            // Note: syncSubscription is NOT restored (must be re-registered by caller)
-            return subscription
+            subscription.syncSubscription = try? ditto?.sync.registerSubscription(query: row.query)
+            subscriptions.append(subscription)
         }
 
         // Update in-memory cache
@@ -83,7 +87,15 @@ actor SubscriptionsRepository {
             let existing = try await sqlCipher.getSubscriptions(databaseId: databaseId)
 
             if existing.contains(where: { $0._id == subscription.id }) {
-                // Already exists, just update the in-memory cache
+                // Already exists — persist the updated name/query to SQLCipher, then update cache
+                let row = SQLCipherService.SubscriptionRow(
+                    _id: subscription.id,
+                    databaseId: databaseId,
+                    name: subscription.name,
+                    query: subscription.query
+                )
+                try await sqlCipher.updateSubscription(row)
+
                 if let existingIndex = cachedSubscriptions.firstIndex(where: { $0.id == subscription.id }) {
                     cachedSubscriptions[existingIndex] = sub
                 }

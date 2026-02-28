@@ -21,7 +21,7 @@ actor DittoManager {
     }
 
     /// Creates the appropriate DittoCopnfig based on selected Database configuration
-    private func createIdentity(from appConfig: DittoConfigForDatabase) -> DittoIdentity {
+    private func createDatabaseConfig(from appConfig: DittoConfigForDatabase) -> DittoIdentity {
         switch appConfig.mode {
         case .smallPeersOnly:
             // Use shared key identity if secret key is provided, otherwise offline playground
@@ -54,17 +54,8 @@ actor DittoManager {
             // unique directory with /database subdirectory
 
             // Test isolation: Use separate directory for UI tests
-            let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
-            let baseComponent = isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
-
-            let dbname = databaseConfig.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let localDirectoryPath = FileManager.default.urls(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask
-            )[0]
-                .appendingPathComponent(baseComponent)
-                .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
-                .appendingPathComponent("database") // NEW: Add database/ subdirectory
+            let localDirectoryPath = Self.localDirectoryPath(for: databaseConfig)
+                .appendingPathComponent("database")
 
             // Ensure directory exists
             if !FileManager.default.fileExists(atPath: localDirectoryPath.path) {
@@ -74,7 +65,7 @@ actor DittoManager {
                 )
             }
 
-            Log.info("Ditto database path: \(baseComponent)/\(dbname)-\(databaseConfig.databaseId)")
+            Log.info("Ditto database path: \(localDirectoryPath.path)")
 
             // Validate inputs before trying to create Ditto
             guard !databaseConfig.databaseId.isEmpty, !databaseConfig.token.isEmpty else {
@@ -86,7 +77,7 @@ actor DittoManager {
             var dittoInstance: Ditto?
 
             let error = ExceptionCatcher.perform {
-                let identity = self.createIdentity(from: databaseConfig)
+                let identity = self.createDatabaseConfig(from: databaseConfig)
                 dittoInstance = Ditto(
                     identity: identity,
                     persistenceDirectory: localDirectoryPath
@@ -117,7 +108,7 @@ actor DittoManager {
                 config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
 
                 // Configure cloud sync from saved settings
-                if databaseConfig.isCloudSyncEnabled && !databaseConfig.websocketUrl.isEmpty {
+                if !databaseConfig.websocketUrl.isEmpty {
                     config.connect.webSocketURLs.insert(databaseConfig.websocketUrl)
                 }
             })
@@ -174,6 +165,25 @@ actor DittoManager {
     /// Determines if offline license token should be set for the given app configuration
     private func shouldSetOfflineLicenseToken(for appConfig: DittoConfigForDatabase) -> Bool {
         appConfig.mode == .smallPeersOnly && !appConfig.token.isEmpty
+    }
+
+    /// Closes the currently selected database only if it matches the given database ID.
+    /// Called before deleting a database to ensure file handles are released before disk removal.
+    func closeDatabaseIfSelected(databaseId: String) async {
+        guard dittoSelectedAppConfig?.databaseId == databaseId else { return }
+        await closeDittoSelectedDatabase()
+        dittoSelectedAppConfig = nil
+    }
+
+    /// Returns the root directory for a database configuration's local storage.
+    /// The Ditto data files live in a `database/` subdirectory within this path.
+    nonisolated static func localDirectoryPath(for databaseConfig: DittoConfigForDatabase) -> URL {
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI-TESTING")
+        let baseComponent = isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
+        let dbname = databaseConfig.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(baseComponent)
+            .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
     }
 
     /// Shuts down all Ditto instances and cleans up resources
