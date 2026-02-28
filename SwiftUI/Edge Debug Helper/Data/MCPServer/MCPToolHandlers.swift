@@ -146,10 +146,6 @@ enum MCPToolHandlers {
                     "awdl": [
                         "type": "boolean",
                         "description": "Enable or disable AWDL (Apple Wireless Direct Link) transport"
-                    ],
-                    "cloud": [
-                        "type": "boolean",
-                        "description": "Enable or disable cloud sync via WebSocket"
                     ]
                 ]
             ]
@@ -198,6 +194,14 @@ enum MCPToolHandlers {
                 "type": "object",
                 "properties": [String: Any]()
             ]
+        ),
+        MCPTool(
+            name: "list_indexes",
+            description: "List all indexes across every collection in the active database. Returns a flat array with each index's name, full name, collection, and indexed field paths. Useful for auditing index coverage without iterating collection by collection.",
+            inputSchema: [
+                "type": "object",
+                "properties": [String: Any]()
+            ]
         )
     ]
 
@@ -217,6 +221,7 @@ enum MCPToolHandlers {
         case "insert_documents_from_file": return try await insertDocumentsFromFile(arguments: arguments)
         case "set_sync": return try await setSync(arguments: arguments)
         case "get_peers": return try await getPeers()
+        case "list_indexes": return try await listIndexes()
         default:
             throw MCPError.unknownTool(toolName)
         }
@@ -598,6 +603,34 @@ enum MCPToolHandlers {
               let json = String(data: data, encoding: .utf8) else
         {
             return "{\"peers\": [], \"count\": 0}"
+        }
+        return json
+    }
+
+    // MARK: list_indexes
+
+    private static func listIndexes() async throws -> String {
+        guard await DittoManager.shared.dittoSelectedApp != nil else {
+            return "[]"
+        }
+
+        let collections = try await CollectionsRepository.shared.refreshCollections()
+
+        let allIndexes = collections.flatMap { col in
+            col.indexes.map { idx -> [String: Any] in
+                [
+                    "name": idx.displayName,
+                    "fullName": idx._id,
+                    "collection": idx.collection,
+                    "fields": idx.fields.map(\.strippingBackticks)
+                ]
+            }
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: allIndexes, options: .prettyPrinted),
+              let json = String(data: data, encoding: .utf8) else
+        {
+            return "[]"
         }
         return json
     }

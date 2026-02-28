@@ -155,6 +155,25 @@ struct DatabaseEditorView: View {
             serverInformationSection()
             httpApiSection()
         }
+        developerOptionsSection()
+    }
+
+    private func developerOptionsSection() -> some View {
+        Section("Developer Options") {
+            Picker("SDK Log Level", selection: $viewModel.logLevel) {
+                Text("Error").tag("error")
+                Text("Warning").tag("warning")
+                Text("Info (Default)").tag("info")
+                Text("Debug").tag("debug")
+                Text("Verbose").tag("verbose")
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("LogLevelPicker")
+
+            Text("Controls DittoLogger.minimumLogLevel when this database is activated. Applied globally across all Ditto instances.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func secretKeySection() -> some View {
@@ -247,6 +266,7 @@ extension DatabaseEditorView {
         var mode: AuthMode
         var allowUntrustedCerts: Bool
         var secretKey: String
+        var logLevel: String
 
         let isNewItem: Bool
         private let databaseRepository = DatabaseRepository.shared
@@ -263,6 +283,7 @@ extension DatabaseEditorView {
             mode = appConfig.mode
             allowUntrustedCerts = appConfig.allowUntrustedCerts
             secretKey = appConfig.secretKey
+            logLevel = appConfig.logLevel
 
             if appConfig.databaseId == "" {
                 isNewItem = true
@@ -287,12 +308,15 @@ extension DatabaseEditorView {
                     httpApiKey: httpApiKey,
                     mode: mode,
                     allowUntrustedCerts: allowUntrustedCerts,
-                    secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                    logLevel: logLevel
                 )
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {
                     try await databaseRepository.updateDittoAppConfig(appConfig)
+                    // Apply log level immediately if this database is currently active
+                    try await DittoManager.shared.changeDittoLogLevel(logLevel, for: appConfig)
                 }
             } catch {
                 appState.setError(error)

@@ -19,7 +19,8 @@ private func insertHistoryParentConfig(dbId: String) async throws {
         websocketUrl: "",
         httpApiUrl: "",
         httpApiKey: "",
-        secretKey: ""
+        secretKey: "",
+        logLevel: "info"
     ))
 }
 

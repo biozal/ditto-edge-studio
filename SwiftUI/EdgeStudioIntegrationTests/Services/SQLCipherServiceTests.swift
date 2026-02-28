@@ -110,8 +110,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://ws.test.com",
                     httpApiUrl: "https://api.test.com",
                     httpApiKey: "test-api-key",
-                    secretKey: "test-secret"
-                )
+                    secretKey: "test-secret", logLevel: "info"                )
 
                 try await service.insertDatabaseConfig(config)
 
@@ -153,8 +152,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://sync.example.com",
                     httpApiUrl: "https://api.example.com",
                     httpApiKey: "api-key-123",
-                    secretKey: ""
-                )
+                    secretKey: "", logLevel: "info"                )
 
                 try await service.insertDatabaseConfig(config)
 
@@ -189,8 +187,7 @@ struct SQLCipherServiceTests {
                         websocketUrl: "wss://ws\(i).com",
                         httpApiUrl: "https://api\(i).com",
                         httpApiKey: "key-\(i)",
-                        secretKey: ""
-                    )
+                        secretKey: "", logLevel: "info"                    )
                     try await service.insertDatabaseConfig(config)
                 }
 
@@ -221,8 +218,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://original.com",
                     httpApiUrl: "https://original-api.com",
                     httpApiKey: "original-key",
-                    secretKey: ""
-                )
+                    secretKey: "", logLevel: "info"                )
                 try await service.insertDatabaseConfig(initialConfig)
 
                 // Update config
@@ -241,8 +237,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://updated.com",
                     httpApiUrl: "https://updated-api.com",
                     httpApiKey: "updated-key",
-                    secretKey: "new-secret"
-                )
+                    secretKey: "new-secret", logLevel: "info"                )
                 try await service.updateDatabaseConfig(updatedConfig)
 
                 // Verify changes
@@ -276,8 +271,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://ws.com",
                     httpApiUrl: "https://api.com",
                     httpApiKey: "key",
-                    secretKey: ""
-                )
+                    secretKey: "", logLevel: "info"                )
                 try await service.insertDatabaseConfig(config)
 
                 // Verify it exists
@@ -330,8 +324,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "wss://secure-ws.com",
                     httpApiUrl: "https://secure-api.com",
                     httpApiKey: "super-secret-api-key",
-                    secretKey: "super-secret-key"
-                )
+                    secretKey: "super-secret-key", logLevel: "info"                )
                 try await service.insertDatabaseConfig(config)
 
                 // Verify credentials can be retrieved (proves decryption works)
@@ -362,8 +355,7 @@ struct SQLCipherServiceTests {
                     websocketUrl: "",
                     httpApiUrl: "",
                     httpApiKey: "",
-                    secretKey: ""
-                )
+                    secretKey: "", logLevel: "info"                )
                 try await service.insertDatabaseConfig(config)
 
                 let configs = try await service.getAllDatabaseConfigs()
@@ -390,7 +382,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
                 ))
                 let row = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
@@ -421,8 +413,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let firstRow = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -458,8 +449,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -487,8 +477,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.HistoryRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -519,14 +508,12 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertHistory(SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1,
                     query: "SELECT * FROM db1", createdDate: Date().ISO8601Format()
@@ -562,8 +549,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -592,8 +578,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 for i in 1 ... 4 {
                     let row = SQLCipherService.FavoriteRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -622,8 +607,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -652,14 +636,12 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertFavorite(SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1,
                     query: "Q1", createdDate: Date().ISO8601Format()
@@ -697,8 +679,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "Test DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                )
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
                 try await service.insertDatabaseConfig(dbConfig)
 
                 let row = SQLCipherService.SubscriptionRow(
@@ -729,8 +710,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.SubscriptionRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -757,8 +737,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.SubscriptionRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -792,8 +771,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -825,8 +803,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.ObservableRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -857,8 +834,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let row = SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -888,8 +864,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let id = TestHelpers.uniqueTestId()
                 let original = SQLCipherService.ObservableRow(
                     _id: id, databaseId: dbId, name: "Original",
@@ -925,14 +900,12 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1, name: "Obs1",
                     query: "Q1", isActive: true, lastUpdated: nil
@@ -979,8 +952,7 @@ struct SQLCipherServiceTests {
                     _id: configId, name: "IsolationDB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 let configs = try await service.getAllDatabaseConfigs()
                 #expect(configs.count == 1)
             }

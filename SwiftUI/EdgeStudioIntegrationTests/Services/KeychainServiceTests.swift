@@ -37,8 +37,7 @@ struct KeychainServiceTests {
                 websocketUrl: "wss://ws.test.com",
                 httpApiUrl: "https://api.test.com",
                 httpApiKey: "api-key-xyz",
-                secretKey: "secret-123"
-            )
+                secretKey: "secret-123"            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId, credentials: credentials)
@@ -81,8 +80,7 @@ struct KeychainServiceTests {
                 websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
-                secretKey: ""
-            )
+                secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId, credentials: original)
 
             let updated = KeychainService.DatabaseCredentials(
@@ -92,8 +90,7 @@ struct KeychainServiceTests {
                 websocketUrl: "wss://v2.ws.com",
                 httpApiUrl: "https://v2.api.com",
                 httpApiKey: "new-key",
-                secretKey: "new-secret"
-            )
+                secretKey: "new-secret"            )
 
             // ACT — save again to same databaseId
             try await service.saveDatabaseCredentials(dbId, credentials: updated)
@@ -125,8 +122,7 @@ struct KeychainServiceTests {
                 websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
-                secretKey: ""
-            )
+                secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId, credentials: credentials)
 
             // ACT
@@ -159,8 +155,7 @@ struct KeychainServiceTests {
 
             let creds = KeychainService.DatabaseCredentials(
                 name: "DB", token: "t", authUrl: "", websocketUrl: "",
-                httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: creds)
             try await service.saveDatabaseCredentials(dbId2, credentials: creds)
 
@@ -188,8 +183,7 @@ struct KeychainServiceTests {
             let dbId = TestHelpers.uniqueTestId(prefix: "kctest-list")
             let creds = KeychainService.DatabaseCredentials(
                 name: "Listed DB", token: "", authUrl: "", websocketUrl: "",
-                httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId, credentials: creds)
@@ -207,8 +201,7 @@ struct KeychainServiceTests {
             let dbId = TestHelpers.uniqueTestId(prefix: "kctest-list-del")
             let creds = KeychainService.DatabaseCredentials(
                 name: "Temp DB", token: "", authUrl: "", websocketUrl: "",
-                httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId, credentials: creds)
 
             // ACT
@@ -246,12 +239,10 @@ struct KeychainServiceTests {
 
             let creds1 = KeychainService.DatabaseCredentials(
                 name: "DB One", token: "token-one", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             let creds2 = KeychainService.DatabaseCredentials(
                 name: "DB Two", token: "token-two", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId1, credentials: creds1)
@@ -276,15 +267,13 @@ struct KeychainServiceTests {
 
             let creds1 = KeychainService.DatabaseCredentials(
                 name: "A", token: "alpha", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: creds1)
 
             // ACT — overwrite dbId1
             let updatedCreds1 = KeychainService.DatabaseCredentials(
                 name: "A Updated", token: "alpha-v2", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-            )
+                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: updatedCreds1)
 
             // dbId2 was never saved — should return nil
@@ -313,8 +302,7 @@ struct KeychainServiceTests {
                 websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
-                secretKey: ""
-            )
+                secretKey: ""            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId, credentials: creds)
@@ -340,8 +328,7 @@ struct KeychainServiceTests {
                 websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
-                secretKey: ""
-            )
+                secretKey: ""            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId, credentials: creds)

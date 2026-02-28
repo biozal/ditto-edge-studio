@@ -26,7 +26,7 @@ struct MCPToolExecutionTests {
         }
     }
 
-    @Test("tools/list over HTTP returns 10 tools", .tags(.mcp, .mcpTools))
+    @Test("tools/list over HTTP returns 13 tools", .tags(.mcp, .mcpTools))
     func testToolsListOverHTTP() async throws {
         try await MCPTestHelpers.withServer {
             // ACT
@@ -35,7 +35,7 @@ struct MCPToolExecutionTests {
             let tools = result?["tools"] as? [[String: Any]]
 
             // ASSERT
-            #expect(tools?.count == 10)
+            #expect(tools?.count == 13)
         }
     }
 
@@ -147,6 +147,29 @@ struct MCPToolExecutionTests {
             // ASSERT — should have result content, no isError flag
             #expect(result != nil)
             #expect(result?["isError"] as? Bool != true)
+        }
+    }
+
+    // MARK: - list_indexes
+
+    @Test("list_indexes returns a valid JSON array", .tags(.mcp, .mcpTools))
+    func testListIndexesReturnsArray() async throws {
+        try await MCPTestHelpers.withServer {
+            // ACT
+            let response = try await MCPTestHelpers.post(method: "tools/call", params: [
+                "name": "list_indexes", "arguments": [:]
+            ])
+            let result = response["result"] as? [String: Any]
+
+            // ASSERT — no error flag (empty array returned when no database is active)
+            #expect(result != nil)
+            #expect(result?["isError"] as? Bool != true)
+
+            // Verify the content text is a valid JSON array
+            let text = try await MCPTestHelpers.callTool("list_indexes")
+            let textData = text.data(using: .utf8) ?? Data()
+            let parsed = try? JSONSerialization.jsonObject(with: textData)
+            #expect(parsed is [Any])
         }
     }
 

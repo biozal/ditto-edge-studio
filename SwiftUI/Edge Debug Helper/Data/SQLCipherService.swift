@@ -41,7 +41,7 @@ actor SQLCipherService {
 
     // MARK: - Schema Version
 
-    private let currentSchemaVersion = 2
+    private let currentSchemaVersion = 3
 
     // MARK: - Initialization
 
@@ -303,7 +303,8 @@ actor SQLCipherService {
                     websocketUrl TEXT NOT NULL DEFAULT '',
                     httpApiUrl TEXT NOT NULL DEFAULT '',
                     httpApiKey TEXT NOT NULL DEFAULT '',
-                    secretKey TEXT NOT NULL DEFAULT ''
+                    secretKey TEXT NOT NULL DEFAULT '',
+                    logLevel TEXT NOT NULL DEFAULT 'info'
                 )
             """)
 
@@ -378,6 +379,11 @@ actor SQLCipherService {
             try await migrateToVersion2()
         }
 
+        // Migrate from version 2 to 3: Add logLevel column
+        if oldVersion < 3 {
+            try await migrateToVersion3()
+        }
+
         // Update schema version
         try await execute("PRAGMA user_version = \(newVersion)")
 
@@ -399,6 +405,15 @@ actor SQLCipherService {
         }
 
         Log.info("Schema version 2 migration complete: Credential columns added")
+    }
+
+    /// Migration to version 3: Add logLevel column to databaseConfigs table
+    private func migrateToVersion3() async throws {
+        Log.info("Migrating to schema version 3: Adding logLevel column")
+
+        try await execute("ALTER TABLE databaseConfigs ADD COLUMN logLevel TEXT NOT NULL DEFAULT 'info'")
+
+        Log.info("Schema version 3 migration complete: logLevel column added")
     }
 
     /// Returns the current schema version from the database
@@ -438,14 +453,16 @@ actor SQLCipherService {
         let httpApiUrl: String
         let httpApiKey: String
         let secretKey: String
+        /// Developer Options
+        let logLevel: String
     }
 
     func insertDatabaseConfig(_ config: DatabaseConfigRow) async throws {
         let sql = """
             INSERT INTO databaseConfigs (_id, name, databaseId, mode, allowUntrustedCerts,
                 isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         try await execute(
@@ -464,7 +481,8 @@ actor SQLCipherService {
             config.websocketUrl,
             config.httpApiUrl,
             config.httpApiKey,
-            config.secretKey
+            config.secretKey,
+            config.logLevel
         )
     }
 
@@ -473,7 +491,8 @@ actor SQLCipherService {
             UPDATE databaseConfigs
             SET name = ?, mode = ?, allowUntrustedCerts = ?,
                 isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?,
-                token = ?, authUrl = ?, websocketUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?
+                token = ?, authUrl = ?, websocketUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?,
+                logLevel = ?
             WHERE databaseId = ?
         """
 
@@ -492,6 +511,7 @@ actor SQLCipherService {
             config.httpApiUrl,
             config.httpApiKey,
             config.secretKey,
+            config.logLevel,
             config.databaseId
         )
     }
@@ -510,7 +530,7 @@ actor SQLCipherService {
         let sql = """
             SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled,
                    isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey
+                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel
             FROM databaseConfigs
         """
 
@@ -531,7 +551,8 @@ actor SQLCipherService {
                 websocketUrl: String(cString: sqlite3_column_text(statement, 11)),
                 httpApiUrl: String(cString: sqlite3_column_text(statement, 12)),
                 httpApiKey: String(cString: sqlite3_column_text(statement, 13)),
-                secretKey: String(cString: sqlite3_column_text(statement, 14))
+                secretKey: String(cString: sqlite3_column_text(statement, 14)),
+                logLevel: String(cString: sqlite3_column_text(statement, 15))
             ))
         }
 

@@ -14,9 +14,9 @@ struct MCPToolManifestTests {
 
     // MARK: - Count & Uniqueness
 
-    @Test("All 10 tools are registered", .tags(.mcp, .fast))
+    @Test("All 13 tools are registered", .tags(.mcp, .fast))
     func testAllTenToolsRegistered() {
-        #expect(MCPToolHandlers.allTools.count == 10)
+        #expect(MCPToolHandlers.allTools.count == 13)
     }
 
     @Test("No duplicate tool names", .tags(.mcp, .fast))
@@ -148,7 +148,10 @@ struct MCPToolManifestTests {
             "get_query_metrics",
             "get_sync_status",
             "configure_transport",
-            "insert_documents_from_file"
+            "insert_documents_from_file",
+            "set_sync",
+            "get_peers",
+            "list_indexes"
         ]
         #expect(names == expected)
     }

@@ -10,6 +10,8 @@ extension MainStudioView {
                 observeDetailInspectorView()
             case "App Metrics", "Query Metrics":
                 metricsInspectorView()
+            case "Logging":
+                loggingInspectorView()
             default: // "Subscriptions"
                 syncTabsInspectorView()
             }
@@ -30,6 +32,18 @@ extension MainStudioView {
             .padding(.horizontal)
             .padding(.top)
             HelpContentView(markdownContent: loadMarkdown(named: "subscription"))
+        }
+    }
+
+    func loggingInspectorView() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Logging Help").font(.headline)
+                Divider()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            HelpContentView(markdownContent: loadMarkdown(named: "logging"))
         }
     }
 
@@ -156,14 +170,15 @@ extension MainStudioView {
     }
 
     private func metricsDocsInspectorContent() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let resourceName = viewModel.selectedSidebarMenuItem.name == "App Metrics" ? "appmetrics" : "querymetrics"
+        return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Metrics Help").font(.headline)
                 Divider()
             }
             .padding(.horizontal)
             .padding(.top)
-            HelpContentView(markdownContent: loadMarkdown(named: "metrics"))
+            HelpContentView(markdownContent: loadMarkdown(named: resourceName))
         }
     }
 

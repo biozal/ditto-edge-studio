@@ -262,23 +262,30 @@ Once connected and with a database selected in Edge Studio:
 
 - *"List the collections in my active database and their document counts"*
 - *"Run `SELECT * FROM orders WHERE status = 'pending' LIMIT 5`"*
+- *"Run `SELECT * FROM orders LIMIT 5` via the HTTP API"*
 - *"Create an index on the users collection for the email field"*
 - *"Show me the sync status and which transports are active"*
 - *"Disable Bluetooth sync and show me the peer count"*
+- *"Show me all connected peers and their SDK versions"*
+- *"Stop sync, insert all documents from ~/Downloads/orders.json into the orders collection, then restart sync"*
 
 ### Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `execute_dql` | Run any DQL query (SELECT, INSERT, UPDATE, EVICT) |
+| `execute_dql` | Run any DQL query (SELECT, INSERT, UPDATE, EVICT); pass `transport: "http"` to route through the HTTP API instead of the local store |
 | `list_databases` | List all configured databases |
 | `get_active_database` | Details on the currently selected database |
 | `list_collections` | Collections with document counts and indexes |
+| `list_indexes` | Flat list of every index across all collections, with name, collection, and field paths |
 | `create_index` | Index a collection field |
 | `drop_index` | Remove an index by name |
-| `get_query_metrics` | Recent query timing and EXPLAIN output |
+| `get_query_metrics` | Recent query timing and EXPLAIN output (requires Metrics enabled in Settings) |
 | `get_sync_status` | Connected peer count and transport config |
 | `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `insert_documents_from_file` | Insert a local JSON file (array of objects with `_id`) into a collection; file must be in `~/Downloads` |
+| `set_sync` | Start or stop sync for the active database |
+| `get_peers` | Snapshot of all connected peers with device, OS, SDK version, and transport details |
 
 > **Note:** All tools operate on the database currently selected in the Edge Studio UI. The MCP server stops automatically when Edge Studio quits.
 

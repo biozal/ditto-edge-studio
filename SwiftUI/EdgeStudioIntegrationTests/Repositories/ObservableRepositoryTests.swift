@@ -25,7 +25,7 @@ struct ObservableRepositoryTests {
             _id: UUID().uuidString, name: "DB", databaseId: dbId,
             mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
             isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-            token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
+            token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
         ))
     }
 
@@ -60,14 +60,12 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: UUID().uuidString, name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId1, name: "Obs1",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -96,8 +94,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId, name: "Obs",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -128,8 +125,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -163,8 +159,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -225,8 +220,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -255,8 +249,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -333,8 +326,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -366,8 +358,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""
-                ))
+                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)

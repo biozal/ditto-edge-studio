@@ -160,6 +160,8 @@ struct MainStudioView: View {
                     AppMetricsDetailView()
                 case "Query Metrics":
                     QueryMetricsDetailView()
+                case "Logging":
+                    LoggingDetailView()
                 default:
                     syncTabsDetailView()
                 }
@@ -658,7 +660,8 @@ extension MainStudioView {
             [
                 MenuItem(id: 1, name: "Subscriptions", systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"),
                 MenuItem(id: 2, name: "Query", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observers", systemIcon: "eye")
+                MenuItem(id: 3, name: "Observers", systemIcon: "eye"),
+                MenuItem(id: 6, name: "Logging", systemIcon: "doc.plaintext.fill")
             ]
         }
 

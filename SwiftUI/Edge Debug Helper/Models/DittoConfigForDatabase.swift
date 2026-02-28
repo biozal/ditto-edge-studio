@@ -20,6 +20,9 @@ class DittoConfigForDatabase: Codable {
     var isAwdlEnabled: Bool
     var isCloudSyncEnabled: Bool
 
+    /// Developer Options
+    var logLevel: String
+
     init(
         _ _id: String,
         name: String,
@@ -35,7 +38,8 @@ class DittoConfigForDatabase: Codable {
         isBluetoothLeEnabled: Bool = true,
         isLanEnabled: Bool = true,
         isAwdlEnabled: Bool = true,
-        isCloudSyncEnabled: Bool = true
+        isCloudSyncEnabled: Bool = true,
+        logLevel: String = "info"
     ) {
         self._id = _id
         self.name = name
@@ -52,6 +56,7 @@ class DittoConfigForDatabase: Codable {
         self.isLanEnabled = isLanEnabled
         self.isAwdlEnabled = isAwdlEnabled
         self.isCloudSyncEnabled = isCloudSyncEnabled
+        self.logLevel = logLevel
     }
 
     enum CodingKeys: String, CodingKey {
@@ -70,6 +75,7 @@ class DittoConfigForDatabase: Codable {
         case isLanEnabled
         case isAwdlEnabled
         case isCloudSyncEnabled
+        case logLevel
     }
 
     func encode(to encoder: Encoder) throws {
@@ -89,6 +95,7 @@ class DittoConfigForDatabase: Codable {
         try container.encode(isLanEnabled, forKey: .isLanEnabled)
         try container.encode(isAwdlEnabled, forKey: .isAwdlEnabled)
         try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
+        try container.encode(logLevel, forKey: .logLevel)
     }
 
     required init(from decoder: Decoder) throws {
@@ -110,6 +117,8 @@ class DittoConfigForDatabase: Codable {
         isLanEnabled = try container.decodeIfPresent(Bool.self, forKey: .isLanEnabled) ?? true
         isAwdlEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAwdlEnabled) ?? true
         isCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCloudSyncEnabled) ?? true
+        // Developer options with backward compatibility
+        logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
     }
 }
 
@@ -130,7 +139,8 @@ extension DittoConfigForDatabase {
             isBluetoothLeEnabled: true,
             isLanEnabled: true,
             isAwdlEnabled: true,
-            isCloudSyncEnabled: true
+            isCloudSyncEnabled: true,
+            logLevel: "info"
         )
     }
 }

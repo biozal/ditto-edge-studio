@@ -6,6 +6,9 @@ actor DittoManager {
     var dittoSelectedAppConfig: DittoConfigForDatabase?
     var dittoSelectedApp: Ditto?
 
+    /// The persistence directory of the currently active database, used for log file access.
+    private(set) var activePersistenceDirectory: URL?
+
     private init() {}
 
     static var shared = DittoManager()
@@ -71,6 +74,14 @@ actor DittoManager {
             guard !databaseConfig.databaseId.isEmpty, !databaseConfig.token.isEmpty else {
                 throw AppError.error(message: "Invalid app configuration - missing databaseId or token")
             }
+
+            // Apply stored log level BEFORE Ditto.init() — required by SDK
+            DittoLogger.minimumLogLevel = Self.dittoLogLevel(from: databaseConfig.logLevel)
+            DittoLogger.isEnabled = true
+            Log.info("DittoLogger level set to: \(databaseConfig.logLevel)")
+
+            // Store the persistence directory for log capture
+            activePersistenceDirectory = localDirectoryPath
 
             // https://docs.ditto.live/sdk/latest/install-guides/swift#integrating-and-initializing-sync
             // Use Objective-C exception handler to catch NSException from Ditto initialization
@@ -268,6 +279,32 @@ extension DittoManager {
             } else {
                 config.connect.webSocketURLs.remove(appConfig.websocketUrl)
             }
+        }
+    }
+}
+
+// MARK: - Log Level Management
+
+extension DittoManager {
+    /// Changes the SDK log level for a database configuration and persists it.
+    /// If the database is currently active, applies the change to DittoLogger immediately.
+    func changeDittoLogLevel(_ levelStr: String, for config: DittoConfigForDatabase) async throws {
+        config.logLevel = levelStr
+        try await DatabaseRepository.shared.updateDittoAppConfig(config)
+        if dittoSelectedAppConfig?._id == config._id {
+            DittoLogger.minimumLogLevel = Self.dittoLogLevel(from: levelStr)
+            Log.info("DittoLogger level changed to: \(levelStr)")
+        }
+    }
+
+    /// Maps a stored log level string to a DittoLogLevel enum value.
+    nonisolated static func dittoLogLevel(from string: String) -> DittoLogLevel {
+        switch string {
+        case "error": return .error
+        case "warning": return .warning
+        case "debug": return .debug
+        case "verbose": return .verbose
+        default: return .info
         }
     }
 }

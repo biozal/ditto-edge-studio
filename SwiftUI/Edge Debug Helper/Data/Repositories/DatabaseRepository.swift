@@ -59,7 +59,8 @@ actor DatabaseRepository {
                 isBluetoothLeEnabled: row.isBluetoothLeEnabled,
                 isLanEnabled: row.isLanEnabled,
                 isAwdlEnabled: row.isAwdlEnabled,
-                isCloudSyncEnabled: row.isCloudSyncEnabled
+                isCloudSyncEnabled: row.isCloudSyncEnabled,
+                logLevel: row.logLevel
             )
         }
 
@@ -90,7 +91,8 @@ actor DatabaseRepository {
                 websocketUrl: appConfig.websocketUrl,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
-                secretKey: appConfig.secretKey
+                secretKey: appConfig.secretKey,
+                logLevel: appConfig.logLevel
             )
             try await sqlCipher.insertDatabaseConfig(row)
 
@@ -129,7 +131,8 @@ actor DatabaseRepository {
                 websocketUrl: appConfig.websocketUrl,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
-                secretKey: appConfig.secretKey
+                secretKey: appConfig.secretKey,
+                logLevel: appConfig.logLevel
             )
             try await sqlCipher.updateDatabaseConfig(row)
 

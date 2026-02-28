@@ -20,7 +20,8 @@ private func insertFavoritesParentConfig(dbId: String) async throws {
         websocketUrl: "",
         httpApiUrl: "",
         httpApiKey: "",
-        secretKey: ""
+        secretKey: "",
+        logLevel: "info"
     ))
 }
 
