@@ -6,6 +6,7 @@ struct DetailBottomBar<MiddleContent: View>: View {
     let connections: ConnectionsByTransport
     let middleContent: MiddleContent
     @State private var isCollapsed = false
+    @State private var isShowingPopover = false
 
     var body: some View {
         HStack {
@@ -59,22 +60,8 @@ struct DetailBottomBar<MiddleContent: View>: View {
     }
 
     private var connectionsMenu: some View {
-        Menu {
-            if connections.hasActiveConnections {
-                Section("Connections") {
-                    ForEach(connections.activeTransports, id: \.name) { transport in
-                        Label(
-                            title: { Text("\(transport.name): \(transport.count)") },
-                            icon: { Image(systemName: "circle.fill").foregroundStyle(transport.color) }
-                        )
-                    }
-                }
-            } else {
-                Label(
-                    "No Active Connections",
-                    systemImage: "antenna.radiowaves.left.and.right.slash"
-                )
-            }
+        Button {
+            isShowingPopover = true
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "antenna.radiowaves.left.and.right")
@@ -85,8 +72,46 @@ struct DetailBottomBar<MiddleContent: View>: View {
                     .foregroundStyle(.primary)
             }
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
+        .popover(isPresented: $isShowingPopover, arrowEdge: .bottom) {
+            connectionsPopoverContent
+        }
+    }
+
+    @ViewBuilder
+    private var connectionsPopoverContent: some View {
+        if connections.hasActiveConnections {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Connections")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                Divider()
+                ForEach(connections.activeTransports, id: \.name) { transport in
+                    Label {
+                        Text("\(transport.name): \(transport.count)")
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(transport.color)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+            }
+            .padding(.bottom, 6)
+        } else {
+            Label {
+                Text("No Active Connections")
+                    .foregroundStyle(.secondary)
+            } icon: {
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+        }
     }
 }
 
