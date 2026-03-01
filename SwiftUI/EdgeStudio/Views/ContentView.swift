@@ -199,9 +199,9 @@ extension ContentView {
                     minWidth: 600,
                     idealWidth: 1000,
                     maxWidth: 1920,
-                    minHeight: 600,
-                    idealHeight: 600,
-                    maxHeight: 650
+                    minHeight: 700,
+                    idealHeight: 800,
+                    maxHeight: 860
                 )
                 .environmentObject(appState)
                 .presentationDetents([.medium, .large])

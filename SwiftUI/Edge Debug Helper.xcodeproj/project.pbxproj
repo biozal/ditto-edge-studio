@@ -51,9 +51,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		0D02662B2E06059D0072B715 /* Edge Debug Helper */ = {
+		0D02662B2E06059D0072B715 /* EdgeStudio */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Edge Debug Helper";
+			path = EdgeStudio;
 			sourceTree = "<group>";
 		};
 		0DD95EA32F4584EF0063C203 /* EdgeStudioUnitTests */ = {
@@ -116,7 +116,7 @@
 		0D3F27CA2DDA00FA004A69D1 = {
 			isa = PBXGroup;
 			children = (
-				0D02662B2E06059D0072B715 /* Edge Debug Helper */,
+				0D02662B2E06059D0072B715 /* EdgeStudio */,
 				0DD95EA32F4584EF0063C203 /* EdgeStudioUnitTests */,
 				0DD95EB02F4585270063C203 /* EdgeStudioIntegrationTests */,
 				0DD95EBD2F4585430063C203 /* EdgeStudioUITests */,
@@ -162,7 +162,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				0D02662B2E06059D0072B715 /* Edge Debug Helper */,
+				0D02662B2E06059D0072B715 /* EdgeStudio */,
 			);
 			name = "Edge Debug Helper";
 			packageProductDependencies = (
@@ -354,7 +354,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftformat >/dev/null; then\n  if [ -d \"SwiftUI/Edge Debug Helper\" ]; then\n    swiftformat \"SwiftUI/Edge Debug Helper\" --config .swiftformat --quiet || true\n  fi\nelse\n  echo \"warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat\"\nfi\n";
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftformat >/dev/null; then\n  if [ -d \"SwiftUI/EdgeStudio\" ]; then\n    swiftformat \"SwiftUI/EdgeStudio\" --config .swiftformat --quiet || true\n  fi\nelse\n  echo \"warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat\"\nfi\n";
 		};
 		F272A47F5E02439F8645D427 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -554,7 +554,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = EdgeStudioIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "Edge Debug Helper/Edge_Studio.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "EdgeStudio/Edge_Studio.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -598,7 +598,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "Edge Debug Helper/Edge-Debug-Helper-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "EdgeStudio/Edge-Debug-Helper-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.0;
@@ -611,7 +611,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = EdgeStudioIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "Edge Debug Helper/Edge_Studio.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "EdgeStudio/Edge_Studio.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -656,7 +656,7 @@
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "Edge Debug Helper/Edge-Debug-Helper-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "EdgeStudio/Edge-Debug-Helper-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.0;
