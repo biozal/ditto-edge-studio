@@ -125,7 +125,7 @@ actor PrometheusExportBackend {
 
     private func pushMetrics() async {
         guard let url = pushgatewayURL else { return }
-        let pushURL = url.appendingPathComponent("metrics/job/edge-studio")
+        let pushURL = url.appendingPathComponent("metrics/job/edge_studio")
         let metricsText = await prometheusTextFormat()
 
         var request = URLRequest(url: pushURL)
