@@ -9,41 +9,58 @@ struct PaginationControls: View {
     let pageSizes: [Int]
     let onPageChange: (Int) -> Void
     let onPageSizeChange: (Int) -> Void
+    var onExport: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .center) {
-            Text("Total: \(totalCount)")
+            // Total — document icon replaces "Total:" text
+            HStack(spacing: 4) {
+                Image(systemName: "document.on.document")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Text("\(totalCount)")
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer()
+
             Picker("Page Size", selection: $pageSize) {
-                ForEach(pageSizes, id: \.self) { size in
-                    Text("\(size)").tag(size)
-                }
+                ForEach(pageSizes, id: \.self) { size in Text("\(size)").tag(size) }
             }
             .frame(minWidth: 100, idealWidth: 150, maxWidth: 200)
             .pickerStyle(DefaultPickerStyle())
             .padding(.horizontal)
-            .onChange(of: pageSize) { _, newValue in
-                onPageSizeChange(newValue)
-            }
+            .onChange(of: pageSize) { _, newValue in onPageSizeChange(newValue) }
 
-            Button(action: {
-                onPageChange(currentPage - 1)
-            }, label: {
-                FontAwesomeText(icon: NavigationIcon.chevronLeft, size: 12)
-            })
+            Button { onPageChange(currentPage - 1) } label: {
+                FontAwesomeText(icon: NavigationIcon.chevronLeft, size: 15)
+            }
             .disabled(currentPage <= 1)
 
-            Text("Page \(currentPage) of \(pageCount)")
+            // "X of Y" — removed "Page " prefix
+            Text("\(currentPage) of \(pageCount)")
                 .font(.subheadline)
-                .frame(minWidth: 100)
+                .frame(minWidth: 80)
 
-            Button(action: {
-                onPageChange(currentPage + 1)
-            }, label: {
-                FontAwesomeText(icon: NavigationIcon.chevronRight, size: 12)
-            })
+            Button { onPageChange(currentPage + 1) } label: {
+                FontAwesomeText(icon: NavigationIcon.chevronRight, size: 15)
+            }
             .disabled(currentPage >= pageCount)
-            Spacer()
+
+            // Overflow menu — only rendered when export handler is provided
+            if let onExport {
+                Spacer()
+                Menu {
+                    Button("Export JSON") { onExport() }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal)
     }

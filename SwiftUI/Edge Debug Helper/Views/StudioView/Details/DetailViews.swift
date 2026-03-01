@@ -75,8 +75,10 @@ extension MainStudioView {
                     ConnectedPeersView(viewModel: viewModel)
                 }
             }
-
+        }
+        .overlay(alignment: .bottom) {
             DetailBottomBar(connections: viewModel.connectionsByTransport)
+                .padding(.bottom, 12)
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -247,7 +249,8 @@ extension MainStudioView {
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
-
+        }
+        .overlay(alignment: .bottom) {
             #if os(iOS)
             if horizontalSizeClass != .compact {
                 DetailBottomBar(connections: viewModel.connectionsByTransport) {
@@ -264,15 +267,12 @@ extension MainStudioView {
                             onPageSizeChange: { newSize in
                                 queryPageSize = newSize
                                 queryCurrentPage = 1
-                            }
+                            },
+                            onExport: { queryIsExporting = true }
                         )
-                        queryGenerateDQLButton
-                        Button { queryIsExporting = true } label: {
-                            FontAwesomeText(icon: ActionIcon.download, size: 14)
-                        }
-                        .help("Export query results to JSON file")
                     }
                 }
+                .padding(.bottom, 12)
             }
             #else
             DetailBottomBar(connections: viewModel.connectionsByTransport) {
@@ -289,15 +289,12 @@ extension MainStudioView {
                         onPageSizeChange: { newSize in
                             queryPageSize = newSize
                             queryCurrentPage = 1
-                        }
+                        },
+                        onExport: { queryIsExporting = true }
                     )
-                    queryGenerateDQLButton
-                    Button { queryIsExporting = true } label: {
-                        FontAwesomeText(icon: ActionIcon.download, size: 14)
-                    }
-                    .help("Export query results to JSON file")
                 }
             }
+            .padding(.bottom, 12)
             #endif
         }
         .fileExporter(
@@ -599,7 +596,8 @@ extension MainStudioView {
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
-
+        }
+        .overlay(alignment: .bottom) {
             #if os(iOS)
             if horizontalSizeClass != .compact {
                 DetailBottomBar(connections: viewModel.connectionsByTransport) {
@@ -620,6 +618,7 @@ extension MainStudioView {
                         )
                     }
                 }
+                .padding(.bottom, 12)
             }
             #else
             DetailBottomBar(connections: viewModel.connectionsByTransport) {
@@ -640,6 +639,7 @@ extension MainStudioView {
                     )
                 }
             }
+            .padding(.bottom, 12)
             #endif
         }
         .onChange(of: viewModel.observableEvents.count) { _, _ in

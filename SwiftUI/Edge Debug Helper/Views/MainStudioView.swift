@@ -240,9 +240,8 @@ struct MainStudioView: View {
             }
         #if os(macOS)
             .toolbar {
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton() // Rightmost, after close button
+                syncCloseToolbarGroup() // Sync + Close grouped
+                inspectorToggleButton() // Inspector visually separate
             }
         #endif
             // Sync sidebar items on first render (picks up the UserDefaults value after registerDefaults)
@@ -289,42 +288,45 @@ struct MainStudioView: View {
         }
     }
 
-    func syncToolbarButton() -> some ToolbarContent {
-        ToolbarItem(id: "syncButton", placement: .primaryAction) {
-            Button {
-                Task {
-                    do {
-                        try await viewModel.toggleSync()
-                    } catch {
-                        appState.setError(error)
-                    }
-                }
-            } label: {
-                Image(systemName: "arrow.2.circlepath")
-                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+    private var syncButtonContent: some View {
+        Button {
+            Task {
+                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
             }
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
-            .accessibilityIdentifier("SyncButton")
+        } label: {
+            Image(systemName: "arrow.2.circlepath")
+                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
         }
+        .buttonStyle(.glass)
+        .clipShape(Circle())
+        .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
+        .accessibilityIdentifier("SyncButton")
+    }
+
+    private var closeButtonContent: some View {
+        Button {
+            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+        } label: {
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        }
+        .buttonStyle(.glass)
+        .clipShape(Circle())
+        .help("Close App")
+        .accessibilityIdentifier("CloseButton")
+    }
+
+    func syncToolbarButton() -> some ToolbarContent {
+        ToolbarItem(id: "syncButton", placement: .primaryAction) { syncButtonContent }
     }
 
     func closeToolbarButton() -> some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                Task {
-                    await viewModel.closeSelectedApp()
-                    isMainStudioViewPresented = false
-                }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-            }
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .help("Close App")
-            .accessibilityIdentifier("CloseButton")
+        ToolbarItem(placement: .primaryAction) { closeButtonContent }
+    }
+
+    func syncCloseToolbarGroup() -> some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            syncButtonContent
+            closeButtonContent
         }
     }
 

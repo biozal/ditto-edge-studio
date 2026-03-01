@@ -45,6 +45,10 @@ struct LoggingDetailView: View {
         #endif
     }
 
+    // MARK: - Footer State
+
+    @State private var isFooterCollapsed = false
+
     // MARK: - Toolbar State
 
     @State private var activeLogLevel = "info"
@@ -68,10 +72,10 @@ struct LoggingDetailView: View {
             Divider()
 
             logList
-
-            Divider()
-
+        }
+        .overlay(alignment: .bottom) {
             footerRow
+                .padding(.bottom, 12)
         }
         .task {
             // Load active config log level
@@ -381,64 +385,107 @@ struct LoggingDetailView: View {
     // MARK: - Footer
 
     private var footerRow: some View {
-        HStack(spacing: 12) {
-            let displayed = filteredEntries.count
-            let total = activeSourceEntries.count
-            let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
-            let footerLabel: String = {
-                if isFiltered {
-                    return "\(displayed) entries"
-                } else if displayed < total {
-                    return "Showing \(displayed) of \(total) (most recent)"
-                } else {
-                    return "\(displayed) entries"
+        HStack {
+            if isFooterCollapsed {
+                Spacer()
+                GlassEffectContainer {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isFooterCollapsed = false
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left.chevron.left.dotted")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 20))
                 }
-            }()
-            Text(footerLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .subtleShadow()
+            } else {
+                GlassEffectContainer {
+                    HStack(spacing: 12) {
+                        let displayed = filteredEntries.count
+                        let total = activeSourceEntries.count
+                        let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
+                        let footerLabel: String = {
+                            if isFiltered {
+                                return "\(displayed) entries"
+                            } else if displayed < total {
+                                return "Showing \(displayed) of \(total) (most recent)"
+                            } else {
+                                return "\(displayed) entries"
+                            }
+                        }()
+                        Text(footerLabel)
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundStyle(.secondary)
 
-            Spacer()
+                        Spacer()
 
-            #if os(macOS)
-            Button {
-                isShowingImportPanel = true
-            } label: {
-                Label("Import External Logs…", systemImage: "folder.badge.plus")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
-            .fileImporter(
-                isPresented: $isShowingImportPanel,
-                allowedContentTypes: [UTType.folder],
-                allowsMultipleSelection: false
-            ) { result in
-                if case let .success(urls) = result, let url = urls.first {
-                    Task { await capture.importFromDirectory(url) }
+                        // Import — macOS only, icon only
+                        #if os(macOS)
+                        Button { isShowingImportPanel = true } label: {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Import External Logs…")
+                        .fileImporter(
+                            isPresented: $isShowingImportPanel,
+                            allowedContentTypes: [UTType.folder],
+                            allowsMultipleSelection: false
+                        ) { result in
+                            if case let .success(urls) = result, let url = urls.first {
+                                Task { await capture.importFromDirectory(url) }
+                            }
+                        }
+                        #endif
+
+                        // Clear — icon only, red tint
+                        Button {
+                            switch selectedSource {
+                            case .dittoSDK:
+                                capture.clearLive()
+                                capture.clearHistorical()
+                            case .application:
+                                LoggingService.shared.clearAllLogs()
+                                Task { await capture.loadAppLogs() }
+                            case .imported:
+                                capture.clearImported()
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear logs")
+
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isFooterCollapsed = true
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right.dotted.chevron.right")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Collapse toolbar")
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 20))
                 }
+                .subtleShadow()
             }
-            #endif
-
-            Button {
-                switch selectedSource {
-                case .dittoSDK:
-                    capture.clearLive()
-                    capture.clearHistorical()
-                case .application:
-                    LoggingService.shared.clearAllLogs()
-                    Task { await capture.loadAppLogs() }
-                case .imported:
-                    capture.clearImported()
-                }
-            } label: {
-                Label("Clear", systemImage: "trash")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFooterCollapsed)
     }
 
     // MARK: - Filtered Entries

@@ -5,57 +5,88 @@ import SwiftUI
 struct DetailBottomBar<MiddleContent: View>: View {
     let connections: ConnectionsByTransport
     let middleContent: MiddleContent
+    @State private var isCollapsed = false
 
     var body: some View {
-        HStack(spacing: 16) {
-            // Left: Transport pills
-            if connections.hasActiveConnections {
-                HStack(spacing: 8) {
-                    ForEach(connections.activeTransports, id: \.name) { transport in
-                        HStack(spacing: 4) {
-                            FontAwesomeText(icon: transport.icon, size: 10, color: transport.color)
-
-                            Text(transport.name)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-
-                            Text("\(transport.count)")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.primary)
+        HStack {
+            if isCollapsed {
+                Spacer()
+                GlassEffectContainer {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isCollapsed = false
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .clipShape(Capsule())
-                        .liquidGlassPill(color: transport.color)
+                    } label: {
+                        Image(systemName: "chevron.left.chevron.left.dotted")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 20))
+                }
+                .subtleShadow()
+            } else {
+                GlassEffectContainer {
+                    HStack(spacing: 16) {
+                        connectionsMenu
+                        Spacer()
+                        middleContent
+                        collapseButton
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 20))
+                }
+                .subtleShadow()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isCollapsed)
+    }
+
+    private var collapseButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isCollapsed = true }
+        } label: {
+            Image(systemName: "chevron.right.dotted.chevron.right")
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Collapse toolbar")
+    }
+
+    private var connectionsMenu: some View {
+        Menu {
+            if connections.hasActiveConnections {
+                Section("Connections") {
+                    ForEach(connections.activeTransports, id: \.name) { transport in
+                        Label(
+                            title: { Text("\(transport.name): \(transport.count)") },
+                            icon: { Image(systemName: "circle.fill").foregroundStyle(transport.color) }
+                        )
                     }
                 }
             } else {
-                Text("No Active Connections")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Label(
+                    "No Active Connections",
+                    systemImage: "antenna.radiowaves.left.and.right.slash"
+                )
             }
-
-            Spacer()
-            middleContent
-            Spacer()
-
-            // Right: Total connections count
-            HStack(spacing: 6) {
-                FontAwesomeText(icon: SystemIcon.link, size: 10, color: .secondary)
-
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
                 Text("\(connections.totalConnections)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, design: .monospaced))
+                    .foregroundStyle(.primary)
             }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 36)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 0.5)
-        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
     }
 }
 
