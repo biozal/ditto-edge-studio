@@ -86,9 +86,9 @@ Metrics are pushed under the job label `edge_studio`. Exported names include:
 - `edge_studio_cpu_time_seconds`
 - `edge_studio_open_file_descriptors`
 - `edge_studio_uptime_seconds`
-- `edge_studio_total_queries`
-- `edge_studio_average_query_latency_seconds`
-- `edge_studio_last_query_latency_seconds`
+- `edge_studio_queries_total`
+- `edge_studio_queries_latency_avg_seconds`
+- `edge_studio_queries_latency_last_seconds`
 
 ---
 
