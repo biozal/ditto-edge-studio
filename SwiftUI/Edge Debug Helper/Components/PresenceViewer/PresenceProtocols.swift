@@ -21,31 +21,18 @@ protocol ConnectionProtocol {
 // MARK: - DittoPeer Conformance
 
 /// Extend DittoPeer to conform to PeerProtocol
+/// In v4, peerKeyString, deviceName, and isConnectedToDittoCloud are already native properties.
+/// Only connectionProtocols needs to be bridged.
 extension DittoPeer: PeerProtocol {
-    var peerKeyString: String {
-        peerKey
-    } // v5: renamed from peerKeyString
-    var isConnectedToDittoCloud: Bool {
-        isConnectedToDittoServer
-    } // v5: renamed from isConnectedToDittoCloud
-    /// Bridge connections array to protocol type
     var connectionProtocols: [any ConnectionProtocol] {
         connections.map { $0 as ConnectionProtocol }
     }
 }
 
 /// Extend DittoConnection to conform to ConnectionProtocol
-extension DittoConnection: ConnectionProtocol {
-    var peerKeyString1: String {
-        peer1
-    } // v5: renamed from peerKeyString1
-    var peerKeyString2: String {
-        peer2
-    } // v5: renamed from peerKeyString2
-    var approximateDistanceInMeters: Double? {
-        nil
-    } // v5: removed; always nil
-}
+/// In v4, all required properties (peerKeyString1, peerKeyString2, approximateDistanceInMeters)
+/// are native — no bridging needed.
+extension DittoConnection: ConnectionProtocol {}
 
 // MARK: - Mock Implementations for Testing
 

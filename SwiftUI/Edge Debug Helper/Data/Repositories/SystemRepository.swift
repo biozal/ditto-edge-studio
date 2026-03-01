@@ -27,27 +27,35 @@ actor SystemRepository {
     }
 
     private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
-        // Convert SDK enum to custom enum
-        let typeString = "\(dittoType)"
-        Log.debug("[Presence] Raw DittoConnectionType: '\(typeString)'")
-
-        if typeString.contains("bluetooth") {
-            return .bluetooth
-        } else if typeString.contains("accessPoint") {
-            return .accessPoint
-        } else if typeString.contains("p2pWiFi") || typeString.contains("p2pwifi") {
-            return .p2pWiFi
-        } else if typeString.contains("webSocket") || typeString.contains("websocket") {
-            return .webSocket
-        } else {
-            return .unknown(typeString)
+        switch dittoType {
+        case .bluetooth: return .bluetooth
+        case .accessPoint: return .accessPoint
+        case .p2pWiFi: return .p2pWiFi
+        case .webSocket: return .webSocket
+        @unknown default: return .unknown("\(dittoType)")
         }
     }
 
-    private func extractPeerEnrichment(from peer: DittoPeer) -> PeerEnrichmentData {
+    /// Returns true if the given connection type is enabled in the current transport config.
+    ///
+    /// Used as a workaround for an SDK bug in Ditto v5.0.0-preview.5 where the presence graph
+    /// continues to report connections via transports that have been disabled (e.g. `accessPoint`
+    /// connections appearing after `lan=false` is applied). Filtering here ensures the UI reflects
+    /// the actual configured transports rather than stale SDK presence data.
+    private nonisolated func isConnectionTypeEnabled(_ type: ConnectionType, config: DittoConfigForDatabase) -> Bool {
+        switch type {
+        case .bluetooth: return config.isBluetoothLeEnabled
+        case .accessPoint: return config.isLanEnabled
+        case .p2pWiFi: return config.isAwdlEnabled
+        case .webSocket: return config.isCloudSyncEnabled
+        case .unknown: return true
+        }
+    }
+
+    private func extractPeerEnrichment(from peer: DittoPeer, filteredBy config: DittoConfigForDatabase? = nil) -> PeerEnrichmentData {
         // Convert DittoPeerOS to custom PeerOS
         let osInfo: PeerOS? = {
-            guard let dittoOS = peer.os else { return nil }
+            guard let dittoOS = peer.osV2 else { return nil }
 
             // Map DittoPeerOS to custom PeerOS enum
             let osString = "\(dittoOS)"
@@ -128,7 +136,7 @@ actor SystemRepository {
             var seenTypes: Set<String> = []
             let deduplicated = peerConnections.filter { seenTypes.insert("\($0.type)").inserted }
 
-            return deduplicated.map { connection in
+            let mapped = deduplicated.map { connection in
                 ConnectionInfo(
                     id: connection.id,
                     type: self.convertConnectionType(connection.type),
@@ -137,6 +145,9 @@ actor SystemRepository {
                     approximateDistanceInMeters: connection.approximateDistanceInMeters
                 )
             }
+            guard let config else { return mapped.isEmpty ? nil : mapped }
+            let filtered = mapped.filter { self.isConnectionTypeEnabled($0.type, config: config) }
+            return filtered.isEmpty ? nil : filtered
         }()
 
         return PeerEnrichmentData(
@@ -183,11 +194,9 @@ actor SystemRepository {
 
                 // Step 1: Extract connected peers from presence graph (source of truth)
                 let connectedPeers = presenceGraph.remotePeers
-                Log.debug("[Presence] Graph fired: \(connectedPeers.count) remote peer(s)")
-                for peer in connectedPeers {
-                    let types = peer.connections.map { "\($0.type)" }.joined(separator: ", ")
-                    Log.debug("[Presence] → peer '\(peer.peerKeyString)' connections: [\(types)]")
-                }
+
+                // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
+                let appConfig = await dittoManager.dittoSelectedAppConfig
 
                 // Step 2: Query DQL for sync metrics directly (bypassing QueryService so these
                 // internal system queries are invisible to Query Metrics).
@@ -236,8 +245,8 @@ actor SystemRepository {
                 for peer in dedupedPeers {
                     let peerId = peer.peerKeyString
 
-                    // Extract peer enrichment data from presence
-                    let enrichment = await extractPeerEnrichment(from: peer)
+                    // Extract peer enrichment data from presence, filtering disabled transports
+                    let enrichment = await extractPeerEnrichment(from: peer, filteredBy: appConfig)
 
                     // Look up sync metrics for this peer (may not exist)
                     var dict: [String: Any]
@@ -421,17 +430,24 @@ actor SystemRepository {
                 var totalP2PWiFi = 0
                 var totalWebSocket = 0
 
+                // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
+                let appConfig = await dittoManager.dittoSelectedAppConfig
+
                 // Iterate through all remote peers in the presence graph.
                 // Deduplicate by type before counting — the SDK returns one DittoConnection
                 // per directional endpoint (A→B and B→A), which would otherwise double counts.
                 for peer in presenceGraph.remotePeers {
-                    let rawConnTypes = peer.connections.map { "\($0.type)" }.joined(separator: ", ")
-                    Log.debug("[Presence] Peer '\(peer.peerKeyString)' reports connections: [\(rawConnTypes)]")
                     var seenTypes: Set<String> = []
                     for connection in peer.connections {
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }
 
                         let connectionType = await convertConnectionType(connection.type)
+
+                        // Skip connections for disabled transports (SDK bug workaround: presence
+                        // graph retains stale connections after transport config changes)
+                        if let config = appConfig, !isConnectionTypeEnabled(connectionType, config: config) {
+                            continue
+                        }
 
                         switch connectionType {
                         case .bluetooth:
@@ -503,10 +519,13 @@ actor SystemRepository {
             Log.warning("fetchPeersOnce: system:data_sync_info unavailable, commit IDs will be omitted")
         }
 
+        // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
+        let appConfig = await dittoManager.dittoSelectedAppConfig
+
         // Enrich each peer using the same private enrichment logic as the observer
         var peerDicts: [[String: Any]] = []
         for peer in remotePeers {
-            let enrichment = extractPeerEnrichment(from: peer)
+            let enrichment = extractPeerEnrichment(from: peer, filteredBy: appConfig)
             let peerId = peer.peerKeyString
             let syncMetrics = syncMetricsLookup[peerId]
 

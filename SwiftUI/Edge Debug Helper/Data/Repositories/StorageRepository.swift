@@ -14,7 +14,7 @@ enum StorageRepository {
 
     private static func computeDiskBreakdown(ditto: Ditto) async -> StorageSnapshot {
         let root = await Task.detached(priority: .utility) {
-            ditto.diskUsage.item
+            ditto.diskUsage.exec
         }.value
 
         let flatFiles = flattenTree(root)
@@ -34,7 +34,7 @@ enum StorageRepository {
     }
 
     /// Flattens a DiskUsageItem tree into (path, sizeInBytes) tuples.
-    private static func flattenTree(_ item: DittoDiskUsageItem) -> [(path: String, sizeInBytes: Int)] {
+    private static func flattenTree(_ item: DiskUsageItem) -> [(path: String, sizeInBytes: Int)] {
         var result: [(path: String, sizeInBytes: Int)] = [(item.path, item.sizeInBytes)]
         for child in item.childItems {
             result.append(contentsOf: flattenTree(child))
