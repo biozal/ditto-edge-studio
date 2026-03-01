@@ -58,6 +58,7 @@ actor DittoManager {
         -> Bool
     {
         var isSuccess = false
+        Log.info("[Session] Opening database '\(databaseConfig.name)' (id: \(databaseConfig.databaseId))")
         do {
             await closeDittoSelectedDatabase()
 
@@ -134,20 +135,28 @@ actor DittoManager {
             // Update Device Name to show in presence graph
             try ditto.presence.setPeerMetadata(["deviceName": "Edge Studio"])
 
-            ditto.updateTransportConfig(block: { config in
+            // Log the initial transport values being loaded from the database config
+            Log.info(
+                "[Transport] Initial config from database '\(databaseConfig.name)': " +
+                    "bluetoothLE=\(databaseConfig.isBluetoothLeEnabled) " +
+                    "lan=\(databaseConfig.isLanEnabled) " +
+                    "awdl=\(databaseConfig.isAwdlEnabled) " +
+                    "cloudSync=\(databaseConfig.isCloudSyncEnabled)"
+            )
+
+            ditto.updateTransportConfig { config in
                 // Configure peer-to-peer transports from saved settings
-                config.peerToPeer.bluetoothLE.isEnabled =
-                    databaseConfig.isBluetoothLeEnabled
+                config.peerToPeer.bluetoothLE.isEnabled = databaseConfig.isBluetoothLeEnabled
                 config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled
                 config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
 
-                // Configure cloud sync from saved settings
-                if !databaseConfig.websocketUrl.isEmpty {
-                    config.connect.webSocketURLs.insert(
-                        databaseConfig.websocketUrl
-                    )
+                // Configure cloud sync from saved settings — respects isCloudSyncEnabled flag
+                if databaseConfig.isCloudSyncEnabled && !databaseConfig.websocketUrl.isEmpty {
+                    config.connect.webSocketURLs.insert(databaseConfig.websocketUrl)
+                } else {
+                    config.connect.webSocketURLs.remove(databaseConfig.websocketUrl)
                 }
-            })
+            }
 
             dittoSelectedAppConfig = databaseConfig
 
@@ -175,6 +184,7 @@ actor DittoManager {
     func selectedDatabaseStartSync() async throws {
         do {
             if let ditto = dittoSelectedApp {
+                Log.info("[Sync] Starting Sync")
                 try await Task.detached(priority: .utility) {
                     try ditto.sync.start()
                 }.value
@@ -188,6 +198,7 @@ actor DittoManager {
     func selectedDatabaseStopSync() async {
         if let ditto = dittoSelectedApp {
             await Task.detached(priority: .utility) {
+                Log.info("[Sync] Starting Sync")
                 ditto.sync.stop()
             }.value
         }
@@ -300,6 +311,11 @@ extension DittoManager {
             throw AppError.error(message: "No app configuration available")
         }
 
+        Log
+            .info(
+                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+            )
+
         // Apply transport configuration changes
         ditto.updateTransportConfig { config in
             // Configure peer-to-peer transports
@@ -318,6 +334,10 @@ extension DittoManager {
                 config.connect.webSocketURLs.remove(appConfig.websocketUrl)
             }
         }
+        Log
+            .info(
+                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+            )
     }
 }
 

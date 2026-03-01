@@ -33,7 +33,7 @@ enum MCPError: Error, LocalizedError {
 
 // MARK: - Tool Handlers
 
-/// Defines and executes all 13 MCP tools.
+/// Defines and executes all 15 MCP tools.
 enum MCPToolHandlers {
     // MARK: Tool Manifest
 
@@ -67,7 +67,7 @@ enum MCPToolHandlers {
         ),
         MCPTool(
             name: "get_active_database",
-            description: "Get details about the currently active (selected) Ditto database including name, ID, auth mode, and transport configuration.",
+            description: "Get the full configuration of the currently active (selected) Ditto database: name, ID, auth mode, endpoint URLs, transport protocol toggles (Bluetooth LE, LAN, AWDL, cloud sync), log level, and TLS settings. Credentials (token, API key, secret key) are not included.",
             inputSchema: [
                 "type": "object",
                 "properties": [String: Any]()
@@ -202,6 +202,45 @@ enum MCPToolHandlers {
                 "type": "object",
                 "properties": [String: Any]()
             ]
+        ),
+        MCPTool(
+            name: "get_app_logs",
+            description: "Read the most recent Edge Studio application log entries (written by Log.info/warning/error/debug). Use the 'filter' parameter to search for specific tags like '[Peers]' or '[Transport]'.",
+            inputSchema: [
+                "type": "object",
+                "properties": [
+                    "lines": [
+                        "type": "integer",
+                        "description": "Maximum number of most-recent log lines to return (default: 200)"
+                    ],
+                    "filter": [
+                        "type": "string",
+                        "description": "Case-insensitive substring to filter log lines (e.g. '[Peers]', 'error')"
+                    ]
+                ]
+            ]
+        ),
+        MCPTool(
+            name: "get_ditto_logs",
+            description: "Read Ditto SDK log entries from the active database's log files (.log and .log.gz). Returns structured JSON with timestamp, level, component, and message fields.",
+            inputSchema: [
+                "type": "object",
+                "properties": [
+                    "lines": [
+                        "type": "integer",
+                        "description": "Maximum number of most-recent entries to return (default: 200)"
+                    ],
+                    "filter": [
+                        "type": "string",
+                        "description": "Case-insensitive substring filter on the message field"
+                    ],
+                    "level": [
+                        "type": "string",
+                        "enum": ["error", "warning", "info", "debug", "verbose"],
+                        "description": "Minimum log level to include (default: all levels)"
+                    ]
+                ]
+            ]
         )
     ]
 
@@ -222,6 +261,8 @@ enum MCPToolHandlers {
         case "set_sync": return try await setSync(arguments: arguments)
         case "get_peers": return try await getPeers()
         case "list_indexes": return try await listIndexes()
+        case "get_app_logs": return try await getAppLogs(arguments: arguments)
+        case "get_ditto_logs": return try await getDittoLogs(arguments: arguments)
         default:
             throw MCPError.unknownTool(toolName)
         }
@@ -311,6 +352,12 @@ enum MCPToolHandlers {
             "name": config.name,
             "databaseId": config.databaseId,
             "mode": config.mode.rawValue,
+            "authUrl": config.authUrl,
+            "websocketUrl": config.websocketUrl,
+            "httpApiUrl": config.httpApiUrl,
+            "httpApiConfigured": !config.httpApiUrl.isEmpty && !config.httpApiKey.isEmpty,
+            "allowUntrustedCerts": config.allowUntrustedCerts,
+            "logLevel": config.logLevel,
             "transport": [
                 "bluetoothLE": config.isBluetoothLeEnabled,
                 "lan": config.isLanEnabled,
@@ -604,6 +651,68 @@ enum MCPToolHandlers {
         {
             return "{\"peers\": [], \"count\": 0}"
         }
+        return json
+    }
+
+    // MARK: get_app_logs
+
+    private static func getAppLogs(arguments: [String: Any]) async throws -> String {
+        let maxLines = arguments["lines"] as? Int ?? 200
+        let filterStr = (arguments["filter"] as? String ?? "").lowercased()
+
+        let logFiles = LoggingService.shared.getAllLogFiles()
+        var allLines: [String] = []
+        for url in logFiles.reversed() { // reversed: oldest file first → chronological
+            if let content = try? String(contentsOf: url, encoding: .utf8) {
+                allLines.append(contentsOf: content.components(separatedBy: "\n")
+                    .filter { !$0.isEmpty })
+            }
+        }
+
+        let filtered = filterStr.isEmpty
+            ? allLines
+            : allLines.filter { $0.lowercased().contains(filterStr) }
+
+        return Array(filtered.suffix(maxLines)).joined(separator: "\n")
+    }
+
+    // MARK: get_ditto_logs
+
+    private static func getDittoLogs(arguments: [String: Any]) async throws -> String {
+        let maxLines = arguments["lines"] as? Int ?? 200
+        let filterStr = (arguments["filter"] as? String ?? "").lowercased()
+        let levelStr = (arguments["level"] as? String ?? "").lowercased()
+
+        guard let persistenceDir = await DittoManager.shared.activePersistenceDirectory else {
+            throw MCPError.noActiveDatabase
+        }
+
+        let entries = await Task.detached(priority: .utility) {
+            LogFileParser.parseDirectory(persistenceDir)
+        }.value
+
+        // Level ordering (higher = more severe): error=4, warning=3, info=2, debug=1, verbose=0
+        let levelOrder: [String: Int] = ["verbose": 0, "debug": 1, "info": 2, "warning": 3, "error": 4]
+        let minOrder = levelOrder[levelStr] ?? 0
+
+        var filtered = entries.filter { entry in
+            let entryOrder = levelOrder[entry.level.storageString] ?? 0
+            guard entryOrder >= minOrder else { return false }
+            guard filterStr.isEmpty || entry.message.lowercased().contains(filterStr) else { return false }
+            return true
+        }
+        filtered = Array(filtered.suffix(maxLines))
+
+        let formatter = ISO8601DateFormatter()
+        let dicts: [[String: Any]] = filtered.map { entry in [
+            "timestamp": formatter.string(from: entry.timestamp),
+            "level": entry.level.storageString,
+            "component": "\(entry.component)",
+            "message": entry.message
+        ] }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: dicts, options: .prettyPrinted),
+              let json = String(data: data, encoding: .utf8) else { return "[]" }
         return json
     }
 

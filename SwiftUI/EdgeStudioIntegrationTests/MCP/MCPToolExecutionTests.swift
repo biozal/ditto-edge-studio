@@ -26,7 +26,7 @@ struct MCPToolExecutionTests {
         }
     }
 
-    @Test("tools/list over HTTP returns 13 tools", .tags(.mcp, .mcpTools))
+    @Test("tools/list over HTTP returns 15 tools", .tags(.mcp, .mcpTools))
     func testToolsListOverHTTP() async throws {
         try await MCPTestHelpers.withServer {
             // ACT
@@ -35,7 +35,7 @@ struct MCPToolExecutionTests {
             let tools = result?["tools"] as? [[String: Any]]
 
             // ASSERT
-            #expect(tools?.count == 13)
+            #expect(tools?.count == 15)
         }
     }
 

@@ -268,6 +268,12 @@ extension DatabaseEditorView {
         var secretKey: String
         var logLevel: String
 
+        // Transport settings — preserved from existing config, not editable in this view
+        var isBluetoothLeEnabled = true
+        var isLanEnabled = true
+        var isAwdlEnabled = true
+        var isCloudSyncEnabled = true
+
         let isNewItem: Bool
         private let databaseRepository = DatabaseRepository.shared
 
@@ -284,6 +290,10 @@ extension DatabaseEditorView {
             allowUntrustedCerts = appConfig.allowUntrustedCerts
             secretKey = appConfig.secretKey
             logLevel = appConfig.logLevel
+            isBluetoothLeEnabled = appConfig.isBluetoothLeEnabled
+            isLanEnabled = appConfig.isLanEnabled
+            isAwdlEnabled = appConfig.isAwdlEnabled
+            isCloudSyncEnabled = appConfig.isCloudSyncEnabled
 
             if appConfig.databaseId == "" {
                 isNewItem = true
@@ -309,6 +319,10 @@ extension DatabaseEditorView {
                     mode: mode,
                     allowUntrustedCerts: allowUntrustedCerts,
                     secretKey: secretKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                    isBluetoothLeEnabled: isBluetoothLeEnabled,
+                    isLanEnabled: isLanEnabled,
+                    isAwdlEnabled: isAwdlEnabled,
+                    isCloudSyncEnabled: isCloudSyncEnabled,
                     logLevel: logLevel
                 )
                 if isNewItem {

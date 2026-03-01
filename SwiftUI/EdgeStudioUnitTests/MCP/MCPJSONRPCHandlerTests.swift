@@ -61,7 +61,7 @@ struct MCPJSONRPCHandlerTests {
 
     // MARK: - tools/list
 
-    @Test("tools/list returns 13 tools", .tags(.mcp, .fast))
+    @Test("tools/list returns 15 tools", .tags(.mcp, .fast))
     func testToolsListReturns10Tools() async {
         // ARRANGE
         let body = makeBody(["jsonrpc": "2.0", "id": 1, "method": "tools/list"])
@@ -73,7 +73,7 @@ struct MCPJSONRPCHandlerTests {
         let tools = result?["tools"] as? [[String: Any]]
 
         // ASSERT
-        #expect(tools?.count == 13)
+        #expect(tools?.count == 15)
     }
 
     @Test("tools/list each tool has name, description, inputSchema", .tags(.mcp, .fast))

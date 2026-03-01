@@ -29,6 +29,7 @@ actor SystemRepository {
     private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
         // Convert SDK enum to custom enum
         let typeString = "\(dittoType)"
+        Log.debug("[Presence] Raw DittoConnectionType: '\(typeString)'")
 
         if typeString.contains("bluetooth") {
             return .bluetooth
@@ -182,6 +183,11 @@ actor SystemRepository {
 
                 // Step 1: Extract connected peers from presence graph (source of truth)
                 let connectedPeers = presenceGraph.remotePeers
+                Log.debug("[Presence] Graph fired: \(connectedPeers.count) remote peer(s)")
+                for peer in connectedPeers {
+                    let types = peer.connections.map { "\($0.type)" }.joined(separator: ", ")
+                    Log.debug("[Presence] → peer '\(peer.peerKeyString)' connections: [\(types)]")
+                }
 
                 // Step 2: Query DQL for sync metrics directly (bypassing QueryService so these
                 // internal system queries are invisible to Query Metrics).
@@ -419,6 +425,8 @@ actor SystemRepository {
                 // Deduplicate by type before counting — the SDK returns one DittoConnection
                 // per directional endpoint (A→B and B→A), which would otherwise double counts.
                 for peer in presenceGraph.remotePeers {
+                    let rawConnTypes = peer.connections.map { "\($0.type)" }.joined(separator: ", ")
+                    Log.debug("[Presence] Peer '\(peer.peerKeyString)' reports connections: [\(rawConnTypes)]")
                     var seenTypes: Set<String> = []
                     for connection in peer.connections {
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }

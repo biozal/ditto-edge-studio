@@ -233,22 +233,19 @@ extension TransportConfigView {
 
         init() {}
 
-        /// Loads current transport settings from selected app config
+        /// Loads current transport settings from selected app config atomically,
+        /// assigning each `is*` and `original*` pair together so `hasChanges` never
+        /// transiently flips to `true` during load.
         func loadCurrentSettings() async {
-            let appConfig = await dittoManager.dittoSelectedAppConfig
-            guard let appConfig else { return }
-
-            // Load current settings into UI
-            isBluetoothLeEnabled = appConfig.isBluetoothLeEnabled
-            isLanEnabled = appConfig.isLanEnabled
-            isAwdlEnabled = appConfig.isAwdlEnabled
-            isCloudSyncEnabled = appConfig.isCloudSyncEnabled
-
-            // Store originals for change detection
-            originalBluetoothLeEnabled = appConfig.isBluetoothLeEnabled
-            originalLanEnabled = appConfig.isLanEnabled
-            originalAwdlEnabled = appConfig.isAwdlEnabled
-            originalCloudSyncEnabled = appConfig.isCloudSyncEnabled
+            guard let appConfig = await dittoManager.dittoSelectedAppConfig else { return }
+            let ble = appConfig.isBluetoothLeEnabled
+            let lan = appConfig.isLanEnabled
+            let awdl = appConfig.isAwdlEnabled
+            let cloud = appConfig.isCloudSyncEnabled
+            isBluetoothLeEnabled = ble; originalBluetoothLeEnabled = ble
+            isLanEnabled = lan; originalLanEnabled = lan
+            isAwdlEnabled = awdl; originalAwdlEnabled = awdl
+            isCloudSyncEnabled = cloud; originalCloudSyncEnabled = cloud
         }
 
         /// Applies transport configuration changes with proper sync and observer lifecycle

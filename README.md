@@ -1,5 +1,5 @@
-# Ditto Edge Studio 
-Ditto Edge Studio is a set of tools and an application that allows you to create a local Ditto Database based on a database registered in the Ditto Portal and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same DatabaseId.
+# Edge Studio 
+Edge Studio is a set of tools and an application that allows you to create a local Ditto Database based on a database registered in the Ditto Portal and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same DatabaseId.
 
 **Key Features:**
 - Multi-app connection management with local storage
@@ -37,7 +37,7 @@ Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it wi
 
 ## Development Tools
 
-Edge Debug Helper uses industry-standard code quality tools to maintain code health and detect unused code. These tools help catch issues early and keep the codebase clean.
+Edge Studio uses industry-standard code quality tools to maintain code health and detect unused code. These tools help catch issues early and keep the codebase clean.
 
 ### Quick Start
 
@@ -112,8 +112,6 @@ periphery scan --project "SwiftUI/Edge Debug Helper.xcodeproj" \
 - Troubleshooting guide
 - Best practices
 
-**Also see CLAUDE.md** for AI-specific code quality guidance.
-
 ## Logging Framework
 
 Edge Debug Helper uses **CocoaLumberjack** for file-based logging with user-viewable logs.
@@ -157,8 +155,6 @@ let content = Log.getCombinedLogs()
 // Export to location
 try Log.exportLogs(to: url)
 ```
-
-See **CLAUDE.md** for complete logging documentation, best practices, and future log viewer feature.
 
 ## Testing
 
@@ -228,8 +224,6 @@ git push --no-verify
 - AAA pattern examples
 - Coverage best practices
 - Troubleshooting guide
-
-**Also see CLAUDE.md** for testing requirements and mandatory testing policy.
 
 ## Claude Code MCP Integration
 
