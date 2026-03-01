@@ -1,0 +1,20 @@
+Go into plan mode.  Use XCode MCP for reviewing the code and making updates.  
+
+Read up on the Toolbar feature in the Apple documentation:
+https://developer.apple.com/design/human-interface-guidelines/toolbars
+
+https://developer.apple.com/documentation/swiftui/toolbars
+
+We need to work on a few UI changes.  According to the Apple Human Interface Guidelines - our buttons in the upper left for Sync, Close, and Show the Inspector should not all be in one group:
+
+https://developer.apple.com/design/human-interface-guidelines/toolbars
+
+I think we should group sync and close together and make the Inspector icon seperate.  The toolbar is drawn in the DetailViews.swift file.
+
+Next the DetailBottomBar doesn't fit in the new glass look and feel.  I would like to switch this out with a glass toolbar on the bottom.  Not everything can fit, so we will need to make some changes.
+
+- The list of Active Connections can be a single total amount but be a Picker where if you tap on it then brings a menu that pop ups and shows the detailed connection information for accessPoint, bluetooth, p2pWiFi, and webSocket. 
+
+- Pagnation.  When we need to draw pagination we have the total amount of documents returned.  This has the word Total - it's too much space, we can replace that word with the icon 'document.on.document'.  Next would be the page selector which allows you to select how many items per page.  We would need the ability to move between pages - right now this is < Page 1 of 1 > - which takes up too much space.  I recommend we update this to be < 1 of 1 > and remove the word Page.  We can remove the ability to auto put in DQL code into the editor as we can move this feature over to right clicking on a given collection in the sidebar - which we can do later, so right now plan on just removing it.  We should have a more menu that is ... and then from there give any overlow options right now it would be export, but more will exist in the future.  
+
+The new toolbar neees to look like Liquid glass and use the new Toolbar api with glass.  Come up with a plan on how we can make these changes and let me know when the plan is ready to review.  

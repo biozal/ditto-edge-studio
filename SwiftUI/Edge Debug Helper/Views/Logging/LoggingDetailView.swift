@@ -35,38 +35,42 @@ struct LoggingDetailView: View {
 
     private let maxDisplayedEntries = 200
 
+    /// Source tabs visible in the current platform.
+    /// The Imported tab is macOS-only because log file import uses a macOS file picker.
+    private var visibleSourceTabs: [SourceTab] {
+        #if os(macOS)
+        return SourceTab.allCases
+        #else
+        return [.dittoSDK, .application]
+        #endif
+    }
+
     // MARK: - Toolbar State
 
     @State private var activeLogLevel = "info"
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Toolbar ─────────────────────────────────────────────────────
             toolbarRow
 
             Divider()
 
-            // ── Source Selector ──────────────────────────────────────────────
             sourceRow
 
             Divider()
 
-            // ── Level & Component Filters ────────────────────────────────────
             filterRow
 
             Divider()
 
-            // ── Date Range Filter ─────────────────────────────────────────────
             dateFilterRow
 
             Divider()
 
-            // ── Log List ─────────────────────────────────────────────────────
             logList
 
             Divider()
 
-            // ── Footer ───────────────────────────────────────────────────────
             footerRow
         }
         .task {
@@ -141,13 +145,13 @@ struct LoggingDetailView: View {
 
     private var sourceRow: some View {
         HStack(spacing: 0) {
-            ForEach(SourceTab.allCases, id: \.self) { tab in
+            ForEach(visibleSourceTabs, id: \.self) { tab in
                 Button {
                     selectedSource = tab
                 } label: {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(selectedSource == tab ? Color.accentColor : Color.secondary.opacity(0.4))
+                            .fill(selectedSource == tab ? Color.green : Color.secondary.opacity(0.4))
                             .frame(width: 7, height: 7)
                         Text(tab.rawValue)
                             .font(.caption)
@@ -159,12 +163,13 @@ struct LoggingDetailView: View {
                 }
                 .buttonStyle(.plain)
 
-                if tab != SourceTab.allCases.last {
+                if tab != visibleSourceTabs.last {
                     Divider().frame(height: 16)
                 }
             }
 
-            // Imported label + clear button
+            // Imported label + clear button (macOS only — import is not available on iOS)
+            #if os(macOS)
             if !capture.importedLabel.isEmpty {
                 Text("[\(capture.importedLabel)]")
                     .font(.caption)
@@ -180,6 +185,7 @@ struct LoggingDetailView: View {
                 }
                 .buttonStyle(.plain)
             }
+            #endif
 
             Spacer()
         }
