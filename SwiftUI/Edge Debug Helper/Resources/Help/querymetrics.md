@@ -53,15 +53,13 @@ Tap **Apply** to save changes. The export timer restarts immediately.
 | Green | Last successful push time |
 | Red | Last push failed — error message shown |
 
-### Exported Metric Names
+### Exported Metric Contents
 
-Metrics are pushed under the job label `edge_studio`. Exported names include:
+Metrics are pushed under the job label `edge_studio` and include information such as:
 
-- `edge_studio_resident_memory_bytes`
-- `edge_studio_virtual_memory_bytes`
-- `edge_studio_cpu_time_seconds`
-- `edge_studio_open_file_descriptors`
-- `edge_studio_uptime_seconds`
-- `edge_studio_total_queries`
-- `edge_studio_average_query_latency_seconds`
-- `edge_studio_last_query_latency_seconds`
+- Process resource usage (e.g. resident and virtual memory, CPU time, open file descriptors)
+- Application uptime
+- Aggregate query statistics (e.g. total queries executed)
+- Query latency statistics (e.g. average and most recent query latency)
+
+The exact metric names and labels are determined by the exporter implementation and may evolve over time. Inspect the exported metrics (for example, via your Prometheus target or Pushgateway UI) to see the precise names available in your version.
