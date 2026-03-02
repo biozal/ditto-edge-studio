@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme — NoActionBar since Compose manages the UI chrome.
+         Uses framework theme to avoid needing the Material Components library. -->
+    <style name="Theme.DittoEdgeStudio" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ditto_background_light</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

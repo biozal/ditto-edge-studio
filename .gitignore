@@ -23,3 +23,5 @@ SwiftUI/TestResults.xcresult
 SwiftUI/coverage.json
 SwiftUI/coverage.txt
 SwiftUI/coverage_files.txt
+android/.idea
+android/.kotlin
