@@ -33,13 +33,10 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.WifiFind
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -85,6 +82,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
@@ -140,11 +138,6 @@ private fun PhoneLayout(viewModel: MainStudioViewModel, onBack: () -> Unit) {
                     onNavigationClick = { scope.launch { drawerState.open() } },
                 )
             },
-            bottomBar = {
-                if (viewModel.bottomBarExpanded) {
-                    StudioBottomBar(viewModel = viewModel)
-                }
-            },
         ) { padding ->
             Box(
                 modifier = Modifier
@@ -164,6 +157,14 @@ private fun PhoneLayout(viewModel: MainStudioViewModel, onBack: () -> Unit) {
                             contentDescription = "Expand bottom bar",
                         )
                     }
+                }
+                if (viewModel.bottomBarExpanded) {
+                    StudioBottomBar(
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp),
+                    )
                 }
             }
         }
@@ -245,9 +246,14 @@ private fun TabletLayout(viewModel: MainStudioViewModel, onBack: () -> Unit) {
                         )
                     }
                 }
-            }
-            if (viewModel.bottomBarExpanded) {
-                StudioBottomBar(viewModel = viewModel)
+                if (viewModel.bottomBarExpanded) {
+                    StudioBottomBar(
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp),
+                    )
+                }
             }
         }
 
@@ -479,30 +485,33 @@ private fun ContentPlaceholder(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            SecondaryTabRow(
-                selectedTabIndex = selectedTabIndex,
-                modifier = Modifier.weight(1f),
+        if (viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Tab(
-                    selected = selectedTabIndex == 0,
-                    onClick = { selectedTabIndex = 0 },
-                    text = { Text("Peers List") },
-                )
-                Tab(
-                    selected = selectedTabIndex == 1,
-                    onClick = { selectedTabIndex = 1 },
-                    text = { Text("Presence Viewer") },
-                )
-            }
-            IconButton(onClick = { viewModel.transportConfigVisible = true }) {
-                Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Transport config",
-                )
+                SecondaryTabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Tab(
+                        selected = selectedTabIndex == 0,
+                        onClick = { selectedTabIndex = 0 },
+                        text = { Text("Peers List") },
+                    )
+                    Tab(
+                        selected = selectedTabIndex == 1,
+                        onClick = { selectedTabIndex = 1 },
+                        text = { Text("Presence Viewer") },
+                    )
+                }
+                IconButton(onClick = { viewModel.transportConfigVisible = true }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = "Transport config",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
         Box(
@@ -520,11 +529,18 @@ private fun ContentPlaceholder(
 }
 
 @Composable
-private fun StudioBottomBar(viewModel: MainStudioViewModel) {
-    BottomAppBar {
+private fun StudioBottomBar(viewModel: MainStudioViewModel, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+        tonalElevation = 3.dp,
+        shadowElevation = 4.dp,
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Box {
                 FilterChip(
@@ -549,7 +565,6 @@ private fun StudioBottomBar(viewModel: MainStudioViewModel) {
                     )
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
             IconButton(onClick = { viewModel.bottomBarExpanded = false }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -617,7 +632,7 @@ private fun InspectorContent() {
 private fun TransportConfigContent(viewModel: MainStudioViewModel) {
     var bluetoothEnabled by remember { mutableStateOf(true) }
     var lanEnabled by remember { mutableStateOf(true) }
-    var awdlEnabled by remember { mutableStateOf(false) }
+    var wifiAwareEnabled by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -670,10 +685,10 @@ private fun TransportConfigContent(viewModel: MainStudioViewModel) {
         )
         TransportToggleRow(
             icon = Icons.Outlined.WifiFind,
-            name = "AWDL",
-            description = "Apple Wireless Direct Link — Apple devices only",
-            enabled = awdlEnabled,
-            onToggle = { awdlEnabled = it },
+            name = "WiFi Aware",
+            description = "WiFi Aware — devices that support WiFi Aware connections",
+            enabled = wifiAwareEnabled,
+            onToggle = { wifiAwareEnabled = it },
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -724,43 +739,85 @@ private fun StudioFabMenu(
     ) {
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
-            icon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-            text = { Text("Add Subscription") },
+            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            text = {
+                Text(
+                    text = "Subscription",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
-            icon = { Icon(Icons.Outlined.Visibility, contentDescription = null) },
-            text = { Text("Add Observer") },
+            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            text = {
+                Text(
+                    text = "Observer",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
-            icon = { Icon(Icons.Outlined.Storage, contentDescription = null) },
-            text = { Text("Add Index") },
+            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+            text = {
+                Text(
+                    text = "Index",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
             icon = { Icon(Icons.Outlined.QrCodeScanner, contentDescription = null) },
-            text = { Text("Import Subscriptions → QR Code") },
+            text = {
+                Text(
+                    text = "Import Subscriptions",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
             icon = { Icon(Icons.Outlined.Cloud, contentDescription = null) },
-            text = { Text("Import Subscriptions → Server") },
+            text = {
+                Text(
+                    text = "Import Subscriptions",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )
         FloatingActionButtonMenuItem(
             onClick = { onExpandChange(false) },
             icon = { Icon(Icons.Outlined.FileDownload, contentDescription = null) },
-            text = { Text("Import JSON Data") },
+            text = {
+                Text(
+                    text = "Import JSON",
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             containerColor = TrafficBlack,
             contentColor = TrafficWhite,
         )

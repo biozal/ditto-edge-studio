@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Edge Debug Helper - Build and Notarize Script
+# Edge Studio  - Build and Notarize Script
 # This script builds a release version of the app and submits it for notarization
 
 set -e  # Exit on error
@@ -18,7 +18,7 @@ SCHEME="Edge Studio"
 CONFIGURATION="Release"
 ARCHIVE_PATH="${PROJECT_DIR}/build/EdgeDebugHelper.xcarchive"
 EXPORT_PATH="${PROJECT_DIR}/build/export"
-APP_NAME="Edge Debug Helper.app"
+APP_NAME="Ditto Edge Studio.app"
 BUNDLE_ID="com.costoda.ditto-edge-studio"
 DEVELOPER_ID="Developer ID Application: Aaron LaBeau (E3FRN9JNGJ)"
 
@@ -27,7 +27,7 @@ APPLE_ID="${APPLE_ID:-your-apple-id@example.com}"
 TEAM_ID="E3FRN9JNGJ"
 
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   Edge Debug Helper - Release Build       ║${NC}"
+echo -e "${GREEN}║   Edge Studio - Release Build       ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -114,14 +114,14 @@ cp -R "${EXPORT_PATH}/${APP_NAME}" "${DMG_TEMP}/"
 ln -s /Applications "${DMG_TEMP}/Applications"
 
 # DMG name with version
-DMG_NAME="Edge Debug Helper ${VERSION}.dmg"
+DMG_NAME="Ditto Edge Studio ${VERSION}.dmg"
 DMG_PATH="${PROJECT_DIR}/scripts/${DMG_NAME}"
 
 # Remove existing DMG if present
 rm -f "${DMG_PATH}"
 
 # Create DMG
-hdiutil create -volname "Edge Debug Helper ${VERSION}" \
+hdiutil create -volname "Ditto Edge Studio ${VERSION}" \
     -srcfolder "${DMG_TEMP}" \
     -ov -format UDZO \
     "${DMG_PATH}"

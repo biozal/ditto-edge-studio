@@ -47,6 +47,7 @@ fun DatabaseCard(
     onTap: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onShowQrCode: (DittoDatabase) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
@@ -127,7 +128,10 @@ fun DatabaseCard(
             DropdownMenuItem(
                 text = { Text("QR Code") },
                 leadingIcon = { Icon(Icons.Outlined.QrCode, contentDescription = null) },
-                onClick = { showContextMenu = false },
+                onClick = {
+                    showContextMenu = false
+                    onShowQrCode(database)
+                },
             )
             HorizontalDivider()
             DropdownMenuItem(

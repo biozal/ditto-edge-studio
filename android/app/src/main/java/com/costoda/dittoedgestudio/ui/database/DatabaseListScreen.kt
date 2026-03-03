@@ -2,7 +2,6 @@ package com.costoda.dittoedgestudio.ui.database
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayDialog
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
@@ -70,12 +70,14 @@ fun DatabaseListScreen(
     onAddDatabase: () -> Unit,
     onEditDatabase: (DittoDatabase) -> Unit,
     onOpenDatabase: (DittoDatabase) -> Unit,
+    onScanQrCode: () -> Unit,
     viewModel: DatabaseListViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     var tabletEditorId by remember { mutableStateOf<Long?>(null) }
     var tabletEditorSession by remember { mutableStateOf(0) }
+    var showQrDialogFor by remember { mutableStateOf<DittoDatabase?>(null) }
 
     if (screenWidthDp >= 600) {
         TabletDatabaseListLayout(
@@ -84,6 +86,8 @@ fun DatabaseListScreen(
             onEditDatabase = { db -> tabletEditorId = db.id; tabletEditorSession++ },
             onOpenDatabase = onOpenDatabase,
             onDeleteDatabase = { viewModel.deleteDatabase(it) },
+            onShowQrCode = { db -> showQrDialogFor = db },
+            onScanQrCode = onScanQrCode,
         )
         tabletEditorId?.let { id ->
             Dialog(
@@ -112,6 +116,15 @@ fun DatabaseListScreen(
             onEditDatabase = onEditDatabase,
             onOpenDatabase = onOpenDatabase,
             onDeleteDatabase = { viewModel.deleteDatabase(it) },
+            onShowQrCode = { db -> showQrDialogFor = db },
+            onScanQrCode = onScanQrCode,
+        )
+    }
+
+    showQrDialogFor?.let { db ->
+        QrDisplayDialog(
+            database = db,
+            onDismiss = { showQrDialogFor = null },
         )
     }
 }
@@ -124,6 +137,8 @@ private fun PhoneDatabaseListLayout(
     onEditDatabase: (DittoDatabase) -> Unit,
     onOpenDatabase: (DittoDatabase) -> Unit,
     onDeleteDatabase: (Long) -> Unit,
+    onShowQrCode: (DittoDatabase) -> Unit,
+    onScanQrCode: () -> Unit,
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -134,11 +149,7 @@ private fun PhoneDatabaseListLayout(
             LargeTopAppBar(
                 title = { Text("Edge Studio") },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
-                        },
-                    ) {
+                    IconButton(onClick = onScanQrCode) {
                         Icon(
                             imageVector = Icons.Outlined.QrCodeScanner,
                             contentDescription = "Scan QR Code",
@@ -205,6 +216,7 @@ private fun PhoneDatabaseListLayout(
                             onTap = { onOpenDatabase(database) },
                             onEdit = { onEditDatabase(database) },
                             onDelete = { onDeleteDatabase(database.id) },
+                            onShowQrCode = onShowQrCode,
                             modifier = Modifier.padding(vertical = 6.dp),
                         )
                     }
@@ -221,6 +233,8 @@ private fun TabletDatabaseListLayout(
     onEditDatabase: (DittoDatabase) -> Unit,
     onOpenDatabase: (DittoDatabase) -> Unit,
     onDeleteDatabase: (Long) -> Unit,
+    onShowQrCode: (DittoDatabase) -> Unit,
+    onScanQrCode: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -267,9 +281,7 @@ private fun TabletDatabaseListLayout(
             }
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
-                onClick = {
-                    Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
-                },
+                onClick = onScanQrCode,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
@@ -312,6 +324,7 @@ private fun TabletDatabaseListLayout(
                                 onTap = { onOpenDatabase(database) },
                                 onEdit = { onEditDatabase(database) },
                                 onDelete = { onDeleteDatabase(database.id) },
+                                onShowQrCode = onShowQrCode,
                             )
                         }
                     }
@@ -356,6 +369,8 @@ private fun DatabaseListScreenEmptyPreview() {
             onEditDatabase = {},
             onOpenDatabase = {},
             onDeleteDatabase = {},
+            onShowQrCode = {},
+            onScanQrCode = {},
         )
     }
 }
@@ -375,6 +390,8 @@ private fun DatabaseListScreenWithItemsPreview() {
             onEditDatabase = {},
             onOpenDatabase = {},
             onDeleteDatabase = {},
+            onShowQrCode = {},
+            onScanQrCode = {},
         )
     }
 }

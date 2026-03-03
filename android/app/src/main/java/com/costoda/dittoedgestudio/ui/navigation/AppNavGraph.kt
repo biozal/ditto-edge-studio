@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.costoda.dittoedgestudio.ui.database.DatabaseEditorScreen
 import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.MainStudioScreen
+import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 
 sealed class Screen(val route: String) {
     object DatabaseList : Screen("database_list")
@@ -18,6 +19,7 @@ sealed class Screen(val route: String) {
     object MainStudio : Screen("main_studio/{databaseId}") {
         fun createRoute(databaseId: Long) = "main_studio/$databaseId"
     }
+    object QrScanner : Screen("qr_scanner")
 }
 
 @Composable
@@ -38,6 +40,9 @@ fun AppNavGraph() {
                 },
                 onOpenDatabase = { database ->
                     navController.navigate(Screen.MainStudio.createRoute(database.id))
+                },
+                onScanQrCode = {
+                    navController.navigate(Screen.QrScanner.route)
                 },
             )
         }
@@ -68,6 +73,12 @@ fun AppNavGraph() {
             MainStudioScreen(
                 databaseId = dbId,
                 onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Screen.QrScanner.route) {
+            QrScannerScreen(
+                onNavigateBack = { navController.popBackStack() },
             )
         }
     }

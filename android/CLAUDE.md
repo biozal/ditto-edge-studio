@@ -230,6 +230,54 @@ Always use these named tokens — never hardcode hex values in UI code.
 - `windowSoftInputMode="adjustResize"` — keyboard pushes content up
 - `configChanges="orientation|screenSize"` — activity handles rotation without recreation
 
+## QR Code Import & Export
+
+The app supports cross-platform QR code sharing of database configs, compatible with the iOS/macOS Edge Studio app.
+
+### Wire Format
+
+| Version | Format |
+|---------|--------|
+| v2 (current) | `EDS2:` + Base64(zlib-compress(JSON)) |
+| v1 (legacy, parse-only) | raw JSON of database config (no prefix) |
+
+- **zlib:** `Deflater(DEFAULT_COMPRESSION, nowrap=false)` / `Inflater(nowrap=false)` — RFC 1950 standard format, matches Apple's `.zlib` compression
+- **Max payload:** 2200 characters. Favorites are dropped if payload would exceed this limit with them included.
+- **`_id` field on import:** Ignored — Room generates a new auto-increment `Long` id for each imported config
+- **Duplicate handling:** `OnConflictStrategy.REPLACE` in the DAO; scanning the same QR twice upserts silently
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `domain/model/QrCodePayload.kt` | `@Serializable` data classes matching EDS2 JSON format |
+| `util/QrCodeDecoder.kt` | Decodes EDS2/v1 QR string → `QrImportResult` |
+| `util/QrCodeEncoder.kt` | Encodes `DittoDatabase` + favorites → EDS2 QR `Bitmap` |
+| `util/QrImportResult.kt` | Result type: `database + favorites` |
+| `ui/qrcode/QrScannerScreen.kt` | Full-screen CameraX + ML Kit live scanner |
+| `ui/qrcode/QrScannerViewModel.kt` | State: Idle → Scanning → Processing → Success/Error |
+| `ui/qrcode/QrDisplayDialog.kt` | `ModalBottomSheet` showing the generated QR image |
+| `ui/qrcode/QrDisplayViewModel.kt` | Fetches favorites + generates QR bitmap asynchronously |
+
+### Libraries
+
+- **CameraX** (`androidx.camera:*` 1.4.2) — lifecycle-aware camera preview
+- **ML Kit Barcode** (`com.google.mlkit:barcode-scanning` 17.3.0) — QR code detection
+- **ZXing Core** (`com.google.zxing:core` 3.5.3) — QR code generation (no camera dependency)
+- **kotlinx.serialization** (`org.jetbrains.kotlinx:kotlinx-serialization-json` 1.8.0) — JSON encoding/decoding
+
+### Permissions
+
+`CAMERA` permission is required for the scanner screen. The permission is requested at runtime via `ActivityResultContracts.RequestPermission()` when the scanner screen is opened. `uses-feature android.hardware.camera` is declared as `required="false"` so the app can install on devices without a camera (scanner screen handles the absent permission gracefully).
+
+### Navigation
+
+`Screen.QrScanner` is a top-level route in `AppNavGraph`. The `DatabaseListScreen`:
+- **Phone:** Top-bar `QrCodeScanner` icon button → navigates to `QrScanner` screen
+- **Tablet:** "Import QR Code" `OutlinedButton` in left panel → navigates to `QrScanner` screen
+
+The **QR display** (export) is triggered from the `DatabaseCard` context menu → "QR Code" → shows `QrDisplayDialog` (a `ModalBottomSheet`) from within `DatabaseListScreen` state, without navigation.
+
 ## Gradle Properties
 
 Set in `gradle.properties`:

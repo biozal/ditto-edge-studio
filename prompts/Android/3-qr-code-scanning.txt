@@ -1,0 +1,15 @@
+Go into planning mode.  Use XCode MCP and MCP for Jetbrains IDE to do code discovery on Android.
+
+I would like to add in the feature to be able to import a database config using a QR code, and to share a database config via a QR Code.  
+
+On Android in the functions PhoneDatabaseListLayout and TabletDatabaseListLayout the buttons exist for "Import QR Code".  How this would work is that the camera would turn on and then scan in a QR code from any other version of Edge Studio (iPhone, iPad, or MacOS).  Once the QR is read in this would automatically add the configuration to the database and then refresh the screen to show off the new configuration on the database listing screen.  This saves the developer from typing.  
+
+Sharing the config via QR code works the opposite way.  We would take the database config and turn it into a QR code that is then displayed on the screen.  
+
+The code QRCodeGenerator.swift does the QR Code generation in Swift.  The DatabseListPanel does the code for showing the QR Code (the viewModel.showQRCode handles this).
+
+QRCodeScannerView.swift does the scanning in of a QR Code.  This is processed in ContentView for importing the database config into the database.  
+
+
+Make a plan to review the SwiftUI code and then do a conversion for the Android version of the app that is in the android folder.  The plan should include writing tests and documentation.  Let me know when the plan is ready to review.
+

@@ -12,6 +12,9 @@ import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepositoryImpl
+import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayViewModel
+import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -36,4 +39,6 @@ val dataModule = module {
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
     viewModel { (id: Long) -> MainStudioViewModel(id) }
+    viewModelOf(::QrScannerViewModel)
+    viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }
 }
