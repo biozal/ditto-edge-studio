@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
 
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 

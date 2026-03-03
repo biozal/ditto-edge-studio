@@ -9,6 +9,8 @@ import org.koin.core.context.startKoin
 class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Load SQLCipher native library before any database operations
+        System.loadLibrary("sqlcipher")
         startKoin {
             androidLogger()
             androidContext(this@MainApplication)
