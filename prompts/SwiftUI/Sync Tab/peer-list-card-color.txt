@@ -1,0 +1,19 @@
+Go into plan mode.  The syncStatusCard in ConnectedPeersView draws cards to show off connected information. I would like to update this card to use a different color based on the active connection.  Each connection has a different color assoicated with it:
+
+Blue - bluetooth
+Green - lan
+Red - p2p wifi
+Orange - websocket
+Purple - Cloud (Ditto Server) 
+
+In the presence viewer we show off these colors with the lines for the connection between peers and the colors are used to show the developer which type of connection it is.  This is all based on the Ditto Rainbow Connection documentation: 
+
+https://docs.ditto.live/key-concepts/mesh-networking#rainbow-connection
+
+I would like to update this so that each card background color is based on those colors.  You can see which colors we are using in the presence viewer.  We will use the the fastest network connection when multiple network connections are connected:
+
+LAN is faster than P2P Wifi which is faster than bluetooth.  If websockets is connected, it should always be the websocket color.  For Ditto Server there is a property we use to track if it's a Ditto Server, if it is then it should be the purple color for "Cloud" based connections.   It would be nice of the cards looked nice and I would be ok with reviewing them if they had a nice gradient based on different shades of the colors.  The font needs to be readable so you need to look into the colors we use for the fonts and icons.  
+
+Review what we have and make recommendations.  If you think we need to use different shades of these colors so they look better with white text on the foreground, we need to take that into account, but also update the presence viewer so it's using the same colors.  
+
+Once you have a plan in place let me know so I can review.  

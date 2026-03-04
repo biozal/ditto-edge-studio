@@ -1,0 +1,12 @@
+I would like you to go into plan mode.  I need a new feature that will incorporate a new JSON viewer in the inspector.  This JSON viewer would give the user a very rich viewing experience of a single JSON record - I want it to be nice, proper indents and color coding like the IDEs show off JSON.
+
+We need to research options for displaying JSON like this using SwiftUI.  We already have a code editor that we use Highlightr - but my fear is that hasn't been updated in quite some time and honestly I've thought about pulling it and just using a regular editor from SwfitUI because of that.  So I'm not really all that keen on using it for something else.  Research other options.
+
+How it would work is by default it would be blank - no viewer just a message that is centered horizontly and verticaly that states select a JSON result in order to view it.  
+
+In the Raw and Table results of the Query Results when a user either clicks on the record in the Raw view or in the Table view we currently copy it to the clipboard.  Now we would copy it to the clipboard AND open the inspector if it's not open and show the JSON in the new inspector JSON Viewer.  This is how the Ditto Portal does it and it's kind of nice.  
+
+We will need to add the JSON Viewer to the navigation menu in the inspector.  It should use the text.document.fill icon.  
+
+Research options for this and come back with a plan.  Don't ask me permission for searching the internet - you have my permission to search any website for documentation or best practices on how to do this.
+

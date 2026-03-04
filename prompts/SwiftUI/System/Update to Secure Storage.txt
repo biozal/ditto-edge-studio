@@ -1,0 +1,24 @@
+Go into plan mode.  Currently we have two instances of Ditto that are used in the app.  In the DittoManager we have dittoLocal which is used to store the following:
+
+- Registered Databases that a user can select
+- Query History
+- Favorites
+- Observers
+
+These pieces of data are stored in these collections:
+
+- dittoappconfigs (registered databases)
+- dittoqueryhistory (history) 
+- dittoqueryfavorites (favorites)
+- dittoobservations (observations)
+
+
+I would like to switch this out because Ditto doesn't allow the encryption of information and the databases registered contain a token that is considered highly sensitive information. Query history and favorites also can leak information if arguments are provided.  Instead I would like to store this information in secure storage.  Create a plan to refactor the registering of databases, history, favorites, and observers to store them securely.  Look into using SecureStorage as an option.  
+
+As part of this plan you will need to fully update the UI code that is used to save and delete this information from history, favorites, and observers along with how we register and update databases.  The model of information shouldn't change, but it also should be secured per database.  You should only store favorites for a given database in the same location so that information doesn't leak between registered databases.  We need to update how we store databases and these files.  Currenlty we caculate a path for persistenceDirectory for the database files to be saved in.  I would like to save the databases into a folder in the persistenceDirectory called database - so the initilization of Ditto will have to be changed to add in this new folder.  I also want a seperate folder called cache made in the persistenceDirectory .  This is where the Favorites, History, and observers should be saved.
+
+Because of this change, we will no longer need to store configuration for the localDatabase in the dittoConfig.plist file, and the code should be cleaned because that is no longer needed.  We need to take performance into account - so history, favorites, and observers should be cached in memory when a database is opened.  Updates should be done in memory and then saved out secure storage.  When the database is closed, all cached information in memory should be dumped and cleared for security reasons.    
+
+Tests will need to be modified to make sure all this setup works and functions properly and new tests should be written to validate the functionality works properly.
+
+Create a full plan on how to do this migration.  

@@ -1,196 +1,98 @@
-# Build & Notarization Scripts
+# Test Coverage Scripts
 
-This folder contains scripts for building and notarizing Edge Debug Helper for macOS distribution.
+This directory contains scripts for automated test coverage reporting and enforcement.
 
-## Prerequisites
+## Scripts
 
-### 1. Developer ID Certificate
-You need a valid "Developer ID Application" certificate from Apple. Check if you have one:
+### `generate_coverage_report.sh`
 
+Runs all unit tests with code coverage enabled and generates a coverage report.
+
+**Usage:**
 ```bash
-security find-identity -v -p codesigning | grep "Developer ID Application"
+./scripts/generate_coverage_report.sh
 ```
 
-✅ **Found:** `Developer ID Application: Aaron LaBeau (E3FRN9JNGJ)`
+**What it does:**
+1. Runs all EdgeStudioUnitTests with coverage tracking
+2. Generates JSON coverage report
+3. Extracts overall coverage percentage
+4. Checks against 50% threshold
+5. Exits with error if below threshold
 
-### 2. Apple ID with App-Specific Password
-For notarization, you need:
-- An Apple ID enrolled in the Apple Developer Program
-- An app-specific password (generated at appleid.apple.com)
+**Output:**
+- `SwiftUI/TestResults.xcresult` - Full test results bundle
+- `SwiftUI/coverage.json` - JSON coverage data
+- Console output with pass/fail status
 
-### 3. Store Notarization Credentials
-Store your credentials in the keychain (one-time setup):
-
-```bash
-xcrun notarytool store-credentials "notarytool-profile" \
-  --apple-id your-email@example.com \
-  --team-id E3FRN9JNGJ \
-  --password <app-specific-password>
-```
-
-This stores your credentials securely in the macOS keychain.
+**Exit codes:**
+- `0` - Tests passed and coverage ≥ 50%
+- `1` - Tests failed or coverage < 50%
 
 ---
 
-## Quick Start
+### `coverage_dashboard.sh`
 
-### Option 1: Simple Release Build (No Notarization)
+Displays a detailed coverage dashboard with per-file statistics.
+
+**Usage:**
 ```bash
-./build-release.sh
+./scripts/coverage_dashboard.sh
 ```
 
-This builds the release version and places it in `build/Release/`. Use this for local testing.
+**Prerequisites:**
+Must run `generate_coverage_report.sh` first to create coverage data.
 
-### Option 2: Full Release with Notarization
-```bash
-./build-and-notarize.sh
-```
-
-This:
-1. Builds the release version
-2. Creates an archive
-3. Exports a signed app
-4. Creates a DMG
-5. Submits to Apple for notarization
-6. Staples the notarization ticket
-
-The final DMG will be in the `scripts/` folder.
+**Output:**
+- Overall coverage percentage
+- SQLCipherService coverage details  
+- Test file coverage
+- Instructions to view in Xcode
 
 ---
 
-## Manual Notarization Process
+## Current Coverage Status
 
-If you want to notarize manually:
+**Target:** 50% minimum code coverage
 
-### 1. Build the app
-```bash
-./build-release.sh
-```
+**Current:** 15.96% (as of Phase 4 completion)
 
-### 2. Code sign the app
-```bash
-codesign --deep --force --verify --verbose \
-  --sign "Developer ID Application: Aaron LaBeau (E3FRN9JNGJ)" \
-  "build/Release/Edge Debug Helper.app"
-```
+**Tested Components:**
+- ✅ SQLCipherService: 62.19% coverage (500/804 lines)
 
-### 3. Create a DMG
-```bash
-hdiutil create -volname "Edge Debug Helper" \
-  -srcfolder "build/Release/Edge Debug Helper.app" \
-  -ov -format UDZO \
-  "scripts/EdgeDebugHelper.dmg"
-```
-
-### 4. Submit for notarization
-```bash
-xcrun notarytool submit scripts/EdgeDebugHelper.dmg \
-  --keychain-profile "notarytool-profile" \
-  --wait
-```
-
-### 5. Check notarization status
-```bash
-# Get the submission ID from the previous command
-xcrun notarytool info <submission-id> \
-  --keychain-profile "notarytool-profile"
-```
-
-### 6. Staple the ticket (after approval)
-```bash
-xcrun stapler staple scripts/EdgeDebugHelper.dmg
-```
-
-### 7. Verify stapling
-```bash
-xcrun stapler validate scripts/EdgeDebugHelper.dmg
-spctl -a -vvv -t install scripts/EdgeDebugHelper.dmg
-```
+**Next Priority for Testing:**
+- DatabaseRepository
+- HistoryRepository
+- FavoritesRepository
+- QueryService
+- Other repositories and services
 
 ---
 
-## Notarization Timeline
+## Viewing Coverage in Xcode
 
-- **Submission:** Instant
-- **Processing:** Usually 5-30 minutes
-- **Result:** Approved or Rejected
-
-You'll receive an email from Apple with the notarization result.
+1. Open `SwiftUI/TestResults.xcresult` in Xcode
+2. Navigate to the **Coverage** tab
+3. Browse per-file and per-function coverage
+4. Click on files to see line-by-line coverage highlighting
 
 ---
 
-## Troubleshooting
+## Pre-Push Hook (Optional)
 
-### "App is damaged" error
-This happens when the app isn't notarized or the staple is missing:
+A pre-push hook is available at `.git/hooks/pre-push` that runs coverage checks before every push.
+
+**To enable:**
 ```bash
-# Remove quarantine flag (for testing only)
-xattr -d com.apple.quarantine "Edge Debug Helper.app"
+chmod +x .git/hooks/pre-push
 ```
 
-### Notarization rejected
-Check the detailed log:
+**To disable:**
 ```bash
-xcrun notarytool log <submission-id> \
-  --keychain-profile "notarytool-profile"
+rm .git/hooks/pre-push
 ```
 
-Common issues:
-- Hardened runtime not enabled
-- Missing entitlements
-- Unsigned frameworks
-- Insecure code
-
-### Certificate issues
-Verify your certificate:
+**Bypass once:**
 ```bash
-security find-identity -v -p codesigning
-codesign -dv --verbose=4 "Edge Debug Helper.app"
+git push --no-verify
 ```
-
----
-
-## Distribution
-
-Once notarized and stapled:
-
-1. **Test locally:** Open the DMG and verify it runs without warnings
-2. **Upload:** Share via GitHub Releases, website, etc.
-3. **Users:** They can download and run without "unidentified developer" warnings
-
----
-
-## Build Output
-
-After running scripts, you'll find:
-
-```
-ditto-edge-studio/
-├── scripts/
-│   ├── EdgeDebugHelper-v0.2.4.dmg  # Final distributable
-│   ├── build-and-notarize.sh       # Full build script
-│   ├── build-release.sh            # Simple build script
-│   └── README.md                   # This file
-└── build/
-    ├── EdgeDebugHelper.xcarchive   # Archive
-    ├── export/
-    │   └── Edge Debug Helper.app   # Exported app
-    └── Release/
-        └── Edge Debug Helper.app   # Direct build
-```
-
----
-
-## References
-
-- [Apple Notarization Documentation](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution)
-- [notarytool Documentation](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow)
-- [Code Signing Guide](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html)
-
----
-
-## Support
-
-For notarization issues, contact Apple Developer Support or check the Apple Developer Forums.
-
-For app-specific issues, see the main project README.

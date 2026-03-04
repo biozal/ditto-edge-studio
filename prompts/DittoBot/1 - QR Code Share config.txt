@@ -1,0 +1,13 @@
+Go into plan mode.  Now that Ditto Edge Studio runs on both MacOS and iPad OS I would like the ability to import the configuration from MacOS to iPadOS so I don't have to type.  
+
+What I would like to do is in MacOS specifically right click on a registered database from the database listing and have the option for QR Code.  When this happens a QR Code is generated of the database configuration and displayed on the screen.
+
+This would need to be a swipe option on the databse listing where if they swipe we give them the option to edit or delete there would be a new option for QR Code.  This would generate the QR Code and show it on the screen.
+
+I would like do then on the database listing screen have the ability to import from QR Code as a new option on all platforms.  When this happens the camera comes up so you can scan in the QR Code.  
+
+Once the QR Code is scanned in we should give them a spinner while we load the configuration into the database and update the database listing.  We should bring in the configuration EXACTLY like it is on the other device.
+
+For iPadOS/iOS when the screen is taller than wider, this would be a QR Code icon button on the toolbar to import in the configuration.  
+
+Research options for allowing this feature. 

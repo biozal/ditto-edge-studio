@@ -1,0 +1,48 @@
+Go into plan mode.  Use XCode MCP for all code review and discovery.  
+
+I would like to add a feature to allow the end user to setup Ditto SDK Logging and App level logging.  To start research the Ditto SDK logging so you understand how it works:
+
+https://docs.ditto.live/sdk/latest/deployment/logging#integration
+https://docs.ditto.live/sdk/latest/deployment/troubleshooting
+
+The API reference documentation is here:
+https://software.ditto.live/cocoa/DittoSwift/4.14.3/api-reference/Classes/DittoLogger.html
+
+The various levels of logging are:
+https://software.ditto.live/cocoa/DittoSwift/4.14.3/api-reference/Enums/DittoLogLevel.html
+
+I would like to start out by offering the developer a prefernce per database config on the logging level.  This should default to Info and should be a new option under the Settings of the app.  This setting should be saved in the SQLite database we use for saving database configuration information.  If the user changes the log level it should save and restore when they close and open the app.
+
+Next I would like to create a log viewer that allows the developer to read the logs and filter out log events for the current selected database config.  This should be able to filter out by log level, so if for example they have verbose logging turned on I should be able to filter out INFO type messages vs ERROR type messages.  We know the database directory that it's stored in, so we should be able to gain access to the log files.  I would note that we need to research opening the log file while the SDK might be writing to them so we don't have any corruption problems.
+
+It would be further extremely helpful to filter out message by are they to do with sync vs writing to the database, etc.  Research how logs are written so that we can understand the format of the file.  The Ditto SDK source code is on this computer in the ~/Developer/ditto/ditto folder.  There is a Claude.md file in th is folder that you should be able to read to gain information on how that project is layed out.  The SDK code is located in:
+
+/Users/labeaaa/Developer/ditto/ditto/sdks
+
+Go through the code and figure out how log files are formatted to see if we can further filter or highlight information in the log file by the features of Ditto (Store, Observer, Sync, Query, etc).
+
+I would finally like a feature to import logs from an existing database that is located in a folder you can browse to.  This feature would be MacOS only, but the idea is that you take the logs off your Android device and put them on your mac in a folder, you should be able to have a button that lets you browse to that folder, then read in the logs and give them the same log viewer we currently have for the currently selected databse in Ditto Edge Studio.
+
+The logging feature should be a new icon called Logging on the Sidebar.  It needs to have it's own Detail View and it should have a help screen appear in the inspector that explains how Ditto Logs work.
+
+I would like to also be able to read the Ditto Edge Studio application logs.  On the logging screen we should be able to give them the option on which logs they want to view, then which log levels, and finally a search box with the ability to search for things in the log and filter them down.  They should be able to clear the search and see all the logs.  This should work for both the application and ditto database logs.
+
+Create a plan on how we can go about implementing these features.  Once the plan is ready let me know so I can review it.
+
+
+---
+
+
+Go into plan mode.  Use XCode MCP for code discovery.  We still have several messages showing up under Query instead of transport.  See screenshot log-viewer.png.
+
+add_ble_transport
+start_tcp_server
+add_awdl_transport
+
+These are all transports.  
+
+The log viewer is extremely slow if it runs for any length of time.  See cpu-memory.png.  It eventually locks up and crashes the app.  There is simply too many log messages in the UI to display.  We need to trim out messages so we only scroll over the last 100 messages or so and then let them filter out using date and time to filter a specific range.   Scrolling the log viewer should be fast and it's really slow right now because of how quickly messages are getting inserted.  Do research on how others handle this and look into how we can do this and improve the performance. Once you have a plan ready let me know so I can review it.
+
+
+
+

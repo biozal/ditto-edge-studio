@@ -1,0 +1,7 @@
+Go into planning mode.  In Connected Peers I want to change how transitions to having viewModel.syncStatusItems.isEmpty go from ContentUnavailableView to drawing the syncStatusCard.  I would like to have some kind of animation to transition between these views that looks attractive.  
+
+Next when cards change they start popping around in our ForEach where we draw the syncStatusCard.  I would to have some kind of animation that happens when new cards for example are added in.  This needs to look really professional like the animations in Apple's presentation app keynote.  
+
+Can you look into what kind of animations we can do and how we can make the Peers List look more polished and professional.  We can't break functionality so research options and make sure that none of them introduce regression.  You should have a plan on how you make sure this doesn't happen.  
+
+Once you have a plan ready for my review let me know.

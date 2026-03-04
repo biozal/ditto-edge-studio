@@ -1,0 +1,12 @@
+Currently MainStudioView is a two pane NavigationSplitView.  I would like to create a new feature and plan to move this to a 3 pane app - how XCode works.  I'm not sure how XCode does this, but it has a pane on the left, the center content, and then option for a panel on the right.  
+
+You can check the SwiftUI documentation here:
+https://developer.apple.com/documentation/SwiftUI/NavigationSplitView
+
+The default behavior of NavigationSplitView is to have a Sidebar which we do and then a Detail view.  It also supports a Content view - but that is usually between the Sidebar and the Detail view - which isn't what we want.  We want specifically how XCode does things where it's a Sidebar -> Detail -> Content
+
+In the Content I want to move the favorites and history icons from the current navigation and have those appear over there.  I have future functionality I would like to also put over on the right, but for right now it would be just favorites and history.  We need to research how we can do accomplish this.  Does the Detail view need to have another NavigationSplitView in it and then have the Sidebar on appear on the right to do this which seems like a bad idea or can the content view be forced to be in the right of the details view instead of the left.  These are things you need to research.  We should NOT change any code without knowing the answers to this.
+
+Instead if you aren't certain a new POC folder and application should be created just to test this without damaging our existing code base so we can find out the answer without guessing.
+
+Create a plan on how we can do this.  Let me review the plan before implementing it.

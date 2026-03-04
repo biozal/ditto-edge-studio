@@ -1,0 +1,383 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "72ca9a3d736dcff2948228828f915878",
+    "entities": [
+      {
+        "tableName": "databaseConfigs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `databaseId` TEXT NOT NULL, `mode` TEXT NOT NULL, `allowUntrustedCerts` INTEGER NOT NULL, `isBluetoothLeEnabled` INTEGER NOT NULL, `isLanEnabled` INTEGER NOT NULL, `isAwdlEnabled` INTEGER NOT NULL, `isCloudSyncEnabled` INTEGER NOT NULL, `token` TEXT NOT NULL, `authUrl` TEXT NOT NULL, `websocketUrl` TEXT NOT NULL, `httpApiUrl` TEXT NOT NULL, `httpApiKey` TEXT NOT NULL, `secretKey` TEXT NOT NULL, `logLevel` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseId",
+            "columnName": "databaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowUntrustedCerts",
+            "columnName": "allowUntrustedCerts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBluetoothLeEnabled",
+            "columnName": "isBluetoothLeEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLanEnabled",
+            "columnName": "isLanEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAwdlEnabled",
+            "columnName": "isAwdlEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCloudSyncEnabled",
+            "columnName": "isCloudSyncEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authUrl",
+            "columnName": "authUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "websocketUrl",
+            "columnName": "websocketUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "httpApiUrl",
+            "columnName": "httpApiUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "httpApiKey",
+            "columnName": "httpApiKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "secretKey",
+            "columnName": "secretKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logLevel",
+            "columnName": "logLevel",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_databaseConfigs_databaseId",
+            "unique": true,
+            "columnNames": [
+              "databaseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_databaseConfigs_databaseId` ON `${TABLE_NAME}` (`databaseId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "subscriptions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `databaseId` TEXT NOT NULL, `name` TEXT NOT NULL, `query` TEXT NOT NULL, FOREIGN KEY(`databaseId`) REFERENCES `databaseConfigs`(`databaseId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseId",
+            "columnName": "databaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_subscriptions_databaseId",
+            "unique": false,
+            "columnNames": [
+              "databaseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_subscriptions_databaseId` ON `${TABLE_NAME}` (`databaseId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "databaseConfigs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "databaseId"
+            ],
+            "referencedColumns": [
+              "databaseId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `databaseId` TEXT NOT NULL, `query` TEXT NOT NULL, `createdDate` INTEGER NOT NULL, FOREIGN KEY(`databaseId`) REFERENCES `databaseConfigs`(`databaseId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseId",
+            "columnName": "databaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDate",
+            "columnName": "createdDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_history_databaseId",
+            "unique": false,
+            "columnNames": [
+              "databaseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_history_databaseId` ON `${TABLE_NAME}` (`databaseId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "databaseConfigs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "databaseId"
+            ],
+            "referencedColumns": [
+              "databaseId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "favorites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `databaseId` TEXT NOT NULL, `query` TEXT NOT NULL, `createdDate` INTEGER NOT NULL, FOREIGN KEY(`databaseId`) REFERENCES `databaseConfigs`(`databaseId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseId",
+            "columnName": "databaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdDate",
+            "columnName": "createdDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_favorites_databaseId",
+            "unique": false,
+            "columnNames": [
+              "databaseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_favorites_databaseId` ON `${TABLE_NAME}` (`databaseId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "databaseConfigs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "databaseId"
+            ],
+            "referencedColumns": [
+              "databaseId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "observables",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `databaseId` TEXT NOT NULL, `name` TEXT NOT NULL, `query` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `lastUpdated` INTEGER, FOREIGN KEY(`databaseId`) REFERENCES `databaseConfigs`(`databaseId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "databaseId",
+            "columnName": "databaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "query",
+            "columnName": "query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "isActive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_observables_databaseId",
+            "unique": false,
+            "columnNames": [
+              "databaseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_observables_databaseId` ON `${TABLE_NAME}` (`databaseId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "databaseConfigs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "databaseId"
+            ],
+            "referencedColumns": [
+              "databaseId"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '72ca9a3d736dcff2948228828f915878')"
+    ]
+  }
+}

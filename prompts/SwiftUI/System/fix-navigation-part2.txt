@@ -1,0 +1,3 @@
+The picker that is used in the sidebar is left justified.  It should be centered like the picker in the inspector.  Both of them are extremely small icons - can you research what it would take to make them larger.  I don't see the difference in the last change you made where you said you made them larger.  The picker styling in the sidebar and inspector should always match.  
+
+Create a plan on how to accomplish this and let me know what the plan is.

@@ -1,0 +1,13 @@
+Go into plan mode.  Make a plan to remove ALL existing tests and test projects in XCode and start over using new a new project in XCode to fix the issues with Tests.  The new test project should be setup and written to use the new Swift Testing framework that uses modern swift features like macros. 
+
+https://developer.apple.com/documentation/testing/
+
+You need to be an expert at Swift Testing - read and understand all the documenation.  You have integration with Xcode via MCP so you should be able to build a plan to create and run all tests when you update code.  Swift Testing is supposed to be backwards compatible with XCTests but we want to use the new framework.    
+
+The Tests should fully test all repositories, services, and validate that the app not only builds but runs.  The test should NEVER use the same data that running a production or debug build uses and should always write to a separate folder for databases for both Ditto and Sqlite Cipher.  
+
+We don't need 100% code coverage but we should have a pretty large amount of code coverage with the new tests - over 50%.  Implement reports that will show us code coverage and test status that we can review.  
+
+As part of this the Claude.md and Readme.md file should be updated along with new documentation in the docs folder for how tests work and can be ran.  The Claude.md should be updated to state all new code moving forward needs to have tests written against them to validate that they work.  Under NO circumstances is it acceptable to move tests or disable them because they don't work.  
+
+Come back with a plan on how you can accomplish this.  

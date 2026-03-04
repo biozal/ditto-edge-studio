@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ditto Edge Studio brand colors (RAL palette) -->
+    <color name="ditto_jet_black">#FF0A0A0A</color>
+    <color name="ditto_traffic_black">#FF2A292A</color>
+    <color name="ditto_pearl_light_grey">#FF9D9D9F</color>
+    <color name="ditto_papyrus_white">#FFD0CFC8</color>
+    <color name="ditto_traffic_white">#FFF1F0EA</color>
+    <color name="ditto_sulfur_yellow">#FFF0D830</color>
+
+    <!-- Semantic aliases for XML theme usage -->
+    <color name="ditto_background_light">#FFD0CFC8</color>
+    <color name="ditto_background_dark">#FF0A0A0A</color>
+    <color name="ditto_accent">#FFF0D830</color>
+</resources>

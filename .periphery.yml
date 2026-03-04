@@ -1,0 +1,31 @@
+# Periphery Configuration
+# Detects unused code in Swift projects
+# Documentation: https://github.com/peripheryapp/periphery
+
+# Project setup (don't specify both project and workspace)
+project: SwiftUI/Edge Debug Helper.xcodeproj
+schemes:
+  - Edge Studio
+
+# Targets to analyze
+targets:
+  - Edge Debug Helper
+
+# Output format options: xcode, json, csv, checkstyle, codeclimate, github-actions
+format: xcode
+
+# Scan behavior
+retain_public: false  # Scan public declarations (we're an app, not a framework)
+retain_objc_accessible: true  # Keep @objc code
+retain_objc_annotated: true  # Keep @objc annotated code
+
+# Performance
+disable_redundant_public_analysis: false
+verbose: false
+
+# Report exclude patterns (regex)
+report_exclude:
+  - ".*Tests\\.swift"  # Test files
+  - ".*UITests\\.swift"  # UI test files
+  - "FontAwesomeIcons\\.swift"  # Generated file
+  - "POC/.*"  # Proof-of-concept files

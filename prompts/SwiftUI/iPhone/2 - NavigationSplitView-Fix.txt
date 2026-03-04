@@ -1,0 +1,3 @@
+Go into plan mode.  On iPhone the Navigation Split View is defaulting to the sidebar as the default view - which is wrong.  It should be the detailView.  When it shows sidebar view by default there is no toolbar buttons to even get to the default view because the sidebar in our app is more for navigation and optional information and less about being a view that has content in it.  
+
+Make a plan to update the code so that iPhone works where the detailView is what is shown by default and there are clear toolbar icons to show both the sidebar and the inspector along with the other buttons like sync, and close. We might need to make a different toolbar just for iphone that isn't on iPad and MacOS because of the screen size. 

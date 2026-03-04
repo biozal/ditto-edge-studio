@@ -1,0 +1,9 @@
+{
+  "name": "ditto-edge-studio",
+  "version": "1.0.0",
+  "description": "Use Edge Studio MCP tools to query and manage Ditto databases",
+  "author": {
+    "name": "Ditto",
+    "email": "support@ditto.live"
+  }
+}

@@ -1,0 +1,30 @@
+Go into plan mode.  This app needs to use SQLite in an encrypted database.  Can you look into adding the SQLCipher library into the android version of this app?  
+
+Look at the SwiftUI\EdgeStudio\Data\SQLCipherService.swift file.  This is the service that stores Ditto Database configs along with query history, favorites, subscriptions, and observers.
+The following repositories use the SQLCipherService.swift:
+
+- SwiftUI\EdgeStudio\Data\Repositories\DatabaseRepository.swift
+- SwiftUI\EdgeStudio\Data\Repositories\SubscriptionsRepository.swift
+- SwiftUI\EdgeStudio\Data\Repositories\FavoritesRepository.swift
+- SwiftUI\EdgeStudio\Data\Repositories\HistoryRepository.swift
+- SwiftUI\EdgeStudio\Data\Repositories\ObservableRepository.swift
+
+
+The models that these repoistories use are located at:
+- SwiftUI\EdgeStudio\Models\DittoConfigForDatabase.swift
+- SwiftUI\EdgeStudio\Models\DittoObservable.swift
+- SwiftUI\EdgeStudio\Models\DittoQueryHistory.swift
+- SwiftUI\EdgeStudio\Models\DittoSubscription.swift
+
+We need Koin the library for doing dependcy injection brought into the app.  Please look into getting the latest version installed.
+
+I would like all of the Swift code links I provided converted to Kotlin to use in our Android version of the app.  The Kotlin repositories should have interfaces, mocks, and tests.  Models should be Kotlin data classes and have basic unit tests.  We are looking for at least 60% code coverage in tests, so since this is the first new code we need to make sure it's testable.
+
+All this should be setup with Kotlin best practices for Android development:
+https://developer.android.com/topic/architecture/recommendations
+
+Create a new document in the Docs\Android folder about best practices and link to that in the Claude.md file.  We should have clearly defined layers between data, UI and should be using coroutines and Flows when possible.  Models should follow the domain layer pattern.
+
+
+Make a plan to do all this work.    
+

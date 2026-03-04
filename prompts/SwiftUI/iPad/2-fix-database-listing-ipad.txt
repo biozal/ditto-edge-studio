@@ -1,0 +1,22 @@
+Go into plan mode.  Ditto Edge Studio is written in SwiftUI and should be able to run on many platforms like MacOS (primary platform), but also iPadOS and iOS on iPhone.  There are challenges running on multiple platforms because of screen size.
+
+ContentView.swift is used to draw the DatabaseListing and already we have different code that is doing the drawing code  and we even have code that is fudging widths, etc.  This is because in MacOS I wanted it to look a very specific way. 
+
+To highlight this - look at database-listing-macos.png.  This is the perfect way that I invisioned the screen looking like and I love how it looks.  Now look at database-listing-macos-large.png.  Anytime the window is larger than the smallest size possible, the screen becomes almost unuseable as the buttons start to move off the screen, etc.  The word Edge Studio moves away from the Ditto logo and it's just great.  
+
+Now look at database-listing-ipad-rotated.png.  When the iPad is rotated and not used with a keyboard the screen is completely unusable.  
+
+I also want this to eventually be really nice and run an iPhone.  We need to start with fixing this screen so it can run on many devices.  
+
+I control the image I gave you and I can add the Edge Studio below the Ditto logo so we don't have to render the text.  I can also render it out in many different sizes, but for smaller size screens I'm not sure we need it - like iPhone for example I don't think we have the screensize to show a nice logo and a list of databases.  
+
+What I need for you is to research options and come up with a solution for the database listing screen that does the following:
+
+1.  In MacOS it always works regardless if the window is at the smallest or largest size.  Currently today when the window resizes it becomes unusable.  But when the window is at the smallest size it looks PERFECT.
+
+2.  On iPad the screen needs to work regardless of the orientation of the device.
+
+3. We need a solution that works on smaller screens like iPhone or when an iPad is in split Window view were the window is shrunk down with another app running.  In all these cases this screen needs to continue to work.  My gut feeling is that when we get to smaller screen size we need to use toolbar buttons to go to the portal or to register a new database config and loose the background logo and just show a list of databases in a regular list that is scrollable.  
+
+Work on research and give me options on how to solve this.  I want to see what the options are for each platform and then I can review that and tell you what we should probably do.  
+

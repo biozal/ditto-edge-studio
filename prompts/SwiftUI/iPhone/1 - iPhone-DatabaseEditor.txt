@@ -1,0 +1,7 @@
+The iPhone has several problems with our editor screens for Databases, subscriptions, and observers.  The editor screens are too wide and don't render properly.  This UI should dynamically work on everything from MacOS down to iPhone.
+
+See the screenshot database-editor-ipad.png.  We need to look at how we can make this work on all platforms.  Come up with a plan that we can use to fix the Database Register/Editor along with the screens used for Import, Adding Observers, and adding in Subscriptions.  
+
+All fields for DQL should just be standard text fields.  Using a code editor for those fields doesn't look right on iPad and iPhone.
+
+Let me know when you have a plan in place that I can review.  It's important to remember this UI looks great in MacOS so we can't make MacOS look terrible to fix iPad and iPhone any solution must make sure the MacOS continues to look good.
