@@ -41,7 +41,7 @@ actor SQLCipherService {
 
     // MARK: - Schema Version
 
-    private let currentSchemaVersion = 3
+    private let currentSchemaVersion = 4
 
     // MARK: - Initialization
 
@@ -304,7 +304,8 @@ actor SQLCipherService {
                     httpApiUrl TEXT NOT NULL DEFAULT '',
                     httpApiKey TEXT NOT NULL DEFAULT '',
                     secretKey TEXT NOT NULL DEFAULT '',
-                    logLevel TEXT NOT NULL DEFAULT 'info'
+                    logLevel TEXT NOT NULL DEFAULT 'info',
+                    isStrictModeEnabled INTEGER DEFAULT 0
                 )
             """)
 
@@ -384,6 +385,11 @@ actor SQLCipherService {
             try await migrateToVersion3()
         }
 
+        // Migrate from version 3 to 4: Add isStrictModeEnabled column
+        if oldVersion < 4 {
+            try await migrateToVersion4()
+        }
+
         // Update schema version
         try await execute("PRAGMA user_version = \(newVersion)")
 
@@ -414,6 +420,15 @@ actor SQLCipherService {
         try await execute("ALTER TABLE databaseConfigs ADD COLUMN logLevel TEXT NOT NULL DEFAULT 'info'")
 
         Log.info("Schema version 3 migration complete: logLevel column added")
+    }
+
+    /// Migration to version 4: Add isStrictModeEnabled column to databaseConfigs table
+    private func migrateToVersion4() async throws {
+        Log.info("Migrating to schema version 4: Adding isStrictModeEnabled column")
+
+        try await execute("ALTER TABLE databaseConfigs ADD COLUMN isStrictModeEnabled INTEGER DEFAULT 0")
+
+        Log.info("Schema version 4 migration complete")
     }
 
     /// Returns the current schema version from the database
@@ -455,14 +470,44 @@ actor SQLCipherService {
         let secretKey: String
         /// Developer Options
         let logLevel: String
+        let isStrictModeEnabled: Bool
+
+        // swiftformat:disable:next init
+        init(
+            _id: String, name: String, databaseId: String, mode: String,
+            allowUntrustedCerts: Bool, isBluetoothLeEnabled: Bool, isLanEnabled: Bool,
+            isAwdlEnabled: Bool, isCloudSyncEnabled: Bool,
+            token: String, authUrl: String, websocketUrl: String,
+            httpApiUrl: String, httpApiKey: String, secretKey: String,
+            logLevel: String, isStrictModeEnabled: Bool = false
+        ) {
+            self._id = _id
+            self.name = name
+            self.databaseId = databaseId
+            self.mode = mode
+            self.allowUntrustedCerts = allowUntrustedCerts
+            self.isBluetoothLeEnabled = isBluetoothLeEnabled
+            self.isLanEnabled = isLanEnabled
+            self.isAwdlEnabled = isAwdlEnabled
+            self.isCloudSyncEnabled = isCloudSyncEnabled
+            self.token = token
+            self.authUrl = authUrl
+            self.websocketUrl = websocketUrl
+            self.httpApiUrl = httpApiUrl
+            self.httpApiKey = httpApiKey
+            self.secretKey = secretKey
+            self.logLevel = logLevel
+            self.isStrictModeEnabled = isStrictModeEnabled
+        }
     }
 
     func insertDatabaseConfig(_ config: DatabaseConfigRow) async throws {
         let sql = """
             INSERT INTO databaseConfigs (_id, name, databaseId, mode, allowUntrustedCerts,
                 isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
+                isStrictModeEnabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         try await execute(
@@ -482,7 +527,8 @@ actor SQLCipherService {
             config.httpApiUrl,
             config.httpApiKey,
             config.secretKey,
-            config.logLevel
+            config.logLevel,
+            config.isStrictModeEnabled ? 1 : 0
         )
     }
 
@@ -492,7 +538,7 @@ actor SQLCipherService {
             SET name = ?, mode = ?, allowUntrustedCerts = ?,
                 isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?,
                 token = ?, authUrl = ?, websocketUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?,
-                logLevel = ?
+                logLevel = ?, isStrictModeEnabled = ?
             WHERE databaseId = ?
         """
 
@@ -512,6 +558,7 @@ actor SQLCipherService {
             config.httpApiKey,
             config.secretKey,
             config.logLevel,
+            config.isStrictModeEnabled ? 1 : 0,
             config.databaseId
         )
     }
@@ -530,7 +577,8 @@ actor SQLCipherService {
         let sql = """
             SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled,
                    isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel
+                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
+                   isStrictModeEnabled
             FROM databaseConfigs
         """
 
@@ -552,7 +600,8 @@ actor SQLCipherService {
                 httpApiUrl: String(cString: sqlite3_column_text(statement, 12)),
                 httpApiKey: String(cString: sqlite3_column_text(statement, 13)),
                 secretKey: String(cString: sqlite3_column_text(statement, 14)),
-                logLevel: String(cString: sqlite3_column_text(statement, 15))
+                logLevel: String(cString: sqlite3_column_text(statement, 15)),
+                isStrictModeEnabled: sqlite3_column_int(statement, 16) != 0
             ))
         }
 
@@ -725,14 +774,14 @@ actor SQLCipherService {
 
         var results: [ObservableRow] = []
         try await query(sql, databaseId) { statement in
-            let lastUpdated = sqlite3_column_type(statement, 6) == SQLITE_NULL ? nil : String(cString: sqlite3_column_text(statement, 6))
+            let lastUpdated = sqlite3_column_type(statement, 5) == SQLITE_NULL ? nil : String(cString: sqlite3_column_text(statement, 5))
 
             results.append(ObservableRow(
                 _id: String(cString: sqlite3_column_text(statement, 0)),
                 databaseId: String(cString: sqlite3_column_text(statement, 1)),
                 name: String(cString: sqlite3_column_text(statement, 2)),
                 query: String(cString: sqlite3_column_text(statement, 3)),
-                isActive: sqlite3_column_int(statement, 5) != 0,
+                isActive: sqlite3_column_int(statement, 4) != 0,
                 lastUpdated: lastUpdated
             ))
         }

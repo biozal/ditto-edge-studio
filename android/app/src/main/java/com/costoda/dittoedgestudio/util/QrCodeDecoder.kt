@@ -98,5 +98,6 @@ object QrCodeDecoder {
         isAwdlEnabled = isAwdlEnabled,
         isCloudSyncEnabled = isCloudSyncEnabled,
         logLevel = logLevel,
+        isStrictModeEnabled = isStrictModeEnabled,
     )
 }

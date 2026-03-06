@@ -45,6 +45,7 @@ class QrCodeEncoderTest {
         isAwdlEnabled = false,
         isCloudSyncEnabled = true,
         logLevel = "info",
+        isStrictModeEnabled = false,
     )
 
     @Before
@@ -104,6 +105,7 @@ class QrCodeEncoderTest {
                 isAwdlEnabled = database.isAwdlEnabled,
                 isCloudSyncEnabled = database.isCloudSyncEnabled,
                 logLevel = database.logLevel,
+                isStrictModeEnabled = database.isStrictModeEnabled,
             ),
             favorites = favorites.map { QrFavoriteItem(it) },
         )
@@ -135,7 +137,7 @@ class QrCodeEncoderTest {
     }
 
     @Test
-    fun `encode and decode round-trip preserves all 15 database fields`() {
+    fun `encode and decode round-trip preserves all 16 database fields`() {
         val result = encodeToEds2String(minimalDatabase, emptyList())
 
         assertNotNull(result)
@@ -158,6 +160,18 @@ class QrCodeEncoderTest {
         assertTrue(db.isAwdlEnabled == minimalDatabase.isAwdlEnabled)
         assertTrue(db.isCloudSyncEnabled == minimalDatabase.isCloudSyncEnabled)
         assertTrue(db.logLevel == minimalDatabase.logLevel)
+        assertTrue(db.isStrictModeEnabled == minimalDatabase.isStrictModeEnabled)
+    }
+
+    @Test
+    fun `roundTripPreservesStrictModeEnabled`() {
+        val dbWithStrictMode = minimalDatabase.copy(isStrictModeEnabled = true)
+        val result = encodeToEds2String(dbWithStrictMode, emptyList())
+
+        assertNotNull(result)
+        val decoded = QrCodeDecoder.decode(result!!)
+        assertNotNull(decoded)
+        assertTrue(decoded!!.database.isStrictModeEnabled)
     }
 
     // ─── Edge-case tests (use QrCodeEncoder.encode() with mocked Bitmap) ────────

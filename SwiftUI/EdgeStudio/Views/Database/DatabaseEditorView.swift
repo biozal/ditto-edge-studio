@@ -173,6 +173,24 @@ struct DatabaseEditorView: View {
             Text("Controls DittoLogger.minimumLogLevel when this database is activated. Applied globally across all Ditto instances.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading) {
+                Toggle("Enable DQL Strict Mode", isOn: $viewModel.isStrictModeEnabled)
+                    .padding(.bottom, 5)
+                    .accessibilityIdentifier("StrictModeToggle")
+
+                Text(
+                    "⚠️ For most users of Ditto SDK 5.0 and later, strict mode should remain disabled. " +
+                        "When disabled, nested objects are treated as MAPs by default, enabling field-level merging. " +
+                        "Enable only if you require SDK 4.x compatibility or explicitly need REGISTER-typed objects. " +
+                        "Mismatched settings across peers may cause nested fields to appear missing."
+                )
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 10)
+            }
         }
     }
 
@@ -267,6 +285,7 @@ extension DatabaseEditorView {
         var allowUntrustedCerts: Bool
         var secretKey: String
         var logLevel: String
+        var isStrictModeEnabled: Bool
 
         // Transport settings — preserved from existing config, not editable in this view
         var isBluetoothLeEnabled = true
@@ -290,6 +309,7 @@ extension DatabaseEditorView {
             allowUntrustedCerts = appConfig.allowUntrustedCerts
             secretKey = appConfig.secretKey
             logLevel = appConfig.logLevel
+            isStrictModeEnabled = appConfig.isStrictModeEnabled
             isBluetoothLeEnabled = appConfig.isBluetoothLeEnabled
             isLanEnabled = appConfig.isLanEnabled
             isAwdlEnabled = appConfig.isAwdlEnabled
@@ -323,7 +343,8 @@ extension DatabaseEditorView {
                     isLanEnabled: isLanEnabled,
                     isAwdlEnabled: isAwdlEnabled,
                     isCloudSyncEnabled: isCloudSyncEnabled,
-                    logLevel: logLevel
+                    logLevel: logLevel,
+                    isStrictModeEnabled: isStrictModeEnabled
                 )
                 if isNewItem {
                     try await databaseRepository.addDittoAppConfig(appConfig)
