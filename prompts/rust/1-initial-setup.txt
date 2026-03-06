@@ -1,0 +1,56 @@
+Go into plan mode.  The plan is to build a new version of Ditto Edge Studio that is written in Rust for the backend with React as the front end using Tauri.  This will allow Linux, Windows, and MacOS users to use the app.  Once this new version is done I'll the retire the SwiftUI version for MacOS and only keep it for iOS and the Android version.
+
+For React - I believe https://ui.shadcn.com/ can be used for the UI Framework as it looks nice and is easy to use.  
+
+Ditto has a brand guideline for colors.  The SwiftUI brand guide can be found in the docs\ folder called BRAND_COLORS.md.
+
+Ditto has a "Pixel art" look and feel in the logo.  I would like to use the following fonts:
+
+  --font-family-pixel: "Press Start 2P", monospace;
+  --font-family-code: "JetBrains Mono", monospace;
+  --font-family-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  For Windows we should probably target something that looks similar to Segoe UI.  
+  
+  The app should use Font Awesome for icons. I own a license for it and the 7.2 version of it for web has been downloaded into the rust\assets directory and is called fontawesome.  The ditto Logo and backgrouns for the database listing screen are also in this folder.
+
+  The SwiftUI version of the app uses an internal SQLite database that is encrypted using SQLCipher so that information including database configurations are encrypted.  I need you to research solutions for Rust that will work on the following platforms:
+
+  MacOS - x86_64 and aarch64-apple-darwin
+  Linux - x86_64-known-linux-gnu and aarch64-unknown-linux-gnu
+  Windows - x86_64
+
+  https://docs.ditto.live/sdk/latest/compatibility/rust
+
+
+
+
+  Note we will be using the new v5 beta of Rust.  It targets a newer version of Rust.  I have a PR open to update the Ditto Quickstarts with the v5 Preview release here which will give some insights on how to handle this:
+
+  https://github.com/getditto/quickstart/pull/242
+
+  You can see it now requires 1.91.1.  For now I want to focus on the starting screen, which in SwiftUI is the Database Listing and Database Editor views which are launched from the ContentView.
+
+  The Database Listing view allows you to see a listing of Database configurations that are registered into the SQLite local database from either the Database Editor form, or you can scan in a configuration using the Laptop's camera to scan in a QR Code.  This screen has to have the ability to also generate a QR Code of the configuration in order to display it for other devices to import in.  
+
+  A screenshot of the Database Listing screen can be found here:
+  database-list.png
+
+  Functionally I think this UI works.  The left side is attached to the bottom of the screen and gives some buttons along with the name of the app.  The + Database Config button brings up the Database Editor form.  The Ditto Portal button opens a web browser and navigates to the site:  https://portal.ditto.live/
+
+  The Import from QR Code brings up a camera if the hardware is available - like the laptop camera on a Macbook or Windows laptop, and an error message if it can't detect a camera.  It then waits for a QR Code to be presented and scans that QR Code, validates it's a proper Ditto Database Configuration and then adds that configuration to the SQLite database and updates the Database Listing.  
+
+  The right side of Database Listing UI is a list of Databases that are registered in the database.  These show the name of the registeration along with the databaseId and a database icon.  
+
+  A user can right click on a database configuration and a menu pops up - you can see this in the database-list-right-click.png screenshot.  This allows the following actions:
+
+- Edit allows you to edit this database configuration in the database editor form.
+
+- Show QR Code takes the database configuration and displays it in a QR Code.  It needs to be compatible with the Android and SwiftUI versions of the app.  
+
+- Delete allows you to delete the database configuration from the SQLite database AND remove all the files associated with it on disk.
+
+
+
+
+
