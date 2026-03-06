@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
+             xmlns:suki="using:SukiUI.Controls"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.Workspaces.SubscriptionDetailsView"
+             x:DataType="vm:SubscriptionDetailsViewModel"
+             x:CompileBindings="True">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Height="40"
+                BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding DetailsTitle}"
+                           FontSize="11"
+                           FontWeight="Normal"
+                           VerticalAlignment="Center"/>
+
+                <!-- Last Updated Time -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Last updated:"
+                               FontSize="10"
+                               Opacity="0.7"/>
+                    <TextBlock Text="{Binding PeersList.LastUpdatedText, FallbackValue='--:--:-- --'}"
+                               FontSize="10"
+                               Opacity="0.7"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Tabbed Content Area -->
+        <TabControl Grid.Row="1">
+            <!-- Center the tabs -->
+            <TabControl.Styles>
+                <Style Selector="TabControl > WrapPanel">
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                </Style>
+
+                <!-- Tab styling -->
+                <Style Selector="TabItem">
+                    <Setter Property="FontSize" Value="13"/>
+                    <Setter Property="Padding" Value="16,10"/>
+                    <Setter Property="MinWidth" Value="140"/>
+                </Style>
+            </TabControl.Styles>
+
+            <!-- Tab 1: Peers List -->
+            <TabItem Header="Peers List">
+                <workspaces:PeersListView DataContext="{Binding PeersList}"/>
+            </TabItem>
+
+            <!-- Tab 2: Presence Viewer -->
+            <TabItem Header="Presence Viewer">
+                <workspaces:PresenceViewerView DataContext="{Binding PresenceViewer}"/>
+            </TabItem>
+
+            <!-- Tab 3: Settings -->
+            <TabItem Header="Settings">
+                <workspaces:SubscriptionSettingsView DataContext="{Binding Settings}"/>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

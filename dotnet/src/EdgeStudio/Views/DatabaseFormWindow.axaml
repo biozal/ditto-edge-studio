@@ -1,0 +1,209 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:vm="using:EdgeStudio.ViewModels"
+                 xmlns:sharedModels="using:EdgeStudio.Shared.Models"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                 mc:Ignorable="d"
+                 d:DesignWidth="640"
+                 d:DesignHeight="750"
+                 x:Class="EdgeStudio.Views.DatabaseFormWindow"
+                 x:DataType="vm:MainWindowViewModel"
+                 x:CompileBindings="True"
+                 Title="Add Database Configuration"
+                 Width="640"
+                 Height="750"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Border Padding="30">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       x:Name="WindowTitle"
+                       Text="Add Database Configuration"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Margin="0,0,0,10"/>
+
+            <!-- Form Fields -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="28" Margin="0,0,0,0">
+
+                    <!-- Info Banner -->
+                    <Border Background="#1A2A6C" CornerRadius="8" Padding="14,12">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <materialIcons:MaterialIcon Kind="InformationOutline" Width="20" Height="20"
+                                                        Foreground="#4A9FF5" VerticalAlignment="Top" Margin="0,2,10,0"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="This information comes from the Ditto Portal and is required in order to register a Ditto Database."
+                                       TextWrapping="Wrap" Foreground="White" FontSize="13"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Mode Selector -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Grid.Styles>
+                            <Style Selector="ToggleButton:checked">
+                                <Setter Property="Background" Value="{DynamicResource DittoAccent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+                            </Style>
+                            <Style Selector="ToggleButton:checked:pointerover">
+                                <Setter Property="Background" Value="{DynamicResource DittoAccent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+                            </Style>
+                            <Style Selector="ToggleButton:checked:pressed">
+                                <Setter Property="Background" Value="{DynamicResource DittoAccent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+                            </Style>
+                        </Grid.Styles>
+                        <ToggleButton Grid.Column="0"
+                                    x:Name="OnlineToggle"
+                                    Content="Server"
+                                    IsChecked="{Binding DatabaseFormModel.IsOnlineMode}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="15,10"/>
+                        <ToggleButton Grid.Column="1"
+                                    x:Name="OfflineToggle"
+                                    Content="Small Peers Only"
+                                    IsChecked="{Binding DatabaseFormModel.IsOfflineMode}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="15,10"/>
+                    </Grid>
+
+                    <!-- Name Field -->
+                    <TextBox x:Name="NameTextBox"
+                            Text="{Binding DatabaseFormModel.Name}"
+                            Watermark="Name"/>
+
+                    <!-- Database ID Field -->
+                    <TextBox x:Name="DatabaseIdTextBox"
+                            Text="{Binding DatabaseFormModel.DatabaseId}"
+                            FontFamily="Consolas"
+                            Watermark="DatabaseId"/>
+
+                    <!-- Auth Token (Server mode) -->
+                    <TextBox x:Name="AuthTokenTextBox"
+                            Text="{Binding DatabaseFormModel.AuthToken}"
+                            FontFamily="Consolas"
+                            Watermark="Auth Token"
+                            IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
+
+                    <!-- Offline Token + Shared Key (Small Peers Only mode) -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOfflineMode}" Spacing="4">
+                        <TextBox Text="{Binding DatabaseFormModel.AuthToken}"
+                                 FontFamily="Consolas"
+                                 Watermark="Offline Token"/>
+                        <TextBlock Text="Required for sync activation in Small Peers Only mode. Obtain from portal.ditto.live"
+                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOfflineMode}" Spacing="4">
+                        <TextBox Text="{Binding DatabaseFormModel.SharedKey}"
+                                 FontFamily="Consolas"
+                                 Watermark="Shared Key (optional)"/>
+                        <TextBlock Text="Optional secret key for shared key identity encryption. Leave empty if not using Shared Key."
+                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- Auth URL - Only for Online Mode -->
+                    <TextBox x:Name="AuthUrlTextBox"
+                            Text="{Binding DatabaseFormModel.AuthUrl}"
+                            FontFamily="Consolas"
+                            Watermark="Auth URL"
+                            IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
+
+                    <!-- HTTP API URL - Optional Field - Only for Online Mode -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}">
+                        <TextBox x:Name="HttpApiUrlTextBox"
+                                Text="{Binding DatabaseFormModel.HttpApiUrl}"
+                                FontFamily="Consolas"
+                                Watermark="HTTP API URL (optional)"/>
+                        <TextBlock Text="Optional"
+                                  FontSize="12"
+                                  Opacity="0.6"
+                                  Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- HTTP API Key - Optional Field - Only for Online Mode -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}">
+                        <TextBox x:Name="HttpApiKeyTextBox"
+                                Text="{Binding DatabaseFormModel.HttpApiKey}"
+                                FontFamily="Consolas"
+                                Watermark="HTTP API Key (optional)"/>
+                        <TextBlock Text="Optional"
+                                  FontSize="12"
+                                  Opacity="0.6"
+                                  Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- Allow Untrusted Certs + warning - Only for Online Mode -->
+                    <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}" Spacing="8">
+                        <CheckBox x:Name="AllowUntrustedCertsCheckBox"
+                                 Content="Allow untrusted certificates"
+                                 IsChecked="{Binding DatabaseFormModel.AllowUntrustedCerts}"
+                                 ToolTip.Tip="By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production."/>
+                        <Border Background="#3D1A1A" CornerRadius="6" Padding="12,10"
+                                IsVisible="{Binding DatabaseFormModel.AllowUntrustedCerts}">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF8080"
+                                       Text="By allowing untrusted certificates, you are bypassing key certificate verification security, which is not recommended in production."/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Developer Options -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Developer Options" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="SDK Log Level" FontSize="13" Opacity="0.8"/>
+                        <ComboBox ItemsSource="{x:Static sharedModels:DatabaseFormModel.LogLevelOptions}"
+                                  SelectedItem="{Binding DatabaseFormModel.LogLevel}"
+                                  HorizontalAlignment="Stretch"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.6"
+                                   Text="Controls DittoLogger.MinimumLogLevel when this database is activated. Applied globally across all Ditto instances."/>
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Buttons -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10"
+                        Margin="0,25,0,0">
+                <Button x:Name="CancelButton"
+                        Padding="20,10"
+                        Background="{DynamicResource DittoCardSurface}"
+                        CornerRadius="6"
+                        Click="Cancel_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <materialIcons:MaterialIcon Kind="Close" Width="16" Height="16"/>
+                        <TextBlock Text="Cancel"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="SaveButton"
+                        Padding="20,10"
+                        Background="{DynamicResource DittoAccent}"
+                        Foreground="{DynamicResource DittoJetBlack}"
+                        CornerRadius="6"
+                        Command="{Binding SaveDatabaseCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <materialIcons:MaterialIcon Kind="ContentSave" Width="16" Height="16"/>
+                        <TextBlock Text="Save" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</suki:SukiWindow>

@@ -1,0 +1,189 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="EdgeStudio.Views.Workspaces.SubscriptionSettingsView"
+             x:DataType="vm:SubscriptionSettingsViewModel">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="0.1*,0.8*,0.1*" Margin="0,24,0,24">
+            <StackPanel Grid.Column="1" Spacing="20" MaxWidth="1400">
+
+            <!-- Header -->
+            <TextBlock Text="Transport Settings"
+                       FontSize="20"
+                       FontWeight="SemiBold"/>
+
+            <!-- Warning Banner -->
+            <Border Background="#33FF6D00"
+                    BorderBrush="#FF6D00"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12">
+                <Grid ColumnDefinitions="Auto,*">
+                    <avalonia:MaterialIcon Grid.Column="0"
+                                          Kind="Warning"
+                                          Width="20"
+                                          Height="20"
+                                          Foreground="#FF6D00"
+                                          VerticalAlignment="Top"
+                                          Margin="0,2,8,0"/>
+                    <TextBlock Grid.Column="1"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="#FF6D00"
+                               Text="Changing transport settings will stop sync, update the configuration, and restart sync. This will disconnect all peers and reconnect only using the enabled transports."/>
+                </Grid>
+            </Border>
+
+            <!-- Peer-to-Peer Transports -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Peer-to-Peer Transports"
+                           FontSize="16"
+                           FontWeight="SemiBold"/>
+
+                <!-- Bluetooth LE -->
+                <Border Padding="12" CornerRadius="4" Background="#10000000">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Width="12" Height="12"
+                                CornerRadius="6"
+                                Background="#0066CC"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Bluetooth LE" FontWeight="SemiBold"/>
+                            <TextBlock Text="Allow peer-to-peer sync via Bluetooth Low Energy"
+                                       FontSize="11"
+                                       Opacity="0.7"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="2"
+                                  IsChecked="{Binding IsBluetoothEnabled}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Local Area Network -->
+                <Border Padding="12" CornerRadius="4" Background="#10000000">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Width="12" Height="12"
+                                CornerRadius="6"
+                                Background="#00AA44"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Local Area Network" FontWeight="SemiBold"/>
+                            <TextBlock Text="Sync with peers on the same local network"
+                                       FontSize="11"
+                                       Opacity="0.7"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="2"
+                                  IsChecked="{Binding IsLanEnabled}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Apple Wireless Direct Link (macOS only) -->
+                <Border Padding="12"
+                        CornerRadius="4"
+                        Background="#10000000"
+                        IsVisible="{Binding ShowAwdl}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Width="12" Height="12"
+                                CornerRadius="6"
+                                Background="#8844DD"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Apple Wireless Direct Link" FontWeight="SemiBold"/>
+                            <TextBlock Text="High-speed sync with Apple devices only"
+                                       FontSize="11"
+                                       Opacity="0.7"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="2"
+                                  IsChecked="{Binding IsAwdlEnabled}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- WiFiAware (Windows/Android only) -->
+                <Border Padding="12"
+                        CornerRadius="4"
+                        Background="#10000000"
+                        IsVisible="{Binding ShowWifiAware}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Width="12" Height="12"
+                                CornerRadius="6"
+                                Background="#FF6D00"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="WiFi Aware" FontWeight="SemiBold"/>
+                            <TextBlock Text="Peer-to-peer sync via WiFi Aware protocol"
+                                       FontSize="11"
+                                       Opacity="0.7"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="2"
+                                  IsChecked="{Binding IsWifiAwareEnabled}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <!-- Cloud Sync -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Cloud Sync"
+                           FontSize="16"
+                           FontWeight="SemiBold"/>
+
+                <!-- WebSocket Sync -->
+                <Border Padding="12" CornerRadius="4" Background="#10000000">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Width="12" Height="12"
+                                CornerRadius="6"
+                                Background="#00BBDD"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="WebSocket Sync" FontWeight="SemiBold"/>
+                            <TextBlock Text="Allow syncing to Ditto cloud server"
+                                       FontSize="11"
+                                       Opacity="0.7"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="2"
+                                  IsChecked="{Binding IsWebSocketEnabled}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <!-- Apply Button and Status -->
+            <StackPanel Spacing="8">
+                <Button Content="Apply Transport Settings"
+                        Command="{Binding ApplyTransportSettingsCommand}"
+                        IsEnabled="{Binding IsApplyEnabled}"
+                        Classes="Flat"
+                        HorizontalAlignment="Left"
+                        Padding="16,8"/>
+
+                <!-- Status Message -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           Opacity="0.8"/>
+
+                <!-- Loading Indicator -->
+                <ProgressBar IsIndeterminate="True"
+                             IsVisible="{Binding IsLoading}"
+                             Height="4"
+                             MaxWidth="300"
+                             HorizontalAlignment="Left"/>
+            </StackPanel>
+
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,92 @@
+I would like plan an update to the  Peers Lists tab and the type of cards.
+
+I'm going to explain the full way this should work - we already have of this code in the app so part of this is to review what we have and then update as we need.
+
+We will need to update the SystemService to pull new information from the Ditto API. Currently how the information is got from the API - a DQL statement gives us the sync status of connected peers, but we need other information from the precense graph.  The documentation to the current API we are using for the DQL is here:
+
+https://docs.ditto.live/dql/virtual-collections#systemdata_sync_info
+
+The Sync Status Info is a DQL statement that you can run an observer on and then get updated anytime sync status changes.  The DQL Statement is:
+
+SELECT * FROM system:data_sync_info
+
+It should return information like this:
+{
+  "_id": "pkAocCgkMCRsRhue6kCR0eIYFYxT3wqVl5-BxJLqCMVgF7H9WOL5I",
+  "documents": {
+    "last_update_received_time": -1,
+    "sync_session_status": "Not Connected",
+    "synced_up_to_local_commit_id": 545
+  },
+  "is_ditto_server": true
+}
+
+We are already using this today.  The presence graph is a full documented API that you can use to get information about the presence of peers in the network.  The API is:
+https://docs.ditto.live/sdk/latest/sync/using-mesh-presence
+
+
+Basically how this needs to work is we need to update the code that observers changes to the DQL statement in the service:
+SELECT * FROM system:data_sync_info ORDER BY documents.sync_session_status, documents.last_update_received_time desc
+
+The documentation on Ditto Observers can be found here:  https://docs.ditto.live/sdk/latest/crud/observing-data-changes
+
+
+The DQL observer information isn't enough to get all the information we want to display on the cards.  So because of that we need to call the presence graph API to get the information we need after we get the observed results back.  The presence graph has information about the peer we want to display.  You should always reference the API documentation for .NET that explains each object and how the data comes back from the SDK:
+https://software.ditto.live/dotnet/Ditto/4.14.2/api-reference/class_ditto_s_d_k_1_1_ditto.html
+https://software.ditto.live/dotnet/Ditto/4.14.2/api-reference/class_ditto_s_d_k_1_1_ditto_presence.html
+https://software.ditto.live/dotnet/Ditto/4.14.2/api-reference/struct_ditto_s_d_k_1_1_ditto_presence_graph.html
+https://software.ditto.live/dotnet/Ditto/4.14.2/api-reference/struct_ditto_s_d_k_1_1_ditto_peer.html
+
+
+We can then merge the information together to draw on the cards. The DittoPeer DittoAddress should match the _id from the sync status info.  From the DittoPeer we can pull in the information like:
+deviceName,
+dittoSdkVersion,
+peerKey,
+os
+
+The DittoPresenceGraph also has the information about the Local Peer which is what we are running in the Plugin.  We can use this to get the information about the Local Peer:
+
+Device Name,
+SDK Language,
+SDK Platform,
+SDK Version
+
+I have two screenshots of some changes we need to make to the Cards - we will now need three types of cards:  Local Peer, Remote Peer, and Server Peer card.  Each cards should have the following information:
+
+Remote Peer Card:
+Device Name (Presence Graph) 
+OS with Icon (Presence Graph)
+_id (Sync Status Info)
+Divider
+DittoAddress (Presence Graph)
+Active Connections - a list that shows the type of connections and any information we can get from the Presence Graph for the connections.
+Commit Id (Sync Status Info)
+Last Updated (Sync Status Info)
+
+Server Peer Card:
+Server (hard coded text)
+_id (Sync Status Info)
+Divider
+Commit Id (Sync Status Info)
+Last Updated (Sync Status Info)
+
+Local Peer Card:
+Device Name  (Presence Graph)
+SDK Language (Presence Graph)
+SDK Platform (Presence Graph)
+SDK Version (Presence Graph)
+
+I have two screenshots from the SwiftUI version of the app:
+edge-studio-peer-local-peer-cloud-peer.png
+edge-studio-swift-peer-listing
+
+These are in the designs folder.  The observer will fire often and I'm noticing tearing in the UI as we are getting updates very often.  We need to look at how we do updates to the card and think about an efficient way to handle this because right now the cards disappear and redraw so often that sometimes you can't read them.  Rather than updating the entire list we might need to look at using the Ditto Differ to update existing cards in the list and add/remove cards based on the diff results.  This might lead to better performance.  On average there could be somewhere between 5 and 40 peers connected at any given time but even large customers usually only have about 20 peers connected at once.  
+
+The Ditto Differ documentation is here:
+https://docs.ditto.live/sdk/latest/crud/observing-data-changes#diffing-results
+
+I will note that using the Ditto Differ comes at the cost of memory.  For only 50 documents I'm not too worried, but for a large dataset, this might cause massive issues.  You might have to make the actual objects observerables so that you can have existing cards just update the fields like last time synced and for performance reasons we might not be able to have the DQL order to show the cards based on last time synced because nodes are added and removed too often for that to be useful.  
+
+Observables have memory considerations and we need to keep a pointer to them - but when we close the selected app we need to make sure we close the observer and dispose of it properly.  When a new app is selected we then make a new observer.  We can't leak information between selected apps so when a user clicks the close button we really need to make sure we are cleaning up.  I've noticed a pause when I click the X to close - I'm assuming this is because we are disposing stuff.  We might need to bring up an modal to tell the user we are closing resources so they understand the pause is because of that.  
+
+Create a plan on how to update the code that will handle updating the cards efficiently and doesn't cause a lot of lag or performance issues.  All this needs to be tested so make sure you include testing in the plan including writing tests.

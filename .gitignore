@@ -26,3 +26,13 @@ SwiftUI/coverage_files.txt
 android/.idea
 android/.kotlin
 *.dmg
+dotnet/src/.idea
+dotnet/src/EdgeStudio/bin
+dotnet/src/EdgeStudio/obj
+dotnet/src/EdgeStudio.Console/bin
+dotnet/src/EdgeStudio.Console/obj
+dotnet/src/EdgeStudio.Shared/bin
+dotnet/src/EdgeStudio.Shared/obj
+dotnet/src/EdgeStudio.app
+dotnet/src/EdgeStudioTests/bin
+dotnet/src/EdgeStudioTests/obj

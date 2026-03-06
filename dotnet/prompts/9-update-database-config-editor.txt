@@ -1,0 +1,158 @@
+Go into plan mode.  The SwiftUI version of the App I've made some changes to the Database Config.  Now you can set the log level when registering a new database config or when you are editing a config.  See the screenshots config-database-server-swiftui.png and config-database-small-peer-swiftui.png.  
+
+Also in the database config it tracks which network transports are enabled or disabled so that when you select a database config it sets those transports.  By default all transports are enabled.  The swift version of my model looks like this:
+
+import Foundation
+
+@Observable
+class DittoConfigForDatabase: Codable {
+    var _id: String
+    var name: String
+    var databaseId: String
+    var token: String
+    var authUrl: String
+    var websocketUrl: String
+    var httpApiUrl: String
+    var httpApiKey: String
+    var mode: AuthMode
+    var allowUntrustedCerts: Bool
+    var secretKey: String
+
+    // Transport Configuration
+    var isBluetoothLeEnabled: Bool
+    var isLanEnabled: Bool
+    var isAwdlEnabled: Bool
+    var isCloudSyncEnabled: Bool
+
+    /// Developer Options
+    var logLevel: String
+
+    init(
+        _ _id: String,
+        name: String,
+        databaseId: String,
+        token: String,
+        authUrl: String,
+        websocketUrl: String,
+        httpApiUrl: String,
+        httpApiKey: String,
+        mode: AuthMode = .server,
+        allowUntrustedCerts: Bool = false,
+        secretKey: String = "",
+        isBluetoothLeEnabled: Bool = true,
+        isLanEnabled: Bool = true,
+        isAwdlEnabled: Bool = true,
+        isCloudSyncEnabled: Bool = true,
+        logLevel: String = "info"
+    ) {
+        self._id = _id
+        self.name = name
+        self.databaseId = databaseId
+        self.token = token
+        self.authUrl = authUrl
+        self.websocketUrl = websocketUrl
+        self.httpApiUrl = httpApiUrl
+        self.httpApiKey = httpApiKey
+        self.mode = mode
+        self.allowUntrustedCerts = allowUntrustedCerts
+        self.secretKey = secretKey
+        self.isBluetoothLeEnabled = isBluetoothLeEnabled
+        self.isLanEnabled = isLanEnabled
+        self.isAwdlEnabled = isAwdlEnabled
+        self.isCloudSyncEnabled = isCloudSyncEnabled
+        self.logLevel = logLevel
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case _id
+        case name
+        case databaseId
+        case token
+        case authUrl
+        case websocketUrl
+        case httpApiUrl
+        case httpApiKey
+        case mode
+        case allowUntrustedCerts
+        case secretKey
+        case isBluetoothLeEnabled
+        case isLanEnabled
+        case isAwdlEnabled
+        case isCloudSyncEnabled
+        case logLevel
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(_id, forKey: ._id)
+        try container.encode(name, forKey: .name)
+        try container.encode(databaseId, forKey: .databaseId)
+        try container.encode(token, forKey: .token)
+        try container.encode(authUrl, forKey: .authUrl)
+        try container.encode(websocketUrl, forKey: .websocketUrl)
+        try container.encode(httpApiUrl, forKey: .httpApiUrl)
+        try container.encode(httpApiKey, forKey: .httpApiKey)
+        try container.encode(mode, forKey: .mode)
+        try container.encode(allowUntrustedCerts, forKey: .allowUntrustedCerts)
+        try container.encode(secretKey, forKey: .secretKey)
+        try container.encode(isBluetoothLeEnabled, forKey: .isBluetoothLeEnabled)
+        try container.encode(isLanEnabled, forKey: .isLanEnabled)
+        try container.encode(isAwdlEnabled, forKey: .isAwdlEnabled)
+        try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
+        try container.encode(logLevel, forKey: .logLevel)
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        _id = try container.decode(String.self, forKey: ._id)
+        name = try container.decode(String.self, forKey: .name)
+        databaseId = try container.decode(String.self, forKey: .databaseId)
+        token = try container.decode(String.self, forKey: .token)
+        authUrl = try container.decode(String.self, forKey: .authUrl)
+        websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
+        httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
+        httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
+        mode = try container.decode(AuthMode.self, forKey: .mode)
+        allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
+        secretKey = try container.decodeIfPresent(String.self, forKey: .secretKey) ?? ""
+
+        // Transport settings with backward compatibility (default to true if missing)
+        isBluetoothLeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isBluetoothLeEnabled) ?? true
+        isLanEnabled = try container.decodeIfPresent(Bool.self, forKey: .isLanEnabled) ?? true
+        isAwdlEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAwdlEnabled) ?? true
+        isCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCloudSyncEnabled) ?? true
+        // Developer options with backward compatibility
+        logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
+    }
+}
+
+extension DittoConfigForDatabase {
+    static func new() -> DittoConfigForDatabase {
+        DittoConfigForDatabase(
+            UUID().uuidString,
+            name: "",
+            databaseId: "",
+            token: "",
+            authUrl: "",
+            websocketUrl: "",
+            httpApiUrl: "",
+            httpApiKey: "",
+            mode: .server,
+            allowUntrustedCerts: false,
+            secretKey: "",
+            isBluetoothLeEnabled: true,
+            isLanEnabled: true,
+            isAwdlEnabled: true,
+            isCloudSyncEnabled: true,
+            logLevel: "info"
+        )
+    }
+}
+
+
+I would like the UI to match the SwiftUI version as much as possible.  The save button should use the ditto yellow for the background and the ditto black for the font color.   the cancel button should also use Ditto colors as seen in the SwiftUI.  We also need the warning from the SwiftUI screenshot and the option to set the Ditto logging level, which you can see the values here:
+
+https://software.ditto.live/dotnet/Ditto/4.14.3/api-reference/namespace_ditto_s_d_k.html#a869f43a5f0caf514e9332931ee4dce27
+
+
+Take a look at updating the UI and models along with the repository to update to allow the same features as the SwiftUI version of the app.  Once you have a plan let me know when it's ready to review.

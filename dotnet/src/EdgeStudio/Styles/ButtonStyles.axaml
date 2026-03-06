@@ -1,0 +1,18 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Global Ditto-branded button: sulfur yellow with jet-black text -->
+    <Style Selector="Button">
+        <Setter Property="Background" Value="{DynamicResource DittoAccent}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+    </Style>
+    <Style Selector="Button:pointerover">
+        <Setter Property="Background" Value="{DynamicResource DittoSulfurYellow}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+    </Style>
+    <Style Selector="Button:pressed">
+        <Setter Property="Background" Value="#C8B820"/>
+        <Setter Property="Foreground" Value="{DynamicResource DittoJetBlack}"/>
+    </Style>
+
+</Styles>

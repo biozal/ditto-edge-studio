@@ -1,0 +1,20 @@
+Go into research mode - I need to know the differences betwen SQLCipher and SQLiteCrypt in .NET.  I want to to replace the the Ditto instance I use for caching:
+
+- Database Configuration (DitoDatabaseRepository)
+- History (HistoryRepository)
+- Favorites (FavoritesRepository)
+- Subscriptions (DittoSubscriptionRepository)
+- Observers (we haven't added this feature yet)
+
+I want to replace the use of a local ditto cache database with a Sqlite solution that is encrypted, which I did in the SwiftUI version of this app. 
+
+The data is highly senseitive and must be encrypted at rest.  Currently the SwiftUI app generates the encrytion key based on the deviceId.  The goal is the end user should never be prompted for a password - so keychain is out for MacOS because I don't want the user to have to type in a code each time they open the app.  
+
+Since we are early enough this shouldn't be difficult to do.  Other files like AddQueryHistoryHelper.cs would also have to be modified as the ditto local instance would go away.
+
+In the Ditto Manager we would remove:
+public Ditto? DittoLocal { get; set; } = null;
+
+As all the information that is stored in this would be stored in Sqlite.  We don't have to worry about migration of data.  No one is using the app yet it's still in internal development, so having to re-register ditto databases isn't a problem so don't worry about migrating of data.
+
+Research options for this and let me know when you have a plan on how this can be done.  We need to make sure we don't break existing functionality as part of this update - so we need to make sure we have tests to validate that this does work.

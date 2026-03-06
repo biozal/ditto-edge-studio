@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.Workspaces.QueryDocumentView"
+             x:DataType="vm:QueryDocumentViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="*,Auto" Margin="8">
+        <!-- Query Editor with AvaloniaEdit and SukiUI dark blue background -->
+        <avaloniaEdit:TextEditor Grid.Row="0"
+                                 Name="QueryEditor"
+                                 FontFamily="Consolas"
+                                 FontSize="14"
+                                 ShowLineNumbers="True"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 WordWrap="False"
+                                 Background="#1e2837"
+                                 Foreground="#d4d4d4"
+                                 LineNumbersForeground="#858585"/>
+
+        <!-- Execute Button with Material Icon -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="8">
+            <Button Command="{Binding ExecuteQueryCommand}"
+                    Classes="Flat Accent"
+                    Padding="12,6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <materialIcons:MaterialIcon Kind="Play"
+                                               Width="18"
+                                               Height="18"
+                                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Execute Query"
+                              VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

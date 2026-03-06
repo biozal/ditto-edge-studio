@@ -1,0 +1,123 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Configure for Windows and Linux only -->
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::IsOSPlatform('windows'))">7.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::IsOSPlatform('linux'))">0.0</SupportedOSPlatformVersion>
+    <LangVersion>14</LangVersion>
+
+    <!-- Assembly Identity -->
+    <AssemblyName>EdgeStudio</AssemblyName>
+    <AssemblyTitle>Edge Studio</AssemblyTitle>
+    <Product>Edge Studio</Product>
+    <Company>Costoda Coding Monkeys </Company>
+    <Description>A powerful database query editor and management tool for Ditto</Description>
+    <Version>1.0.0</Version>
+    <Copyright>Copyright © 2025 under MIT License</Copyright>
+
+    <!-- macOS Bundle Configuration -->
+    <CFBundleIdentifier>com.ditto.edgestudio</CFBundleIdentifier>
+    <CFBundleName>Edge Studio</CFBundleName>
+    <CFBundleDisplayName>Edge Studio</CFBundleDisplayName>
+    <Title>Edge Studio .NET</Title>
+    <PackageProjectUrl>https://github.com/biozal/edge-studio-dotnet</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/biozal/edge-studio-dotnet/blob/main/LICENSE</PackageLicenseUrl>
+    <RepositoryUrl>https://github.com/biozal/edge-studio-dotnet/tree/main</RepositoryUrl>
+    <AssemblyVersion>1.0</AssemblyVersion>
+    <FileVersion>1.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- macOS Bundle Resources -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('osx'))">
+    <None Include="Info.plist">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Assets\EdgeStudio.icns" Condition="Exists('Assets\EdgeStudio.icns')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>EdgeStudio.icns</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Core Avalonia packages -->
+    <PackageReference Include="Avalonia" Version="11.3.12" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.4.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="AvaloniaEdit.TextMate" Version="11.4.1" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+
+    <!-- SukiUI Theme and Controls -->
+    <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0" />
+
+    <!-- AvaloniaEdit for code editing functionality -->
+    
+    <!-- MVVM framework -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    
+    <!-- Ditto SDK -->
+    <PackageReference Include="Ditto" Version="4.14.3" />
+    
+    <!-- Dependency Injection -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.3" />
+    <PackageReference Include="SukiUI" Version="6.0.3" />
+    <PackageReference Include="Avalonia.Svg.Skia" Version="11.3.0" />
+    
+    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.12">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../EdgeStudio.Shared/EdgeStudio.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- macOS App Bundle Structure for Debug builds -->
+  <Target Name="CreateMacOSAppBundle" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('osx'))">
+    <PropertyGroup>
+      <AppBundleName>$(AssemblyName).app</AppBundleName>
+      <AppBundleDir>$(OutputPath)$(AppBundleName)</AppBundleDir>
+      <AppBundleContents>$(AppBundleDir)/Contents</AppBundleContents>
+      <AppBundleMacOS>$(AppBundleContents)/MacOS</AppBundleMacOS>
+      <AppBundleResources>$(AppBundleContents)/Resources</AppBundleResources>
+    </PropertyGroup>
+
+    <!-- Create bundle directory structure -->
+    <MakeDir Directories="$(AppBundleMacOS)" />
+    <MakeDir Directories="$(AppBundleResources)" />
+
+    <!-- Copy executable and all dependencies to MacOS folder -->
+    <ItemGroup>
+      <AppFiles Include="$(OutputPath)**/*.*" Exclude="$(OutputPath)$(AppBundleName)/**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AppFiles)" DestinationFolder="$(AppBundleMacOS)/%(RecursiveDir)" SkipUnchangedFiles="true" />
+
+    <!-- Copy Info.plist -->
+    <Copy SourceFiles="$(ProjectDir)Info.plist" DestinationFiles="$(AppBundleContents)/Info.plist" SkipUnchangedFiles="true" />
+
+    <!-- Copy icon file -->
+    <Copy SourceFiles="$(ProjectDir)Assets/EdgeStudio.icns" DestinationFiles="$(AppBundleResources)/EdgeStudio.icns" SkipUnchangedFiles="true" Condition="Exists('$(ProjectDir)Assets/EdgeStudio.icns')" />
+
+    <!-- Create PkgInfo -->
+    <WriteLinesToFile File="$(AppBundleContents)/PkgInfo" Lines="APPL????" Overwrite="true" />
+
+    <!-- Make executable -->
+    <Exec Command="chmod +x &quot;$(AppBundleMacOS)/$(AssemblyName)&quot;" />
+
+    <Message Importance="high" Text="✓ Created macOS app bundle at: $(AppBundleDir)" />
+  </Target>
+</Project>

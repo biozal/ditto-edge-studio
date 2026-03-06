@@ -1,0 +1,131 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+        xmlns:vm="using:EdgeStudio.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:EdgeStudio.Views"
+        mc:Ignorable="d" 
+        d:DesignWidth="1200" 
+        d:DesignHeight="900"
+        x:Class="EdgeStudio.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Ditto Edge Studio"
+        Width="1200"
+        Height="900"
+        BackgroundStyle="Flat">
+
+    <!-- Toast notification host -->
+    <suki:SukiWindow.Hosts>
+        <suki:SukiToastHost />
+    </suki:SukiWindow.Hosts>
+
+    <!-- Window-level native menu for macOS (File, Edit, View, Window, Help) -->
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <!-- File Menu -->
+            <NativeMenuItem Header="File">
+                <NativeMenu>
+                    <NativeMenuItem Header="New Database Connection" Gesture="Meta+N" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Close Window" Gesture="Meta+W" />
+                </NativeMenu>
+            </NativeMenuItem>
+
+            <!-- Edit Menu -->
+            <NativeMenuItem Header="Edit">
+                <NativeMenu>
+                    <NativeMenuItem Header="Undo" Gesture="Meta+Z" />
+                    <NativeMenuItem Header="Redo" Gesture="Meta+Shift+Z" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Cut" Gesture="Meta+X" />
+                    <NativeMenuItem Header="Copy" Gesture="Meta+C" />
+                    <NativeMenuItem Header="Paste" Gesture="Meta+V" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Select All" Gesture="Meta+A" />
+                </NativeMenu>
+            </NativeMenuItem>
+
+            <!-- View Menu -->
+            <NativeMenuItem Header="View">
+                <NativeMenu>
+                    <NativeMenuItem Header="Toggle Full Screen" Gesture="Control+Meta+F" />
+                </NativeMenu>
+            </NativeMenuItem>
+
+            <!-- Window Menu -->
+            <NativeMenuItem Header="Window">
+                <NativeMenu>
+                    <NativeMenuItem Header="Minimize" Gesture="Meta+M" />
+                    <NativeMenuItem Header="Zoom" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Bring All to Front" />
+                </NativeMenu>
+            </NativeMenuItem>
+
+            <!-- Help Menu -->
+            <NativeMenuItem Header="Help">
+                <NativeMenu>
+                    <NativeMenuItem Header="Edge Studio Documentation" />
+                    <NativeMenuItem Header="Visit Ditto Website" />
+                </NativeMenu>
+            </NativeMenuItem>
+        </NativeMenu>
+    </NativeMenu.Menu>
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+        <!-- Database Listing View (shown when no database is selected) -->
+        <views:DatabaseListingView x:Name="DatabaseListingView" />
+
+        <!-- Edge Studio View (shown when a database is selected) -->
+        <views:EdgeStudioView x:Name="EdgeStudioView" IsVisible="False" />
+        
+        <!-- Loading Spinner Overlay -->
+        <Border x:Name="LoadingOverlay" 
+                Background="#CC1E1E1E" 
+                IsVisible="False"
+                ZIndex="1000">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                <!-- Material Design Progress Ring -->
+                <ProgressBar IsIndeterminate="True" 
+                             Width="60" Height="60"
+                             Classes="circular"/>
+                
+                <!-- Loading Message -->
+                <TextBlock Text="Initializing Database..."
+                         FontSize="16"
+                         FontWeight="SemiBold"
+                         Foreground="White"
+                         HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Closing Database Overlay -->
+        <Border x:Name="ClosingOverlay"
+                Background="#CC1E1E1E"
+                IsVisible="{Binding IsClosingDatabase}"
+                ZIndex="1000">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                <ProgressBar IsIndeterminate="True"
+                             Width="60" Height="60"
+                             Classes="circular"/>
+                <TextBlock Text="Closing database resources..."
+                         FontSize="16"
+                         FontWeight="SemiBold"
+                         Foreground="White"
+                         HorizontalAlignment="Center"/>
+                <TextBlock Text="This may take a few moments"
+                         FontSize="12"
+                         Opacity="0.7"
+                         Foreground="White"
+                         HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</suki:SukiWindow>

@@ -1,0 +1,2 @@
+Go into plan mode.  In the docs folder is a new document BRAND_COLORS.md which are the Ditto brand colors.  This is from the SwiftUI version of the app.  I would like to start incorporating Ditto Brand colors into the UI of the app like I did in the SwiftUI version. Make a plan to implement defining these in code like I did in SwiftUI so I can use them in the background of a button for example or really any component.  Once you have a plan let me know so I can review. 
+
