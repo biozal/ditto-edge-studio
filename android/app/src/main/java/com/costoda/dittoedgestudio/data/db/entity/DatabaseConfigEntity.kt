@@ -26,5 +26,6 @@ data class DatabaseConfigEntity(
     @ColumnInfo(name = "httpApiUrl") val httpApiUrl: String,
     @ColumnInfo(name = "httpApiKey") val httpApiKey: String,
     @ColumnInfo(name = "secretKey") val secretKey: String,
-    @ColumnInfo(name = "logLevel") val logLevel: String
+    @ColumnInfo(name = "logLevel") val logLevel: String,
+    @ColumnInfo(name = "isStrictModeEnabled") val isStrictModeEnabled: Boolean = false,
 )

@@ -16,7 +16,8 @@ data class DittoDatabase(
     val isLanEnabled: Boolean = true,
     val isAwdlEnabled: Boolean = false,
     val isCloudSyncEnabled: Boolean = true,
-    val logLevel: String = "info"
+    val logLevel: String = "info",
+    val isStrictModeEnabled: Boolean = false,
 ) {
     companion object {
         fun empty(): DittoDatabase = DittoDatabase()

@@ -57,7 +57,8 @@ private fun DatabaseConfigEntity.toDomain() = DittoDatabase(
     isLanEnabled = isLanEnabled,
     isAwdlEnabled = isAwdlEnabled,
     isCloudSyncEnabled = isCloudSyncEnabled,
-    logLevel = logLevel
+    logLevel = logLevel,
+    isStrictModeEnabled = isStrictModeEnabled,
 )
 
 private fun DittoDatabase.toEntity() = DatabaseConfigEntity(
@@ -76,5 +77,6 @@ private fun DittoDatabase.toEntity() = DatabaseConfigEntity(
     isLanEnabled = isLanEnabled,
     isAwdlEnabled = isAwdlEnabled,
     isCloudSyncEnabled = isCloudSyncEnabled,
-    logLevel = logLevel
+    logLevel = logLevel,
+    isStrictModeEnabled = isStrictModeEnabled,
 )

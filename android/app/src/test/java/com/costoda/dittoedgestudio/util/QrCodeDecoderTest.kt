@@ -247,5 +247,61 @@ class QrCodeDecoderTest {
         assertEquals(false, db.isAwdlEnabled)
         assertEquals(true, db.isCloudSyncEnabled)
         assertEquals("info", db.logLevel)
+        assertEquals(false, db.isStrictModeEnabled)
+    }
+
+    @Test
+    fun `decodesStrictModeEnabledFromEds2Payload`() {
+        // Build a V2 payload that includes isStrictModeEnabled: true
+        val json = """
+            {
+              "version": 2,
+              "config": {
+                "_id": "",
+                "name": "Strict DB",
+                "databaseId": "db-strict",
+                "token": "tok_abc",
+                "authUrl": "https://auth.example.com",
+                "websocketUrl": "wss://ws.example.com",
+                "httpApiUrl": "https://api.example.com",
+                "httpApiKey": "key_xyz",
+                "mode": "server",
+                "allowUntrustedCerts": false,
+                "secretKey": "",
+                "isBluetoothLeEnabled": true,
+                "isLanEnabled": true,
+                "isAwdlEnabled": false,
+                "isCloudSyncEnabled": true,
+                "logLevel": "info",
+                "isStrictModeEnabled": true
+              },
+              "favorites": []
+            }
+        """.trimIndent()
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        val deflater = java.util.zip.Deflater(java.util.zip.Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(bytes)
+        deflater.finish()
+        val output = ByteArray(bytes.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val compressed = output.copyOf(length)
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(compressed)
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertEquals(true, result!!.database.isStrictModeEnabled)
+    }
+
+    @Test
+    fun `missingStrictModeFieldDefaultsToFalse`() {
+        // V2 payload without isStrictModeEnabled field (legacy QR code)
+        val raw = buildV2Payload(name = "Legacy DB", databaseId = "db-legacy-strict")
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertEquals(false, result!!.database.isStrictModeEnabled)
     }
 }

@@ -25,3 +25,4 @@ SwiftUI/coverage.txt
 SwiftUI/coverage_files.txt
 android/.idea
 android/.kotlin
+*.dmg

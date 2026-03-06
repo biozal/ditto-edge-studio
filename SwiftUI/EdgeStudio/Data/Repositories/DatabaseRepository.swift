@@ -60,7 +60,8 @@ actor DatabaseRepository {
                 isLanEnabled: row.isLanEnabled,
                 isAwdlEnabled: row.isAwdlEnabled,
                 isCloudSyncEnabled: row.isCloudSyncEnabled,
-                logLevel: row.logLevel
+                logLevel: row.logLevel,
+                isStrictModeEnabled: row.isStrictModeEnabled
             )
         }
 
@@ -92,7 +93,8 @@ actor DatabaseRepository {
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
-                logLevel: appConfig.logLevel
+                logLevel: appConfig.logLevel,
+                isStrictModeEnabled: appConfig.isStrictModeEnabled
             )
             try await sqlCipher.insertDatabaseConfig(row)
 
@@ -132,7 +134,8 @@ actor DatabaseRepository {
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
-                logLevel: appConfig.logLevel
+                logLevel: appConfig.logLevel,
+                isStrictModeEnabled: appConfig.isStrictModeEnabled
             )
             try await sqlCipher.updateDatabaseConfig(row)
 
