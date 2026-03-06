@@ -1,0 +1,47 @@
+Go into plan mode.  Use XCcode MCP and Android Studio MCP for Jetbrains for code discovery.  I'll need you to some research on material design options.  Up to this point we have build the UI and database interactions to register a database, list it, edit it, and then select it.  Once you select it MainStudioScreen.kt renders, but it's just a place holder.  We now need put up in a lot of the controls so we can actually build the real functionalithy of the app in future features.  For now I want to focus on the structure of the UI and buttons.  
+
+I'm gonig to start by describing the iPhone UI for SwiftUI and then I'll review the iPadUI.  Once I do that then I'll describe what I want you to research and cmoe up with a plan for.
+
+MainStudioView.swift in SwiftUI uses NavigationSplitView to render three parts of the screen.  There is a sidebar which renders on the right of the screen.  There is the main content, and then an inspector view that is rendered in the right.  On MacOS and iPadOS depending on the screen size all three of these can be opened at once.  On iPhone, NavigationSplitView automatically turns this into a navigation stack.  The sidebar becomes a screen that has navigation links and options on it.  On iPhone I have the inspector coming up as an action sheet.  Each option in the SwiftUI version of the app the content in the Inspector is dynamic.  So for example the insepector's UI is different on Subscriptions than it is on Query or other features.  
+
+The main iPhone UI screenshot is iphone-subscriptions-peerlist.png.  I want to review the options on the screen.
+
+The top toolbar has an icon on the right side, this triggers the ability to show or hide the Sidebar.  Tapping it will bring up the Sidebar - which is in screenshot iphone-subscriptions-peerlist-sidebar-open.png.  When the side bar opens it gives navigation and information options and an icon in the uppper right hand corner to close the sidebar and return to the MainStudioView detail view.  
+
+On the right side are three buttons in a Toolbar:
+
+- Sync - this turns on or off Sync
+- Close - this closes MainStudioView and returns to the Database Listing - closing all Ditto instance information and cleaning up memory.
+- Inspector - this calls up the inspector.  On iPhone this is an action sheet.  You can see a screenshot of this in iphone-subscriptions-peerlist-inspector-open.png.  Clicking on the top of the window or dragging the action sheet down closes it.  
+
+Everything below this toolbar changes based on which "feature" you select from the side bar.  The current screenshot is the Peer List, which is rendered when Subscrpitions is selected.  This draws cards dynamcially.  I'm not concerned about this at this time, we can handle this in a future feature.  I just want to get the core UI working.
+
+Below the cards is another toolbar.  This toolbar is dynamic.  It changes what's rendered on it based on which navigation option you have selected.  In Subscriptions it just draws the total amount of network connections.  The chevron icon on the right side of the toolbar allows you to hide and show the toolbar.  When hidden the toolbar turns into a single floating action button which you can see in screenshot iphone-subscriptions-peerlist-bottom-toolbar-closed.png.  I like this functionality and want it in the Android version of the app.
+
+The cog icon under the segment control allows a pop up modal to appear and lets the end user select which network transports are available.  Right now I'm just concerned about having an icon being able to click on it and having a modal that appears with a custom view that can then have items selected and also be able to close.  You can see a screenshot of this in iphone-subscriptions-peerlist-transport-config-open.png.  
+
+The iPad version of the UI is very similar, but by default the sidebar always appears.   You can see this in screenshot ipad-subscriptions-peerlist-default.png.  You can see a screenshot of the inpsector open with the sidebar open in  ipad-subscriptions-peerlist-sidebar-inspector-open.png.  When this happens the cards are in a grid and how many that can draw in a row shrinks down making the UI still usable in all three parts of the screen.
+
+The sidebar can be closed and just the inspector open.  You can see an example of this in screenshot ipad-subscriptions-peerlist-inspector-open.png.  The iPad like iPhone has the toolbar at the bottom which can be dyanmically changed per screen and can be shown or hidden.  You can see this in the screenshots:
+
+ipad-subscriptions-peerlist-bottom-toolbar-closed.png
+
+When you click on the number of connections on the toolbar a pop-up appears above it showing you the break down of connection counts by type of transport.  You can see a screenshot of this in ipad-subscriptions-peerlist-bottom-toolbar-connections.png.
+
+The floating action button in the sidebar lower left hand corner when clicked brings up a menu of options that you can perform.  You can see this in ipad-subscriptions-peerlist-sidebar-open-button-menu.png.
+
+I've looked on the Material Design site and I don't see anything that comes close to the funcitonality that NavigationSplitView provides in SwiftUI, so I know that my UI will not be able to fully function like it does on iPad, but I would like to come as close as possible.
+
+I believe the navigation menu I currently have can be handled by the Navigation Rail.  Below my navigation menu is listes that are trees that show things like subscriptions and collections where the collections when you drill down will show you information like which indexes are in the collection.  I don't think all that UI will fit into the navigation rail.  Read the documenation on it here:
+https://m3.material.io/components/navigation-rail/overview
+
+I believe the toolbars I currently do in SwiftUI can be done with the material design new toolbar:
+https://m3.material.io/components/toolbars/overview
+
+I'm concerned about the UI and need you to research options.  How I see it I'll need the navigation rail, someway of drawing the "sidebar" which is the listing of subscriptions, collections, and observers based on which menu item you select in the navigation rail, then I need the detail view that draws the funtionailty of the navigation rail icon selected, and finally I need the dynamic inspector. On some screens it shows jsut documentation but on others like query it has a menu of different features that are controlled by a segment control.  On iPhone this comes up in an Action Sheet.  I'm ok with the same on Android phone, but it would be nice if there was a way to make it pop-out on Android tablet to take advantage of larger screens.
+
+I need you to research options and make a plan to put the skeleton of the UI together and update the MainStudioScreen.kt file with this skeleton of fuctionaliy.  I don't care about what renders in the sidebar or the detail or inspector right now, you can just put placeholder words there, right now I just want to focus on the UI showing up and rendering with hiding and showing different views.  
+
+Read throught the SwiftUI code.  If you look at MainStudioView.swift you can see how it's layed out and that should give you some information you can then use to research alternatives in Android for tablet.  On Android phone as long as the app functions like the iPhone version - I'm happy.  But on Android tablet I feel like there is a lot of risk to have this be clunky instead of the very nice UI and polish of the current iPad version.  
+
+Let me know when you have something ready to review.
