@@ -29,6 +29,7 @@ class DatabaseEditorViewModel(
     val allowUntrustedCerts = MutableStateFlow(false)
     val secretKey = MutableStateFlow("")
     val logLevel = MutableStateFlow("info")
+    val isStrictModeEnabled = MutableStateFlow(false)
 
     val canSave: StateFlow<Boolean> = combine(name, databaseId, token) { n, d, t ->
         n.isNotBlank() && d.isNotBlank() && t.isNotBlank()
@@ -54,6 +55,7 @@ class DatabaseEditorViewModel(
         allowUntrustedCerts.value = database.allowUntrustedCerts
         secretKey.value = database.secretKey
         logLevel.value = database.logLevel
+        isStrictModeEnabled.value = database.isStrictModeEnabled
     }
 
     fun switchMode(newMode: AuthMode) {
@@ -77,6 +79,7 @@ class DatabaseEditorViewModel(
             allowUntrustedCerts = allowUntrustedCerts.value,
             secretKey = secretKey.value.trim(),
             logLevel = logLevel.value,
+            isStrictModeEnabled = isStrictModeEnabled.value,
         )
         return repository.save(database)
     }

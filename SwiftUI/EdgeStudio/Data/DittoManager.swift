@@ -158,6 +158,11 @@ actor DittoManager {
                 }
             }
 
+            // Apply strict mode setting before starting sync (required by Ditto SDK)
+            let strictModeValue = databaseConfig.isStrictModeEnabled ? "true" : "false"
+            try await ditto.store.execute(query: "ALTER SYSTEM SET DQL_STRICT_MODE = \(strictModeValue)")
+            Log.info("[StrictMode] DQL_STRICT_MODE set to: \(strictModeValue)")
+
             dittoSelectedAppConfig = databaseConfig
 
             // start sync in the selected app on background queue to avoid priority inversion

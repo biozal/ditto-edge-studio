@@ -22,6 +22,7 @@ class DittoConfigForDatabase: Codable {
 
     /// Developer Options
     var logLevel: String
+    var isStrictModeEnabled: Bool
 
     init(
         _ _id: String,
@@ -39,7 +40,8 @@ class DittoConfigForDatabase: Codable {
         isLanEnabled: Bool = true,
         isAwdlEnabled: Bool = true,
         isCloudSyncEnabled: Bool = true,
-        logLevel: String = "info"
+        logLevel: String = "info",
+        isStrictModeEnabled: Bool = false
     ) {
         self._id = _id
         self.name = name
@@ -57,6 +59,7 @@ class DittoConfigForDatabase: Codable {
         self.isAwdlEnabled = isAwdlEnabled
         self.isCloudSyncEnabled = isCloudSyncEnabled
         self.logLevel = logLevel
+        self.isStrictModeEnabled = isStrictModeEnabled
     }
 
     enum CodingKeys: String, CodingKey {
@@ -76,6 +79,7 @@ class DittoConfigForDatabase: Codable {
         case isAwdlEnabled
         case isCloudSyncEnabled
         case logLevel
+        case isStrictModeEnabled
     }
 
     func encode(to encoder: Encoder) throws {
@@ -96,6 +100,7 @@ class DittoConfigForDatabase: Codable {
         try container.encode(isAwdlEnabled, forKey: .isAwdlEnabled)
         try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
         try container.encode(logLevel, forKey: .logLevel)
+        try container.encode(isStrictModeEnabled, forKey: .isStrictModeEnabled)
     }
 
     required init(from decoder: Decoder) throws {
@@ -119,6 +124,7 @@ class DittoConfigForDatabase: Codable {
         isCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCloudSyncEnabled) ?? true
         // Developer options with backward compatibility
         logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
+        isStrictModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isStrictModeEnabled) ?? false
     }
 }
 
@@ -140,7 +146,8 @@ extension DittoConfigForDatabase {
             isLanEnabled: true,
             isAwdlEnabled: true,
             isCloudSyncEnabled: true,
-            logLevel: "info"
+            logLevel: "info",
+            isStrictModeEnabled: false
         )
     }
 }

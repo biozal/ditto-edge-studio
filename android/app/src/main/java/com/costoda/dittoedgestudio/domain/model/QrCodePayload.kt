@@ -28,6 +28,7 @@ data class QrConfigPayload(
     val isAwdlEnabled: Boolean,
     val isCloudSyncEnabled: Boolean,
     val logLevel: String,
+    val isStrictModeEnabled: Boolean = false,
 )
 
 @Serializable

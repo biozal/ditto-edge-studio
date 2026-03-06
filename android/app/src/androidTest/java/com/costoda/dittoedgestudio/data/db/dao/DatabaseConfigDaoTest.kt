@@ -87,7 +87,20 @@ class DatabaseConfigDaoTest {
         assertEquals("Updated", updated?.name)
     }
 
-    private fun buildEntity(databaseId: String, name: String) = DatabaseConfigEntity(
+    @Test
+    fun insertAndGetPreservesStrictModeEnabled() = runTest {
+        val entity = buildEntity(databaseId = "db-strict", name = "StrictDB", isStrictModeEnabled = true)
+        dao.insert(entity)
+
+        val result = dao.getByDatabaseId("db-strict")
+        assertEquals(true, result?.isStrictModeEnabled)
+    }
+
+    private fun buildEntity(
+        databaseId: String,
+        name: String,
+        isStrictModeEnabled: Boolean = false,
+    ) = DatabaseConfigEntity(
         name = name,
         databaseId = databaseId,
         mode = AuthMode.SERVER.value,
@@ -102,6 +115,7 @@ class DatabaseConfigDaoTest {
         httpApiUrl = "",
         httpApiKey = "",
         secretKey = "",
-        logLevel = "info"
+        logLevel = "info",
+        isStrictModeEnabled = isStrictModeEnabled,
     )
 }

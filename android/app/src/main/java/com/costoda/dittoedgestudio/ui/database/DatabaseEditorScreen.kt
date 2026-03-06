@@ -83,6 +83,7 @@ fun DatabaseEditorScreen(
     val allowUntrustedCerts by viewModel.allowUntrustedCerts.collectAsState()
     val secretKey by viewModel.secretKey.collectAsState()
     val logLevel by viewModel.logLevel.collectAsState()
+    val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsState()
     val canSave by viewModel.canSave.collectAsState()
 
     val scope = rememberCoroutineScope()
@@ -268,6 +269,30 @@ fun DatabaseEditorScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Controls DittoLogger.minimumLogLevel. Higher verbosity may impact performance.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Switch(
+                        checked = isStrictModeEnabled,
+                        onCheckedChange = { viewModel.isStrictModeEnabled.value = it },
+                        modifier = Modifier.testTag("StrictModeSwitch"),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Enable DQL Strict Mode",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Text(
+                    text = "⚠️ For most Ditto SDK 5.0+ users, leave this disabled. When disabled, nested objects " +
+                        "are treated as MAPs (field-level merging). Enable only for SDK 4.x compatibility or when " +
+                        "REGISTER-typed objects are required. Mismatched settings across peers may cause nested " +
+                        "fields to appear missing.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )

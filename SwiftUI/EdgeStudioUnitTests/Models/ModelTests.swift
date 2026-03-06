@@ -101,7 +101,8 @@ struct ModelTests {
                 isBluetoothLeEnabled: false,
                 isLanEnabled: false,
                 isAwdlEnabled: false,
-                isCloudSyncEnabled: false
+                isCloudSyncEnabled: false,
+                isStrictModeEnabled: false
             )
 
             // ASSERT
@@ -120,6 +121,104 @@ struct ModelTests {
             #expect(config.isLanEnabled == false)
             #expect(config.isAwdlEnabled == false)
             #expect(config.isCloudSyncEnabled == false)
+            #expect(config.isStrictModeEnabled == false)
+        }
+
+        @Test("Default isStrictModeEnabled is false", .tags(.model, .fast))
+        func testDefaultStrictModeIsFalse() {
+            // ARRANGE & ACT
+            let config = DittoConfigForDatabase(
+                UUID().uuidString,
+                name: "Test",
+                databaseId: "db-1",
+                token: "",
+                authUrl: "",
+                websocketUrl: "",
+                httpApiUrl: "",
+                httpApiKey: ""
+            )
+
+            // ASSERT
+            #expect(config.isStrictModeEnabled == false)
+        }
+
+        @Test("All-fields init preserves isStrictModeEnabled true", .tags(.model, .fast))
+        func testAllFieldsInitPreservesStrictMode() {
+            // ACT
+            let config = DittoConfigForDatabase(
+                UUID().uuidString,
+                name: "Strict DB",
+                databaseId: "db-strict",
+                token: "",
+                authUrl: "",
+                websocketUrl: "",
+                httpApiUrl: "",
+                httpApiKey: "",
+                isStrictModeEnabled: true
+            )
+
+            // ASSERT
+            #expect(config.isStrictModeEnabled == true)
+        }
+
+        @Test("Decodable defaults missing isStrictModeEnabled to false", .tags(.model, .fast))
+        func testDecodableDefaultsMissingStrictModeToFalse() throws {
+            // ARRANGE — JSON without isStrictModeEnabled (backward compat)
+            let json = """
+            {
+                "_id": "compat-strict-id",
+                "name": "Compat DB",
+                "databaseId": "db-compat-strict",
+                "token": "",
+                "authUrl": "",
+                "websocketUrl": "",
+                "httpApiUrl": "",
+                "httpApiKey": "",
+                "mode": "server"
+            }
+            """
+
+            // ACT
+            let data = json.data(using: .utf8)!
+            let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
+
+            // ASSERT — missing field defaults to false
+            #expect(decoded.isStrictModeEnabled == false)
+        }
+
+        @Test("Decodable round-trip preserves isStrictModeEnabled true", .tags(.model, .fast))
+        func testDecodableRoundTripPreservesStrictModeTrue() throws {
+            // ARRANGE
+            let json = """
+            {
+                "_id": "strict-id",
+                "name": "Strict DB",
+                "databaseId": "db-strict",
+                "token": "",
+                "authUrl": "",
+                "websocketUrl": "",
+                "httpApiUrl": "",
+                "httpApiKey": "",
+                "mode": "server",
+                "isStrictModeEnabled": true
+            }
+            """
+
+            // ACT
+            let data = json.data(using: .utf8)!
+            let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
+
+            // ASSERT
+            #expect(decoded.isStrictModeEnabled == true)
+        }
+
+        @Test("new() factory defaults isStrictModeEnabled to false", .tags(.model, .fast))
+        func testNewFactoryDefaultsStrictModeToFalse() {
+            // ACT
+            let config = DittoConfigForDatabase.new()
+
+            // ASSERT
+            #expect(config.isStrictModeEnabled == false)
         }
 
         @Test("new() factory creates config with unique ID and empty fields", .tags(.model, .fast))

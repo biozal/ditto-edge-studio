@@ -26,7 +26,8 @@ struct DatabaseConfigFixtures {
             isBluetoothLeEnabled: true,
             isLanEnabled: true,
             isAwdlEnabled: true,
-            isCloudSyncEnabled: true
+            isCloudSyncEnabled: true,
+            isStrictModeEnabled: false
         )
     }
     
@@ -49,7 +50,8 @@ struct DatabaseConfigFixtures {
             isBluetoothLeEnabled: true,
             isLanEnabled: true,
             isAwdlEnabled: true,
-            isCloudSyncEnabled: false
+            isCloudSyncEnabled: false,
+            isStrictModeEnabled: false
         )
     }
     
@@ -72,8 +74,25 @@ struct DatabaseConfigFixtures {
             isBluetoothLeEnabled: true,
             isLanEnabled: true,
             isAwdlEnabled: false,
-            isCloudSyncEnabled: false
+            isCloudSyncEnabled: false,
+            isStrictModeEnabled: false
         )
+    }
+
+    // MARK: - Strict Mode Fixtures
+
+    /// Config with DQL strict mode enabled (SDK 4.x compatibility)
+    static func configWithStrictModeEnabled(id: String = UUID().uuidString) -> DittoConfigForDatabase {
+        let config = validServerConfig(id: id)
+        config.isStrictModeEnabled = true
+        return config
+    }
+
+    /// Config with DQL strict mode explicitly disabled (SDK 5.0 default)
+    static func configWithStrictModeDisabled(id: String = UUID().uuidString) -> DittoConfigForDatabase {
+        let config = validServerConfig(id: id)
+        config.isStrictModeEnabled = false
+        return config
     }
     
 
@@ -136,7 +155,8 @@ struct DatabaseConfigFixtures {
             isBluetoothLeEnabled: true,
             isLanEnabled: true,
             isAwdlEnabled: true,
-            isCloudSyncEnabled: true
+            isCloudSyncEnabled: true,
+            isStrictModeEnabled: false
         )
     }
     
@@ -190,7 +210,8 @@ struct DatabaseConfigFixtures {
                 isBluetoothLeEnabled: true,
                 isLanEnabled: true,
                 isAwdlEnabled: true,
-                isCloudSyncEnabled: true
+                isCloudSyncEnabled: true,
+                isStrictModeEnabled: false
             ),
             DittoConfigForDatabase(
                 UUID().uuidString,
@@ -207,7 +228,8 @@ struct DatabaseConfigFixtures {
                 isBluetoothLeEnabled: true,
                 isLanEnabled: true,
                 isAwdlEnabled: true,
-                isCloudSyncEnabled: true
+                isCloudSyncEnabled: true,
+                isStrictModeEnabled: false
             )
         ]
     }

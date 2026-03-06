@@ -60,6 +60,7 @@ object QrCodeEncoder {
                 isAwdlEnabled = database.isAwdlEnabled,
                 isCloudSyncEnabled = database.isCloudSyncEnabled,
                 logLevel = database.logLevel,
+                isStrictModeEnabled = database.isStrictModeEnabled,
             ),
             favorites = favorites.map { QrFavoriteItem(it) },
         )
