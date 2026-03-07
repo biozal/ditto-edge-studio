@@ -6,6 +6,7 @@
              xmlns:navigation="using:EdgeStudio.Views.Navigation"
              xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
              xmlns:tools="using:EdgeStudio.Views.Tools"
+             xmlns:inspector="using:EdgeStudio.Views.Inspector"
              xmlns:controls="using:EdgeStudio.Views.Controls"
              xmlns:suki="using:SukiUI.Controls"
              xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
@@ -68,6 +69,18 @@
                     Margin="0,8,16,6"
                     Spacing="8">
 
+            <!-- Inspector Toggle Button -->
+            <Button Command="{Binding ToggleInspectorCommand}"
+                    Classes="Rounded"
+                    Background="{DynamicResource DittoCardSurface}"
+                    Foreground="{DynamicResource DittoCardText}"
+                    Width="36"
+                    Height="36"
+                    Padding="0"
+                    ToolTip.Tip="Toggle Inspector">
+                <avalonia:MaterialIcon Kind="DockRight" Width="20" Height="20"/>
+            </Button>
+
             <!-- Sync Toggle Button -->
             <Button Command="{Binding ToggleSyncCommand}"
                     Classes="Rounded SyncButton"
@@ -108,7 +121,11 @@
                 <!-- Second Splitter -->
                 <ColumnDefinition Width="Auto"/>
                 <!-- Main Content Area (Detail Views) -->
-                <ColumnDefinition Width="*" MinWidth="500"/>
+                <ColumnDefinition Width="*" MinWidth="400"/>
+                <!-- Inspector Splitter (visible only when inspector is open) -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Inspector Panel (collapses when IsVisible=false) -->
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Icon Navigation Bar -->
@@ -144,8 +161,14 @@
                         <DataTemplate DataType="{x:Type vm:ObserversViewModel}">
                             <workspaces:ObserverListingView/>
                         </DataTemplate>
-                        <DataTemplate DataType="{x:Type vm:ToolsViewModel}">
-                            <workspaces:ToolsListingView/>
+                        <DataTemplate DataType="{x:Type vm:LoggingViewModel}">
+                            <workspaces:LoggingListingView/>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:AppMetricsViewModel}">
+                            <workspaces:AppMetricsListingView/>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:QueryMetricsViewModel}">
+                            <workspaces:QueryMetricsListingView/>
                         </DataTemplate>
                     </ContentControl.DataTemplates>
                 </ContentControl>
@@ -307,9 +330,19 @@
                             <workspaces:ObserverDetailView/>
                         </DataTemplate>
 
-                        <!-- Tools View -->
-                        <DataTemplate DataType="{x:Type vm:ToolsViewModel}">
-                            <workspaces:ToolsDetailView/>
+                        <!-- Logging View -->
+                        <DataTemplate DataType="{x:Type vm:LoggingViewModel}">
+                            <workspaces:LoggingDetailView/>
+                        </DataTemplate>
+
+                        <!-- App Metrics View -->
+                        <DataTemplate DataType="{x:Type vm:AppMetricsViewModel}">
+                            <workspaces:AppMetricsDetailView/>
+                        </DataTemplate>
+
+                        <!-- Query Metrics View -->
+                        <DataTemplate DataType="{x:Type vm:QueryMetricsViewModel}">
+                            <workspaces:QueryMetricsDetailView/>
                         </DataTemplate>
 
                     </ContentControl.DataTemplates>
@@ -322,6 +355,32 @@
                   VerticalAlignment="Bottom"/>
 
             </Grid>
+
+            <!-- Inspector Splitter (visible when IsInspectorVisible=true) -->
+            <GridSplitter Grid.Column="5"
+                          Width="5"
+                          Background="Transparent"
+                          ResizeDirection="Columns"
+                          IsVisible="{Binding IsInspectorVisible}">
+                <GridSplitter.Styles>
+                    <Style Selector="GridSplitter:pointerover">
+                        <Setter Property="Background" Value="#20FFFFFF"/>
+                    </Style>
+                    <Style Selector="GridSplitter:pressed">
+                        <Setter Property="Background" Value="#007ACC"/>
+                    </Style>
+                </GridSplitter.Styles>
+            </GridSplitter>
+
+            <!-- Inspector Panel -->
+            <Border Grid.Column="6"
+                    Width="280"
+                    MinWidth="200"
+                    MaxWidth="500"
+                    IsVisible="{Binding IsInspectorVisible}">
+                <inspector:InspectorView/>
+            </Border>
+
         </Grid>
     </Grid>
 </UserControl>

@@ -1,0 +1,401 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
+             xmlns:logging="using:EdgeStudio.Models.Logging"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
+             x:Class="EdgeStudio.Views.Workspaces.LoggingDetailView"
+             x:DataType="vm:LoggingViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.Resources>
+
+        <!-- ── Source tab: plain button, no SukiUI chrome ── -->
+        <ControlTheme x:Key="SourceTabTheme" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Root"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover /template/ Border#PART_Root">
+                <Setter Property="Background" Value="{DynamicResource SukiLightBorderBrush}"/>
+            </Style>
+        </ControlTheme>
+
+        <!-- ── Level chip: bare toggle, no SukiUI chrome ── -->
+        <ControlTheme x:Key="LevelChipTheme" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="7,3"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Root"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          FontFamily="{TemplateBinding FontFamily}"
+                                          FontSize="{TemplateBinding FontSize}"
+                                          FontWeight="{TemplateBinding FontWeight}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+
+        <!-- ── Source tab active state ── -->
+        <Style Selector="Button.SourceActive">
+            <Setter Property="Background" Value="{DynamicResource SukiLightBorderBrush}"/>
+        </Style>
+        <!-- Dot: grey when inactive, green when tab is active -->
+        <Style Selector="Button Ellipse.SourceDot">
+            <Setter Property="Fill" Value="Gray"/>
+            <Setter Property="Opacity" Value="0.35"/>
+        </Style>
+        <Style Selector="Button.SourceActive Ellipse.SourceDot">
+            <Setter Property="Fill" Value="#4CAF50"/>
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+
+        <!-- ── Level chips: inactive (subtle grey) ── -->
+        <Style Selector="ToggleButton.LevelChip">
+            <Setter Property="Background" Value="#14808080"/>
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}"/>
+            <Setter Property="FontFamily" Value="Cascadia Code, Consolas, Courier New, monospace"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- ERR active -->
+        <Style Selector="ToggleButton.LevelChip.Error:checked">
+            <Setter Property="Background" Value="#2DF44336"/>
+            <Setter Property="Foreground" Value="#F44336"/>
+        </Style>
+        <!-- WARN active -->
+        <Style Selector="ToggleButton.LevelChip.Warning:checked">
+            <Setter Property="Background" Value="#2DFF9800"/>
+            <Setter Property="Foreground" Value="#FF9800"/>
+        </Style>
+        <!-- INFO active -->
+        <Style Selector="ToggleButton.LevelChip.Info:checked">
+            <Setter Property="Background" Value="#2D2196F3"/>
+            <Setter Property="Foreground" Value="#2196F3"/>
+        </Style>
+        <!-- DBG active -->
+        <Style Selector="ToggleButton.LevelChip.Debug:checked">
+            <Setter Property="Background" Value="#209E9E9E"/>
+            <Setter Property="Foreground" Value="{DynamicResource SukiText}"/>
+        </Style>
+        <!-- VERB active -->
+        <Style Selector="ToggleButton.LevelChip.Verbose:checked">
+            <Setter Property="Background" Value="#209E9E9E"/>
+            <Setter Property="Foreground" Value="{DynamicResource SukiText}"/>
+        </Style>
+
+    </UserControl.Styles>
+
+    <!-- Root: toolbar / source tabs / filters / date filter / log list+footer -->
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+
+        <!-- ══ Row 0: Toolbar ══ -->
+        <Border Grid.Row="0" Padding="16,8" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="Logs"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="SDK Level:"
+                           FontSize="12"
+                           Opacity="0.6"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"/>
+
+                <ComboBox Grid.Column="2"
+                          ItemsSource="{Binding LogLevelOptions}"
+                          SelectedItem="{Binding SelectedSdkLogLevel}"
+                          Width="130"
+                          FontSize="12"
+                          Margin="0,0,8,0"
+                          VerticalAlignment="Center"/>
+
+                <Button Grid.Column="3"
+                        Command="{Binding RefreshCommand}"
+                        Theme="{StaticResource SourceTabTheme}"
+                        Width="32" Height="32" Padding="4"
+                        ToolTip.Tip="Refresh">
+                    <materialIcons:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ══ Row 1: Source tabs ══ -->
+        <Border Grid.Row="1" Padding="8,4" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+
+                <Button Theme="{StaticResource SourceTabTheme}"
+                        Classes.SourceActive="{Binding IsSourceDittoSdk}"
+                        Command="{Binding SelectSourceDittoSdkCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Classes="SourceDot" Width="7" Height="7" VerticalAlignment="Center"/>
+                        <TextBlock Text="Ditto SDK" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Theme="{StaticResource SourceTabTheme}"
+                        Classes.SourceActive="{Binding IsSourceAppLogs}"
+                        Command="{Binding SelectSourceAppLogsCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Classes="SourceDot" Width="7" Height="7" VerticalAlignment="Center"/>
+                        <TextBlock Text="App Logs" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Theme="{StaticResource SourceTabTheme}"
+                        Classes.SourceActive="{Binding IsSourceImported}"
+                        Command="{Binding SelectSourceImportedCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Classes="SourceDot" Width="7" Height="7" VerticalAlignment="Center"/>
+                        <TextBlock Text="Imported" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Row 2: Level chips + component dropdown + search ══ -->
+        <Border Grid.Row="2" Padding="12,7" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="7">
+
+                <!-- Level chips row -->
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+                    <ToggleButton Grid.Column="0"
+                                  Theme="{StaticResource LevelChipTheme}"
+                                  Classes="LevelChip Error"
+                                  IsChecked="{Binding IsErrorSelected}"
+                                  Content="ERR"
+                                  Margin="0,0,4,0"/>
+                    <ToggleButton Grid.Column="1"
+                                  Theme="{StaticResource LevelChipTheme}"
+                                  Classes="LevelChip Warning"
+                                  IsChecked="{Binding IsWarningSelected}"
+                                  Content="WARN"
+                                  Margin="0,0,4,0"/>
+                    <ToggleButton Grid.Column="2"
+                                  Theme="{StaticResource LevelChipTheme}"
+                                  Classes="LevelChip Info"
+                                  IsChecked="{Binding IsInfoSelected}"
+                                  Content="INFO"
+                                  Margin="0,0,4,0"/>
+                    <ToggleButton Grid.Column="3"
+                                  Theme="{StaticResource LevelChipTheme}"
+                                  Classes="LevelChip Debug"
+                                  IsChecked="{Binding IsDebugSelected}"
+                                  Content="DBG"
+                                  Margin="0,0,4,0"/>
+                    <ToggleButton Grid.Column="4"
+                                  Theme="{StaticResource LevelChipTheme}"
+                                  Classes="LevelChip Verbose"
+                                  IsChecked="{Binding IsVerboseSelected}"
+                                  Content="VERB"/>
+
+                    <!-- spacer -->
+                    <Grid Grid.Column="5"/>
+
+                    <!-- Component (SDK + Imported only) -->
+                    <ComboBox Grid.Column="6"
+                              ItemsSource="{Binding ComponentOptions}"
+                              SelectedItem="{Binding SelectedComponent}"
+                              FontSize="12"
+                              Width="120"
+                              IsVisible="{Binding IsComponentFilterVisible}"/>
+                </Grid>
+
+                <!-- Search row -->
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <materialIcons:MaterialIcon Grid.Column="0"
+                                               Kind="Magnify"
+                                               Width="14" Height="14"
+                                               Opacity="0.5"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,5,0"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding SearchText}"
+                             Watermark="Search…"
+                             FontSize="12"/>
+                    <Button Grid.Column="2"
+                            Command="{Binding ClearSearchCommand}"
+                            Theme="{StaticResource SourceTabTheme}"
+                            Padding="4"
+                            IsVisible="{Binding HasSearchText}"
+                            ToolTip.Tip="Clear search">
+                        <materialIcons:MaterialIcon Kind="Close" Width="13" Height="13" Opacity="0.6"/>
+                    </Button>
+                </Grid>
+
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Row 3: Date filter row ══ -->
+        <Border Grid.Row="3" Padding="12,6" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+
+                <ToggleButton Theme="{StaticResource LevelChipTheme}"
+                              Classes="LevelChip"
+                              IsChecked="{Binding IsDateFilterEnabled}"
+                              Padding="8,4">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <materialIcons:MaterialIcon Kind="CalendarClock" Width="13" Height="13"/>
+                        <TextBlock Text="Date Range" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+
+                <StackPanel Orientation="Horizontal"
+                            Spacing="6"
+                            IsVisible="{Binding IsDateFilterEnabled}"
+                            VerticalAlignment="Center">
+                    <CalendarDatePicker SelectedDate="{Binding DateFilterStart}"
+                                        FontSize="12"
+                                        Width="130"
+                                        VerticalAlignment="Center"/>
+                    <TextBlock Text="–" FontSize="12" Opacity="0.5" VerticalAlignment="Center"/>
+                    <CalendarDatePicker SelectedDate="{Binding DateFilterEnd}"
+                                        FontSize="12"
+                                        Width="130"
+                                        VerticalAlignment="Center"/>
+                    <Button Command="{Binding ClearDateFilterCommand}"
+                            Theme="{StaticResource SourceTabTheme}"
+                            Padding="4"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Clear date filter">
+                        <materialIcons:MaterialIcon Kind="CloseCircle" Width="14" Height="14" Opacity="0.55"/>
+                    </Button>
+                </StackPanel>
+
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Row 4: Log list + floating footer ══ -->
+        <Grid Grid.Row="4">
+
+            <!-- Loading -->
+            <StackPanel IsVisible="{Binding IsLoading}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                <materialIcons:MaterialIcon Kind="Loading" Width="32" Height="32" Opacity="0.4"/>
+                <TextBlock Text="Loading logs…" FontSize="13" Opacity="0.6"/>
+            </StackPanel>
+
+            <!-- Empty -->
+            <StackPanel IsVisible="{Binding IsEmpty}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                <materialIcons:MaterialIcon Kind="TextBoxOutline"
+                                            Width="44" Height="44"
+                                            Opacity="0.25"
+                                            HorizontalAlignment="Center"/>
+                <TextBlock Text="No log entries"
+                           FontSize="15" FontWeight="SemiBold"
+                           Opacity="0.5"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Adjust filters or perform actions to generate logs."
+                           FontSize="12" Opacity="0.35"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="280"/>
+            </StackPanel>
+
+            <!-- Log list (bottom padding reserves space for footer) -->
+            <ListBox ItemsSource="{Binding FilteredEntries}"
+                     Background="Transparent"
+                     Padding="0,0,0,56"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     IsVisible="{Binding HasEntries}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type logging:LogEntry}">
+                        <workspaces:LogEntryRowView/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ItemContainerTheme>
+                    <ControlTheme TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                    </ControlTheme>
+                </ListBox.ItemContainerTheme>
+            </ListBox>
+
+            <!-- Floating footer pill -->
+            <Border VerticalAlignment="Bottom"
+                    HorizontalAlignment="Stretch"
+                    Margin="12,0,12,10"
+                    CornerRadius="16"
+                    Background="{DynamicResource SukiCardBackground}"
+                    BoxShadow="0 3 14 0 #55000000"
+                    Padding="14,8">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding FooterText}"
+                               FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                               FontSize="11"
+                               Opacity="0.6"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Clear -->
+                    <Button Grid.Column="1"
+                            Command="{Binding ClearCurrentSourceCommand}"
+                            Theme="{StaticResource SourceTabTheme}"
+                            Padding="5"
+                            Margin="6,0,0,0"
+                            ToolTip.Tip="Clear logs">
+                        <materialIcons:MaterialIcon Kind="TrashCanOutline"
+                                                    Width="14" Height="14"
+                                                    Foreground="#EF5350"/>
+                    </Button>
+
+                    <!-- Entry count chip -->
+                    <Border Grid.Column="2"
+                            CornerRadius="10"
+                            Background="{DynamicResource SukiLightBorderBrush}"
+                            Padding="8,3"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding FilteredEntries.Count}"
+                                   FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                                   FontSize="11"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                </Grid>
+            </Border>
+
+        </Grid>
+    </Grid>
+</UserControl>

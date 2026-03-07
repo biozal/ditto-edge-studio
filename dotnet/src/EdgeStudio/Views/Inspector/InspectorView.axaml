@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:tools="using:EdgeStudio.Views.Tools"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="700"
+             x:Class="EdgeStudio.Views.Inspector.InspectorView">
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Padding="12,10"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <materialIcons:MaterialIcon Kind="DockRight"
+                                            Width="16" Height="16"
+                                            VerticalAlignment="Center"
+                                            Opacity="0.7"/>
+                <TextBlock Text="Inspector"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Opacity="0.8"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Tabs -->
+        <TabControl Grid.Row="1" Padding="0">
+            <TabControl.Styles>
+                <Style Selector="TabItem">
+                    <Setter Property="FontSize" Value="12"/>
+                    <Setter Property="Padding" Value="10,6"/>
+                </Style>
+            </TabControl.Styles>
+
+            <TabItem Header="History">
+                <tools:HistoryToolView>
+                    <tools:HistoryToolView.DataContext>
+                        <vm:HistoryToolViewModel/>
+                    </tools:HistoryToolView.DataContext>
+                </tools:HistoryToolView>
+            </TabItem>
+
+            <TabItem Header="Favorites">
+                <tools:FavoritesToolView>
+                    <tools:FavoritesToolView.DataContext>
+                        <vm:FavoritesToolViewModel/>
+                    </tools:FavoritesToolView.DataContext>
+                </tools:FavoritesToolView>
+            </TabItem>
+
+            <TabItem Header="Indexes">
+                <tools:IndexesToolView>
+                    <tools:IndexesToolView.DataContext>
+                        <vm:IndexesToolViewModel/>
+                    </tools:IndexesToolView.DataContext>
+                </tools:IndexesToolView>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

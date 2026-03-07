@@ -24,7 +24,9 @@ namespace EdgeStudio.ViewModels
         private readonly Lazy<SubscriptionDetailsViewModel> _subscriptionDetailsViewModelLazy;
         private readonly Lazy<QueryViewModel> _queryViewModelLazy;
         private readonly Lazy<ObserversViewModel> _observersViewModelLazy;
-        private readonly Lazy<ToolsViewModel> _toolsViewModelLazy;
+        private readonly Lazy<LoggingViewModel> _loggingViewModelLazy;
+        private readonly Lazy<AppMetricsViewModel> _appMetricsViewModelLazy;
+        private readonly Lazy<QueryMetricsViewModel> _queryMetricsViewModelLazy;
         private readonly Lazy<ISystemRepository> _systemRepositoryLazy;
 
         private DittoDatabaseConfig? _selectedDatabase;
@@ -40,6 +42,9 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private ConnectionsByTransport _connectionsByTransport = ConnectionsByTransport.Empty;
 
+        [ObservableProperty]
+        private bool _isInspectorVisible = false;
+
         public string SyncButtonTooltip => IsSyncEnabled ? "Stop Sync" : "Start Sync";
 
         public EdgeStudioViewModel(
@@ -51,7 +56,9 @@ namespace EdgeStudio.ViewModels
             Lazy<SubscriptionDetailsViewModel> subscriptionDetailsViewModelLazy,
             Lazy<QueryViewModel> queryViewModelLazy,
             Lazy<ObserversViewModel> observersViewModelLazy,
-            Lazy<ToolsViewModel> toolsViewModelLazy,
+            Lazy<LoggingViewModel> loggingViewModelLazy,
+            Lazy<AppMetricsViewModel> appMetricsViewModelLazy,
+            Lazy<QueryMetricsViewModel> queryMetricsViewModelLazy,
             Lazy<ISystemRepository> systemRepositoryLazy,
             IToastService? toastService = null)
             : base(toastService)
@@ -61,23 +68,19 @@ namespace EdgeStudio.ViewModels
             _navigationService = navigationService;
             _systemRepositoryLazy = systemRepositoryLazy;
 
-            // Store lazy ViewModels - they will only be instantiated when .Value is accessed
             _navigationViewModelLazy = navigationViewModelLazy;
             _subscriptionViewModelLazy = subscriptionViewModelLazy;
             _subscriptionDetailsViewModelLazy = subscriptionDetailsViewModelLazy;
             _queryViewModelLazy = queryViewModelLazy;
             _observersViewModelLazy = observersViewModelLazy;
-            _toolsViewModelLazy = toolsViewModelLazy;
+            _loggingViewModelLazy = loggingViewModelLazy;
+            _appMetricsViewModelLazy = appMetricsViewModelLazy;
+            _queryMetricsViewModelLazy = queryMetricsViewModelLazy;
 
-            // Subscribe to connection count updates from the system repository
             _systemRepositoryLazy.Value.ConnectionsChanged += OnConnectionsChanged;
 
-            // Register for navigation changes
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, OnNavigationChanged);
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
-
-            // Don't call UpdateCurrentViews in constructor - this would instantiate ViewModels prematurely
-            // Views will be set when a database is actually selected
         }
 
         private void OnConnectionsChanged(object? sender, ConnectionsByTransport connections)
@@ -90,7 +93,9 @@ namespace EdgeStudio.ViewModels
         public SubscriptionDetailsViewModel SubscriptionDetailsViewModel => _subscriptionDetailsViewModelLazy.Value;
         public QueryViewModel QueryViewModel => _queryViewModelLazy.Value;
         public ObserversViewModel ObserversViewModel => _observersViewModelLazy.Value;
-        public ToolsViewModel ToolsViewModel => _toolsViewModelLazy.Value;
+        public LoggingViewModel LoggingViewModel => _loggingViewModelLazy.Value;
+        public AppMetricsViewModel AppMetricsViewModel => _appMetricsViewModelLazy.Value;
+        public QueryMetricsViewModel QueryMetricsViewModel => _queryMetricsViewModelLazy.Value;
 
         public DittoDatabaseConfig? SelectedDatabase
         {
@@ -103,49 +108,36 @@ namespace EdgeStudio.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(DatabaseName));
                     OnPropertyChanged(nameof(DatabaseId));
-                    
-                    // When database is selected, initialize ViewModels asynchronously for better performance
+
                     if (_selectedDatabase != null)
                     {
-                        IsSyncEnabled = true;  // Sync auto-starts in DittoManager
+                        IsSyncEnabled = true;
                         OnPropertyChanged(nameof(SyncButtonTooltip));
 
-                        // Initialize ViewModels on background thread, then set default view
                         _ = Task.Run(async () =>
                         {
                             await InitializeViewModelsAsync();
 
-                            // Switch back to UI thread to update views
                             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                             {
-                                // Default to Subscriptions view when database is first selected
                                 UpdateCurrentViews(NavigationItemType.Subscriptions);
                             });
                         });
                     }
                     else
                     {
-                        IsSyncEnabled = false;  // Reset on close
+                        IsSyncEnabled = false;
                         OnPropertyChanged(nameof(SyncButtonTooltip));
-
-                        // Clear views when no database selected
                         CurrentListingViewModel = null;
                         CurrentDetailViewModel = null;
                     }
                 }
             }
         }
-        
-        /// <summary>
-        /// Gets the selected database name with null safety
-        /// </summary>
+
         public string DatabaseName => _selectedDatabase?.Name ?? "Edge Studio Workspace";
-        
-        /// <summary>
-        /// Gets the selected database ID with null safety
-        /// </summary>
         public string DatabaseId => _selectedDatabase?.DatabaseId ?? "Not connected";
-        
+
         public object? CurrentListingViewModel
         {
             get => _currentListingViewModel;
@@ -158,7 +150,7 @@ namespace EdgeStudio.ViewModels
                 }
             }
         }
-        
+
         public object? CurrentDetailViewModel
         {
             get => _currentDetailViewModel;
@@ -175,7 +167,6 @@ namespace EdgeStudio.ViewModels
         [RelayCommand]
         private void CloseDatabase()
         {
-            // Send message instead of raising event to avoid memory leaks
             WeakReferenceMessenger.Default.Send(new CloseDatabaseRequestedMessage());
         }
 
@@ -212,56 +203,56 @@ namespace EdgeStudio.ViewModels
                 OnPropertyChanged(nameof(SyncButtonTooltip));
             }
         }
-        
+
+        [RelayCommand]
+        private void ToggleInspector()
+        {
+            IsInspectorVisible = !IsInspectorVisible;
+        }
+
         private void OnNavigationChanged(object recipient, NavigationChangedMessage message)
         {
             UpdateCurrentViews(message.NavigationType);
         }
-        
+
         private void OnListingItemSelected(object recipient, ListingItemSelectedMessage message)
         {
-            // Update detail view based on selected item
             switch (_navigationService.CurrentNavigationType)
             {
                 case NavigationItemType.Subscriptions:
                     CurrentDetailViewModel = message.SelectedItem != null ? SubscriptionDetailsViewModel : null;
                     if (message.SelectedItem != null)
-                    {
                         SubscriptionDetailsViewModel.Initialize();
-                    }
                     break;
                 case NavigationItemType.Query:
-                    // Query detail view is always shown
                     break;
                 case NavigationItemType.Observers:
                     CurrentDetailViewModel = message.SelectedItem != null ? ObserversViewModel : null;
                     break;
-                case NavigationItemType.Tools:
-                    CurrentDetailViewModel = message.SelectedItem != null ? ToolsViewModel : null;
+                case NavigationItemType.AppMetrics:
+                    CurrentDetailViewModel = message.SelectedItem != null ? AppMetricsViewModel : null;
                     break;
             }
         }
 
         private async Task InitializeViewModelsAsync()
         {
-            // Pre-initialize all ViewModels on a background thread to avoid UI delays
             await Task.Run(() =>
             {
-                // Access all lazy ViewModels to force initialization off the UI thread
                 _ = SubscriptionViewModel;
                 _ = SubscriptionDetailsViewModel;
                 _ = QueryViewModel;
                 _ = ObserversViewModel;
-                _ = ToolsViewModel;
+                _ = LoggingViewModel;
+                _ = AppMetricsViewModel;
+                _ = QueryMetricsViewModel;
             });
         }
-        
+
         private void UpdateCurrentViews(NavigationItemType navigationType)
         {
-            // Deactivate previous ViewModels to cleanup observers/resources
             DeactivateCurrentViewModels();
 
-            // Only show views when a database is actually selected
             if (_selectedDatabase == null)
             {
                 CurrentListingViewModel = null;
@@ -269,41 +260,44 @@ namespace EdgeStudio.ViewModels
                 return;
             }
 
-            // ViewModels should already be initialized, so this should be fast
             switch (navigationType)
             {
                 case NavigationItemType.Subscriptions:
                     CurrentListingViewModel = SubscriptionViewModel;
-                    // Automatically show the SubscriptionDetailsView (Peers view)
                     CurrentDetailViewModel = SubscriptionDetailsViewModel;
-                    // Activate ViewModels to start observing
                     SubscriptionViewModel.Activate();
                     SubscriptionDetailsViewModel.Activate();
                     break;
                 case NavigationItemType.Query:
                     CurrentListingViewModel = QueryViewModel;
-                    // Automatically show the QueryView
                     CurrentDetailViewModel = QueryViewModel;
                     QueryViewModel.Activate();
                     break;
                 case NavigationItemType.Observers:
                     CurrentListingViewModel = ObserversViewModel;
-                    // Automatically show the ObserverDetailView
                     CurrentDetailViewModel = ObserversViewModel;
                     ObserversViewModel.Activate();
                     break;
-                case NavigationItemType.Tools:
-                    CurrentListingViewModel = ToolsViewModel;
-                    // Automatically show the ToolsDetailView
-                    CurrentDetailViewModel = ToolsViewModel;
-                    ToolsViewModel.Activate();
+                case NavigationItemType.Logging:
+                    CurrentListingViewModel = LoggingViewModel;
+                    CurrentDetailViewModel = LoggingViewModel;
+                    LoggingViewModel.Activate();
+                    break;
+                case NavigationItemType.AppMetrics:
+                    CurrentListingViewModel = AppMetricsViewModel;
+                    CurrentDetailViewModel = AppMetricsViewModel;
+                    AppMetricsViewModel.Activate();
+                    break;
+                case NavigationItemType.QueryMetrics:
+                    CurrentListingViewModel = QueryMetricsViewModel;
+                    CurrentDetailViewModel = QueryMetricsViewModel;
+                    QueryMetricsViewModel.Activate();
                     break;
             }
         }
 
         private void DeactivateCurrentViewModels()
         {
-            // Deactivate currently active ViewModels based on navigation type
             switch (_navigationService.CurrentNavigationType)
             {
                 case NavigationItemType.Subscriptions:
@@ -320,9 +314,17 @@ namespace EdgeStudio.ViewModels
                     if (_observersViewModelLazy.IsValueCreated)
                         ObserversViewModel.Deactivate();
                     break;
-                case NavigationItemType.Tools:
-                    if (_toolsViewModelLazy.IsValueCreated)
-                        ToolsViewModel.Deactivate();
+                case NavigationItemType.Logging:
+                    if (_loggingViewModelLazy.IsValueCreated)
+                        LoggingViewModel.Deactivate();
+                    break;
+                case NavigationItemType.AppMetrics:
+                    if (_appMetricsViewModelLazy.IsValueCreated)
+                        AppMetricsViewModel.Deactivate();
+                    break;
+                case NavigationItemType.QueryMetrics:
+                    if (_queryMetricsViewModelLazy.IsValueCreated)
+                        QueryMetricsViewModel.Deactivate();
                     break;
             }
         }

@@ -26,7 +26,7 @@ public partial class App : Application
 {
     private IServiceProvider? _serviceProvider;
     private LoadingWindow? _loadingWindow;
-    
+
     /// <summary>
     /// Gets the current service provider for dependency injection
     /// </summary>
@@ -35,7 +35,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        
+
         #if DEBUG
         this.AttachDeveloperTools();
         #endif
@@ -73,6 +73,14 @@ public partial class App : Application
     {
         try
         {
+            // Stop Ditto log capture
+            var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
+            logCapture?.Dispose();
+
+            // Dispose logging service
+            var loggingService = _serviceProvider?.GetService<ILoggingService>();
+            (loggingService as IDisposable)?.Dispose();
+
             // Dispose DittoManager
             var dittoManager = _serviceProvider?.GetService<IDittoManager>();
             if (dittoManager is IDisposable disposableDitto)
@@ -95,24 +103,21 @@ public partial class App : Application
     private async Task InitializeApplicationAsync(IClassicDesktopStyleApplicationLifetime desktop)
     {
         // Yield immediately so OnFrameworkInitializationCompleted() returns and Avalonia can
-        // call ShowMainWindow() before we do any work. Without this, synchronous awaits
-        // (e.g. SQLite on first run) complete before ShowMainWindow() is called, causing
-        // "Cannot re-show a closed window" when Avalonia tries to show an already-shown or
-        // already-closed window.
+        // call ShowMainWindow() before we do any work.
         await Task.Yield();
 
         try
         {
             // Initialize DI container
             await InitializeDependencyInjectionAsync();
-            
+
             // Create and show the main window
             var mainWindowViewModel = _serviceProvider!.GetRequiredService<MainWindowViewModel>();
             var edgeStudioViewModel = _serviceProvider!.GetRequiredService<EdgeStudioViewModel>();
             var mainWindow = new MainWindow(mainWindowViewModel, edgeStudioViewModel);
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
-            
+
             // Close the loading window
             _loadingWindow?.Close();
         }
@@ -120,10 +125,9 @@ public partial class App : Application
         {
             _loadingWindow?.Close();
 
-            // Show the critical application startup error dialog
             await ShowCriticalErrorDialog("Application Startup Error",
                 $"Failed to initialize application: {ex.Message}\n\nThe application will now close.");
-            
+
             desktop.Shutdown();
         }
     }
@@ -132,11 +136,10 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        // Initialize the local encrypted SQLite database (replaces DittoLocal)
+        // Initialize the local encrypted SQLite database
         var localDatabaseService = new SqliteLocalDatabaseService();
         await localDatabaseService.InitializeAsync();
 
-        // DittoManager no longer needs local initialization - it manages only DittoSelectedApp
         var dittoManager = new DittoManager();
 
         // Register core services
@@ -155,6 +158,10 @@ public partial class App : Application
         services.AddSingleton<IQrCodeService, QrCodeService>();
         services.AddSingleton<INetworkAdapterService, NetworkAdapterService>();
 
+        // Register logging services
+        services.AddSingleton<ILoggingService, SerilogLoggingService>();
+        services.AddSingleton<DittoLogCaptureService>();
+
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();
         services.AddSingleton<ISubscriptionRepository, SqliteSubscriptionRepository>();
@@ -162,7 +169,7 @@ public partial class App : Application
         services.AddSingleton<IFavoritesRepository, SqliteFavoritesRepository>();
         services.AddSingleton<ICollectionsRepository, CollectionsRepository>();
 
-        // Register system repository as singleton - must be shared across all consumers
+        // Register system repository as singleton
         services.AddSingleton<ISystemRepository, SystemRepository>();
         services.AddSingleton(provider => new Lazy<ISystemRepository>(() => provider.GetRequiredService<ISystemRepository>()));
 
@@ -174,13 +181,17 @@ public partial class App : Application
         services.AddTransient<SubscriptionDetailsViewModel>();
         services.AddTransient<QueryViewModel>();
         services.AddTransient<ObserversViewModel>();
-        services.AddTransient<ToolsViewModel>();
+        services.AddTransient<LoggingViewModel>();
+        services.AddTransient<AppMetricsViewModel>();
+        services.AddTransient<QueryMetricsViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
         services.AddTransient<Lazy<QueryViewModel>>();
         services.AddTransient<Lazy<ObserversViewModel>>();
-        services.AddTransient<Lazy<ToolsViewModel>>();
+        services.AddTransient<Lazy<LoggingViewModel>>();
+        services.AddTransient<Lazy<AppMetricsViewModel>>();
+        services.AddTransient<Lazy<QueryMetricsViewModel>>();
 
         _serviceProvider = services.BuildServiceProvider();
     }
@@ -189,12 +200,10 @@ public partial class App : Application
     {
         var sukiTheme = SukiTheme.GetInstance();
 
-        // Theme 1 — warm yellow gradient; primary drives the animated background tint
         var dittoYellowTheme = new SukiColorTheme("DittoYellow",
             primary: Color.Parse("#F0D830"),
             accent:  Color.Parse("#2A292A"));
 
-        // Theme 2 — flat near-black; yellow lives only in buttons/accents
         var dittoDarkTheme = new SukiColorTheme("DittoDark",
             primary: Color.Parse("#2A292A"),
             accent:  Color.Parse("#F0D830"));
@@ -202,23 +211,20 @@ public partial class App : Application
         sukiTheme.AddColorTheme(dittoYellowTheme);
         sukiTheme.AddColorTheme(dittoDarkTheme);
 
-        // Start on DittoDark (flat, near-black background matching SwiftUI reference)
         sukiTheme.ChangeColorTheme(dittoDarkTheme);
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()
     {
-        // Get an array of plugins to remove
         var dataValidationPluginsToRemove =
             BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
 
-        // remove each entry found
         foreach (var plugin in dataValidationPluginsToRemove)
         {
             BindingPlugins.DataValidators.Remove(plugin);
         }
     }
-    
+
     /// <summary>
     /// Shows a critical error dialog when the application cannot continue
     /// </summary>
@@ -258,14 +264,11 @@ public partial class App : Application
             content.Children.Add(okButton);
 
             dialog.Content = content;
-            // Show a dialog without a parent window
             dialog.Show();
             return Task.CompletedTask;
         }
         catch
         {
-            // If we can't even show an error dialog, there's nothing more we can do
-            // The application will shut down
             return Task.CompletedTask;
         }
     }
@@ -275,7 +278,6 @@ public partial class App : Application
     /// </summary>
     private void AboutMenuItem_Click(object? sender, EventArgs e)
     {
-        // Get assembly information
         var assembly = Assembly.GetExecutingAssembly();
         var version = assembly.GetName().Version?.ToString() ?? "1.0.0";
         var assemblyTitle = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? "Edge Studio";
@@ -283,7 +285,6 @@ public partial class App : Application
         var copyright = assembly.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? "Copyright © 2025 Ditto";
         var description = assembly.GetCustomAttribute<AssemblyDescriptionAttribute>()?.Description ?? "A powerful database query editor and management tool for Ditto";
 
-        // Create the About dialog
         var aboutWindow = new Window
         {
             Title = $"About {assemblyTitle}",
@@ -301,7 +302,6 @@ public partial class App : Application
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        // App Name
         content.Children.Add(new TextBlock
         {
             Text = assemblyTitle,
@@ -311,7 +311,6 @@ public partial class App : Application
             HorizontalAlignment = HorizontalAlignment.Center
         });
 
-        // Version
         content.Children.Add(new TextBlock
         {
             Text = $"Version {version}",
@@ -321,7 +320,6 @@ public partial class App : Application
             Margin = new Thickness(0, 0, 0, 10)
         });
 
-        // Description
         content.Children.Add(new TextBlock
         {
             Text = description,
@@ -333,7 +331,6 @@ public partial class App : Application
             MaxWidth = 380
         });
 
-        // Separator
         content.Children.Add(new Border
         {
             Height = 1,
@@ -341,7 +338,6 @@ public partial class App : Application
             Margin = new Thickness(0, 10, 0, 10)
         });
 
-        // Company
         content.Children.Add(new TextBlock
         {
             Text = company,
@@ -350,7 +346,6 @@ public partial class App : Application
             HorizontalAlignment = HorizontalAlignment.Center
         });
 
-        // Copyright
         content.Children.Add(new TextBlock
         {
             Text = copyright,
@@ -359,7 +354,6 @@ public partial class App : Application
             HorizontalAlignment = HorizontalAlignment.Center
         });
 
-        // OK Button
         var okButton = new Button
         {
             Content = "OK",
@@ -373,14 +367,12 @@ public partial class App : Application
 
         aboutWindow.Content = content;
 
-        // Show the dialog
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
         {
             aboutWindow.ShowDialog(desktop.MainWindow);
         }
         else
         {
-            // Fallback if no main window - show as regular window
             aboutWindow.Show();
         }
     }

@@ -52,13 +52,13 @@ namespace EdgeStudioTests
         {
             // Arrange
             _mockNavigationService.Setup(s => s.CurrentNavigationType)
-                .Returns(NavigationItemType.Tools);
+                .Returns(NavigationItemType.AppMetrics);
 
             // Act
             var result = _mockNavigationService.Object.CurrentNavigationType;
 
             // Assert
-            result.Should().Be(NavigationItemType.Tools);
+            result.Should().Be(NavigationItemType.AppMetrics);
         }
 
         [Fact]
@@ -70,7 +70,7 @@ namespace EdgeStudioTests
                 NavigationItemType.Subscriptions,
                 NavigationItemType.Query,
                 NavigationItemType.Observers,
-                NavigationItemType.Tools
+                NavigationItemType.AppMetrics
             };
 
             _mockNavigationService.Setup(s => s.NavigateTo(It.IsAny<NavigationItemType>()));
@@ -135,10 +135,10 @@ namespace EdgeStudioTests
             var service = new NavigationService();
 
             // Act
-            service.NavigateTo(NavigationItemType.Tools);
+            service.NavigateTo(NavigationItemType.AppMetrics);
 
             // Assert
-            service.CurrentNavigationType.Should().Be(NavigationItemType.Tools);
+            service.CurrentNavigationType.Should().Be(NavigationItemType.AppMetrics);
         }
 
         [Fact]
@@ -164,7 +164,7 @@ namespace EdgeStudioTests
             {
                 NavigationItemType.Query,
                 NavigationItemType.Observers,
-                NavigationItemType.Tools,
+                NavigationItemType.AppMetrics,
                 NavigationItemType.Subscriptions
             };
 
@@ -218,13 +218,13 @@ namespace EdgeStudioTests
             // Act
             service.NavigateTo(NavigationItemType.Query);
             service.NavigateTo(NavigationItemType.Observers);
-            service.NavigateTo(NavigationItemType.Tools);
+            service.NavigateTo(NavigationItemType.AppMetrics);
 
             // Assert
             receivedMessages.Should().HaveCount(3);
             receivedMessages[0].NavigationType.Should().Be(NavigationItemType.Query);
             receivedMessages[1].NavigationType.Should().Be(NavigationItemType.Observers);
-            receivedMessages[2].NavigationType.Should().Be(NavigationItemType.Tools);
+            receivedMessages[2].NavigationType.Should().Be(NavigationItemType.AppMetrics);
 
             // Cleanup
             WeakReferenceMessenger.Default.Unregister<NavigationChangedMessage>(this);
@@ -282,7 +282,7 @@ namespace EdgeStudioTests
         {
             // Arrange
             var service = new NavigationService();
-            var targetType = NavigationItemType.Tools;
+            var targetType = NavigationItemType.AppMetrics;
             NavigationChangedMessage? receivedMessage = null;
 
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, (r, m) =>
@@ -359,11 +359,11 @@ namespace EdgeStudioTests
 
             // Act
             service1.NavigateTo(NavigationItemType.Query);
-            service2.NavigateTo(NavigationItemType.Tools);
+            service2.NavigateTo(NavigationItemType.AppMetrics);
 
             // Assert
             service1.CurrentNavigationType.Should().Be(NavigationItemType.Query);
-            service2.CurrentNavigationType.Should().Be(NavigationItemType.Tools);
+            service2.CurrentNavigationType.Should().Be(NavigationItemType.AppMetrics);
             service1.CurrentNavigationType.Should().NotBe(service2.CurrentNavigationType);
         }
 
@@ -382,7 +382,7 @@ namespace EdgeStudioTests
             // Act - Rapidly navigate between different types
             service.NavigateTo(NavigationItemType.Query);
             service.NavigateTo(NavigationItemType.Observers);
-            service.NavigateTo(NavigationItemType.Tools);
+            service.NavigateTo(NavigationItemType.AppMetrics);
             service.NavigateTo(NavigationItemType.Subscriptions);
             service.NavigateTo(NavigationItemType.Query);
 
@@ -410,7 +410,7 @@ namespace EdgeStudioTests
             var expectedSequence = new[]
             {
                 NavigationItemType.Query,
-                NavigationItemType.Tools,
+                NavigationItemType.AppMetrics,
                 NavigationItemType.Observers
             };
 
@@ -453,11 +453,13 @@ namespace EdgeStudioTests
             var allTypes = Enum.GetValues<NavigationItemType>();
 
             // Assert
-            allTypes.Should().HaveCount(4, "there should be exactly 4 navigation types");
+            allTypes.Should().HaveCount(6, "there should be exactly 6 navigation types");
             allTypes.Should().Contain(NavigationItemType.Subscriptions);
             allTypes.Should().Contain(NavigationItemType.Query);
             allTypes.Should().Contain(NavigationItemType.Observers);
-            allTypes.Should().Contain(NavigationItemType.Tools);
+            allTypes.Should().Contain(NavigationItemType.Logging);
+            allTypes.Should().Contain(NavigationItemType.AppMetrics);
+            allTypes.Should().Contain(NavigationItemType.QueryMetrics);
         }
 
         #endregion

@@ -7,7 +7,9 @@ public enum NavigationItemType
     Subscriptions,
     Query,
     Observers,
-    Tools
+    Logging,
+    AppMetrics,
+    QueryMetrics
 }
 
 public class NavigationItem
@@ -24,28 +26,42 @@ public class NavigationItem
             Type = NavigationItemType.Subscriptions,
             Label = "Subscriptions",
             IconKind = MaterialIconKind.Sync,
-            Tooltip = "Sync"
+            Tooltip = "Subscriptions"
         },
         new NavigationItem
         {
             Type = NavigationItemType.Query,
             Label = "Query",
             IconKind = MaterialIconKind.Database,
-            Tooltip = "Query database"
+            Tooltip = "Query"
         },
         new NavigationItem
         {
             Type = NavigationItemType.Observers,
             Label = "Observers",
             IconKind = MaterialIconKind.Eye,
-            Tooltip = "Observable events"
+            Tooltip = "Observers"
         },
         new NavigationItem
         {
-            Type = NavigationItemType.Tools,
-            Label = "Tools",
-            IconKind = MaterialIconKind.Tools,
-            Tooltip = "Database tools"
+            Type = NavigationItemType.Logging,
+            Label = "Logging",
+            IconKind = MaterialIconKind.FormatListBulleted,
+            Tooltip = "Logging"
+        },
+        new NavigationItem
+        {
+            Type = NavigationItemType.AppMetrics,
+            Label = "App Metrics",
+            IconKind = MaterialIconKind.ChartBar,
+            Tooltip = "App Metrics"
+        },
+        new NavigationItem
+        {
+            Type = NavigationItemType.QueryMetrics,
+            Label = "Query Metrics",
+            IconKind = MaterialIconKind.ChartLine,
+            Tooltip = "Query Metrics"
         }
     };
 }
