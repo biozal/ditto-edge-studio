@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Avalonia;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace EdgeStudio.Shared.Models;
@@ -28,6 +30,9 @@ public partial class ObservablePeerCardInfo : ObservableObject
         _osIconKind = data.OsIconKind;
         _dittoAddress = data.DittoAddress;
         _activeConnections = data.ActiveConnections;
+        _dittoSdkVersion = data.DittoSdkVersion;
+        _identityMetadata = data.IdentityMetadata;
+        _peerMetadata = data.PeerMetadata;
         _isConnected = data.IsConnected;
         _connectionStatus = data.ConnectionStatus;
         _commitId = data.CommitId;
@@ -42,6 +47,8 @@ public partial class ObservablePeerCardInfo : ObservableObject
 
     // Observable properties that update in-place
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLocalPeer))]
+    [NotifyPropertyChangedFor(nameof(IsRemoteOrServer))]
     private PeerCardType _cardType;
 
     [ObservableProperty]
@@ -69,7 +76,18 @@ public partial class ObservablePeerCardInfo : ObservableObject
     private string? _dittoAddress;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GradientBrush))]
+    [NotifyPropertyChangedFor(nameof(ActiveConnectionsCountText))]
     private List<PeerConnectionInfo>? _activeConnections;
+
+    [ObservableProperty]
+    private string? _dittoSdkVersion;
+
+    [ObservableProperty]
+    private string? _identityMetadata;
+
+    [ObservableProperty]
+    private string? _peerMetadata;
 
     [ObservableProperty]
     private bool _isConnected;
@@ -87,10 +105,54 @@ public partial class ObservablePeerCardInfo : ObservableObject
     private string _lastUpdatedFormatted = "Never";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusDotBrush))]
     private string? _syncSessionStatus;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GradientBrush))]
     private bool _isDittoServer;
+
+    // === Computed Properties (not stored, derived on demand) ===
+
+    /// <summary>True when this is the local peer card.</summary>
+    public bool IsLocalPeer => CardType == PeerCardType.Local;
+
+    /// <summary>True when this is a remote peer or server card (non-local).</summary>
+    public bool IsRemoteOrServer => CardType != PeerCardType.Local;
+
+    /// <summary>
+    /// Gradient brush for remote/server cards, computed from the current connection type priority.
+    /// Reconstructed whenever IsDittoServer or ActiveConnections changes.
+    /// </summary>
+    public IBrush GradientBrush
+    {
+        get
+        {
+            var (start, end) = _data.GradientHex;
+            return new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new GradientStop { Color = Color.Parse(start), Offset = 0 },
+                    new GradientStop { Color = Color.Parse(end), Offset = 1 }
+                }
+            };
+        }
+    }
+
+    /// <summary>Brush for the status dot, keyed by SyncSessionStatus value.</summary>
+    public IBrush StatusDotBrush => SyncSessionStatus switch
+    {
+        "Connected" => new SolidColorBrush(Color.Parse("#22C55E")),
+        "Connecting" => new SolidColorBrush(Color.Parse("#F97316")),
+        "Disconnected" => new SolidColorBrush(Color.Parse("#EF4444")),
+        _ => new SolidColorBrush(Color.Parse("#6B7280"))
+    };
+
+    /// <summary>Formatted header for the active connections list.</summary>
+    public string ActiveConnectionsCountText => $"Active Connections ({ActiveConnections?.Count ?? 0})";
 
     /// <summary>
     /// Updates all observable properties from new immutable data.
@@ -102,7 +164,6 @@ public partial class ObservablePeerCardInfo : ObservableObject
         if (_data.Id != newData.Id)
             throw new InvalidOperationException($"Cannot change peer ID from {_data.Id} to {newData.Id}");
 
-        // Only update if values actually changed
         if (_data.CardType != newData.CardType)
             CardType = newData.CardType;
 
@@ -133,6 +194,15 @@ public partial class ObservablePeerCardInfo : ObservableObject
         if (_data.ActiveConnections != newData.ActiveConnections)
             ActiveConnections = newData.ActiveConnections;
 
+        if (_data.DittoSdkVersion != newData.DittoSdkVersion)
+            DittoSdkVersion = newData.DittoSdkVersion;
+
+        if (_data.IdentityMetadata != newData.IdentityMetadata)
+            IdentityMetadata = newData.IdentityMetadata;
+
+        if (_data.PeerMetadata != newData.PeerMetadata)
+            PeerMetadata = newData.PeerMetadata;
+
         if (_data.IsConnected != newData.IsConnected)
         {
             IsConnected = newData.IsConnected;
@@ -154,12 +224,10 @@ public partial class ObservablePeerCardInfo : ObservableObject
         if (_data.IsDittoServer != newData.IsDittoServer)
             IsDittoServer = newData.IsDittoServer;
 
-        // Store new immutable data
+        // Store new immutable data (must be last — GradientBrush reads from _data)
         _data = newData;
     }
 
-    /// <summary>
-    /// Gets the underlying immutable data (for serialization, export, etc.)
-    /// </summary>
+    /// <summary>Gets the underlying immutable data (for serialization, export, etc.)</summary>
     public PeerCardInfo GetData() => _data;
 }

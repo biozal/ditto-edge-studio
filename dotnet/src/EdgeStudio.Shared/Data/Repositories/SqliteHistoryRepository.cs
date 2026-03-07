@@ -126,6 +126,8 @@ namespace EdgeStudio.Shared.Data.Repositories
             });
         }
 
+        public async Task<System.Collections.Generic.List<QueryHistory>> LoadAllQueriesAsync() => await LoadAllAsync();
+
         private async Task<System.Collections.Generic.List<QueryHistory>> LoadAllAsync()
         {
             using var conn = _db.CreateOpenConnection();

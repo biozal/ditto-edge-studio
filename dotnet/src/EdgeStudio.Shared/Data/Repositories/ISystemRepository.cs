@@ -7,6 +7,17 @@ namespace EdgeStudio.Shared.Data.Repositories
     public interface ISystemRepository : ICloseDatabase
     {
         /// <summary>
+        /// Current aggregated connection counts by transport type, derived from the presence graph.
+        /// Updated every time the sync-status observer fires.
+        /// </summary>
+        ConnectionsByTransport CurrentConnections { get; }
+
+        /// <summary>
+        /// Raised on the UI thread whenever CurrentConnections changes.
+        /// </summary>
+        event EventHandler<ConnectionsByTransport>? ConnectionsChanged;
+
+        /// <summary>
         /// Registers observers for peer information, merging DQL sync status with Presence Graph data.
         /// Local peer is added as the last item in the collection.
         /// </summary>

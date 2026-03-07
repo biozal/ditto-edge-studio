@@ -49,13 +49,14 @@ namespace EdgeStudioTests
                 AuthUrl: "https://auth.example.com",
                 HttpApiUrl: "https://api.example.com",
                 HttpApiKey: "key-" + id,
-                Mode: "online",
+                Mode: "server",
                 AllowUntrustedCerts: false,
                 IsBluetoothLeEnabled: true,
                 IsLanEnabled: true,
                 IsAwdlEnabled: false,
                 IsCloudSyncEnabled: true,
-                IsWifiAwareEnabled: false,
+                WebsocketUrl: "wss://example.com",
+                IsStrictModeEnabled: false,
                 LogLevel: "debug",
                 SharedKey: "secret-" + id
             );
@@ -97,7 +98,7 @@ namespace EdgeStudioTests
             reader.GetString(1).Should().Be("db-full-id");
             reader.GetString(2).Should().Be("token-full-id");
             reader.GetString(3).Should().Be("https://auth.example.com");
-            reader.GetString(4).Should().Be("online");
+            reader.GetString(4).Should().Be("server");
         }
 
         [Fact]
@@ -162,7 +163,7 @@ namespace EdgeStudioTests
             await InitAsync();
             var config = MakeConfig();
             await _repo.AddDittoDatabaseConfig(config);
-            var updated = config with { Name = "New Name", Mode = "offline" };
+            var updated = config with { Name = "New Name", Mode = "smallpeersonly" };
 
             await _repo.UpdateDatabaseConfig(updated);
 
@@ -173,7 +174,7 @@ namespace EdgeStudioTests
             using var reader = await cmd.ExecuteReaderAsync();
             await reader.ReadAsync();
             reader.GetString(0).Should().Be("New Name");
-            reader.GetString(1).Should().Be("offline");
+            reader.GetString(1).Should().Be("smallpeersonly");
         }
 
         #endregion
@@ -222,7 +223,7 @@ namespace EdgeStudioTests
             using var conn = _dbService.CreateOpenConnection();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"SELECT is_bluetooth_le_enabled, is_lan_enabled, is_awdl_enabled,
-                                        is_cloud_sync_enabled, is_wifi_aware_enabled, log_level
+                                        is_cloud_sync_enabled, log_level, websocket_url, is_strict_mode_enabled
                                  FROM database_configs WHERE id = $id";
             cmd.Parameters.AddWithValue("$id", config.Id);
             using var reader = await cmd.ExecuteReaderAsync();
@@ -232,8 +233,9 @@ namespace EdgeStudioTests
             reader.GetInt64(1).Should().Be(1); // IsLanEnabled
             reader.GetInt64(2).Should().Be(0); // IsAwdlEnabled
             reader.GetInt64(3).Should().Be(1); // IsCloudSyncEnabled
-            reader.GetInt64(4).Should().Be(0); // IsWifiAwareEnabled
-            reader.GetString(5).Should().Be("debug"); // LogLevel
+            reader.GetString(4).Should().Be("debug"); // LogLevel
+            reader.GetString(5).Should().Be("wss://example.com"); // WebsocketUrl
+            reader.GetInt64(6).Should().Be(0); // IsStrictModeEnabled
         }
 
         #endregion

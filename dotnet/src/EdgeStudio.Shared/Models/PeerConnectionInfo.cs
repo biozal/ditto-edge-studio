@@ -32,6 +32,16 @@ public record PeerConnectionInfo
         "Bluetooth" => "Bluetooth",
         "WiFi" or "P2PWiFi" => "Wifi",
         "WebSocket" => "Cloud",
+        "AccessPoint" => "AccessPoint",
         _ => "DevicesOther"
+    };
+
+    [JsonIgnore]
+    public string? FormattedDistance => ApproximateDistanceInMeters switch
+    {
+        null => null,
+        < 1.0 => $"{ApproximateDistanceInMeters.Value * 100:F0} cm",
+        < 1000.0 => $"{ApproximateDistanceInMeters.Value:F1} m",
+        _ => $"{ApproximateDistanceInMeters.Value / 1000.0:F2} km"
     };
 }

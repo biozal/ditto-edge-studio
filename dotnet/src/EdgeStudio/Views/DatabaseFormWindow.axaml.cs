@@ -27,16 +27,16 @@ namespace EdgeStudio.Views
                 {
                     OfflineToggle.IsChecked = false;
                     if (_viewModel != null)
-                        _viewModel.DatabaseFormModel.Mode = "online";
+                        _viewModel.DatabaseFormModel.Mode = "server";
                 }
             };
-            
+
             OfflineToggle.Click += (s, e) => {
                 if (OfflineToggle.IsChecked == true)
                 {
                     OnlineToggle.IsChecked = false;
                     if (_viewModel != null)
-                        _viewModel.DatabaseFormModel.Mode = "offline";
+                        _viewModel.DatabaseFormModel.Mode = "smallpeersonly";
                 }
             };
         }

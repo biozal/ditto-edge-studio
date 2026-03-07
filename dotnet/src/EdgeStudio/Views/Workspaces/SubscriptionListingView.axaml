@@ -97,12 +97,12 @@
                                                Width="24"
                                                Height="24"
                                                Padding="0"
-                                               Classes="Accent"
+                                               Background="{DynamicResource DittoAccent}"
                                                ToolTip.Tip="Delete Subscription">
                                             <TextBlock Text="delete"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
                                                       FontSize="14"
-                                                      Foreground="#D32F2F"/>
+                                                      Foreground="{DynamicResource DittoJetBlack}"/>
                                         </Button>
                                     </Grid>
 

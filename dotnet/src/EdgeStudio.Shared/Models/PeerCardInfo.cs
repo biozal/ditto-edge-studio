@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace EdgeStudio.Shared.Models;
@@ -39,6 +40,15 @@ public record PeerCardInfo : IIdModel
 
     [JsonIgnore]
     public List<PeerConnectionInfo>? ActiveConnections { get; init; }
+
+    [JsonPropertyName("ditto_sdk_version")]
+    public string? DittoSdkVersion { get; init; }
+
+    [JsonIgnore]
+    public string? IdentityMetadata { get; init; }
+
+    [JsonIgnore]
+    public string? PeerMetadata { get; init; }
 
     // === Remote + Server Properties ===
     [JsonPropertyName("commit_id")]
@@ -85,4 +95,30 @@ public record PeerCardInfo : IIdModel
         var os when os?.Contains("android") == true => "Android",
         _ => "DevicesOther"
     };
+
+    /// <summary>
+    /// Returns the gradient start/end hex pair for this peer card based on its connection type.
+    /// Priority: Cloud Server → WebSocket → LAN → P2P WiFi → Bluetooth → Unknown
+    /// </summary>
+    [JsonIgnore]
+    public (string Start, string End) GradientHex
+    {
+        get
+        {
+            if (IsDittoServer)
+                return ("#7326B8", "#47127A");
+
+            var connections = ActiveConnections;
+            if (connections?.Any(c => c.ConnectionType == "WebSocket") == true)
+                return ("#D97A00", "#994D00");
+            if (connections?.Any(c => c.ConnectionType is "WiFi" or "AccessPoint") == true)
+                return ("#0D8540", "#055224");
+            if (connections?.Any(c => c.ConnectionType == "P2PWiFi") == true)
+                return ("#C71A38", "#800A1F");
+            if (connections?.Any(c => c.ConnectionType == "Bluetooth") == true)
+                return ("#0066D9", "#003399");
+
+            return ("#595966", "#333340");
+        }
+    }
 }

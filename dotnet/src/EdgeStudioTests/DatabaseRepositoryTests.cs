@@ -148,7 +148,7 @@ namespace EdgeStudioTests
         {
             // Arrange
             var originalConfig = CreateTestDatabaseConfig("test-id-5", "Original Name");
-            var updatedConfig = originalConfig with { Name = "Updated Name", Mode = "offline" };
+            var updatedConfig = originalConfig with { Name = "Updated Name", Mode = "smallpeersonly" };
 
             _mockRepository.Setup(r => r.UpdateDatabaseConfig(It.IsAny<DittoDatabaseConfig>()))
                 .Returns(Task.CompletedTask);
@@ -158,7 +158,7 @@ namespace EdgeStudioTests
 
             // Assert
             _mockRepository.Verify(r => r.UpdateDatabaseConfig(It.Is<DittoDatabaseConfig>(
-                c => c.Id == updatedConfig.Id && c.Name == "Updated Name" && c.Mode == "offline")), Times.Once);
+                c => c.Id == updatedConfig.Id && c.Name == "Updated Name" && c.Mode == "smallpeersonly")), Times.Once);
         }
 
         #endregion
@@ -317,7 +317,7 @@ namespace EdgeStudioTests
                 AuthUrl: "https://auth.example.com",
                 HttpApiUrl: "https://api.example.com",
                 HttpApiKey: "api-key-" + id,
-                Mode: "online",
+                Mode: "server",
                 AllowUntrustedCerts: false
             );
         }

@@ -25,13 +25,16 @@ namespace EdgeStudio.Shared.Models
         private string authUrl = string.Empty;
 
         [ObservableProperty]
+        private string websocketUrl = string.Empty;
+
+        [ObservableProperty]
         private string httpApiUrl = string.Empty;
 
         [ObservableProperty]
         private string httpApiKey = string.Empty;
 
         [ObservableProperty]
-        private string mode = "online";
+        private string mode = "server";
 
         [ObservableProperty]
         private bool allowUntrustedCerts = false;
@@ -52,7 +55,7 @@ namespace EdgeStudio.Shared.Models
         private bool isCloudSyncEnabled = true;
 
         [ObservableProperty]
-        private bool isWifiAwareEnabled = false;
+        private bool isStrictModeEnabled = false;
 
         [ObservableProperty]
         private string logLevel = "info";
@@ -62,12 +65,12 @@ namespace EdgeStudio.Shared.Models
 
         public bool IsOnlineMode
         {
-            get => Mode == "online";
+            get => Mode == "server";
             set
             {
                 if (value)
                 {
-                    Mode = "online";
+                    Mode = "server";
                 }
                 OnPropertyChanged(nameof(IsOnlineMode));
                 OnPropertyChanged(nameof(IsOfflineMode));
@@ -76,12 +79,12 @@ namespace EdgeStudio.Shared.Models
 
         public bool IsOfflineMode
         {
-            get => Mode == "offline";
+            get => Mode == "smallpeersonly";
             set
             {
                 if (value)
                 {
-                    Mode = "offline";
+                    Mode = "smallpeersonly";
                 }
                 OnPropertyChanged(nameof(IsOnlineMode));
                 OnPropertyChanged(nameof(IsOfflineMode));
@@ -101,16 +104,17 @@ namespace EdgeStudio.Shared.Models
             DatabaseId = string.Empty;
             AuthToken = string.Empty;
             AuthUrl = string.Empty;
+            WebsocketUrl = string.Empty;
             HttpApiUrl = string.Empty;
             HttpApiKey = string.Empty;
-            Mode = "online";
+            Mode = "server";
             AllowUntrustedCerts = false;
             IsEditMode = false;
             IsBluetoothLeEnabled = true;
             IsLanEnabled = true;
             IsAwdlEnabled = true;
             IsCloudSyncEnabled = true;
-            IsWifiAwareEnabled = false;
+            IsStrictModeEnabled = false;
             LogLevel = "info";
             SharedKey = string.Empty;
         }
@@ -122,6 +126,7 @@ namespace EdgeStudio.Shared.Models
             DatabaseId = config.DatabaseId;
             AuthToken = config.AuthToken;
             AuthUrl = config.AuthUrl;
+            WebsocketUrl = config.WebsocketUrl;
             HttpApiUrl = config.HttpApiUrl;
             HttpApiKey = config.HttpApiKey;
             Mode = config.Mode;
@@ -130,7 +135,7 @@ namespace EdgeStudio.Shared.Models
             IsLanEnabled = config.IsLanEnabled;
             IsAwdlEnabled = config.IsAwdlEnabled;
             IsCloudSyncEnabled = config.IsCloudSyncEnabled;
-            IsWifiAwareEnabled = config.IsWifiAwareEnabled;
+            IsStrictModeEnabled = config.IsStrictModeEnabled;
             LogLevel = config.LogLevel;
             SharedKey = config.SharedKey;
             IsEditMode = true;
@@ -152,7 +157,8 @@ namespace EdgeStudio.Shared.Models
                 IsLanEnabled: IsLanEnabled,
                 IsAwdlEnabled: IsAwdlEnabled,
                 IsCloudSyncEnabled: IsCloudSyncEnabled,
-                IsWifiAwareEnabled: IsWifiAwareEnabled,
+                WebsocketUrl: WebsocketUrl,
+                IsStrictModeEnabled: IsStrictModeEnabled,
                 LogLevel: LogLevel,
                 SharedKey: SharedKey
             );

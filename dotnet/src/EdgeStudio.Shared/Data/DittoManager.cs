@@ -112,14 +112,22 @@ namespace EdgeStudio.Shared.Data
                 };
 
                 this.DittoSelectedApp.DisableSyncWithV3();
-                await this.DittoSelectedApp.Store.ExecuteAsync("ALTER SYSTEM SET DQL_STRICT_MODE = false");
-                this.DittoSelectedApp.Sync.Start();
+
+                // Apply strict mode BEFORE starting sync (matches SwiftUI hydrateDittoSelectedDatabase order)
+                var strictMode = dittoDatabaseConfig.IsStrictModeEnabled ? "true" : "false";
+                await this.DittoSelectedApp.Store.ExecuteAsync($"ALTER SYSTEM SET DQL_STRICT_MODE = {strictMode}");
+
+                // Apply transport config BEFORE starting sync — matches SwiftUI startup order.
+                // Starting sync first would cause Ditto to connect with default transports,
+                // then immediately disconnect and reconnect with the configured transports.
                 await ApplyTransportConfigurationAsync(
                     bluetoothEnabled: dittoDatabaseConfig.IsBluetoothLeEnabled,
                     lanEnabled:       dittoDatabaseConfig.IsLanEnabled,
                     awdlEnabled:      dittoDatabaseConfig.IsAwdlEnabled,
-                    wifiAwareEnabled: dittoDatabaseConfig.IsWifiAwareEnabled,
+                    wifiAwareEnabled: false,
                     webSocketEnabled: dittoDatabaseConfig.IsCloudSyncEnabled);
+
+                this.DittoSelectedApp.Sync.Start();
                 isSuccess = true;
             }
             else
@@ -172,11 +180,14 @@ namespace EdgeStudio.Shared.Data
                     }
                     else
                     {
-                        if (transportConfig.Connect.WebsocketUrls.Count != 0)
-                            return;
+                        // Use the stored WebsocketUrl field; fall back to deriving from AuthUrl
+                        // if WebsocketUrl was not explicitly set (matches SwiftUI applyTransportConfig)
+                        var url = SelectedDatabaseConfig?.WebsocketUrl;
+                        if (string.IsNullOrEmpty(url))
+                            url = SelectedDatabaseConfig?.AuthUrl.Replace("https:", "wss:");
 
-                        var url = SelectedDatabaseConfig?.AuthUrl.Replace("https:", "wss:");
-                        transportConfig.Connect.WebsocketUrls.Add(url);
+                        if (!string.IsNullOrEmpty(url) && !transportConfig.Connect.WebsocketUrls.Contains(url))
+                            transportConfig.Connect.WebsocketUrls.Add(url);
                     }
                 });
 

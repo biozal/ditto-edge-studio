@@ -31,14 +31,16 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
 
     public SubscriptionDetailsViewModel(
         ISyncService syncService,
+        IDittoManager dittoManager,
         Lazy<ISystemRepository> systemRepositoryLazy,
+        INetworkAdapterService networkAdapterService,
         IToastService? toastService = null)
         : base(toastService)
     {
         // Instantiate child ViewModels (not resolved from DI, following QueryViewModel pattern)
-        PeersList = new PeersListViewModel(systemRepositoryLazy, toastService);
+        PeersList = new PeersListViewModel(systemRepositoryLazy, networkAdapterService, toastService);
         PresenceViewer = new PresenceViewerViewModel(toastService);
-        Settings = new SubscriptionSettingsViewModel(syncService, toastService);
+        Settings = new SubscriptionSettingsViewModel(syncService, dittoManager, toastService);
     }
 
     /// <summary>

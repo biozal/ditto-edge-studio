@@ -5,6 +5,7 @@
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
              xmlns:suki="using:SukiUI.Controls"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.Workspaces.SubscriptionDetailsView"
              x:DataType="vm:SubscriptionDetailsViewModel"
@@ -21,7 +22,7 @@
                 Height="40"
                 BorderThickness="0,0,0,1"
                 Padding="12,8">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding DetailsTitle}"
                            FontSize="11"
@@ -32,7 +33,8 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             Spacing="4"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0">
                     <TextBlock Text="Last updated:"
                                FontSize="10"
                                Opacity="0.7"/>
@@ -40,6 +42,16 @@
                                FontSize="10"
                                Opacity="0.7"/>
                 </StackPanel>
+
+                <!-- Transport Settings cog button -->
+                <Button Grid.Column="2"
+                        x:Name="TransportSettingsButton"
+                        Width="32" Height="32" Padding="0"
+                        ToolTip.Tip="Transport Settings"
+                        VerticalAlignment="Center"
+                        Click="TransportSettingsButton_Click">
+                    <materialIcons:MaterialIcon Kind="Settings" Width="18" Height="18"/>
+                </Button>
             </Grid>
         </Border>
 
@@ -69,10 +81,6 @@
                 <workspaces:PresenceViewerView DataContext="{Binding PresenceViewer}"/>
             </TabItem>
 
-            <!-- Tab 3: Settings -->
-            <TabItem Header="Settings">
-                <workspaces:SubscriptionSettingsView DataContext="{Binding Settings}"/>
-            </TabItem>
         </TabControl>
     </Grid>
 </UserControl>

@@ -125,6 +125,13 @@
                             Watermark="Auth URL"
                             IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
 
+                    <!-- WebSocket URL - Only for Online Mode -->
+                    <TextBox x:Name="WebsocketUrlTextBox"
+                            Text="{Binding DatabaseFormModel.WebsocketUrl}"
+                            FontFamily="Consolas"
+                            Watermark="WebSocket URL"
+                            IsVisible="{Binding DatabaseFormModel.IsOnlineMode}"/>
+
                     <!-- HTTP API URL - Optional Field - Only for Online Mode -->
                     <StackPanel IsVisible="{Binding DatabaseFormModel.IsOnlineMode}">
                         <TextBox x:Name="HttpApiUrlTextBox"
@@ -171,6 +178,17 @@
                                   HorizontalAlignment="Stretch"/>
                         <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.6"
                                    Text="Controls DittoLogger.MinimumLogLevel when this database is activated. Applied globally across all Ditto instances."/>
+
+                        <!-- Strict Mode -->
+                        <CheckBox x:Name="StrictModeCheckBox"
+                                 Content="Enable Strict Mode"
+                                 IsChecked="{Binding DatabaseFormModel.IsStrictModeEnabled}"
+                                 Margin="0,8,0,0"/>
+                        <Border Background="#3D2A1A" CornerRadius="6" Padding="12,10"
+                                IsVisible="{Binding DatabaseFormModel.IsStrictModeEnabled}">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FFA060"
+                                       Text="&#x26A0;&#xFE0F; For most users of Ditto SDK 5.0 and later, strict mode should remain disabled. When disabled, nested objects are treated as MAPs by default, enabling field-level merging. Enable only if you require SDK 4.x compatibility or explicitly need REGISTER-typed objects. Mismatched settings across peers may cause nested fields to appear missing."/>
+                        </Border>
                     </StackPanel>
 
                 </StackPanel>

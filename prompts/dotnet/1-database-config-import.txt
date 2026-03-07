@@ -1,0 +1,13 @@
+Go into plan mode. The SwiftUI and Android versions of the app can import configuration via a button that turns on the camera and then scans in a QR Code.  They also allow the ability to right click or hold click to bring up a menu from a database config listed on the Database Listing screen and select the option to "Show QR Code".  This shows a QR Code that any device can use the scan in the configuration and save it to the internal SQLite database and refresh the database listing.  I would like the same functionality to exist in the dotnet version.
+
+The dotnet version of the Database Config has not been updated to support the same fields like setting strict mode on or off.  
+
+Review the SwiftUI code and make a plan to update the dotnet version so that it has the same feature set.  This means:
+
+1.  The dotnet version should be able to import and export config with a QR code.
+
+2. The Database Config in dotnet needs to support saving the same field names and be 100% compatible with the Android and SwiftUI versions of the config.
+
+3.  The Database Editor will need to be modified in dotnet to include fields like strict mode using the same warnings about Strict mode.
+
+Once you have a plan in place fo this let me know so I can review.  

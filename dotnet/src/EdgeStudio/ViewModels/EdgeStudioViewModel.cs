@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Data;
+using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
@@ -24,7 +25,8 @@ namespace EdgeStudio.ViewModels
         private readonly Lazy<QueryViewModel> _queryViewModelLazy;
         private readonly Lazy<ObserversViewModel> _observersViewModelLazy;
         private readonly Lazy<ToolsViewModel> _toolsViewModelLazy;
-        
+        private readonly Lazy<ISystemRepository> _systemRepositoryLazy;
+
         private DittoDatabaseConfig? _selectedDatabase;
         private object? _currentListingViewModel;
         private object? _currentDetailViewModel;
@@ -34,6 +36,9 @@ namespace EdgeStudio.ViewModels
 
         [ObservableProperty]
         private bool _isSyncButtonEnabled = true;
+
+        [ObservableProperty]
+        private ConnectionsByTransport _connectionsByTransport = ConnectionsByTransport.Empty;
 
         public string SyncButtonTooltip => IsSyncEnabled ? "Stop Sync" : "Start Sync";
 
@@ -47,12 +52,14 @@ namespace EdgeStudio.ViewModels
             Lazy<QueryViewModel> queryViewModelLazy,
             Lazy<ObserversViewModel> observersViewModelLazy,
             Lazy<ToolsViewModel> toolsViewModelLazy,
+            Lazy<ISystemRepository> systemRepositoryLazy,
             IToastService? toastService = null)
             : base(toastService)
         {
             _dittoManager = dittoManager;
             _syncService = syncService;
             _navigationService = navigationService;
+            _systemRepositoryLazy = systemRepositoryLazy;
 
             // Store lazy ViewModels - they will only be instantiated when .Value is accessed
             _navigationViewModelLazy = navigationViewModelLazy;
@@ -62,12 +69,20 @@ namespace EdgeStudio.ViewModels
             _observersViewModelLazy = observersViewModelLazy;
             _toolsViewModelLazy = toolsViewModelLazy;
 
+            // Subscribe to connection count updates from the system repository
+            _systemRepositoryLazy.Value.ConnectionsChanged += OnConnectionsChanged;
+
             // Register for navigation changes
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, OnNavigationChanged);
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
 
             // Don't call UpdateCurrentViews in constructor - this would instantiate ViewModels prematurely
             // Views will be set when a database is actually selected
+        }
+
+        private void OnConnectionsChanged(object? sender, ConnectionsByTransport connections)
+        {
+            ConnectionsByTransport = connections;
         }
 
         public NavigationViewModel NavigationViewModel => _navigationViewModelLazy.Value;
@@ -314,7 +329,9 @@ namespace EdgeStudio.ViewModels
 
         protected override void OnDisposing()
         {
-            // Unregister from messaging (base class handles this, but explicitly clear here for clarity)
+            if (_systemRepositoryLazy.IsValueCreated)
+                _systemRepositoryLazy.Value.ConnectionsChanged -= OnConnectionsChanged;
+
             base.OnDisposing();
         }
     }

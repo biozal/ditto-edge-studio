@@ -6,6 +6,7 @@
              xmlns:navigation="using:EdgeStudio.Views.Navigation"
              xmlns:workspaces="using:EdgeStudio.Views.Workspaces"
              xmlns:tools="using:EdgeStudio.Views.Tools"
+             xmlns:controls="using:EdgeStudio.Views.Controls"
              xmlns:suki="using:SukiUI.Controls"
              xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
@@ -47,7 +48,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Top Bar with Database Name -->
@@ -167,7 +167,8 @@
             </GridSplitter>
 
             <!-- Main Content Area - Detail Views -->
-            <Border Grid.Column="4" Background="#05000000">
+            <Grid Grid.Column="4">
+              <Border Background="#05000000">
                 <ContentControl Content="{Binding CurrentDetailViewModel}">
                     <ContentControl.DataTemplates>
 
@@ -313,38 +314,14 @@
 
                     </ContentControl.DataTemplates>
                 </ContentControl>
-            </Border>
-        </Grid>
+              </Border>
 
-        <!-- Status Bar -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource SukiPrimaryColor}"
-                BorderThickness="0"
-                Height="26"
-                Padding="12,4">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <!-- Left side - Database ID -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="Database ID:"
-                               FontSize="11"
-                               Foreground="White"
-                               VerticalAlignment="Center"
-                               Opacity="0.85"/>
-                    <TextBlock Text="{Binding DatabaseId}"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="White"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+              <!-- Floating DetailBottomBar overlay -->
+              <controls:DetailBottomBar
+                  DataContext="{Binding ConnectionsByTransport}"
+                  VerticalAlignment="Bottom"/>
 
-                <!-- Center - Empty for now -->
-                <Panel Grid.Column="1"/>
-
-                <!-- Right side - Future status items -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <!-- Placeholder for future status items -->
-                </StackPanel>
             </Grid>
-        </Border>
+        </Grid>
     </Grid>
 </UserControl>

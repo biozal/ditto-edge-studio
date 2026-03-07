@@ -13,9 +13,19 @@ When working with Avalonia controls or features:
 2. ✅ **THEN**: Implement the solution following Avalonia's documented approach
 3. ❌ **NEVER**: Assume WPF/WinForms patterns will work the same way
 
+## Other Platform Versions
+
+This repository contains multiple platform implementations of Edge Studio. The other versions are located at the **repository root**:
+
+| Platform | Location | Framework |
+|----------|----------|-----------|
+| **SwiftUI** (macOS/iPadOS) | `SwiftUI/` | Swift / SwiftUI — see root `CLAUDE.md` |
+| **Android** | `android/` | Kotlin / Jetpack Compose — see root `CLAUDE.md` |
+| **.NET / Avalonia** (this project) | `dotnet/` | C# / Avalonia UI |
+
 ## Project Overview
 
-Edge Studio Avalonia is a cross-platform desktop application for querying and managing Ditto databases. This is the Avalonia UI implementation of the same functionality found in the WPF and other versions of the application, providing native performance on Windows, Linux, and macOS platforms.
+Edge Studio Avalonia is a cross-platform desktop application for querying and managing Ditto databases. This is the Avalonia UI implementation of the same functionality found in the SwiftUI and Android versions of the application, providing native performance on Windows, Linux, and macOS platforms.
 
 **Application Name:** Edge Studio
 **Framework:** Avalonia UI (.NET 10.0) with SukiUI

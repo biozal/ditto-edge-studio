@@ -16,6 +16,7 @@ namespace EdgeStudio.ViewModels;
 public partial class SubscriptionSettingsViewModel : LoadableViewModelBase
 {
     private readonly ISyncService _syncService;
+    private readonly IDittoManager _dittoManager;
 
     // Platform detection
     private static readonly bool IsMacOS = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
@@ -29,21 +30,48 @@ public partial class SubscriptionSettingsViewModel : LoadableViewModelBase
     [ObservableProperty] private bool _isWebSocketEnabled = true;
 
     // UI state
-    [ObservableProperty] private string _statusMessage = "Ready";
+    [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isApplyEnabled = true;
 
     // Platform visibility
     public bool ShowAwdl => IsMacOS;
     public bool ShowWifiAware => IsWindows;
 
-    public SubscriptionSettingsViewModel(ISyncService syncService, IToastService? toastService = null)
+    public SubscriptionSettingsViewModel(ISyncService syncService, IDittoManager dittoManager, IToastService? toastService = null)
         : base(toastService)
     {
         _syncService = syncService;
+        _dittoManager = dittoManager;
+    }
 
-        // Platform-specific defaults
-        IsAwdlEnabled = IsMacOS;
-        IsWifiAwareEnabled = IsWindows;
+    /// <summary>
+    /// Called when the settings view becomes active — loads current values from the saved database config.
+    /// Matches SwiftUI's TransportConfigView.ViewModel.loadCurrentSettings() behavior.
+    /// </summary>
+    protected override void OnActivated()
+    {
+        base.OnActivated();
+        LoadCurrentSettings();
+    }
+
+    private void LoadCurrentSettings()
+    {
+        var config = _dittoManager.SelectedDatabaseConfig;
+        if (config != null)
+        {
+            IsBluetoothEnabled = config.IsBluetoothLeEnabled;
+            IsLanEnabled = config.IsLanEnabled;
+            IsAwdlEnabled = config.IsAwdlEnabled;
+            IsWebSocketEnabled = config.IsCloudSyncEnabled;
+            // WifiAware is Windows-only and has no stored flag — keep platform default
+            IsWifiAwareEnabled = IsWindows;
+        }
+        else
+        {
+            // No database open yet — fall back to platform-appropriate defaults
+            IsAwdlEnabled = IsMacOS;
+            IsWifiAwareEnabled = IsWindows;
+        }
     }
 
     [RelayCommand]
@@ -68,6 +96,6 @@ public partial class SubscriptionSettingsViewModel : LoadableViewModelBase
         );
 
         IsApplyEnabled = true;
-        StatusMessage = "Ready";
+        StatusMessage = string.Empty;
     }
 }

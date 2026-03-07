@@ -11,5 +11,6 @@ namespace EdgeStudio.Shared.Data.Repositories
         Task AddQueryHistory(QueryHistory queryHistory);
         Task DeleteQueryHistory(QueryHistory queryHistory);
         void RegisterObserver(ObservableCollection<QueryHistory> queryHistorys, Action<string> errorMessage);
+        Task<System.Collections.Generic.List<QueryHistory>> LoadAllQueriesAsync();
     }
 }

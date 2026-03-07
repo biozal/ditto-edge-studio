@@ -30,7 +30,8 @@
                     HorizontalAlignment="Right"
                     Margin="8">
             <Button Command="{Binding ExecuteQueryCommand}"
-                    Classes="Flat Accent"
+                    Background="{DynamicResource DittoAccent}"
+                    Foreground="{DynamicResource DittoJetBlack}"
                     Padding="12,6">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <materialIcons:MaterialIcon Kind="Play"

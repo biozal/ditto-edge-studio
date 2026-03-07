@@ -152,6 +152,8 @@ public partial class App : Application
         });
         services.AddSingleton<IToastService, SukiToastService>();
         services.AddSingleton<ISyncService, SyncService>();
+        services.AddSingleton<IQrCodeService, QrCodeService>();
+        services.AddSingleton<INetworkAdapterService, NetworkAdapterService>();
 
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();

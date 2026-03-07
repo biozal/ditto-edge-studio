@@ -27,10 +27,12 @@ namespace EdgeStudio.Shared.Data.Repositories
             cmd.CommandText = @"
                 INSERT INTO database_configs
                     (id, name, database_id, auth_token, auth_url, http_api_url, http_api_key, mode, allow_untrusted_certs,
-                     is_bluetooth_le_enabled, is_lan_enabled, is_awdl_enabled, is_cloud_sync_enabled, is_wifi_aware_enabled, shared_key, log_level)
+                     is_bluetooth_le_enabled, is_lan_enabled, is_awdl_enabled, is_cloud_sync_enabled,
+                     shared_key, log_level, websocket_url, is_strict_mode_enabled)
                 VALUES
                     ($id, $name, $database_id, $auth_token, $auth_url, $http_api_url, $http_api_key, $mode, $allow_untrusted_certs,
-                     $is_bluetooth_le_enabled, $is_lan_enabled, $is_awdl_enabled, $is_cloud_sync_enabled, $is_wifi_aware_enabled, $shared_key, $log_level)
+                     $is_bluetooth_le_enabled, $is_lan_enabled, $is_awdl_enabled, $is_cloud_sync_enabled,
+                     $shared_key, $log_level, $websocket_url, $is_strict_mode_enabled)
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     database_id = excluded.database_id,
@@ -44,9 +46,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                     is_lan_enabled = excluded.is_lan_enabled,
                     is_awdl_enabled = excluded.is_awdl_enabled,
                     is_cloud_sync_enabled = excluded.is_cloud_sync_enabled,
-                    is_wifi_aware_enabled = excluded.is_wifi_aware_enabled,
                     shared_key = excluded.shared_key,
-                    log_level = excluded.log_level";
+                    log_level = excluded.log_level,
+                    websocket_url = excluded.websocket_url,
+                    is_strict_mode_enabled = excluded.is_strict_mode_enabled";
             BindConfigParams(cmd, config);
             await cmd.ExecuteNonQueryAsync();
 
@@ -88,9 +91,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                     is_lan_enabled = $is_lan_enabled,
                     is_awdl_enabled = $is_awdl_enabled,
                     is_cloud_sync_enabled = $is_cloud_sync_enabled,
-                    is_wifi_aware_enabled = $is_wifi_aware_enabled,
                     shared_key = $shared_key,
-                    log_level = $log_level
+                    log_level = $log_level,
+                    websocket_url = $websocket_url,
+                    is_strict_mode_enabled = $is_strict_mode_enabled
                 WHERE id = $id";
             BindConfigParams(cmd, config);
             await cmd.ExecuteNonQueryAsync();
@@ -143,7 +147,11 @@ namespace EdgeStudio.Shared.Data.Repositories
         {
             using var conn = _db.CreateOpenConnection();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, name, database_id, auth_token, auth_url, http_api_url, http_api_key, mode, allow_untrusted_certs, is_bluetooth_le_enabled, is_lan_enabled, is_awdl_enabled, is_cloud_sync_enabled, is_wifi_aware_enabled, shared_key, log_level FROM database_configs ORDER BY name";
+            cmd.CommandText = @"SELECT id, name, database_id, auth_token, auth_url, http_api_url, http_api_key,
+                                       mode, allow_untrusted_certs, is_bluetooth_le_enabled, is_lan_enabled,
+                                       is_awdl_enabled, is_cloud_sync_enabled, shared_key, log_level,
+                                       websocket_url, is_strict_mode_enabled
+                                FROM database_configs ORDER BY name";
 
             var results = new System.Collections.Generic.List<DittoDatabaseConfig>();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -169,9 +177,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                 IsLanEnabled: reader.GetInt64(10) != 0,
                 IsAwdlEnabled: reader.GetInt64(11) != 0,
                 IsCloudSyncEnabled: reader.GetInt64(12) != 0,
-                IsWifiAwareEnabled: reader.GetInt64(13) != 0,
-                SharedKey: reader.IsDBNull(14) ? "" : reader.GetString(14),
-                LogLevel: reader.IsDBNull(15) ? "info" : reader.GetString(15)
+                SharedKey: reader.IsDBNull(13) ? "" : reader.GetString(13),
+                LogLevel: reader.IsDBNull(14) ? "info" : reader.GetString(14),
+                WebsocketUrl: reader.IsDBNull(15) ? "" : reader.GetString(15),
+                IsStrictModeEnabled: !reader.IsDBNull(16) && reader.GetInt64(16) != 0
             );
 
         private static void BindConfigParams(SqliteCommand cmd, DittoDatabaseConfig config)
@@ -189,9 +198,10 @@ namespace EdgeStudio.Shared.Data.Repositories
             cmd.Parameters.AddWithValue("$is_lan_enabled", config.IsLanEnabled ? 1 : 0);
             cmd.Parameters.AddWithValue("$is_awdl_enabled", config.IsAwdlEnabled ? 1 : 0);
             cmd.Parameters.AddWithValue("$is_cloud_sync_enabled", config.IsCloudSyncEnabled ? 1 : 0);
-            cmd.Parameters.AddWithValue("$is_wifi_aware_enabled", config.IsWifiAwareEnabled ? 1 : 0);
             cmd.Parameters.AddWithValue("$shared_key", config.SharedKey);
             cmd.Parameters.AddWithValue("$log_level", config.LogLevel);
+            cmd.Parameters.AddWithValue("$websocket_url", config.WebsocketUrl);
+            cmd.Parameters.AddWithValue("$is_strict_mode_enabled", config.IsStrictModeEnabled ? 1 : 0);
         }
 
         public void Dispose()

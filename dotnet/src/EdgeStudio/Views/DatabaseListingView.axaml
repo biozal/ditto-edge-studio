@@ -116,6 +116,9 @@
                                         <MenuItem Header="Edit"
                                                   Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).EditDatabaseCommand}"
                                                   CommandParameter="{Binding}" />
+                                        <MenuItem Header="Show QR Code"
+                                                  Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).ShowQrCodeCommand}"
+                                                  CommandParameter="{Binding}" />
                                         <MenuItem Header="Delete"
                                                   Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).DeleteDatabaseCommand}"
                                                   CommandParameter="{Binding}" />

@@ -82,12 +82,13 @@
                 <Button Content="Cancel"
                         Command="{Binding CancelSubscriptionFormCommand}"
                         Padding="20,8"
-                        Classes="Accent"/>
+                        Classes="Flat"/>
 
                 <Button Content="Save"
                         Command="{Binding SaveSubscriptionCommand}"
                         Padding="20,8"
-                        Classes="Flat" />
+                        Background="{DynamicResource DittoAccent}"
+                        Foreground="{DynamicResource DittoJetBlack}" />
 
             </StackPanel>
 

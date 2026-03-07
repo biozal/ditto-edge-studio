@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +22,7 @@ namespace EdgeStudio.ViewModels
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IHistoryRepository _historyRepository;
         private readonly IFavoritesRepository _favoritesRepository;
+        private readonly IQrCodeService _qrCodeService;
 
         public MainWindowViewModel(
             IDittoManager dittoManager,
@@ -29,6 +31,7 @@ namespace EdgeStudio.ViewModels
             ISubscriptionRepository subscriptionRepository,
             IHistoryRepository historyRepository,
             IFavoritesRepository favoritesRepository,
+            IQrCodeService qrCodeService,
             IToastService? toastService = null)
             : base(toastService)
         {
@@ -38,6 +41,7 @@ namespace EdgeStudio.ViewModels
             _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
             _historyRepository = historyRepository ?? throw new ArgumentNullException(nameof(historyRepository));
             _favoritesRepository = favoritesRepository ?? throw new ArgumentNullException(nameof(favoritesRepository));
+            _qrCodeService = qrCodeService ?? throw new ArgumentNullException(nameof(qrCodeService));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
             DatabaseFormModel = new DatabaseFormModel();
@@ -157,13 +161,21 @@ namespace EdgeStudio.ViewModels
         [RelayCommand]
         private async Task SaveDatabaseAsync()
         {
-            // Validate required fields
+            // Validate always-required fields
             if (string.IsNullOrWhiteSpace(DatabaseFormModel.Name) ||
                 string.IsNullOrWhiteSpace(DatabaseFormModel.DatabaseId) ||
-                string.IsNullOrWhiteSpace(DatabaseFormModel.AuthToken) ||
-                string.IsNullOrWhiteSpace(DatabaseFormModel.AuthUrl))
+                string.IsNullOrWhiteSpace(DatabaseFormModel.AuthToken))
             {
-                ShowError("Please fill in all required fields (marked with *).");
+                ShowError("Please fill in all required fields (Name, Database ID, Auth Token).");
+                return;
+            }
+
+            // Validate server-mode-specific required fields
+            if (DatabaseFormModel.Mode == "server" &&
+                (string.IsNullOrWhiteSpace(DatabaseFormModel.AuthUrl) ||
+                 string.IsNullOrWhiteSpace(DatabaseFormModel.WebsocketUrl)))
+            {
+                ShowError("Auth URL and WebSocket URL are required in Server mode.");
                 return;
             }
 
@@ -305,9 +317,20 @@ namespace EdgeStudio.ViewModels
         }
 
         [RelayCommand]
+        private async Task ShowQrCodeAsync(DittoDatabaseConfig config)
+        {
+            if (config == null) return;
+
+            var favorites = await _favoritesRepository.LoadAllQueriesAsync();
+            var favQueries = favorites.Select(f => f.Query).ToList();
+            var payload = _qrCodeService.Encode(config, favQueries);
+            WeakReferenceMessenger.Default.Send(new ShowQrCodeMessage(payload, config.Name));
+        }
+
+        [RelayCommand]
         private void ImportFromQrCode()
         {
-            // Placeholder — to be implemented in a future iteration
+            WeakReferenceMessenger.Default.Send(new ShowQrCodeImportMessage());
         }
 
 

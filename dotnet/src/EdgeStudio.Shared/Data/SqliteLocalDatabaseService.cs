@@ -107,7 +107,7 @@ namespace EdgeStudio.Shared.Data
                     auth_url                TEXT NOT NULL,
                     http_api_url            TEXT NOT NULL DEFAULT '',
                     http_api_key            TEXT NOT NULL DEFAULT '',
-                    mode                    TEXT NOT NULL DEFAULT 'online',
+                    mode                    TEXT NOT NULL DEFAULT 'server',
                     allow_untrusted_certs   INTEGER NOT NULL DEFAULT 0
                 );
 
@@ -153,6 +153,8 @@ namespace EdgeStudio.Shared.Data
                 "ALTER TABLE database_configs ADD COLUMN is_wifi_aware_enabled INTEGER NOT NULL DEFAULT 0",
                 "ALTER TABLE database_configs ADD COLUMN shared_key TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE database_configs ADD COLUMN log_level TEXT NOT NULL DEFAULT 'info'",
+                "ALTER TABLE database_configs ADD COLUMN websocket_url TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE database_configs ADD COLUMN is_strict_mode_enabled INTEGER NOT NULL DEFAULT 0",
             };
             foreach (var sql in migrations)
             {

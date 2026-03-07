@@ -472,7 +472,7 @@ namespace EdgeStudioTests
                 AuthUrl: "https://auth.example.com",
                 HttpApiUrl: "https://api.example.com",
                 HttpApiKey: "api-key-" + id,
-                Mode: "online",
+                Mode: "server",
                 AllowUntrustedCerts: false
             );
         }
