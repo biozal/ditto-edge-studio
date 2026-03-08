@@ -1,0 +1,189 @@
+package com.costoda.dittoedgestudio.data.repository
+
+import android.os.Build
+import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
+import com.costoda.dittoedgestudio.domain.model.ConnectionType
+import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
+import com.costoda.dittoedgestudio.domain.model.PeerConnectionInfo
+import com.costoda.dittoedgestudio.domain.model.PeerOS
+import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
+import com.ditto.kotlin.Ditto
+import com.ditto.kotlin.DittoConnectionType
+import com.ditto.kotlin.DittoPeer
+import com.ditto.kotlin.DittoPeerOs
+import com.ditto.kotlin.DittoPresenceGraph
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class SystemRepositoryImpl(
+    private val coroutineScope: CoroutineScope,
+) : SystemRepository {
+
+    private val _peers = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
+    private val _localPeer = MutableStateFlow<LocalPeerInfo?>(null)
+    private val _connectionsByTransport = MutableStateFlow(ConnectionsByTransport.Empty)
+
+    override val peers: StateFlow<List<SyncStatusInfo>> = _peers.asStateFlow()
+    override val localPeer: StateFlow<LocalPeerInfo?> = _localPeer.asStateFlow()
+    override val connectionsByTransport: StateFlow<ConnectionsByTransport> =
+        _connectionsByTransport.asStateFlow()
+
+    // Job collecting the presence Flow — cancelled on stopObserving()
+    private var observeJob: Job? = null
+
+    override fun startObserving(ditto: Ditto) {
+        observeJob?.cancel()
+        observeJob = coroutineScope.launch {
+            ditto.presence.observe().collect { graph ->
+                updatePresence(graph, ditto)
+            }
+        }
+    }
+
+    override fun stopObserving() {
+        observeJob?.cancel()
+        observeJob = null
+        _peers.value = emptyList()
+        _localPeer.value = null
+        _connectionsByTransport.value = ConnectionsByTransport.Empty
+    }
+
+    private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
+        // 1. Query sync metrics — graceful degradation on failure
+        val syncMetrics = mutableMapOf<String, Map<String, Any?>>()
+        runCatching {
+            val result = ditto.store.execute("SELECT * FROM system:data_sync_info")
+            for (item in result.items) {
+                @Suppress("UNCHECKED_CAST")
+                val map = item.value as? Map<String, Any?> ?: continue
+                val peerId = map["_id"] as? String ?: continue
+                syncMetrics[peerId] = map
+            }
+        }
+
+        // 2. Deduplicate remote peers by peerKey
+        val deduped = graph.remotePeers
+            .groupBy { it.peerKey }
+            .mapValues { (_, peers) ->
+                peers.maxByOrNull { it.dittoSdkVersion != null } ?: peers.first()
+            }
+            .values
+
+        val processedIds = mutableSetOf<String>()
+
+        // 3. Map presence peers with merged sync metrics
+        val remotePeers = deduped.map { peer ->
+            processedIds.add(peer.peerKey)
+            peer.toSyncStatusInfo(syncMetrics[peer.peerKey])
+        }.toMutableList()
+
+        // 4. Add Cloud Server peers from DQL not in presence graph
+        for ((peerId, metrics) in syncMetrics) {
+            if (peerId in processedIds) continue
+            val isDittoServer = metrics["is_ditto_server"] as? Boolean ?: false
+            if (!isDittoServer) continue
+            @Suppress("UNCHECKED_CAST")
+            val docs = metrics["documents"] as? Map<String, Any?>
+            val status = docs?.get("sync_session_status") as? String
+            if (status == "Not Connected") continue
+            remotePeers.add(
+                SyncStatusInfo(
+                    peerId = peerId,
+                    isDittoServer = true,
+                    deviceName = null,
+                    osInfo = PeerOS.Unknown,
+                    dittoSdkVersion = null,
+                    syncedUpToLocalCommitId = (docs?.get("synced_up_to_local_commit_id") as? Number)?.toLong(),
+                    lastUpdateReceivedTime = (docs?.get("last_update_received_time") as? Number)?.toDouble(),
+                )
+            )
+        }
+
+        // 5. Update state
+        _peers.value = remotePeers
+        _connectionsByTransport.value = buildConnectionCounts(deduped)
+        _localPeer.value = LocalPeerInfo(
+            peerId = graph.localPeer.peerKey,
+            deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
+            sdkLanguage = "Kotlin",
+            sdkPlatform = "Android",
+            sdkVersion = graph.localPeer.dittoSdkVersion ?: "Unknown",
+        )
+    }
+
+    private fun DittoPeer.toSyncStatusInfo(metrics: Map<String, Any?>? = null): SyncStatusInfo {
+        @Suppress("UNCHECKED_CAST")
+        val docs = metrics?.get("documents") as? Map<String, Any?>
+        return SyncStatusInfo(
+            peerId = peerKey,
+            isDittoServer = metrics?.get("is_ditto_server") as? Boolean ?: false,
+            deviceName = deviceName?.takeIf { it.isNotBlank() },
+            osInfo = os?.toPeerOS() ?: PeerOS.Unknown,
+            dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
+            connections = connections
+                .distinctBy { conn -> conn.connectionType }
+                .map { conn ->
+                    PeerConnectionInfo(
+                        id = conn.id,
+                        type = conn.connectionType.toConnectionType(),
+                    )
+                },
+            peerMetadata = peerMetadata
+                ?.takeIf { !it.isNull }
+                ?.toString(),
+            identityServiceMetadata = identityServiceMetadata
+                ?.takeIf { !it.isNull }
+                ?.toString(),
+            syncedUpToLocalCommitId = (docs?.get("synced_up_to_local_commit_id") as? Number)?.toLong(),
+            lastUpdateReceivedTime = (docs?.get("last_update_received_time") as? Number)?.toDouble(),
+        )
+    }
+
+    private fun DittoPeerOs.toPeerOS(): PeerOS = when (this) {
+        DittoPeerOs.Ios, DittoPeerOs.Tvos -> PeerOS.iOS
+        DittoPeerOs.Android -> PeerOS.Android
+        DittoPeerOs.MacOS -> PeerOS.MacOS
+        DittoPeerOs.Linux -> PeerOS.Linux
+        DittoPeerOs.Windows -> PeerOS.Windows
+        DittoPeerOs.Generic -> PeerOS.Unknown
+    }
+
+    private fun DittoConnectionType.toConnectionType(): ConnectionType = when (this) {
+        DittoConnectionType.Bluetooth -> ConnectionType.Bluetooth
+        DittoConnectionType.AccessPoint -> ConnectionType.LAN
+        DittoConnectionType.P2PWiFi -> ConnectionType.P2PWiFi
+        DittoConnectionType.WebSocket -> ConnectionType.WebSocket
+    }
+
+    private fun buildConnectionCounts(peers: Collection<DittoPeer>): ConnectionsByTransport {
+        var bluetooth = 0
+        var lan = 0
+        var p2pWifi = 0
+        var webSocket = 0
+
+        peers.forEach { peer ->
+            peer.connections
+                .distinctBy { it.connectionType }
+                .forEach { conn ->
+                    when (conn.connectionType.toConnectionType()) {
+                        ConnectionType.Bluetooth -> bluetooth++
+                        ConnectionType.LAN -> lan++
+                        ConnectionType.P2PWiFi -> p2pWifi++
+                        ConnectionType.WebSocket -> webSocket++
+                        ConnectionType.Unknown -> { /* skip */ }
+                    }
+                }
+        }
+
+        return ConnectionsByTransport(
+            bluetooth = bluetooth,
+            lan = lan,
+            p2pWifi = p2pWifi,
+            webSocket = webSocket,
+        )
+    }
+}

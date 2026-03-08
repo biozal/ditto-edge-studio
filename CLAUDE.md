@@ -14,6 +14,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Standard tools (Read, Grep, Glob, Write) are for documentation (`.md`) and config files outside the Xcode project only.  Never use grep, ls, or other shell tools to discover code unless Xcode MCP is not available.
 
+For SwiftUI always use the swiftui-pro skill.
+
 ## Plans
 
 All plans should be stored in the plans folder.  If you are told to create a plan for a new feature or bug fix, you should create a plan in the plans folder and name it with the feature or bug fix.  The plan should be a markdown file and should be named with the feature or bug fix.  Research should also go in this folder but approved research implementations should be in stored in the docs folder.

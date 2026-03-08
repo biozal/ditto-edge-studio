@@ -1,6 +1,7 @@
 [versions]
 agp = "8.9.0"
 kotlin = "2.1.20"
+ditto = "5.0.0-preview.5"
 ksp = "2.1.20-1.0.32"
 mlkitBarcode = "17.3.0"
 camerax = "1.4.2"
@@ -67,6 +68,8 @@ camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", vers
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# Ditto SDK
+ditto-kotlin = { module = "com.ditto:ditto-kotlin-android", version.ref = "ditto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -90,7 +90,9 @@ import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 import com.costoda.dittoedgestudio.ui.theme.TrafficBlack
 import com.costoda.dittoedgestudio.ui.theme.TrafficWhite
+import androidx.compose.runtime.collectAsState
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
+import com.costoda.dittoedgestudio.viewmodel.PeersUiState
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -305,7 +307,7 @@ private fun StudioTopBar(
             }
         },
         actions = {
-            IconButton(onClick = { viewModel.syncEnabled = !viewModel.syncEnabled }) {
+            IconButton(onClick = { viewModel.toggleSync() }) {
                 Icon(
                     imageVector = Icons.Outlined.Sync,
                     contentDescription = "Toggle sync",
@@ -483,6 +485,9 @@ private fun ContentPlaceholder(
     modifier: Modifier = Modifier,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val peersUiState by viewModel.peersUiState.collectAsState()
+    val networkInterfaces by viewModel.networkInterfaces.collectAsState()
+    val p2pTransports by viewModel.p2pTransports.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
         if (viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS) {
@@ -518,18 +523,37 @@ private fun ContentPlaceholder(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "${viewModel.selectedNavItem.label} — Coming Soon",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            when {
+                viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS && selectedTabIndex == 0 -> {
+                    DittoPermissionHandler()
+                    ConnectedPeersScreen(
+                        peersUiState = peersUiState,
+                        networkInterfaces = networkInterfaces,
+                        p2pTransports = p2pTransports,
+                        onLoadDiagnostics = { viewModel.loadNetworkDiagnostics() },
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "${viewModel.selectedNavItem.label} — Coming Soon",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun StudioBottomBar(viewModel: MainStudioViewModel, modifier: Modifier = Modifier) {
+    val connections by viewModel.connectionsByTransport.collectAsState()
+
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraLarge,
@@ -546,7 +570,7 @@ private fun StudioBottomBar(viewModel: MainStudioViewModel, modifier: Modifier =
                 FilterChip(
                     selected = false,
                     onClick = { viewModel.connectionPopupVisible = true },
-                    label = { Text("((•)) 0") },
+                    label = { Text("((•)) ${connections.total}") },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.Wifi,
@@ -560,7 +584,19 @@ private fun StudioBottomBar(viewModel: MainStudioViewModel, modifier: Modifier =
                     onDismissRequest = { viewModel.connectionPopupVisible = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Connections: Ditto Server: 0") },
+                        text = { Text("Bluetooth: ${connections.bluetooth}") },
+                        onClick = { viewModel.connectionPopupVisible = false },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("LAN: ${connections.lan}") },
+                        onClick = { viewModel.connectionPopupVisible = false },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("P2P WiFi: ${connections.p2pWifi}") },
+                        onClick = { viewModel.connectionPopupVisible = false },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("WebSocket: ${connections.webSocket}") },
                         onClick = { viewModel.connectionPopupVisible = false },
                     )
                 }
@@ -630,9 +666,9 @@ private fun InspectorContent() {
 
 @Composable
 private fun TransportConfigContent(viewModel: MainStudioViewModel) {
-    var bluetoothEnabled by remember { mutableStateOf(true) }
-    var lanEnabled by remember { mutableStateOf(true) }
-    var wifiAwareEnabled by remember { mutableStateOf(false) }
+    var bluetoothEnabled by remember { mutableStateOf(viewModel.transportBluetoothEnabled) }
+    var lanEnabled by remember { mutableStateOf(viewModel.transportLanEnabled) }
+    var wifiAwareEnabled by remember { mutableStateOf(viewModel.transportWifiAwareEnabled) }
 
     Column(
         modifier = Modifier
@@ -694,7 +730,7 @@ private fun TransportConfigContent(viewModel: MainStudioViewModel) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { viewModel.transportConfigVisible = false },
+            onClick = { viewModel.applyTransportSettings(bluetoothEnabled, lanEnabled, wifiAwareEnabled) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Apply Transport Settings")

@@ -82,6 +82,9 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
+    // Ditto SDK
+    implementation(libs.ditto.kotlin)
+
     // QR Code — ML Kit barcode scanning + CameraX + ZXing + serialization
     implementation(libs.mlkit.barcode)
     implementation(libs.camerax.core)
