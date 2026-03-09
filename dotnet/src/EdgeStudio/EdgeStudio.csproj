@@ -88,6 +88,21 @@
     <ProjectReference Include="../EdgeStudio.Shared/EdgeStudio.Shared.csproj" />
   </ItemGroup>
 
+  <!-- Sync help docs from the central docs/help/ directory at the repo root -->
+  <Target Name="SyncHelpDocs" BeforeTargets="Build">
+    <PropertyGroup>
+      <HelpDocsSource>$(MSBuildProjectDirectory)\..\..\..\docs\help\</HelpDocsSource>
+      <HelpDocsDest>$(MSBuildProjectDirectory)\Assets\Help\</HelpDocsDest>
+    </PropertyGroup>
+    <MakeDir Directories="$(HelpDocsDest)" Condition="!Exists('$(HelpDocsDest)')" />
+    <Copy
+      SourceFiles="$(HelpDocsSource)query.md;$(HelpDocsSource)subscription.md;$(HelpDocsSource)logging.md;$(HelpDocsSource)observe.md;$(HelpDocsSource)appmetrics.md;$(HelpDocsSource)querymetrics.md"
+      DestinationFolder="$(HelpDocsDest)"
+      SkipUnchangedFiles="true"
+    />
+    <Message Text="Help docs synced to $(HelpDocsDest)" Importance="normal" />
+  </Target>
+
   <!-- macOS App Bundle Structure for Debug builds -->
   <Target Name="CreateMacOSAppBundle" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('osx'))">
     <PropertyGroup>

@@ -136,13 +136,11 @@ class DittoManagerTest {
 
     @Test
     fun `hydrate closes previous instance before creating new one`() = runTest {
-        every { mockDitto.sync.isActive } returns true
-
         manager.hydrate(serverDatabase)
         manager.hydrate(serverDatabase)
 
-        // sync.stop() called once when closing the first instance
-        verify(atLeast = 1) { mockDitto.sync.stop() }
+        // close() called once when closing the first instance before creating a new one
+        verify(atLeast = 1) { mockDitto.close() }
     }
 
     @Test

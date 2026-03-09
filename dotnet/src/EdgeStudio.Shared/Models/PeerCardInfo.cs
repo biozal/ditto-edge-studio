@@ -70,7 +70,7 @@ public record PeerCardInfo : IIdModel
     {
         PeerCardType.Local => DeviceName ?? "Local Peer",
         PeerCardType.Remote => DeviceName ?? "Remote Peer",
-        PeerCardType.Server => "Server",
+        PeerCardType.Server => "Ditto Server",
         _ => "Unknown Peer"
     };
 

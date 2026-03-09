@@ -80,7 +80,7 @@ fun RemotePeerCard(
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    text = peer.deviceName ?: "Unknown Device",
+                    text = if (peer.isDittoServer) "Ditto Server" else peer.deviceName ?: "Unknown Device",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = textColor,
@@ -106,9 +106,9 @@ fun RemotePeerCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // OS subtitle (or "Cloud Server" for Ditto server peers)
+            // OS subtitle
             Text(
-                text = if (peer.isDittoServer) "Cloud Server" else peer.osInfo.displayName,
+                text = peer.osInfo.displayName,
                 style = MaterialTheme.typography.bodySmall,
                 color = secondaryColor,
                 modifier = Modifier.padding(start = 28.dp),

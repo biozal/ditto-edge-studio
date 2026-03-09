@@ -37,7 +37,8 @@ namespace EdgeStudio.Shared.Models
         public long LastUpdateReceivedTimeRaw { get; init; }
 
         [JsonIgnore]
-        public DateTime LastUpdateReceivedTime =>
-            DateTimeOffset.FromUnixTimeMilliseconds(LastUpdateReceivedTimeRaw).LocalDateTime;
+        public DateTime? LastUpdateReceivedTime => LastUpdateReceivedTimeRaw != 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(LastUpdateReceivedTimeRaw).LocalDateTime
+            : null;
     }
 }

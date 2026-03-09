@@ -1,0 +1,13 @@
+Go into plan mode.  In the SwiftUI version of the app the end user has the option to add and delete a subscription.  Subscriptions sync information to the local ditto database.  You can learn more about subscriptions here:
+
+https://docs.ditto.live/key-concepts/syncing-data
+https://docs.ditto.live/sdk/latest/sync/syncing-data
+
+SwiftUI handles this in the SubscriptionsRepository.swift file.  This allows the adding, deleting, and listing of subscriptions.  You will want to review the code in the SidebarViews.swift and DetailViews.swift along with MainStudioView.swift to understand how subscriptions are added (via a modal window) and how they are removed.  
+
+We need this functionality in the Android version of the app.  I will note that in Ditto SDK v5 they now support observers via Flow.  You will want to review the documentation here:
+https://github.com/getditto/ditto/blob/main/sdks/kotlin/docs/DITTO_KOTLIN_V5_MIGRATION.md
+
+Create a plan to implement the ability to add, remove, and list out subscriptions.  Remember when the selected database is closed via the close button or the back button to the Database List that the Ditto instance should be closed all all the observers should be removed from memory and the subscription list should be cleared.  
+
+Once you have a plan ready for me to review let me know. 

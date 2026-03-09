@@ -3,6 +3,10 @@ package com.costoda.dittoedgestudio.data.di
 import com.costoda.dittoedgestudio.data.db.AppDatabase
 import com.costoda.dittoedgestudio.data.db.DatabaseKeyManager
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
+import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
+import com.costoda.dittoedgestudio.data.logging.LoggingService
+import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
+import com.costoda.dittoedgestudio.data.repository.CollectionsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
@@ -13,6 +17,9 @@ import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
 import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepositoryImpl
+import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
+import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
@@ -23,6 +30,7 @@ import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
+import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,17 +50,24 @@ val dataModule = module {
     single { get<AppDatabase>().historyDao() }
     single { get<AppDatabase>().favoriteDao() }
     single { get<AppDatabase>().observableDao() }
+    single { get<AppDatabase>().queryMetricsDao() }
     single<DatabaseRepository> { DatabaseRepositoryImpl(get()) }
     single<SubscriptionsRepository> { SubscriptionsRepositoryImpl(get()) }
     single<FavoritesRepository> { FavoritesRepositoryImpl(get()) }
     single<HistoryRepository> { HistoryRepositoryImpl(get()) }
     single<ObservableRepository> { ObservableRepositoryImpl(get()) }
-    single { DittoManager(get<CoroutineScope>()) }
+    single { LoggingService(androidContext()) }
+    single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
+    single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
     single<SystemRepository> { SystemRepositoryImpl(get<CoroutineScope>()) }
     single<NetworkDiagnosticsRepository> { NetworkDiagnosticsRepositoryImpl(androidContext()) }
+    single<CollectionsRepository> { CollectionsRepositoryImpl(get<CoroutineScope>()) }
+    single { QueryExecutionService(get()) }
+    single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
-    viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get()) }
+    viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get()) }
     viewModelOf(::QrScannerViewModel)
     viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }
 }

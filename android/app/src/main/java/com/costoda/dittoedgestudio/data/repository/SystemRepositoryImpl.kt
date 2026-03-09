@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.repository
 
 import android.os.Build
+import android.util.Log
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
@@ -12,6 +13,7 @@ import com.ditto.kotlin.DittoConnectionType
 import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
+import com.ditto.kotlin.serialization.DittoCborSerializable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,16 @@ import kotlinx.coroutines.launch
 class SystemRepositoryImpl(
     private val coroutineScope: CoroutineScope,
 ) : SystemRepository {
+
+    companion object {
+        private const val TAG = "SystemRepositoryImpl"
+        private const val FIELD_IS_DITTO_SERVER = "is_ditto_server"
+        private const val FIELD_DOCUMENTS = "documents"
+        private const val FIELD_SYNC_SESSION_STATUS = "sync_session_status"
+        private const val FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID = "synced_up_to_local_commit_id"
+        private const val FIELD_LAST_UPDATE_RECEIVED_TIME = "last_update_received_time"
+        private const val SYNC_STATUS_NOT_CONNECTED = "Not Connected"
+    }
 
     private val _peers = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
     private val _localPeer = MutableStateFlow<LocalPeerInfo?>(null)
@@ -54,15 +66,16 @@ class SystemRepositoryImpl(
 
     private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
         // 1. Query sync metrics — graceful degradation on failure
-        val syncMetrics = mutableMapOf<String, Map<String, Any?>>()
+        val syncMetrics = mutableMapOf<String, DittoCborSerializable.Dictionary>()
         runCatching {
             val result = ditto.store.execute("SELECT * FROM system:data_sync_info")
             for (item in result.items) {
-                @Suppress("UNCHECKED_CAST")
-                val map = item.value as? Map<String, Any?> ?: continue
-                val peerId = map["_id"] as? String ?: continue
-                syncMetrics[peerId] = map
+                val dict = item.value
+                val peerId = dict["_id"].stringOrNull ?: continue
+                syncMetrics[peerId] = dict
             }
+        }.onFailure { e ->
+            Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
         }
 
         // 2. Deduplicate remote peers by peerKey
@@ -75,21 +88,22 @@ class SystemRepositoryImpl(
 
         val processedIds = mutableSetOf<String>()
 
+        val localPeerKey = graph.localPeer.peerKey
+
         // 3. Map presence peers with merged sync metrics
         val remotePeers = deduped.map { peer ->
             processedIds.add(peer.peerKey)
-            peer.toSyncStatusInfo(syncMetrics[peer.peerKey])
+            peer.toSyncStatusInfo(syncMetrics[peer.peerKey], localPeerKey)
         }.toMutableList()
 
         // 4. Add Cloud Server peers from DQL not in presence graph
         for ((peerId, metrics) in syncMetrics) {
             if (peerId in processedIds) continue
-            val isDittoServer = metrics["is_ditto_server"] as? Boolean ?: false
+            val isDittoServer = metrics[FIELD_IS_DITTO_SERVER].booleanOrNull ?: false
             if (!isDittoServer) continue
-            @Suppress("UNCHECKED_CAST")
-            val docs = metrics["documents"] as? Map<String, Any?>
-            val status = docs?.get("sync_session_status") as? String
-            if (status == "Not Connected") continue
+            val docs = metrics[FIELD_DOCUMENTS].dictionaryOrNull
+            val status = docs?.get(FIELD_SYNC_SESSION_STATUS)?.stringOrNull
+            if (status == SYNC_STATUS_NOT_CONNECTED) continue
             remotePeers.add(
                 SyncStatusInfo(
                     peerId = peerId,
@@ -97,8 +111,8 @@ class SystemRepositoryImpl(
                     deviceName = null,
                     osInfo = PeerOS.Unknown,
                     dittoSdkVersion = null,
-                    syncedUpToLocalCommitId = (docs?.get("synced_up_to_local_commit_id") as? Number)?.toLong(),
-                    lastUpdateReceivedTime = (docs?.get("last_update_received_time") as? Number)?.toDouble(),
+                    syncedUpToLocalCommitId = docs?.get(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID)?.longOrNull,
+                    lastUpdateReceivedTime = docs?.get(FIELD_LAST_UPDATE_RECEIVED_TIME)?.longOrNull?.toDouble(),
                 )
             )
         }
@@ -115,16 +129,19 @@ class SystemRepositoryImpl(
         )
     }
 
-    private fun DittoPeer.toSyncStatusInfo(metrics: Map<String, Any?>? = null): SyncStatusInfo {
-        @Suppress("UNCHECKED_CAST")
-        val docs = metrics?.get("documents") as? Map<String, Any?>
+    private fun DittoPeer.toSyncStatusInfo(
+        metrics: DittoCborSerializable.Dictionary? = null,
+        localPeerKey: String,
+    ): SyncStatusInfo {
+        val docs = metrics?.get(FIELD_DOCUMENTS)?.dictionaryOrNull
         return SyncStatusInfo(
             peerId = peerKey,
-            isDittoServer = metrics?.get("is_ditto_server") as? Boolean ?: false,
+            isDittoServer = metrics?.get(FIELD_IS_DITTO_SERVER)?.booleanOrNull ?: false,
             deviceName = deviceName?.takeIf { it.isNotBlank() },
             osInfo = os?.toPeerOS() ?: PeerOS.Unknown,
             dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
             connections = connections
+                .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
                 .distinctBy { conn -> conn.connectionType }
                 .map { conn ->
                     PeerConnectionInfo(
@@ -138,8 +155,8 @@ class SystemRepositoryImpl(
             identityServiceMetadata = identityServiceMetadata
                 ?.takeIf { !it.isNull }
                 ?.toString(),
-            syncedUpToLocalCommitId = (docs?.get("synced_up_to_local_commit_id") as? Number)?.toLong(),
-            lastUpdateReceivedTime = (docs?.get("last_update_received_time") as? Number)?.toDouble(),
+            syncedUpToLocalCommitId = docs?.get(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID)?.longOrNull,
+            lastUpdateReceivedTime = docs?.get(FIELD_LAST_UPDATE_RECEIVED_TIME)?.longOrNull?.toDouble(),
         )
     }
 

@@ -1,9 +1,13 @@
 package com.costoda.dittoedgestudio.viewmodel
 
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
+import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
+import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
+import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
+import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
@@ -42,11 +46,15 @@ class MainStudioViewModelTest {
     private lateinit var dittoManager: DittoManager
     private lateinit var systemRepository: SystemRepository
     private lateinit var networkRepo: NetworkDiagnosticsRepository
+    private lateinit var subscriptionsRepository: SubscriptionsRepository
+    private lateinit var collectionsRepository: CollectionsRepository
+    private lateinit var logCaptureService: DittoLogCaptureService
     private lateinit var mockDitto: Ditto
 
     private val localPeerFlow = MutableStateFlow<LocalPeerInfo?>(null)
     private val peersFlow = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
     private val connectionsFlow = MutableStateFlow(ConnectionsByTransport.Empty)
+    private val collectionsFlow = MutableStateFlow<List<DittoCollection>>(emptyList())
 
     private val testDatabase = DittoDatabase(
         id = 1L,
@@ -66,11 +74,17 @@ class MainStudioViewModelTest {
         dittoManager = mockk(relaxed = true)
         systemRepository = mockk(relaxed = true)
         networkRepo = mockk(relaxed = true)
+        subscriptionsRepository = mockk(relaxed = true)
+        collectionsRepository = mockk(relaxed = true)
+        logCaptureService = mockk(relaxed = true)
         mockDitto = mockk(relaxed = true)
+
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
 
         every { systemRepository.localPeer } returns localPeerFlow
         every { systemRepository.peers } returns peersFlow
         every { systemRepository.connectionsByTransport } returns connectionsFlow
+        every { collectionsRepository.collections } returns collectionsFlow
         every { networkRepo.hasLocationOrNearbyPermission() } returns false
 
         coEvery { databaseRepository.getById(1L) } returns testDatabase
@@ -104,7 +118,7 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo)
+        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService)
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
@@ -188,17 +202,20 @@ class MainStudioViewModelTest {
     @Test
     fun `applyTransportSettings updates local state and calls dittoManager`() = runTest {
         every { dittoManager.currentInstance() } returns mockDitto
+        coEvery { databaseRepository.save(any()) } returns 1L
 
         val vm = createViewModel()
         advanceUntilIdle()
 
         vm.applyTransportSettings(bt = false, lan = true, wifiAware = true)
+        advanceUntilIdle()
 
         assertFalse(vm.transportBluetoothEnabled)
         assertTrue(vm.transportLanEnabled)
         assertTrue(vm.transportWifiAwareEnabled)
         assertFalse(vm.transportConfigVisible)
         verify { dittoManager.applyTransportConfig(mockDitto, any()) }
+        coVerify { databaseRepository.save(any()) }
     }
 
     private fun createViewModel() = MainStudioViewModel(
@@ -207,5 +224,9 @@ class MainStudioViewModelTest {
         dittoManager = dittoManager,
         systemRepository = systemRepository,
         networkRepo = networkRepo,
+        subscriptionsRepository = subscriptionsRepository,
+        collectionsRepository = collectionsRepository,
+        loggingCaptureService = logCaptureService,
+        ioDispatcher = testDispatcher,
     )
 }

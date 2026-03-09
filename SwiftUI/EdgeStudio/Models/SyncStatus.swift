@@ -158,7 +158,8 @@ struct SyncStatusInfo: Identifiable, Equatable {
         if let documents = dictionary["documents"] as? [String: Any] {
             syncSessionStatus = documents["sync_session_status"] as? String ?? "Unknown"
             syncedUpToLocalCommitId = documents["synced_up_to_local_commit_id"] as? Int
-            lastUpdateReceivedTime = documents["last_update_received_time"] as? TimeInterval
+            lastUpdateReceivedTime = (documents["last_update_received_time"] as? TimeInterval)
+                ?? (documents["last_update_received_time"] as? Int).map(TimeInterval.init)
         } else {
             syncSessionStatus = "Unknown"
             syncedUpToLocalCommitId = nil
@@ -229,7 +230,7 @@ struct SyncStatusInfo: Identifiable, Equatable {
     }
 
     var peerType: String {
-        isDittoServer ? "Cloud Server" : "Peer Device"
+        isDittoServer ? "Ditto Server" : "Peer Device"
     }
 }
 

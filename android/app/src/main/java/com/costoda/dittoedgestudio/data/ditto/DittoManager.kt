@@ -1,17 +1,23 @@
 package com.costoda.dittoedgestudio.data.ditto
 
 import android.util.Log
+import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.ditto.kotlin.Ditto
 import com.ditto.kotlin.DittoAuthenticationProvider
 import com.ditto.kotlin.DittoConfig
 import com.ditto.kotlin.DittoFactory
+import com.ditto.kotlin.DittoLogLevel
+import com.ditto.kotlin.DittoLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class DittoManager(private val coroutineScope: CoroutineScope) {
+class DittoManager(
+    private val coroutineScope: CoroutineScope,
+    private val logCaptureService: DittoLogCaptureService? = null,
+) {
 
     private var ditto: Ditto? = null
 
@@ -27,6 +33,11 @@ class DittoManager(private val coroutineScope: CoroutineScope) {
         }
 
         closeCurrentInstance()
+
+        // Set Ditto SDK log level to Info by default (can be changed in the Logging UI)
+        if (logCaptureService != null) {
+            runCatching { DittoLogger.minimumLogLevel = DittoLogLevel.Info }
+        }
 
         val config = buildConfig(database)
         val newDitto = withContext(Dispatchers.IO) {
@@ -91,10 +102,17 @@ class DittoManager(private val coroutineScope: CoroutineScope) {
 
     private suspend fun closeCurrentInstance() {
         val current = ditto ?: return
-        withContext(Dispatchers.IO) {
-            runCatching { if (current.sync.isActive) current.sync.stop() }
-        }
+        // Null out first so any concurrent calls to currentInstance() see null immediately
         ditto = null
+        withContext(Dispatchers.IO) {
+            // close() cancels the Ditto coroutine scope and calls implementation.close(),
+            // which releases the persistence-directory lock. Stopping sync alone is not
+            // sufficient — without close() the next DittoFactory.create() call on the same
+            // databaseId will fail with a file-lock error, causing hydration to throw and
+            // subscriptions to never be loaded.
+            runCatching { current.close() }
+                .onFailure { e -> Log.w(TAG, "Error closing Ditto instance: ${e.message}") }
+        }
     }
 
     private fun buildConfig(database: DittoDatabase): DittoConfig = when (database.mode) {

@@ -122,6 +122,7 @@ class NetworkDiagnosticsRepositoryImpl(
 
     private fun buildTransportMap(): Map<String, Int> {
         val map = mutableMapOf<String, Int>()
+        @Suppress("DEPRECATION")
         for (network in connectivityManager.allNetworks) {
             val props = connectivityManager.getLinkProperties(network) ?: continue
             val caps = connectivityManager.getNetworkCapabilities(network) ?: continue
@@ -137,6 +138,7 @@ class NetworkDiagnosticsRepositoryImpl(
     }
 
     private fun gatewayFor(interfaceName: String): String? {
+        @Suppress("DEPRECATION")
         for (network in connectivityManager.allNetworks) {
             val props = connectivityManager.getLinkProperties(network) ?: continue
             if (props.interfaceName != interfaceName) continue
@@ -154,7 +156,14 @@ class NetworkDiagnosticsRepositoryImpl(
         permGranted: Boolean,
     ): NetworkInterfaceInfo {
         val rssi = wifiInfo?.rssi?.takeIf { it > Int.MIN_VALUE }
-        val signalLevel = rssi?.let { WifiManager.calculateSignalLevel(it, 5) }
+        val signalLevel = rssi?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                wifiManager.calculateSignalLevel(it)
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.calculateSignalLevel(it, 5)
+            }
+        }
         val freq = wifiInfo?.frequency?.takeIf { it > 0 }
         val standard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             wifiInfo?.wifiStandard?.let { wifiStandardLabel(it) }
@@ -207,6 +216,7 @@ class NetworkDiagnosticsRepositoryImpl(
         entry: InterfaceEntry,
     ): NetworkInterfaceInfo {
         val bandwidth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            @Suppress("DEPRECATION")
             connectivityManager.allNetworks
                 .firstOrNull {
                     connectivityManager.getLinkProperties(it)?.interfaceName == name
