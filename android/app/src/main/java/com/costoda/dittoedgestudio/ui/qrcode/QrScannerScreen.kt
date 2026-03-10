@@ -2,13 +2,16 @@ package com.costoda.dittoedgestudio.ui.qrcode
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -33,16 +36,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import org.koin.androidx.compose.koinViewModel
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,6 +129,7 @@ fun QrScannerScreen(
                         barcode.rawValue?.let { viewModel.processBarcode(it) }
                     },
                 )
+                ScanOverlay(modifier = Modifier.fillMaxSize())
             }
 
             if (uiState is QrScannerUiState.Processing) {
@@ -168,7 +181,12 @@ private fun CameraPreview(
 ) {
     val context = LocalContext.current
     val executor = remember { Executors.newSingleThreadExecutor() }
-    val barcodeScanner = remember { BarcodeScanning.getClient() }
+    val barcodeScanner = remember {
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .build()
+        BarcodeScanning.getClient(options)
+    }
     val hasDetected = remember { AtomicBoolean(false) }
 
     DisposableEffect(Unit) {
@@ -189,6 +207,7 @@ private fun CameraPreview(
                     it.surfaceProvider = previewView.surfaceProvider
                 }
                 val imageAnalysis = ImageAnalysis.Builder()
+                    .setTargetResolution(Size(1280, 720))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
@@ -213,15 +232,58 @@ private fun CameraPreview(
                 }
                 try {
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
+                    val camera = cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
                         imageAnalysis,
                     )
+                    // Enable continuous autofocus on the center of the frame
+                    val centerPoint = previewView.meteringPointFactory.createPoint(0.5f, 0.5f)
+                    val focusAction = FocusMeteringAction.Builder(centerPoint, FocusMeteringAction.FLAG_AF)
+                        .setAutoCancelDuration(2, TimeUnit.SECONDS)
+                        .build()
+                    camera.cameraControl.startFocusAndMetering(focusAction)
                 } catch (_: Exception) { }
             }, ContextCompat.getMainExecutor(ctx))
             previewView
         },
     )
+}
+
+@Composable
+private fun ScanOverlay(modifier: Modifier = Modifier) {
+    val overlayColor = Color.Black.copy(alpha = 0.5f)
+    val strokeColor = SulfurYellow
+    Canvas(modifier = modifier) {
+        val windowSize = minOf(size.width, size.height) * 0.65f
+        val left = (size.width - windowSize) / 2f
+        val top = (size.height - windowSize) / 2f
+        val right = left + windowSize
+        val bottom = top + windowSize
+        val cornerLen = windowSize * 0.1f
+        val strokeWidth = 4.dp.toPx()
+
+        // Darken the area outside the scan window
+        drawRect(color = overlayColor)
+        drawRect(
+            color = Color.Transparent,
+            topLeft = Offset(left, top),
+            size = androidx.compose.ui.geometry.Size(windowSize, windowSize),
+            blendMode = BlendMode.Clear,
+        )
+
+        // Corner brackets — top-left
+        drawLine(strokeColor, Offset(left, top), Offset(left + cornerLen, top), strokeWidth, StrokeCap.Round)
+        drawLine(strokeColor, Offset(left, top), Offset(left, top + cornerLen), strokeWidth, StrokeCap.Round)
+        // Corner brackets — top-right
+        drawLine(strokeColor, Offset(right, top), Offset(right - cornerLen, top), strokeWidth, StrokeCap.Round)
+        drawLine(strokeColor, Offset(right, top), Offset(right, top + cornerLen), strokeWidth, StrokeCap.Round)
+        // Corner brackets — bottom-left
+        drawLine(strokeColor, Offset(left, bottom), Offset(left + cornerLen, bottom), strokeWidth, StrokeCap.Round)
+        drawLine(strokeColor, Offset(left, bottom), Offset(left, bottom - cornerLen), strokeWidth, StrokeCap.Round)
+        // Corner brackets — bottom-right
+        drawLine(strokeColor, Offset(right, bottom), Offset(right - cornerLen, bottom), strokeWidth, StrokeCap.Round)
+        drawLine(strokeColor, Offset(right, bottom), Offset(right, bottom - cornerLen), strokeWidth, StrokeCap.Round)
+    }
 }

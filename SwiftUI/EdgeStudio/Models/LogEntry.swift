@@ -2,7 +2,7 @@
 import Foundation
 
 /// A single log entry from any source (Ditto SDK, app logs, or imported files).
-struct LogEntry: Identifiable, Sendable {
+struct LogEntry: Identifiable {
     let id: UUID
     let timestamp: Date
     let level: DittoLogLevel
@@ -39,14 +39,14 @@ extension LogEntry {
 }
 
 /// Describes where a log entry originated.
-enum LogEntrySource: Equatable, Sendable {
+enum LogEntrySource: Equatable {
     case dittoSDK
     case application
     case imported(label: String)
 }
 
 /// Log component, mapped from the Ditto SDK `target` field or inferred heuristically.
-enum LogComponent: String, CaseIterable, Sendable {
+enum LogComponent: String, CaseIterable {
     case all = "All"
     case sync = "Sync"
     case store = "Store"

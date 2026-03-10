@@ -1,6 +1,6 @@
 import Foundation
 
-struct QueryExplainRecord: Identifiable, Hashable, Sendable {
+struct QueryExplainRecord: Identifiable, Hashable {
     let id: UUID
     let timestamp: Date
     let dql: String
