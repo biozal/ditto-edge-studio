@@ -519,7 +519,7 @@ extension MainStudioView {
             Task {
                 await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
                     Task { @MainActor in
-                        self?.syncStatusItems = statusItems
+                        self?.mergeStatusItems(statusItems)
 
                         // CRITICAL: Signal completion AFTER UI update dispatches
                         Task {
@@ -747,6 +747,29 @@ extension MainStudioView {
 
             // Perform heavy cleanup operations on background queue to avoid priority inversion
             await performCleanupOperations()
+        }
+
+        /// Merges an incoming snapshot of peers into `syncStatusItems` while
+        /// preserving each card's current grid position.
+        ///
+        /// - Existing peers have their data updated in-place (no reorder).
+        /// - Peers absent from `newItems` are removed.
+        /// - Peers new to `newItems` are appended to the end.
+        @MainActor
+        private func mergeStatusItems(_ newItems: [SyncStatusInfo]) {
+            let newById = Dictionary(uniqueKeysWithValues: newItems.map { ($0.id, $0) })
+
+            // Keep existing peers in order, updating their data; drop peers that left.
+            var merged = syncStatusItems.compactMap { existing in
+                newById[existing.id]
+            }
+
+            // Append peers that weren't in the previous list.
+            let existingIds = Set(syncStatusItems.map(\.id))
+            let brandNewPeers = newItems.filter { !existingIds.contains($0.id) }
+            merged.append(contentsOf: brandNewPeers)
+
+            syncStatusItems = merged
         }
 
         private func performCleanupOperations() async {
