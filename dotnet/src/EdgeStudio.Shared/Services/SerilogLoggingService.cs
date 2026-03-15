@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Serilog;
 
-namespace EdgeStudio.Services;
+namespace EdgeStudio.Shared.Services;
 
 public sealed class SerilogLoggingService : ILoggingService, IDisposable
 {

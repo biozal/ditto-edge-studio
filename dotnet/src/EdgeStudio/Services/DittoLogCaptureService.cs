@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DittoSDK;
 using EdgeStudio.Models.Logging;
+using EdgeStudio.Shared.Services;
 
 namespace EdgeStudio.Services;
 
@@ -21,9 +22,15 @@ public sealed class DittoLogCaptureService : IDisposable
 
     private readonly object _lock = new();
     private readonly LinkedList<LogEntry> _entries = new();
+    private readonly ILoggingService? _logger;
     private volatile bool _hasNewEntries;
     private bool _isCapturing;
     private bool _disposed;
+
+    public DittoLogCaptureService(ILoggingService? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// True when new entries have been added since the last call to GetSnapshot().
@@ -37,25 +44,22 @@ public sealed class DittoLogCaptureService : IDisposable
     /// </summary>
     public event EventHandler? Cleared;
 
-    public void StartCapture(string minimumLevel = "verbose")
+    /// <summary>
+    /// Registers the Ditto log callback to start capturing SDK log entries.
+    /// Does NOT change DittoLogger.MinimumLogLevel — that is owned by DittoManager
+    /// and set from the database configuration when a database is opened.
+    /// </summary>
+    public void StartCapture()
     {
         if (_isCapturing) return;
         try
         {
-            DittoLogger.MinimumLogLevel = minimumLevel switch
-            {
-                "error"   => DittoLogLevel.Error,
-                "warning" => DittoLogLevel.Warning,
-                "debug"   => DittoLogLevel.Debug,
-                "verbose" => DittoLogLevel.Verbose,
-                _         => DittoLogLevel.Info,
-            };
             DittoLogger.CustomLogCallback = OnDittoLog;
             _isCapturing = true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[DittoLogCaptureService] Failed to start capture: {ex.Message}");
+            _logger?.Error($"[DittoLogCaptureService] Failed to start capture: {ex.Message}");
         }
     }
 

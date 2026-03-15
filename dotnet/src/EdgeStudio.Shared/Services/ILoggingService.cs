@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace EdgeStudio.Services;
+namespace EdgeStudio.Shared.Services;
 
 public interface ILoggingService
 {

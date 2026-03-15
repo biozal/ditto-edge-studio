@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using DittoSDK;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -14,9 +15,10 @@ namespace EdgeStudio.Shared.Data.Repositories
     /// Note: Ditto doesn't provide a built-in way to enumerate all collections.
     /// This implementation queries known/discoverable collections.
     /// </summary>
-    public class CollectionsRepository(IDittoManager dittoManager)
+    public class CollectionsRepository(IDittoManager dittoManager, ILoggingService? logger = null)
         : ICollectionsRepository, ICloseDatabase, IDisposable
     {
+        private readonly ILoggingService? _logger = logger;
         private ObservableCollection<CollectionInfo>? _collections;
         private Action<string>? _errorCallback;
         private bool _disposed;
@@ -92,7 +94,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Collection {collectionName} not accessible: {ex.Message}");
+                    _logger?.Warning($"Collection {collectionName} not accessible: {ex.Message}");
                 }
             }
 

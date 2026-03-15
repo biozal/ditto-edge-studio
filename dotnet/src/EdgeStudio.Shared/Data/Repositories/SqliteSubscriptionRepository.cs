@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DittoSDK;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 
 namespace EdgeStudio.Shared.Data.Repositories
 {
@@ -16,15 +17,18 @@ namespace EdgeStudio.Shared.Data.Repositories
         : SqliteRepositoryBase, ISubscriptionRepository, IDisposable
     {
         private readonly IDittoManager _dittoManager;
+        private readonly ILoggingService? _logger;
         private readonly Dictionary<string, DittoSyncSubscription> _activeSubscriptions = new();
         private bool _disposed;
 
         public SqliteSubscriptionRepository(
             ILocalDatabaseService localDatabaseService,
-            IDittoManager dittoManager)
+            IDittoManager dittoManager,
+            ILoggingService? logger = null)
             : base(localDatabaseService)
         {
             _dittoManager = dittoManager;
+            _logger = logger;
         }
 
         public async Task SaveDittoSubscription(DittoDatabaseSubscription subscription)
@@ -126,7 +130,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                     catch (ObjectDisposedException) { }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error cancelling subscription: {ex.Message}");
+                        _logger?.Error($"Error cancelling subscription: {ex.Message}");
                     }
                 }))
                 .ToArray();

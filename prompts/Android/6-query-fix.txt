@@ -1,0 +1,7 @@
+Go into planning mode.  There are several UI flaws between the android version and the SwiftUI version.  Please review the screenshots query-editor-android.png and query-editor-ios.png in the screens\android folder.  The SwiftUI is the proper UI version and the Android version should match it.
+
+To start out the toolbar at the top is very different.  In the SwiftUI version the run buton and the selection of local vs http fits in the top toolbar along with the buttons for the sidebar, sync, close, and the inspector.  There is no reason this couldn't also fit in Android - we don't need the name of the app in the top compared the controls.
+
+Next the second toolbar in Android doesn't exist in iOS.  Favorites, history and seeing the query details is done in the inspector sheet.  The pagination should be done in the floating toolbar.  The android version has the page amounts in the second top toolbar, then pages floating in a separate toolbar from the bottom toolbar.  
+
+This UI is completely unusable.  The UI should closely match the IOS version of the UI which was optimizzed for smalls screens.  Review the SwiftUI code and make a plan to fix the Android UI code to closely match the iOS version.  Let me know when the plan is ready to review.   

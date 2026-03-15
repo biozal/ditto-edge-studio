@@ -332,10 +332,10 @@
                            MaxWidth="280"/>
             </StackPanel>
 
-            <!-- Log list (bottom padding reserves space for footer) -->
+            <!-- Log list -->
             <ListBox ItemsSource="{Binding FilteredEntries}"
                      Background="Transparent"
-                     Padding="0,0,0,56"
+                     Padding="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      IsVisible="{Binding HasEntries}">
                 <ListBox.ItemTemplate>
@@ -351,50 +351,6 @@
                     </ControlTheme>
                 </ListBox.ItemContainerTheme>
             </ListBox>
-
-            <!-- Floating footer pill -->
-            <Border VerticalAlignment="Bottom"
-                    HorizontalAlignment="Stretch"
-                    Margin="12,0,12,10"
-                    CornerRadius="16"
-                    Background="{DynamicResource SukiCardBackground}"
-                    BoxShadow="0 3 14 0 #55000000"
-                    Padding="14,8">
-                <Grid ColumnDefinitions="*,Auto,Auto">
-
-                    <TextBlock Grid.Column="0"
-                               Text="{Binding FooterText}"
-                               FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                               FontSize="11"
-                               Opacity="0.6"
-                               VerticalAlignment="Center"/>
-
-                    <!-- Clear -->
-                    <Button Grid.Column="1"
-                            Command="{Binding ClearCurrentSourceCommand}"
-                            Theme="{StaticResource SourceTabTheme}"
-                            Padding="5"
-                            Margin="6,0,0,0"
-                            ToolTip.Tip="Clear logs">
-                        <materialIcons:MaterialIcon Kind="TrashCanOutline"
-                                                    Width="14" Height="14"
-                                                    Foreground="#EF5350"/>
-                    </Button>
-
-                    <!-- Entry count chip -->
-                    <Border Grid.Column="2"
-                            CornerRadius="10"
-                            Background="{DynamicResource SukiLightBorderBrush}"
-                            Padding="8,3"
-                            Margin="6,0,0,0"
-                            VerticalAlignment="Center">
-                        <TextBlock Text="{Binding FilteredEntries.Count}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                                   FontSize="11"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-                </Grid>
-            </Border>
 
         </Grid>
     </Grid>

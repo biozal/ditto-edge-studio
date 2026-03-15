@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using DittoSDK;
 using EdgeStudio.Models.Logging;
 using EdgeStudio.Services;
+using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Services;
 
 namespace EdgeStudio.ViewModels;
@@ -38,7 +39,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private string _selectedSdkLogLevel = "verbose";
+    private string _selectedSdkLogLevel = string.Empty;
 
     [ObservableProperty]
     private string _selectedComponent = "All";
@@ -134,6 +135,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     public LoggingViewModel(
         DittoLogCaptureService captureService,
+        IDittoManager dittoManager,
         ILoggingService? loggingService = null,
         IToastService? toastService = null)
         : base(toastService)
@@ -141,6 +143,11 @@ public partial class LoggingViewModel : LoadableViewModelBase
         _captureService = captureService;
         _loggingService = loggingService;
         _captureService.Cleared += OnCaptureServiceCleared;
+
+        // Initialize the dropdown to match the level set by DittoManager from the database config.
+        // Set the backing field directly to avoid triggering OnSelectedSdkLogLevelChanged,
+        // which would call DittoLogger.MinimumLogLevel again unnecessarily.
+        _selectedSdkLogLevel = dittoManager.SelectedDatabaseConfig?.LogLevel ?? "info";
 
         _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _pollTimer.Tick += OnPollTimerTick;
@@ -151,7 +158,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
     protected override void OnActivated()
     {
         base.OnActivated();
-        _captureService.StartCapture(SelectedSdkLogLevel);
+        _captureService.StartCapture();
         _pollTimer.Start();
         _ = RefreshEntriesAsync();
     }
@@ -181,14 +188,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
     {
         try
         {
-            DittoLogger.MinimumLogLevel = value switch
-            {
-                "error"   => DittoLogLevel.Error,
-                "warning" => DittoLogLevel.Warning,
-                "debug"   => DittoLogLevel.Debug,
-                "verbose" => DittoLogLevel.Verbose,
-                _         => DittoLogLevel.Info,
-            };
+            DittoLogger.MinimumLogLevel = DittoLogLevelHelper.Parse(value);
         }
         catch { /* ignore if Ditto not yet initialized */ }
     }

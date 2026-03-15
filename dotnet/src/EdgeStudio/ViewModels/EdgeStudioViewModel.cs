@@ -1,8 +1,7 @@
 using System;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
+using System.IO;
 using System.Threading.Tasks;
-using System.Windows.Input;
+using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -45,6 +44,18 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private bool _isInspectorVisible = false;
 
+        [ObservableProperty]
+        private bool _isListingPanelVisible = true;
+
+        [ObservableProperty]
+        private object _currentBottomBarContent = ConnectionsByTransport.Empty;
+
+        [ObservableProperty]
+        private bool _isLoggingActive = false;
+
+        [ObservableProperty]
+        private string _loggingHelpContent = string.Empty;
+
         public string SyncButtonTooltip => IsSyncEnabled ? "Stop Sync" : "Start Sync";
 
         public EdgeStudioViewModel(
@@ -86,6 +97,8 @@ namespace EdgeStudio.ViewModels
         private void OnConnectionsChanged(object? sender, ConnectionsByTransport connections)
         {
             ConnectionsByTransport = connections;
+            if (!IsLoggingActive)
+                CurrentBottomBarContent = connections;
         }
 
         public NavigationViewModel NavigationViewModel => _navigationViewModelLazy.Value;
@@ -265,34 +278,67 @@ namespace EdgeStudio.ViewModels
                 case NavigationItemType.Subscriptions:
                     CurrentListingViewModel = SubscriptionViewModel;
                     CurrentDetailViewModel = SubscriptionDetailsViewModel;
+                    SetStandardNavLayout();
                     SubscriptionViewModel.Activate();
                     SubscriptionDetailsViewModel.Activate();
                     break;
                 case NavigationItemType.Query:
                     CurrentListingViewModel = QueryViewModel;
                     CurrentDetailViewModel = QueryViewModel;
+                    SetStandardNavLayout();
                     QueryViewModel.Activate();
                     break;
                 case NavigationItemType.Observers:
                     CurrentListingViewModel = ObserversViewModel;
                     CurrentDetailViewModel = ObserversViewModel;
+                    SetStandardNavLayout();
                     ObserversViewModel.Activate();
                     break;
                 case NavigationItemType.Logging:
-                    CurrentListingViewModel = LoggingViewModel;
+                    CurrentListingViewModel = null;
                     CurrentDetailViewModel = LoggingViewModel;
+                    IsListingPanelVisible = false;
+                    CurrentBottomBarContent = LoggingViewModel;
+                    IsLoggingActive = true;
                     LoggingViewModel.Activate();
+                    EnsureLoggingHelpLoaded();
                     break;
                 case NavigationItemType.AppMetrics:
                     CurrentListingViewModel = AppMetricsViewModel;
                     CurrentDetailViewModel = AppMetricsViewModel;
+                    SetStandardNavLayout();
                     AppMetricsViewModel.Activate();
                     break;
                 case NavigationItemType.QueryMetrics:
                     CurrentListingViewModel = QueryMetricsViewModel;
                     CurrentDetailViewModel = QueryMetricsViewModel;
+                    SetStandardNavLayout();
                     QueryMetricsViewModel.Activate();
                     break;
+            }
+        }
+
+        private void SetStandardNavLayout()
+        {
+            IsListingPanelVisible = true;
+            CurrentBottomBarContent = ConnectionsByTransport;
+            IsLoggingActive = false;
+        }
+
+        private static readonly Uri LoggingHelpUri = new("avares://EdgeStudio/Assets/Help/logging.md");
+
+        private void EnsureLoggingHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(LoggingHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(LoggingHelpUri);
+                using var reader = new StreamReader(stream);
+                LoggingHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                LoggingHelpContent = "# Logging\n\nHelp content unavailable.";
             }
         }
 

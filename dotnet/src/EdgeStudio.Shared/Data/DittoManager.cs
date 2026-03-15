@@ -3,12 +3,19 @@ using System.IO;
 using System.Threading.Tasks;
 using DittoSDK;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 
 namespace EdgeStudio.Shared.Data
 {
     public sealed class DittoManager : IDittoManager, IDisposable
     {
         private bool _disposed = false;
+        private readonly ILoggingService? _logger;
+
+        public DittoManager(ILoggingService? logger = null)
+        {
+            _logger = logger;
+        }
 
         public Ditto? DittoSelectedApp { get; set; } = null;
 
@@ -41,7 +48,7 @@ namespace EdgeStudio.Shared.Data
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error closing Ditto database: {ex.Message}");
+                        _logger?.Error($"Error closing Ditto database: {ex.Message}");
                     }
                 });
 
@@ -86,14 +93,7 @@ namespace EdgeStudio.Shared.Data
                 persistenceDirectory: persistenceDirectory
             );
 
-            DittoLogger.MinimumLogLevel = dittoDatabaseConfig.LogLevel switch
-            {
-                "error"   => DittoLogLevel.Error,
-                "warning" => DittoLogLevel.Warning,
-                "debug"   => DittoLogLevel.Debug,
-                "verbose" => DittoLogLevel.Verbose,
-                _         => DittoLogLevel.Info,
-            };
+            DittoLogger.MinimumLogLevel = DittoLogLevelHelper.Parse(dittoDatabaseConfig.LogLevel);
 
             this.DittoSelectedApp = await Ditto.OpenAsync(config);
             if (this.DittoSelectedApp != null)
@@ -111,11 +111,15 @@ namespace EdgeStudio.Shared.Data
                     }
                 };
 
-                this.DittoSelectedApp.DisableSyncWithV3();
+                DittoSelectedApp.DisableSyncWithV3();
 
                 // Apply strict mode BEFORE starting sync (matches SwiftUI hydrateDittoSelectedDatabase order)
                 var strictMode = dittoDatabaseConfig.IsStrictModeEnabled ? "true" : "false";
-                await this.DittoSelectedApp.Store.ExecuteAsync($"ALTER SYSTEM SET DQL_STRICT_MODE = {strictMode}");
+                await DittoSelectedApp.Store.ExecuteAsync($"ALTER SYSTEM SET DQL_STRICT_MODE = {strictMode}");
+              
+                //set max connections to 12 for LAN/P2P Wi-Fi
+                await DittoSelectedApp.Store.ExecuteAsync("ALTER SYSTEM SET mesh_chooser_max_wlan_clients = 12");
+                _logger?.Info("Setting system parameter mesh_chooser_max_wlan_clients to 12");
 
                 // Apply transport config BEFORE starting sync — matches SwiftUI startup order.
                 // Starting sync first would cause Ditto to connect with default transports,
@@ -127,7 +131,7 @@ namespace EdgeStudio.Shared.Data
                     wifiAwareEnabled: false,
                     webSocketEnabled: dittoDatabaseConfig.IsCloudSyncEnabled);
 
-                this.DittoSelectedApp.Sync.Start();
+                DittoSelectedApp.Sync.Start();
                 isSuccess = true;
             }
             else
@@ -191,13 +195,16 @@ namespace EdgeStudio.Shared.Data
                     }
                 });
 
-                System.Diagnostics.Debug.WriteLine("=== Transport Configuration Applied ===");
-                System.Diagnostics.Debug.WriteLine($"Bluetooth LE: {DittoSelectedApp.TransportConfig.PeerToPeer.BluetoothLE.Enabled}");
-                System.Diagnostics.Debug.WriteLine($"LAN: {DittoSelectedApp.TransportConfig.PeerToPeer.Lan.Enabled}");
-                System.Diagnostics.Debug.WriteLine($"AWDL: {DittoSelectedApp.TransportConfig.PeerToPeer.Awdl.Enabled}");
-                System.Diagnostics.Debug.WriteLine($"WiFi Aware: {DittoSelectedApp.TransportConfig.PeerToPeer.WifiAware.Enabled}");
-                System.Diagnostics.Debug.WriteLine($"WebSocket URLs: {DittoSelectedApp.TransportConfig.Connect.WebsocketUrls.Count}");
-                System.Diagnostics.Debug.WriteLine("======================================");
+                _logger?.Info("Transport Configuration Applied");
+                if (_logger != null)
+                {
+                    var tc = DittoSelectedApp.TransportConfig;
+                    _logger.Debug($"Bluetooth LE: {tc.PeerToPeer.BluetoothLE.Enabled}");
+                    _logger.Debug($"LAN: {tc.PeerToPeer.Lan.Enabled}");
+                    _logger.Debug($"AWDL: {tc.PeerToPeer.Awdl.Enabled}");
+                    _logger.Debug($"WiFi Aware: {tc.PeerToPeer.WifiAware.Enabled}");
+                    _logger.Debug($"WebSocket URLs: {tc.Connect.WebsocketUrls.Count}");
+                }
             });
         }
     }

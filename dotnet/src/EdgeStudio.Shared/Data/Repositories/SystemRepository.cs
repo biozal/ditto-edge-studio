@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using DittoSDK;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -9,9 +10,10 @@ using System.Threading.Tasks;
 
 namespace EdgeStudio.Shared.Data.Repositories
 {
-    public sealed class SystemRepository(IDittoManager dittoManager)
+    public sealed class SystemRepository(IDittoManager dittoManager, ILoggingService? logger = null)
         : ISystemRepository, IDisposable
     {
+        private readonly ILoggingService? _logger = logger;
         private DittoStoreObserver? _syncStatusObserver;
         private bool _disposedValue;
 
@@ -58,7 +60,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error cancelling observer: {ex.Message}");
+                    _logger?.Error($"Error cancelling observer: {ex.Message}");
                 }
             });
 
@@ -116,7 +118,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                 "SELECT * FROM system:data_sync_info ORDER BY documents.last_update_received_time desc",
                 (result) =>
                 {
-                    System.Diagnostics.Debug.WriteLine($"Observer fired: {result.Items.Count} items in system:data_sync_info");
+                    _logger?.Debug($"Observer fired: {result.Items.Count} items in system:data_sync_info");
 
                     if (result.Items.Count == 0)
                     {
@@ -230,7 +232,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                         .Where(p => p.CardType != PeerCardType.Local)
                         .ToList();
 
-                    System.Diagnostics.Debug.WriteLine($"CancelPeerCardObservers: Removing {remotePeers.Count} remote peers (direct)");
+                    _logger?.Debug($"CancelPeerCardObservers: Removing {remotePeers.Count} remote peers (direct)");
 
                     foreach (var peer in remotePeers)
                     {
@@ -246,7 +248,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                             .Where(p => p.CardType != PeerCardType.Local)
                             .ToList();
 
-                        System.Diagnostics.Debug.WriteLine($"CancelPeerCardObservers: Removing {remotePeers.Count} remote peers (invoke)");
+                        _logger?.Debug($"CancelPeerCardObservers: Removing {remotePeers.Count} remote peers (invoke)");
 
                         foreach (var peer in remotePeers)
                         {
@@ -257,7 +259,7 @@ namespace EdgeStudio.Shared.Data.Repositories
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("CancelPeerCardObservers: _registeredPeerCards is null!");
+                _logger?.Warning("CancelPeerCardObservers: _registeredPeerCards is null!");
             }
         }
 
@@ -273,7 +275,7 @@ namespace EdgeStudio.Shared.Data.Repositories
             }
 
             RegisterPeerCardObservers(_registeredPeerCards, _registeredErrorCallback);
-            System.Diagnostics.Debug.WriteLine("ReregisterPeerCardObservers: Observer registered");
+            _logger?.Debug("ReregisterPeerCardObservers: Observer registered");
         }
 
         private static PeerCardInfo CreateLocalPeerCard(DittoPeer localPeer)
@@ -306,7 +308,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                     if (!seenTypes.Add(typeStr))
                         continue;
 
-                    System.Diagnostics.Debug.WriteLine($"[ConnectionCount] peer={peer.PeerKeyString} connType=\"{typeStr}\" (int={conn.ConnectionType:D})");
+                    _logger?.Debug($"[ConnectionCount] peer={peer.PeerKeyString} connType=\"{typeStr}\" (int={conn.ConnectionType:D})");
 
                     switch (typeStr)
                     {
@@ -319,7 +321,7 @@ namespace EdgeStudio.Shared.Data.Repositories
                         case "P2PWifi":
                         case "P2PWiFi":      p2pWifi++;      break;
                         default:
-                            System.Diagnostics.Debug.WriteLine($"[ConnectionCount] UNHANDLED type: \"{typeStr}\"");
+                            _logger?.Warning($"[ConnectionCount] UNHANDLED type: \"{typeStr}\"");
                             break;
                     }
                 }

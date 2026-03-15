@@ -2,8 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:vm="using:EdgeStudio.ViewModels"
              x:Class="EdgeStudio.Views.Controls.DetailBottomBar"
-             x:CompileBindings="False">
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
 
     <UserControl.Styles>
         <!-- Plain button — no chrome, no hover background, blends into the bar like SwiftUI .buttonStyle(.plain) -->
@@ -24,7 +26,7 @@
 
     <Panel VerticalAlignment="Bottom" HorizontalAlignment="Stretch">
 
-        <!-- EXPANDED STATE: full-width bar, connections left, chevron right -->
+        <!-- EXPANDED STATE: full-width bar, context-aware content left, chevron right -->
         <Border x:Name="ExpandedBar"
                 HorizontalAlignment="Stretch"
                 Background="#CC1A1F2E"
@@ -33,86 +35,116 @@
                 Margin="12,0,12,12">
             <Grid ColumnDefinitions="Auto,*,Auto" Height="44">
 
-                <!-- Left: connections button with flyout -->
-                <Button Grid.Column="0"
-                        x:Name="ConnectionsButton"
-                        Classes="BarButton"
-                        Padding="20,12"
-                        VerticalAlignment="Center"
-                        VerticalContentAlignment="Center">
-                    <Button.Flyout>
-                        <Flyout Placement="Top">
-                            <Border Background="#1E2433"
-                                    CornerRadius="10"
-                                    BoxShadow="0 4 16 2 #60000000"
-                                    MinWidth="190"
-                                    Padding="0,4,0,8">
-                                <StackPanel>
-                                    <TextBlock Text="Connections"
-                                               FontSize="11"
-                                               Foreground="White"
-                                               Opacity="0.5"
-                                               Margin="14,8,14,4"/>
-                                    <Separator Opacity="0.2" Margin="0,0,0,4"/>
+                <!-- Left: context-aware content driven by CurrentBottomBarContent -->
+                <ContentControl Grid.Column="0"
+                                Content="{Binding CurrentBottomBarContent}"
+                                VerticalAlignment="Center">
+                    <ContentControl.DataTemplates>
 
-                                    <!-- Active transports list -->
-                                    <ItemsControl x:Name="TransportsList"
-                                                  ItemsSource="{Binding ActiveTransports}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="models:TransportInfo">
+                        <!-- Connections mode (default for all nav except Logging) -->
+                        <DataTemplate DataType="{x:Type models:ConnectionsByTransport}">
+                            <Button Classes="BarButton"
+                                    Padding="20,12"
+                                    VerticalAlignment="Center"
+                                    VerticalContentAlignment="Center">
+                                <Button.Flyout>
+                                    <Flyout Placement="Top">
+                                        <Border Background="#1E2433"
+                                                CornerRadius="10"
+                                                BoxShadow="0 4 16 2 #60000000"
+                                                MinWidth="190"
+                                                Padding="0,4,0,8">
+                                            <StackPanel>
+                                                <TextBlock Text="Connections"
+                                                           FontSize="11"
+                                                           Foreground="White"
+                                                           Opacity="0.5"
+                                                           Margin="14,8,14,4"/>
+                                                <Separator Opacity="0.2" Margin="0,0,0,4"/>
+
+                                                <!-- Active transports list -->
+                                                <ItemsControl ItemsSource="{Binding ActiveTransports}"
+                                                              IsVisible="{Binding HasActiveConnections}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="models:TransportInfo">
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        Spacing="8"
+                                                                        Margin="14,5,14,0">
+                                                                <Border Width="8" Height="8"
+                                                                        CornerRadius="4"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{Binding DotBrush}"/>
+                                                                <TextBlock FontSize="13"
+                                                                           Foreground="White"
+                                                                           VerticalAlignment="Center">
+                                                                    <Run Text="{Binding Name}"/>
+                                                                    <Run Text=": "/>
+                                                                    <Run Text="{Binding Count}"/>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <!-- No connections fallback -->
                                                 <StackPanel Orientation="Horizontal"
                                                             Spacing="8"
-                                                            Margin="14,5,14,0">
-                                                    <Border Width="8" Height="8"
-                                                            CornerRadius="4"
-                                                            VerticalAlignment="Center"
-                                                            Background="{Binding DotBrush}"/>
-                                                    <TextBlock FontSize="13"
+                                                            Margin="14,6"
+                                                            IsVisible="{Binding !HasActiveConnections}">
+                                                    <avalonia:MaterialIcon Kind="WifiOff"
+                                                                           Width="16" Height="16"
+                                                                           Foreground="White"
+                                                                           Opacity="0.45"
+                                                                           VerticalAlignment="Center"/>
+                                                    <TextBlock Text="No Active Connections"
                                                                Foreground="White"
-                                                               VerticalAlignment="Center">
-                                                        <Run Text="{Binding Name}"/>
-                                                        <Run Text=": "/>
-                                                        <Run Text="{Binding Count}"/>
-                                                    </TextBlock>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-
-                                    <!-- No connections fallback -->
-                                    <StackPanel x:Name="NoConnectionsPanel"
-                                                Orientation="Horizontal"
-                                                Spacing="8"
-                                                Margin="14,6">
-                                        <avalonia:MaterialIcon Kind="WifiOff"
-                                                               Width="16" Height="16"
-                                                               Foreground="White"
-                                                               Opacity="0.45"
+                                                               Opacity="0.55"
+                                                               FontSize="13"
                                                                VerticalAlignment="Center"/>
-                                        <TextBlock Text="No Active Connections"
-                                                   Foreground="White"
-                                                   Opacity="0.55"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </Flyout>
-                    </Button.Flyout>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </Flyout>
+                                </Button.Flyout>
 
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <avalonia:MaterialIcon Kind="AccessPoint"
-                                               Width="16" Height="16"
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <avalonia:MaterialIcon Kind="AccessPoint"
+                                                           Width="16" Height="16"
+                                                           Foreground="White"
+                                                           Opacity="0.65"
+                                                           VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding TotalConnections}"
+                                               FontSize="14"
+                                               FontFamily="Monospace"
                                                Foreground="White"
-                                               Opacity="0.65"
                                                VerticalAlignment="Center"/>
-                        <TextBlock x:Name="ConnectionCountText"
-                                   FontSize="14"
-                                   FontFamily="Monospace"
-                                   Foreground="White"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+
+                        <!-- Logging mode -->
+                        <DataTemplate DataType="{x:Type vm:LoggingViewModel}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="20,0">
+                                <TextBlock Text="{Binding FooterText}"
+                                           FontFamily="Cascadia Code, Consolas, Courier New, monospace"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           Opacity="0.75"
+                                           VerticalAlignment="Center"/>
+                                <Button Command="{Binding ClearCurrentSourceCommand}"
+                                        Padding="8,4"
+                                        CornerRadius="6"
+                                        Background="#FFFF00"
+                                        ToolTip.Tip="Clear logs">
+                                    <avalonia:MaterialIcon Kind="TrashCanOutline"
+                                                           Width="14" Height="14"
+                                                           Foreground="Black"/>
+                                </Button>
+                            </StackPanel>
+                        </DataTemplate>
+
+                    </ContentControl.DataTemplates>
+                </ContentControl>
 
                 <!-- Center: empty spacer -->
                 <Panel Grid.Column="1"/>

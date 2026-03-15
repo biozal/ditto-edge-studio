@@ -5,8 +5,11 @@
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:tools="using:EdgeStudio.Views.Tools"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="700"
-             x:Class="EdgeStudio.Views.Inspector.InspectorView">
+             x:Class="EdgeStudio.Views.Inspector.InspectorView"
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
 
     <Grid RowDefinitions="Auto,*">
         <!-- Header -->
@@ -26,8 +29,9 @@
             </StackPanel>
         </Border>
 
-        <!-- Tabs -->
-        <TabControl Grid.Row="1" Padding="0">
+        <!-- Standard inspector tabs (non-Logging nav) -->
+        <TabControl Grid.Row="1" Padding="0"
+                    IsVisible="{Binding !IsLoggingActive}">
             <TabControl.Styles>
                 <Style Selector="TabItem">
                     <Setter Property="FontSize" Value="12"/>
@@ -59,5 +63,13 @@
                 </tools:IndexesToolView>
             </TabItem>
         </TabControl>
+
+        <!-- Logging help panel (only when Logging nav is active) -->
+        <ScrollViewer Grid.Row="1"
+                      IsVisible="{Binding IsLoggingActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="LoggingHelpContainer" Padding="12"/>
+        </ScrollViewer>
     </Grid>
 </UserControl>

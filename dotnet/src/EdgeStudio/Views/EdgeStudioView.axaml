@@ -116,8 +116,8 @@
                 <ColumnDefinition Width="48" MinWidth="48" MaxWidth="60"/>
                 <!-- First Splitter -->
                 <ColumnDefinition Width="Auto"/>
-                <!-- Collections Panel -->
-                <ColumnDefinition Width="250" MinWidth="200" MaxWidth="500"/>
+                <!-- Collections Panel (collapsed when IsListingPanelVisible=false) -->
+                <ColumnDefinition Width="Auto"/>
                 <!-- Second Splitter -->
                 <ColumnDefinition Width="Auto"/>
                 <!-- Main Content Area (Detail Views) -->
@@ -133,11 +133,12 @@
                 <navigation:NavigationBar DataContext="{Binding NavigationViewModel}"/>
             </Border>
 
-            <!-- First Splitter -->
+            <!-- First Splitter (hidden when listing panel is hidden) -->
             <GridSplitter Grid.Column="1"
                           Width="5"
                           Background="Transparent"
-                          ResizeDirection="Columns">
+                          ResizeDirection="Columns"
+                          IsVisible="{Binding IsListingPanelVisible}">
                 <GridSplitter.Styles>
                     <Style Selector="GridSplitter:pointerover">
                         <Setter Property="Background" Value="#20FFFFFF"/>
@@ -148,8 +149,11 @@
                 </GridSplitter.Styles>
             </GridSplitter>
 
-            <!-- Collections/Listing Panel -->
-            <Border Grid.Column="2" Background="#05000000">
+            <!-- Collections/Listing Panel (hidden for Logging nav) -->
+            <Border Grid.Column="2"
+                    Width="250" MinWidth="200" MaxWidth="500"
+                    Background="#05000000"
+                    IsVisible="{Binding IsListingPanelVisible}">
                 <ContentControl Content="{Binding CurrentListingViewModel}">
                     <ContentControl.DataTemplates>
                         <DataTemplate DataType="{x:Type vm:SubscriptionViewModel}">
@@ -349,10 +353,8 @@
                 </ContentControl>
               </Border>
 
-              <!-- Floating DetailBottomBar overlay -->
-              <controls:DetailBottomBar
-                  DataContext="{Binding ConnectionsByTransport}"
-                  VerticalAlignment="Bottom"/>
+              <!-- Floating DetailBottomBar overlay — inherits EdgeStudioViewModel DataContext -->
+              <controls:DetailBottomBar VerticalAlignment="Bottom"/>
 
             </Grid>
 

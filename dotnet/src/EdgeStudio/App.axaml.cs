@@ -10,8 +10,8 @@ using SukiUI;
 using SukiUI.Models;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
-using EdgeStudio.Shared.Services;
 using EdgeStudio.Services;
+using EdgeStudio.Shared.Services;
 using EdgeStudio.ViewModels;
 using EdgeStudio.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -140,7 +140,9 @@ public partial class App : Application
         var localDatabaseService = new SqliteLocalDatabaseService();
         await localDatabaseService.InitializeAsync();
 
-        var dittoManager = new DittoManager();
+        // Create logging service first so DittoManager can use it from startup
+        var loggingService = new SerilogLoggingService();
+        var dittoManager = new DittoManager(loggingService);
 
         // Register core services
         services.AddSingleton<ILocalDatabaseService>(localDatabaseService);
@@ -158,8 +160,8 @@ public partial class App : Application
         services.AddSingleton<IQrCodeService, QrCodeService>();
         services.AddSingleton<INetworkAdapterService, NetworkAdapterService>();
 
-        // Register logging services
-        services.AddSingleton<ILoggingService, SerilogLoggingService>();
+        // Register logging services (use the same instance passed to DittoManager)
+        services.AddSingleton<ILoggingService>(loggingService);
         services.AddSingleton<DittoLogCaptureService>();
 
         // Register SQLite-backed repositories
