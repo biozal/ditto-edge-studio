@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:inspector="using:EdgeStudio.Views.StudioView.Inspector"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="300"
+             x:Class="EdgeStudio.Views.StudioView.Details.QueryResultsView"
+             x:DataType="vm:QueryDocumentViewModel"
+             x:CompileBindings="True">
+
+    <TabControl Background="{DynamicResource SukiBackground}">
+        <TabControl.Styles>
+            <Style Selector="TabItem">
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="14,6"/>
+                <Setter Property="Margin" Value="0,0,2,0"/>
+                <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+            </Style>
+            <!-- Selected tab: Ditto Yellow bottom underline -->
+            <Style Selector="TabItem:selected">
+                <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DittoAccent}"/>
+                <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            </Style>
+        </TabControl.Styles>
+
+        <TabItem Header="JSON">
+            <inspector:JsonResultsView DataContext="{Binding JsonResults}"/>
+        </TabItem>
+        <TabItem Header="Table">
+            <inspector:TableResultsView DataContext="{Binding TableResults}"/>
+        </TabItem>
+    </TabControl>
+</UserControl>

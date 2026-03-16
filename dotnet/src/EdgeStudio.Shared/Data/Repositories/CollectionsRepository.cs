@@ -21,6 +21,7 @@ namespace EdgeStudio.Shared.Data.Repositories
         private readonly ILoggingService? _logger = logger;
         private ObservableCollection<CollectionInfo>? _collections;
         private Action<string>? _errorCallback;
+        private DittoStoreObserver? _collectionsObserver;
         private bool _disposed;
 
         public void RegisterObserver(ObservableCollection<CollectionInfo> collections, Action<string> errorMessage)
@@ -37,16 +38,13 @@ namespace EdgeStudio.Shared.Data.Repositories
             try
             {
                 var ditto = dittoManager.GetSelectedAppDitto();
-                var collectionInfos = await DiscoverCollectionsAsync(ditto);
+                await RefreshAsync(ditto);
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    _collections.Clear();
-                    foreach (var collectionInfo in collectionInfos)
-                    {
-                        _collections.Add(collectionInfo);
-                    }
-                });
+                // Register live observer so UI updates when collections change
+                _collectionsObserver?.Cancel();
+                _collectionsObserver = ditto.Store.RegisterObserver(
+                    "SELECT * FROM __collections",
+                    result => { result.Dispose(); _ = RefreshAsync(ditto); });
             }
             catch (Exception ex)
             {
@@ -54,67 +52,102 @@ namespace EdgeStudio.Shared.Data.Repositories
             }
         }
 
-        private async Task<List<CollectionInfo>> DiscoverCollectionsAsync(Ditto ditto)
+        private async Task RefreshAsync(Ditto ditto)
         {
-            var collections = new List<CollectionInfo>();
+            var names = await FetchCollectionNamesAsync(ditto);
+            var countsByName = await FetchDocumentCountsAsync(ditto, names);
+            var indexesByCollection = await FetchIndexesAsync(ditto);
 
-            var knownCollections = new[]
+            var infos = names
+                .Select(name => new CollectionInfo
+                {
+                    Id = name,
+                    Name = name,
+                    DocumentCount = countsByName.TryGetValue(name, out var c) ? c : 0,
+                    LastModified = DateTime.Now,
+                    Indexes = indexesByCollection.TryGetValue(name, out var idx) ? idx : []
+                })
+                .ToList();
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                "dittodatabaseconfigs",
-                "dittodatabasesubscriptions",
-                "dittoqueryhistory",
-                "dittoqueryfavorites"
-            };
+                if (_collections == null) return;
+                _collections.Clear();
+                foreach (var info in infos)
+                    _collections.Add(info);
+            });
+        }
 
-            foreach (var collectionName in knownCollections)
+        private static async Task<List<string>> FetchCollectionNamesAsync(Ditto ditto)
+        {
+            var result = await ditto.Store.ExecuteAsync("SELECT * FROM __collections");
+            var names = result.Items
+                .Select(item => item.Value.TryGetValue("name", out var n) ? n?.ToString() : null)
+                .Where(n => n != null && !n.StartsWith("__", StringComparison.Ordinal))
+                .Select(n => n!)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            result.Dispose();
+            return names;
+        }
+
+        private static async Task<Dictionary<string, int>> FetchDocumentCountsAsync(Ditto ditto, List<string> names)
+        {
+            var counts = new Dictionary<string, int>();
+            foreach (var name in names)
             {
                 try
                 {
-                    var query = $"SELECT COUNT(*) as count FROM {collectionName}";
-                    var result = await ditto.Store.ExecuteAsync(query);
-
-                    int count = 0;
-                    if (result.Items.Count > 0)
-                    {
-                        var item = result.Items[0];
-                        if (item.Value.TryGetValue("count", out var countObj))
-                        {
-                            count = Convert.ToInt32(countObj);
-                        }
-                    }
+                    var result = await ditto.Store.ExecuteAsync($"SELECT COUNT(*) as numDocs FROM {name}");
+                    if (result.Items.Count > 0 && result.Items[0].Value.TryGetValue("numDocs", out var n))
+                        counts[name] = Convert.ToInt32(n);
                     result.Dispose();
-
-                    collections.Add(new CollectionInfo
-                    {
-                        Id = collectionName,
-                        Name = FormatCollectionName(collectionName),
-                        DocumentCount = count,
-                        LastModified = DateTime.Now
-                    });
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    _logger?.Warning($"Collection {collectionName} not accessible: {ex.Message}");
+                    // Collection may be empty or inaccessible — skip
                 }
             }
-
-            return collections.OrderBy(c => c.Name).ToList();
+            return counts;
         }
 
-        private string FormatCollectionName(string collectionName)
+        private static async Task<Dictionary<string, List<IndexInfo>>> FetchIndexesAsync(Ditto ditto)
         {
-            if (collectionName.StartsWith("ditto"))
+            var indexesByCollection = new Dictionary<string, List<IndexInfo>>();
+            try
             {
-                var name = collectionName.Substring(5);
-                var formatted = string.Concat(name.Select((c, i) =>
-                    i > 0 && char.IsUpper(c) ? " " + c : c.ToString()));
-                return char.ToUpper(formatted[0]) + formatted.Substring(1);
+                var result = await ditto.Store.ExecuteAsync("SELECT * FROM system:indexes");
+                foreach (var item in result.Items)
+                {
+                    var collection = item.Value.TryGetValue("collection", out var col) ? col?.ToString() : null;
+                    var rawId = item.Value.TryGetValue("_id", out var id) ? id?.ToString() : null;
+                    if (collection == null || rawId == null) continue;
+
+                    // SDK stores "collection.indexName" — strip the prefix
+                    var dotIdx = rawId.IndexOf('.');
+                    var indexName = dotIdx >= 0 ? rawId[(dotIdx + 1)..] : rawId;
+
+                    var fields = new List<string>();
+                    if (item.Value.TryGetValue("fields", out var rawFields) && rawFields is IEnumerable<object> fieldList)
+                        fields.AddRange(fieldList.Select(f => f?.ToString()?.Trim('`') ?? string.Empty).Where(f => f.Length > 0));
+
+                    if (!indexesByCollection.TryGetValue(collection, out var list))
+                        indexesByCollection[collection] = list = [];
+                    list.Add(new IndexInfo(indexName, fields));
+                }
+                result.Dispose();
             }
-            return collectionName;
+            catch (Exception)
+            {
+                // system:indexes may not be available in all SDK versions — return empty
+            }
+            return indexesByCollection;
         }
 
         public void CloseSelectedDatabase()
         {
+            try { _collectionsObserver?.Cancel(); } catch { /* ignore */ }
+            _collectionsObserver = null;
             _collections?.Clear();
             _collections = null;
             _errorCallback = null;
@@ -124,6 +157,8 @@ namespace EdgeStudio.Shared.Data.Repositories
         {
             return Dispatcher.UIThread.InvokeAsync(() =>
             {
+                try { _collectionsObserver?.Cancel(); } catch { /* ignore */ }
+                _collectionsObserver = null;
                 _collections?.Clear();
                 _collections = null;
                 _errorCallback = null;

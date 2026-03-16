@@ -1,0 +1,61 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:vm="using:EdgeStudio.ViewModels"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:details="using:EdgeStudio.Views.StudioView.Details"
+                 mc:Ignorable="d"
+                 d:DesignWidth="460"
+                 d:DesignHeight="480"
+                 x:Class="EdgeStudio.Views.Settings.TransportSettingsWindow"
+                 x:DataType="vm:SubscriptionSettingsViewModel"
+                 x:CompileBindings="True"
+                 Title="Transport Settings"
+                 Width="460"
+                 SizeToContent="Height"
+                 MaxHeight="640"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <!-- Transport options -->
+        <details:SubscriptionSettingsView Grid.Row="0"/>
+
+        <!-- Footer: status + buttons -->
+        <StackPanel Grid.Row="1" Margin="20,4,20,16" Spacing="8">
+
+            <!-- Status message — only shown while applying -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12"
+                       Opacity="0.8"
+                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+            <!-- Progress bar — only shown while loading -->
+            <ProgressBar IsIndeterminate="True"
+                         IsVisible="{Binding IsLoading}"
+                         Height="3"/>
+
+            <!-- Apply + Close side by side -->
+            <Grid ColumnDefinitions="*,Auto">
+                <Button Grid.Column="0"
+                        Content="Apply Transport Settings"
+                        Command="{Binding ApplyTransportSettingsCommand}"
+                        IsEnabled="{Binding IsApplyEnabled}"
+                        Classes="Flat"
+                        HorizontalAlignment="Left"
+                        Padding="16,8"/>
+
+                <Button Grid.Column="1"
+                        Content="Close"
+                        Classes="Flat"
+                        Padding="20,8"
+                        Click="Close_Click"/>
+            </Grid>
+
+        </StackPanel>
+    </Grid>
+
+</suki:SukiWindow>

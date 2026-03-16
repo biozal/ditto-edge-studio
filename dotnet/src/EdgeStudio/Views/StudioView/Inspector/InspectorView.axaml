@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:inspector="using:EdgeStudio.Views.StudioView.Inspector"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+
+             mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="700"
+             x:Class="EdgeStudio.Views.StudioView.Inspector.InspectorView"
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
+
+    <Grid>
+        <!-- Standard inspector tabs (History / Favorites / Indexes) — icon-only headers -->
+        <TabControl Padding="0"
+                    IsVisible="{Binding IsStandardInspectorVisible}">
+            <TabControl.Styles>
+                <Style Selector="TabItem">
+                    <Setter Property="Padding" Value="10,8"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                </Style>
+                <Style Selector="TabItem:selected">
+                    <Setter Property="Foreground" Value="{DynamicResource DittoAccent}"/>
+                </Style>
+            </TabControl.Styles>
+
+            <TabItem ToolTip.Tip="History">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="History" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:HistoryToolView DataContext="{Binding HistoryToolViewModel}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="Favorites">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="Star" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:FavoritesToolView DataContext="{Binding FavoritesToolViewModel}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="Indexes">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="DatabaseSearch" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:IndexesToolView>
+                    <inspector:IndexesToolView.DataContext>
+                        <vm:IndexesToolViewModel/>
+                    </inspector:IndexesToolView.DataContext>
+                </inspector:IndexesToolView>
+            </TabItem>
+        </TabControl>
+
+        <!-- Query inspector tabs (History / Favorites / JSON Viewer / Metrics / Help) -->
+        <TabControl Padding="0"
+                    IsVisible="{Binding IsQueryActive}"
+                    SelectedIndex="{Binding SelectedQueryInspectorTabIndex}">
+            <TabControl.Styles>
+                <Style Selector="TabItem">
+                    <Setter Property="Padding" Value="10,8"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                </Style>
+                <Style Selector="TabItem:selected">
+                    <Setter Property="Foreground" Value="{DynamicResource DittoAccent}"/>
+                </Style>
+            </TabControl.Styles>
+
+            <TabItem ToolTip.Tip="History">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="History" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:HistoryToolView DataContext="{Binding HistoryToolViewModel}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="Favorites">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="Star" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:FavoritesToolView DataContext="{Binding FavoritesToolViewModel}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="JSON Viewer">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="CodeJson" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:DocumentViewerView DataContext="{Binding QueryViewModel.CurrentQueryDocument}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="Metrics">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="ChartLine" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <inspector:QueryMetricsView DataContext="{Binding QueryMetricsViewModel}"/>
+            </TabItem>
+
+            <TabItem ToolTip.Tip="Help">
+                <TabItem.Header>
+                    <materialIcons:MaterialIcon Kind="HelpCircle" Width="20" Height="20"
+                                                Foreground="{Binding $parent[TabItem].Foreground}"/>
+                </TabItem.Header>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ContentControl x:Name="QueryHelpContainer" Padding="12"/>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Logging help panel (only when Logging nav is active) -->
+        <ScrollViewer IsVisible="{Binding IsLoggingActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="LoggingHelpContainer" Padding="12"/>
+        </ScrollViewer>
+
+        <!-- Subscription help panel (only when Subscriptions nav is active) -->
+        <ScrollViewer IsVisible="{Binding IsSubscriptionActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="SubscriptionHelpContainer" Padding="12"/>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

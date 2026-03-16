@@ -1,0 +1,144 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.StudioView.Sidebar.QueryListingView"
+             x:DataType="vm:QueryViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.Styles>
+        <Style Selector="TreeViewItem">
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="Collections"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="12,8"/>
+
+        <!-- Collections TreeView -->
+        <Panel Grid.Row="1">
+
+            <!-- Tree -->
+            <TreeView x:Name="CollectionsTree"
+                      ItemsSource="{Binding Collections}"
+                      IsVisible="{Binding HasCollections}"
+                      Margin="4,0">
+                <TreeView.DataTemplates>
+
+                    <!-- Collection row -->
+                    <TreeDataTemplate DataType="{x:Type models:CollectionInfo}"
+                                      ItemsSource="{Binding Indexes}">
+                        <Grid ColumnDefinitions="Auto,6,*,8,Auto">
+                            <Grid.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{Binding Name, StringFormat='SELECT * FROM {0}'}"
+                                              Command="{Binding #CollectionsTree.((vm:QueryViewModel)DataContext).InsertQueryCommand}"
+                                              CommandParameter="{Binding Name}">
+                                        <MenuItem.Icon>
+                                            <materialIcons:MaterialIcon Kind="PlayCircle" Width="14" Height="14"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Grid.ContextMenu>
+
+                            <materialIcons:MaterialIcon Grid.Column="0"
+                                                        Kind="BookOpen"
+                                                        Width="14" Height="14"
+                                                        Opacity="0.65"
+                                                        VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Name}"
+                                       VerticalAlignment="Center"/>
+                            <!-- Document count badge -->
+                            <Border Grid.Column="4"
+                                    Background="{DynamicResource DittoAccent}"
+                                    CornerRadius="10"
+                                    Padding="7,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DocumentCount}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource DittoJetBlack}"
+                                           FontFamily="Monospace"/>
+                            </Border>
+                        </Grid>
+                    </TreeDataTemplate>
+
+                    <!-- Index row -->
+                    <TreeDataTemplate DataType="{x:Type models:IndexInfo}"
+                                      ItemsSource="{Binding Fields}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <materialIcons:MaterialIcon Kind="InformationOutline"
+                                                        Width="13" Height="13"
+                                                        Opacity="0.55"
+                                                        VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="12"
+                                       Opacity="0.8"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TreeDataTemplate>
+
+                    <!-- Field row (string) -->
+                    <DataTemplate DataType="{x:Type x:String}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <materialIcons:MaterialIcon Kind="Minus"
+                                                        Width="12" Height="12"
+                                                        Opacity="0.4"
+                                                        VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding}"
+                                       FontSize="11"
+                                       FontFamily="Monospace"
+                                       Opacity="0.65"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+
+                </TreeView.DataTemplates>
+            </TreeView>
+
+            <!-- Empty state -->
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8"
+                        IsVisible="{Binding !HasCollections}">
+                <materialIcons:MaterialIcon Kind="VectorArrangeAbove"
+                                            Width="48" Height="48"
+                                            Opacity="0.3"
+                                            HorizontalAlignment="Center"/>
+                <TextBlock Text="No collections found"
+                           FontSize="13"
+                           Opacity="0.6"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Loading indicator -->
+            <Border IsVisible="{Binding IsLoading}">
+                <ProgressBar IsIndeterminate="True"
+                             Width="100" Height="100"
+                             Classes="circular"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"/>
+            </Border>
+        </Panel>
+
+        <!-- Status bar -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding Collections.Count, StringFormat='{}{0} collections'}"
+                   FontSize="11"
+                   Opacity="0.5"
+                   HorizontalAlignment="Center"
+                   Margin="0,8,0,12"/>
+    </Grid>
+</UserControl>

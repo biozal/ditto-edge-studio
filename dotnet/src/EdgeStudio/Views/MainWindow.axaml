@@ -4,7 +4,8 @@
         xmlns:vm="using:EdgeStudio.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:views="using:EdgeStudio.Views"
+        xmlns:database="using:EdgeStudio.Views.Database"
+        xmlns:studioView="using:EdgeStudio.Views.StudioView"
         mc:Ignorable="d" 
         d:DesignWidth="1200" 
         d:DesignHeight="900"
@@ -81,10 +82,10 @@
 
     <Grid>
         <!-- Database Listing View (shown when no database is selected) -->
-        <views:DatabaseListingView x:Name="DatabaseListingView" />
+        <database:DatabaseListingView x:Name="DatabaseListingView" />
 
         <!-- Edge Studio View (shown when a database is selected) -->
-        <views:EdgeStudioView x:Name="EdgeStudioView" IsVisible="False" />
+        <studioView:EdgeStudioView x:Name="EdgeStudioView" IsVisible="False" />
         
         <!-- Loading Spinner Overlay -->
         <Border x:Name="LoadingOverlay" 

@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:suki="https://github.com/kikipoulet/SukiUI"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="450"
+             x:Class="EdgeStudio.Views.StudioView.Inspector.FavoritesToolView"
+             x:DataType="vm:FavoritesToolViewModel">
+
+    <Grid RowDefinitions="*,Auto">
+        <ScrollViewer Grid.Row="0">
+            <ItemsControl ItemsSource="{Binding Items}" Margin="8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:QueryHistory">
+                        <Border Padding="8,6"
+                                Margin="0,2"
+                                CornerRadius="6"
+                                Background="{DynamicResource SukiBackground}"
+                                Cursor="Hand"
+                                DoubleTapped="OnItemDoubleTapped">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Load Query"
+                                              Command="{Binding $parent[UserControl].((vm:FavoritesToolViewModel)DataContext).LoadQueryCommand}"
+                                              CommandParameter="{Binding}"/>
+                                    <Separator/>
+                                    <MenuItem Header="Remove from Favorites"
+                                              Command="{Binding $parent[UserControl].((vm:FavoritesToolViewModel)DataContext).RemoveFromFavoritesCommand}"
+                                              CommandParameter="{Binding}"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <Grid ColumnDefinitions="Auto,*">
+                                <materialIcons:MaterialIcon Kind="StarOutline"
+                                                            Width="14" Height="14"
+                                                            Opacity="0.5"
+                                                            VerticalAlignment="Top"
+                                                            Margin="0,1,0,0"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Query}"
+                                           MaxLines="3"
+                                           TextTrimming="CharacterEllipsis"
+                                           FontSize="12"
+                                           FontFamily="Consolas"
+                                           Margin="6,0,0,0"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>

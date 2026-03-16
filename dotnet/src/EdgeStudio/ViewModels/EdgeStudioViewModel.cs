@@ -26,6 +26,8 @@ namespace EdgeStudio.ViewModels
         private readonly Lazy<LoggingViewModel> _loggingViewModelLazy;
         private readonly Lazy<AppMetricsViewModel> _appMetricsViewModelLazy;
         private readonly Lazy<QueryMetricsViewModel> _queryMetricsViewModelLazy;
+        private readonly Lazy<HistoryToolViewModel> _historyToolViewModelLazy;
+        private readonly Lazy<FavoritesToolViewModel> _favoritesToolViewModelLazy;
         private readonly Lazy<ISystemRepository> _systemRepositoryLazy;
 
         private DittoDatabaseConfig? _selectedDatabase;
@@ -56,6 +58,31 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private string _loggingHelpContent = string.Empty;
 
+        [ObservableProperty]
+        private bool _isSubscriptionActive = false;
+
+        [ObservableProperty]
+        private string _subscriptionHelpContent = string.Empty;
+
+        [ObservableProperty]
+        private bool _isQueryActive = false;
+
+        [ObservableProperty]
+        private string _queryHelpContent = string.Empty;
+
+        /// <summary>
+        /// Selected tab index for the query inspector panel.
+        /// 0=History, 1=Favorites, 2=JSON Viewer, 3=Metrics, 4=Help
+        /// </summary>
+        [ObservableProperty]
+        private int _selectedQueryInspectorTabIndex = 0;
+
+        public bool IsStandardInspectorVisible => !IsLoggingActive && !IsSubscriptionActive && !IsQueryActive;
+
+        partial void OnIsLoggingActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+        partial void OnIsSubscriptionActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+        partial void OnIsQueryActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+
         public string SyncButtonTooltip => IsSyncEnabled ? "Stop Sync" : "Start Sync";
 
         public EdgeStudioViewModel(
@@ -70,6 +97,8 @@ namespace EdgeStudio.ViewModels
             Lazy<LoggingViewModel> loggingViewModelLazy,
             Lazy<AppMetricsViewModel> appMetricsViewModelLazy,
             Lazy<QueryMetricsViewModel> queryMetricsViewModelLazy,
+            Lazy<HistoryToolViewModel> historyToolViewModelLazy,
+            Lazy<FavoritesToolViewModel> favoritesToolViewModelLazy,
             Lazy<ISystemRepository> systemRepositoryLazy,
             IToastService? toastService = null)
             : base(toastService)
@@ -87,17 +116,20 @@ namespace EdgeStudio.ViewModels
             _loggingViewModelLazy = loggingViewModelLazy;
             _appMetricsViewModelLazy = appMetricsViewModelLazy;
             _queryMetricsViewModelLazy = queryMetricsViewModelLazy;
+            _historyToolViewModelLazy = historyToolViewModelLazy;
+            _favoritesToolViewModelLazy = favoritesToolViewModelLazy;
 
             _systemRepositoryLazy.Value.ConnectionsChanged += OnConnectionsChanged;
 
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, OnNavigationChanged);
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
+            WeakReferenceMessenger.Default.Register<DocumentDoubleClickedMessage>(this, OnDocumentDoubleClicked);
         }
 
         private void OnConnectionsChanged(object? sender, ConnectionsByTransport connections)
         {
             ConnectionsByTransport = connections;
-            if (!IsLoggingActive)
+            if (!IsLoggingActive && !IsQueryActive)
                 CurrentBottomBarContent = connections;
         }
 
@@ -109,6 +141,8 @@ namespace EdgeStudio.ViewModels
         public LoggingViewModel LoggingViewModel => _loggingViewModelLazy.Value;
         public AppMetricsViewModel AppMetricsViewModel => _appMetricsViewModelLazy.Value;
         public QueryMetricsViewModel QueryMetricsViewModel => _queryMetricsViewModelLazy.Value;
+        public HistoryToolViewModel HistoryToolViewModel => _historyToolViewModelLazy.Value;
+        public FavoritesToolViewModel FavoritesToolViewModel => _favoritesToolViewModelLazy.Value;
 
         public DittoDatabaseConfig? SelectedDatabase
         {
@@ -133,6 +167,7 @@ namespace EdgeStudio.ViewModels
 
                             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                             {
+                                QueryViewModel.SetDatabaseConfig(_selectedDatabase);
                                 UpdateCurrentViews(NavigationItemType.Subscriptions);
                             });
                         });
@@ -223,6 +258,47 @@ namespace EdgeStudio.ViewModels
             IsInspectorVisible = !IsInspectorVisible;
         }
 
+        [RelayCommand]
+        private void NewQueryTab()
+        {
+            if (_navigationService.CurrentNavigationType != NavigationItemType.Query)
+                UpdateCurrentViews(NavigationItemType.Query);
+            QueryViewModel.NewQueryCommand.Execute(null);
+        }
+
+        [RelayCommand]
+        private void AddSubscription()
+        {
+            if (_navigationService.CurrentNavigationType != NavigationItemType.Subscriptions)
+                UpdateCurrentViews(NavigationItemType.Subscriptions);
+            SubscriptionViewModel.AddSubscriptionCommand.Execute(null);
+        }
+
+        [RelayCommand]
+        private void AddObserver() { }
+
+        [RelayCommand]
+        private void AddIndex() { }
+
+        [RelayCommand]
+        private void ImportSubscriptionsQr() { }
+
+        [RelayCommand]
+        private void ImportSubscriptionsServer() { }
+
+        [RelayCommand]
+        private void ImportJsonData() { }
+
+        private void OnDocumentDoubleClicked(object recipient, DocumentDoubleClickedMessage message)
+        {
+            // Open inspector if hidden
+            if (!IsInspectorVisible)
+                IsInspectorVisible = true;
+
+            // Navigate to JSON Viewer tab (index 2 in the query inspector panel)
+            SelectedQueryInspectorTabIndex = 2;
+        }
+
         private void OnNavigationChanged(object recipient, NavigationChangedMessage message)
         {
             UpdateCurrentViews(message.NavigationType);
@@ -259,6 +335,8 @@ namespace EdgeStudio.ViewModels
                 _ = LoggingViewModel;
                 _ = AppMetricsViewModel;
                 _ = QueryMetricsViewModel;
+                _ = HistoryToolViewModel;
+                _ = FavoritesToolViewModel;
             });
         }
 
@@ -279,6 +357,8 @@ namespace EdgeStudio.ViewModels
                     CurrentListingViewModel = SubscriptionViewModel;
                     CurrentDetailViewModel = SubscriptionDetailsViewModel;
                     SetStandardNavLayout();
+                    IsSubscriptionActive = true;
+                    EnsureSubscriptionHelpLoaded();
                     SubscriptionViewModel.Activate();
                     SubscriptionDetailsViewModel.Activate();
                     break;
@@ -286,6 +366,9 @@ namespace EdgeStudio.ViewModels
                     CurrentListingViewModel = QueryViewModel;
                     CurrentDetailViewModel = QueryViewModel;
                     SetStandardNavLayout();
+                    IsQueryActive = true;
+                    CurrentBottomBarContent = QueryViewModel;
+                    EnsureQueryHelpLoaded();
                     QueryViewModel.Activate();
                     break;
                 case NavigationItemType.Observers:
@@ -323,6 +406,8 @@ namespace EdgeStudio.ViewModels
             IsListingPanelVisible = true;
             CurrentBottomBarContent = ConnectionsByTransport;
             IsLoggingActive = false;
+            IsSubscriptionActive = false;
+            IsQueryActive = false;
         }
 
         private static readonly Uri LoggingHelpUri = new("avares://EdgeStudio/Assets/Help/logging.md");
@@ -339,6 +424,40 @@ namespace EdgeStudio.ViewModels
             catch
             {
                 LoggingHelpContent = "# Logging\n\nHelp content unavailable.";
+            }
+        }
+
+        private static readonly Uri QueryHelpUri = new("avares://EdgeStudio/Assets/Help/query.md");
+
+        private void EnsureQueryHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(QueryHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(QueryHelpUri);
+                using var reader = new StreamReader(stream);
+                QueryHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                QueryHelpContent = "# Query\n\nHelp content unavailable.";
+            }
+        }
+
+        private static readonly Uri SubscriptionHelpUri = new("avares://EdgeStudio/Assets/Help/subscription.md");
+
+        private void EnsureSubscriptionHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(SubscriptionHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(SubscriptionHelpUri);
+                using var reader = new StreamReader(stream);
+                SubscriptionHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                SubscriptionHelpContent = "# Subscriptions\n\nHelp content unavailable.";
             }
         }
 

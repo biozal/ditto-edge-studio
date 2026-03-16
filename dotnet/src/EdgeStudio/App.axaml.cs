@@ -164,6 +164,10 @@ public partial class App : Application
         services.AddSingleton<ILoggingService>(loggingService);
         services.AddSingleton<DittoLogCaptureService>();
 
+        // Register query execution and metrics services
+        services.AddSingleton<IQueryMetricsService, InMemoryQueryMetricsService>();
+        services.AddSingleton<IQueryService, DittoQueryService>();
+
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();
         services.AddSingleton<ISubscriptionRepository, SqliteSubscriptionRepository>();
@@ -186,6 +190,8 @@ public partial class App : Application
         services.AddTransient<LoggingViewModel>();
         services.AddTransient<AppMetricsViewModel>();
         services.AddTransient<QueryMetricsViewModel>();
+        services.AddSingleton<HistoryToolViewModel>();
+        services.AddSingleton<FavoritesToolViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
@@ -194,6 +200,8 @@ public partial class App : Application
         services.AddTransient<Lazy<LoggingViewModel>>();
         services.AddTransient<Lazy<AppMetricsViewModel>>();
         services.AddTransient<Lazy<QueryMetricsViewModel>>();
+        services.AddSingleton(provider => new Lazy<HistoryToolViewModel>(() => provider.GetRequiredService<HistoryToolViewModel>()));
+        services.AddSingleton(provider => new Lazy<FavoritesToolViewModel>(() => provider.GetRequiredService<FavoritesToolViewModel>()));
 
         _serviceProvider = services.BuildServiceProvider();
     }

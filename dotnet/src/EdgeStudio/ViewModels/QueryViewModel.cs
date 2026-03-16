@@ -1,8 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
+using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,13 +16,67 @@ namespace EdgeStudio.ViewModels;
 public partial class QueryViewModel : LoadableViewModelBase
 {
     private readonly ICollectionsRepository _collectionsRepository;
+    private readonly IQueryService? _queryService;
     private int _queryCounter = 1;
+    private bool _httpAvailable;
 
     [ObservableProperty]
     private string _queryText = string.Empty;
 
     [ObservableProperty]
     private string _resultText = "Query View";
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    [ObservableProperty]
+    private int _pageSize = 25;
+
+    [ObservableProperty]
+    private int _totalResultCount = 0;
+
+    public int PageCount => Math.Max(1, (int)Math.Ceiling((double)TotalResultCount / PageSize));
+
+    public ObservableCollection<int> PageSizeOptions { get; } = new() { 25, 50, 100, 250 };
+
+    partial void OnTotalResultCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(PageCount));
+        NextPageCommand.NotifyCanExecuteChanged();
+        PreviousPageCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPageSizeChanged(int value)
+    {
+        OnPropertyChanged(nameof(PageCount));
+        CurrentPage = 1;
+        JsonResults.PageSize = value;
+        TableResults.PageSize = value;
+    }
+
+    partial void OnCurrentPageChanged(int value)
+    {
+        NextPageCommand.NotifyCanExecuteChanged();
+        PreviousPageCommand.NotifyCanExecuteChanged();
+        JsonResults.CurrentPage = value;
+        TableResults.CurrentPage = value;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanGoNext))]
+    private void NextPage()
+    {
+        if (CurrentPage < PageCount) CurrentPage++;
+    }
+
+    private bool CanGoNext() => CurrentPage < PageCount;
+
+    [RelayCommand(CanExecute = nameof(CanGoPrevious))]
+    private void PreviousPage()
+    {
+        if (CurrentPage > 1) CurrentPage--;
+    }
+
+    private bool CanGoPrevious() => CurrentPage > 1;
 
     [ObservableProperty]
     private QueryDocumentViewModel? _currentQueryDocument;
@@ -55,14 +113,20 @@ public partial class QueryViewModel : LoadableViewModelBase
 
     public QueryViewModel(
         ICollectionsRepository collectionsRepository,
+        IQueryService? queryService = null,
         IToastService? toastService = null) : base(toastService)
     {
         _collectionsRepository = collectionsRepository;
+        _queryService = queryService;
 
         // Initialize results ViewModels
         JsonResults = new JsonResultsViewModel();
         TableResults = new TableResultsViewModel();
         ExplainResults = new ExplainResultsViewModel();
+
+        WeakReferenceMessenger.Default.Register<QueryExecutedMessage>(this, OnQueryExecuted);
+        WeakReferenceMessenger.Default.Register<LoadQueryRequestedMessage>(this, OnLoadQueryRequested);
+        WeakReferenceMessenger.Default.Register<LoadAndExecuteQueryRequestedMessage>(this, OnLoadAndExecuteQueryRequested);
     }
 
     protected override void OnInitialize()
@@ -79,11 +143,57 @@ public partial class QueryViewModel : LoadableViewModelBase
         CreateInitialQuery();
     }
 
+    private void OnQueryExecuted(object recipient, QueryExecutedMessage message)
+    {
+        TotalResultCount = message.Result.ResultCount;
+        CurrentPage = 1;
+    }
+
+    private void OnLoadQueryRequested(object recipient, LoadQueryRequestedMessage message)
+    {
+        if (CurrentQueryDocument != null)
+            CurrentQueryDocument.QueryText = message.QueryText;
+        else
+        {
+            var doc = CreateQueryDocument($"Query {_queryCounter++}");
+            QueryDocuments.Add(doc);
+            CurrentQueryDocument = doc;
+            doc.QueryText = message.QueryText;
+        }
+    }
+
+    private async void OnLoadAndExecuteQueryRequested(object recipient, LoadAndExecuteQueryRequestedMessage message)
+    {
+        if (CurrentQueryDocument == null)
+        {
+            var doc = CreateQueryDocument($"Query {_queryCounter++}");
+            QueryDocuments.Add(doc);
+            CurrentQueryDocument = doc;
+        }
+        CurrentQueryDocument.QueryText = message.QueryText;
+        await CurrentQueryDocument.ExecuteQueryCommand.ExecuteAsync(null);
+    }
+
+    private QueryDocumentViewModel CreateQueryDocument(string title, string queryText = "")
+    {
+        var doc = new QueryDocumentViewModel(title, JsonResults, TableResults, ExplainResults, _queryService, queryText);
+        doc.SetHttpAvailable(_httpAvailable);
+        return doc;
+    }
+
     private void CreateInitialQuery()
     {
-        var initialQuery = new QueryDocumentViewModel($"Query {_queryCounter++}", JsonResults, TableResults, ExplainResults);
+        var initialQuery = CreateQueryDocument($"Query {_queryCounter++}");
         QueryDocuments.Add(initialQuery);
         CurrentQueryDocument = initialQuery;
+    }
+
+    public void SetDatabaseConfig(DittoDatabaseConfig? config)
+    {
+        _httpAvailable = !string.IsNullOrEmpty(config?.HttpApiUrl)
+                      && !string.IsNullOrEmpty(config?.HttpApiKey);
+        foreach (var doc in QueryDocuments)
+            doc.SetHttpAvailable(_httpAvailable);
     }
 
     protected override void OnDeactivated()
@@ -105,33 +215,19 @@ public partial class QueryViewModel : LoadableViewModelBase
     }
 
     [RelayCommand]
-    private async Task ExecuteQuery()
+    private void InsertQuery(string collectionName)
     {
-        if (string.IsNullOrWhiteSpace(QueryText))
-        {
-            ShowWarning("Please enter a query to execute");
-            return;
-        }
-
-        await ExecuteOperationAsync(
-            async () =>
-            {
-                // Placeholder for query execution
-                await Task.Delay(500);
-                ResultText = $"Results for query: {QueryText}";
-            },
-            errorMessage: "Failed to execute query",
-            showSuccessToast: true,
-            successMessage: "Query executed successfully");
+        var text = $"SELECT * FROM {collectionName}";
+        if (CurrentQueryDocument != null)
+            CurrentQueryDocument.QueryText = text;
+        else
+            NewQuery();
     }
 
     [RelayCommand]
     private void NewQuery()
     {
-        // Create new query document with results references
-        var newQuery = new QueryDocumentViewModel($"Query {_queryCounter++}", JsonResults, TableResults, ExplainResults);
-
-        // Add to collection and set as active
+        var newQuery = CreateQueryDocument($"Query {_queryCounter++}");
         QueryDocuments.Add(newQuery);
         CurrentQueryDocument = newQuery;
     }
@@ -159,5 +255,11 @@ public partial class QueryViewModel : LoadableViewModelBase
                 index = QueryDocuments.Count - 1;
             CurrentQueryDocument = QueryDocuments[index];
         }
+    }
+
+    protected override void OnDisposing()
+    {
+        WeakReferenceMessenger.Default.UnregisterAll(this);
+        base.OnDisposing();
     }
 }

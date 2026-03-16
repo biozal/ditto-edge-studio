@@ -1,6 +1,13 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Shared.Data;
+using EdgeStudio.Shared.Messages;
 using System;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
 namespace EdgeStudio.ViewModels
@@ -21,6 +28,25 @@ namespace EdgeStudio.ViewModels
         private readonly JsonResultsViewModel? _jsonResults;
         private readonly TableResultsViewModel? _tableResults;
         private readonly ExplainResultsViewModel? _explainResults;
+        private readonly IQueryService? _queryService;
+
+        [ObservableProperty]
+        private string _selectedQueryMode = "Local";
+
+        [ObservableProperty]
+        private bool _isExecuting = false;
+
+        [ObservableProperty]
+        private int _resultCount = 0;
+
+        [ObservableProperty]
+        private string? _selectedDocumentJson;
+
+        public ObservableCollection<string> AvailableQueryModes { get; } = new() { "Local" };
+
+        public JsonResultsViewModel? JsonResults => _jsonResults;
+        public TableResultsViewModel? TableResults => _tableResults;
+        public ExplainResultsViewModel? ExplainResults => _explainResults;
 
         public string QueryText
         {
@@ -28,9 +54,7 @@ namespace EdgeStudio.ViewModels
             set
             {
                 if (SetProperty(ref _queryText, value))
-                {
                     UpdateDirtyState();
-                }
             }
         }
 
@@ -40,9 +64,7 @@ namespace EdgeStudio.ViewModels
             private set
             {
                 if (SetProperty(ref _isDirty, value))
-                {
                     UpdateTitle();
-                }
             }
         }
 
@@ -55,7 +77,13 @@ namespace EdgeStudio.ViewModels
             Title = _baseTitle;
         }
 
-        public QueryDocumentViewModel(string title, JsonResultsViewModel? jsonResults, TableResultsViewModel? tableResults, ExplainResultsViewModel? explainResults, string queryText = "")
+        public QueryDocumentViewModel(
+            string title,
+            JsonResultsViewModel? jsonResults,
+            TableResultsViewModel? tableResults,
+            ExplainResultsViewModel? explainResults,
+            IQueryService? queryService = null,
+            string queryText = "")
         {
             Id = Guid.NewGuid().ToString();
             _baseTitle = title;
@@ -65,70 +93,128 @@ namespace EdgeStudio.ViewModels
             _jsonResults = jsonResults;
             _tableResults = tableResults;
             _explainResults = explainResults;
+            _queryService = queryService;
+
+            if (_jsonResults != null)
+            {
+                _jsonResults.DocumentSelected += json => SelectedDocumentJson = json;
+                _jsonResults.DocumentDoubleClicked += json =>
+                {
+                    SelectedDocumentJson = json;
+                    WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
+                };
+            }
+            if (_tableResults != null)
+            {
+                _tableResults.RowSelected += json => SelectedDocumentJson = json;
+                _tableResults.RowDoubleClicked += json =>
+                {
+                    SelectedDocumentJson = json;
+                    WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
+                };
+            }
         }
 
         private void UpdateDirtyState()
         {
             IsDirty = _queryText != _originalQueryText;
+            UpdateBaseTitle();
         }
 
-        private void UpdateTitle()
+        private void UpdateBaseTitle()
         {
-            Title = IsDirty ? $"{_baseTitle}*" : _baseTitle;
+            if (!string.IsNullOrWhiteSpace(_queryText))
+            {
+                var trimmed = _queryText.Trim().Replace('\n', ' ').Replace('\r', ' ');
+                // Collapse multiple spaces
+                while (trimmed.Contains("  "))
+                    trimmed = trimmed.Replace("  ", " ");
+                _baseTitle = trimmed.Length > 30
+                    ? trimmed[..30].TrimEnd() + "..."
+                    : trimmed;
+            }
+            UpdateTitle();
         }
+
+        private void UpdateTitle() => Title = IsDirty ? $"{_baseTitle}*" : _baseTitle;
 
         [RelayCommand]
         private async Task ExecuteQuery()
         {
-            // Placeholder for query execution
-            await Task.Delay(100);
+            if (string.IsNullOrWhiteSpace(QueryText)) return;
+            if (_queryService == null) return;
 
-            if (_jsonResults != null && !string.IsNullOrWhiteSpace(QueryText))
+            IsExecuting = true;
+            SelectedDocumentJson = null;
+
+            try
             {
-                // Sample JSON results
-                var sampleJson = @"{
-  ""query"": """ + QueryText.Replace("\"", "\\\"") + @""",
-  ""results"": [
-    {
-      ""_id"": ""1"",
-      ""name"": ""Sample Document 1"",
-      ""value"": 42
-    },
-    {
-      ""_id"": ""2"",
-      ""name"": ""Sample Document 2"",
-      ""value"": 123
-    }
-  ],
-  ""count"": 2
-}";
+                var result = await _queryService.ExecuteLocalAsync(QueryText);
 
-                _jsonResults.SetResults(sampleJson);
+                if (result.IsError)
+                {
+                    _jsonResults?.SetError(result.ErrorMessage!);
+                    _tableResults?.Clear();
+                    ResultCount = 0;
+                }
+                else if (result.IsMutation)
+                {
+                    var summary = result.MutatedDocumentIds.Count > 0
+                        ? $"[\"{string.Join("\", \"", result.MutatedDocumentIds)}\"]"
+                        : "[]";
+                    _jsonResults?.SetResults(new[]
+                    {
+                        $"{{\n  \"mutated\": {summary},\n  \"count\": {result.MutatedDocumentIds.Count}\n}}"
+                    });
+                    _tableResults?.Clear();
+                    ResultCount = result.MutatedDocumentIds.Count;
+                }
+                else
+                {
+                    _jsonResults?.SetResults(result.JsonDocuments);
+                    _tableResults?.SetResults(result.JsonDocuments);
+                    ResultCount = result.ResultCount;
+                }
+
+                WeakReferenceMessenger.Default.Send(new QueryExecutedMessage(QueryText, result));
             }
+            finally
+            {
+                IsExecuting = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task CopyDocument()
+        {
+            if (SelectedDocumentJson == null) return;
+            try
+            {
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } w })
+                {
+                    var clipboard = TopLevel.GetTopLevel(w)?.Clipboard;
+                    if (clipboard != null)
+                        await clipboard.SetTextAsync(SelectedDocumentJson);
+                }
+            }
+            catch { /* Ignore clipboard errors */ }
         }
 
         [RelayCommand]
         private void SaveQuery()
         {
-            // Save the query text (mark as clean)
             _originalQueryText = _queryText;
             IsDirty = false;
         }
 
-        /// <summary>
-        /// Called before the document is closed. Returns true if close should proceed.
-        /// </summary>
-        public bool CanClose()
+        public void SetHttpAvailable(bool available)
         {
-            // If not dirty, can close immediately
-            if (!IsDirty)
-            {
-                return true;
-            }
-
-            // TODO: Show confirmation dialog
-            // For now, allow closing without confirmation
-            return true;
+            if (available && !AvailableQueryModes.Contains("HTTP"))
+                AvailableQueryModes.Add("HTTP");
+            else if (!available)
+                AvailableQueryModes.Remove("HTTP");
         }
+
+        public bool CanClose() => true;
     }
 }

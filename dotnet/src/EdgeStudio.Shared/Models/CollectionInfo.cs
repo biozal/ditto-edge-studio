@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace EdgeStudio.Shared.Models
@@ -31,5 +32,10 @@ namespace EdgeStudio.Shared.Models
         /// </summary>
         [JsonPropertyName("lastModified")]
         public DateTime LastModified { get; init; }
+
+        /// <summary>
+        /// Indexes defined on this collection.
+        /// </summary>
+        public IReadOnlyList<IndexInfo> Indexes { get; init; } = [];
     }
 }

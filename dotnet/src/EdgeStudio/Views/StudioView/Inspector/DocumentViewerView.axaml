@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="500"
+             x:Class="EdgeStudio.Views.StudioView.Inspector.DocumentViewerView"
+             x:DataType="vm:QueryDocumentViewModel">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header with copy button — only visible when a document is selected -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4"
+              IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="Document" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Command="{Binding CopyDocumentCommand}"
+                    ToolTip.Tip="Copy JSON"
+                    Padding="6,4">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="Copy" FontSize="11" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Empty state -->
+        <StackPanel Grid.Row="1"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="8"
+                    IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+            <materialIcons:MaterialIcon Kind="CodeJson" Width="32" Height="32" Opacity="0.3"/>
+            <TextBlock Text="Select a document to view it here"
+                       FontSize="12"
+                       Opacity="0.5"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="200"/>
+        </StackPanel>
+
+        <!-- JSON content — AvaloniaEdit with JSON syntax highlighting -->
+        <avaloniaEdit:TextEditor
+            Grid.Row="1"
+            x:Name="JsonViewer"
+            IsReadOnly="True"
+            FontFamily="Cascadia Code, Consolas, monospace"
+            FontSize="14"
+            ShowLineNumbers="False"
+            WordWrap="False"
+            HorizontalScrollBarVisibility="Auto"
+            VerticalScrollBarVisibility="Auto"
+            Background="{DynamicResource SukiBackground}"
+            Foreground="{DynamicResource DittoCardText}"
+            IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            Margin="4,0,4,4"/>
+    </Grid>
+</UserControl>

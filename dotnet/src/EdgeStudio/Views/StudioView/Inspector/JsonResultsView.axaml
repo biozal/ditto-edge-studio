@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:local="using:EdgeStudio.Views.StudioView.Inspector"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.StudioView.Inspector.JsonResultsView"
+             x:DataType="vm:JsonResultsViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding PagedDocuments}"
+                      Margin="4,0,4,4"
+                      VerticalAlignment="Top">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Command="{Binding $parent[ItemsControl].DataContext.SelectDocumentCommand}"
+                            CommandParameter="{Binding}"
+                            Padding="0" Margin="0,4,0,0"
+                            Background="Transparent" BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            DoubleTapped="OnCardDoubleTapped">
+                        <Border Background="{DynamicResource SukiBackground}"
+                                CornerRadius="6"
+                                Padding="4"
+                                Cursor="Hand">
+                            <local:JsonDocumentCard DataContext="{Binding}"
+                                                    IsHitTestVisible="False"/>
+                        </Border>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+
+</UserControl>

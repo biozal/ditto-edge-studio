@@ -162,13 +162,13 @@ actor DittoManager {
             let strictModeValue = databaseConfig.isStrictModeEnabled ? "true" : "false"
             try await ditto.store.execute(query: "ALTER SYSTEM SET DQL_STRICT_MODE = \(strictModeValue)")
             Log.info("[StrictMode] DQL_STRICT_MODE set to: \(strictModeValue)")
-            
+
             // setting default peers to 12 for testing with edge studion MacOS specifically
             #if os(macOS)
-            try await ditto.store.execute(query:"ALTER SYSTEM SET mesh_chooser_max_wlan_clients = 12")
+            try await ditto.store.execute(query: "ALTER SYSTEM SET mesh_chooser_max_wlan_clients = 12")
             Log.info("[WLAN] Setting mesh_chooser_max_wlan_clients 12")
             #endif
-            
+
             dittoSelectedAppConfig = databaseConfig
 
             // start sync in the selected app on background queue to avoid priority inversion

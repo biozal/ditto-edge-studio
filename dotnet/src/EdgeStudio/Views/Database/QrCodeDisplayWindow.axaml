@@ -1,0 +1,74 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                 mc:Ignorable="d"
+                 d:DesignWidth="450"
+                 d:DesignHeight="620"
+                 x:Class="EdgeStudio.Views.Database.QrCodeDisplayWindow"
+                 Title="Show QR Code"
+                 Width="450"
+                 Height="620"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Border Padding="24">
+        <StackPanel Spacing="16">
+
+            <!-- Database Name -->
+            <TextBlock x:Name="DatabaseNameText"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="380"/>
+
+            <!-- QR Code Image -->
+            <Border HorizontalAlignment="Center"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="8">
+                <Image x:Name="QrImage"
+                       Width="300"
+                       Height="300"
+                       Stretch="Uniform"/>
+            </Border>
+
+            <!-- Instruction -->
+            <TextBlock Text="Scan with the iOS or Android Edge Studio app to import this configuration."
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       MaxWidth="360"/>
+
+            <!-- Buttons -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Spacing="10"
+                        Margin="0,8,0,16">
+                <Button x:Name="CopyButton"
+                        Padding="16,8"
+                        Background="{DynamicResource DittoCardSurface}"
+                        CornerRadius="6"
+                        Click="CopyPayload_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <materialIcons:MaterialIcon Kind="ContentCopy" Width="16" Height="16"/>
+                        <TextBlock Text="Copy Payload"/>
+                    </StackPanel>
+                </Button>
+                <Button Padding="16,8"
+                        Background="{DynamicResource DittoAccent}"
+                        Foreground="{DynamicResource DittoJetBlack}"
+                        CornerRadius="6"
+                        Click="Close_Click">
+                    <TextBlock Text="Close" FontWeight="SemiBold"/>
+                </Button>
+            </StackPanel>
+
+        </StackPanel>
+    </Border>
+</suki:SukiWindow>
