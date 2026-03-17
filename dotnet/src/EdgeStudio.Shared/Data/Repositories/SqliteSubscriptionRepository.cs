@@ -123,7 +123,10 @@ namespace EdgeStudio.Shared.Data.Repositories
         {
             if (_activeSubscriptions.Count == 0) return;
 
-            var cancellationTasks = _activeSubscriptions.Values
+            var subscriptionsToCancel = _activeSubscriptions.Values.ToList();
+            _activeSubscriptions.Clear(); // Clear references before async work
+
+            var cancellationTasks = subscriptionsToCancel
                 .Select(sub => Task.Run(() =>
                 {
                     try { sub.Cancel(); }
@@ -135,8 +138,12 @@ namespace EdgeStudio.Shared.Data.Repositories
                 }))
                 .ToArray();
 
-            await Task.WhenAll(cancellationTasks);
-            _activeSubscriptions.Clear();
+            var allCancelled = Task.WhenAll(cancellationTasks);
+            var completed = await Task.WhenAny(allCancelled, Task.Delay(TimeSpan.FromSeconds(5)));
+            if (completed != allCancelled)
+            {
+                _logger?.Warning("Subscription cancellation timed out after 5 seconds.");
+            }
         }
 
         public void Dispose()

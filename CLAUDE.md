@@ -669,6 +669,7 @@ Located in the `SwiftUI/` directory:
   - `ObservableRepository.swift`: Observable events management with diffing
   - `CollectionsRepository.swift`: Collections data management
   - `SystemRepository.swift`: System metrics and health monitoring, including sync status and connection transport statistics
+    > **⚠️ Presence Graph Pitfall**: `presenceGraph.remotePeers` includes ALL peers in the mesh, not just directly connected ones. Always filter to direct connections before building peer cards or counting transports. See [`docs/PRESENCE_GRAPH.md`](docs/PRESENCE_GRAPH.md) for the required pattern.
   - All repositories use Task.detached(priority: .utility) for cleanup operations to prevent threading priority inversions
   
 - **Views** (`Views/` folder):

@@ -78,17 +78,24 @@ class SystemRepositoryImpl(
             Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
         }
 
-        // 2. Deduplicate remote peers by peerKey
+        val localPeerKey = graph.localPeer.peerKey
+
+        // 2. Deduplicate remote peers by peerKey, then filter to directly connected peers only.
+        // presenceGraph.remotePeers returns the full mesh topology (all peers in the network,
+        // including multihop peers). A peer is "directly connected" if the local device's peer
+        // key is an endpoint of at least one of its connections.
         val deduped = graph.remotePeers
             .groupBy { it.peerKey }
             .mapValues { (_, peers) ->
                 peers.maxByOrNull { it.dittoSdkVersion != null } ?: peers.first()
             }
             .values
+            .filter { peer ->
+                // Only directly connected peers — local peer must be an endpoint of at least one connection
+                peer.connections.any { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
+            }
 
         val processedIds = mutableSetOf<String>()
-
-        val localPeerKey = graph.localPeer.peerKey
 
         // 3. Map presence peers with merged sync metrics
         val remotePeers = deduped.map { peer ->
@@ -119,7 +126,7 @@ class SystemRepositoryImpl(
 
         // 5. Update state
         _peers.value = remotePeers
-        _connectionsByTransport.value = buildConnectionCounts(deduped)
+        _connectionsByTransport.value = buildConnectionCounts(deduped, localPeerKey)
         _localPeer.value = LocalPeerInfo(
             peerId = graph.localPeer.peerKey,
             deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
@@ -176,7 +183,7 @@ class SystemRepositoryImpl(
         DittoConnectionType.WebSocket -> ConnectionType.WebSocket
     }
 
-    private fun buildConnectionCounts(peers: Collection<DittoPeer>): ConnectionsByTransport {
+    private fun buildConnectionCounts(peers: Collection<DittoPeer>, localPeerKey: String): ConnectionsByTransport {
         var bluetooth = 0
         var lan = 0
         var p2pWifi = 0
@@ -184,6 +191,7 @@ class SystemRepositoryImpl(
 
         peers.forEach { peer ->
             peer.connections
+                .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
                 .distinctBy { it.connectionType }
                 .forEach { conn ->
                     when (conn.connectionType.toConnectionType()) {

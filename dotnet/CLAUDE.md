@@ -205,6 +205,7 @@ Located in the `src/` directory:
   - `DittoSubscriptionRepository.cs`: Ditto subscription management with resource cleanup
   - `ISystemInfoRepository.cs`: System information repository interface (implements ICloseDatabase)
   - `DittoSystemInfoRepository.cs`: System information repository implementation
+    > **⚠️ Presence Graph Pitfall**: `presenceGraph.RemotePeers` includes ALL peers in the mesh, not just directly connected ones. Always filter to direct connections before building peer cards or counting transports. See [`docs/PRESENCE_GRAPH.md`](../docs/PRESENCE_GRAPH.md) for the required pattern.
   - `IFavoritesRepository.cs`: ⚠️ Favorites repository interface (placeholder - not yet implemented)
   - `FavoritesRepository.cs`: ⚠️ Favorites repository implementation (placeholder - not yet implemented)
   - `IHistoryRepository.cs`: ⚠️ Query history repository interface (placeholder - not yet implemented)

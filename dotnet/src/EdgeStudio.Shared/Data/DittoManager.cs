@@ -39,12 +39,18 @@ namespace EdgeStudio.Shared.Data
         {
             if (DittoSelectedApp != null)
             {
-                await Task.Run(() =>
+                var dittoToClose = DittoSelectedApp;
+                DittoSelectedApp = null; // Clear reference immediately so no new work starts
+
+                var closeTask = Task.Run(() =>
                 {
                     try
                     {
-                        DittoSelectedApp.Sync.Stop();
-                        DittoSelectedApp.Dispose();
+                        _logger?.Info("Stopping Ditto sync...");
+                        dittoToClose.Sync.Stop();
+                        _logger?.Info("Ditto sync stopped. Disposing...");
+                        dittoToClose.Dispose();
+                        _logger?.Info("Ditto disposed successfully.");
                     }
                     catch (Exception ex)
                     {
@@ -52,7 +58,14 @@ namespace EdgeStudio.Shared.Data
                     }
                 });
 
-                DittoSelectedApp = null;
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10));
+                var completed = await Task.WhenAny(closeTask, timeoutTask);
+
+                if (completed == timeoutTask)
+                {
+                    _logger?.Warning("Ditto database close timed out after 10 seconds. " +
+                                     "The SDK may still be running in the background.");
+                }
             }
         }
 

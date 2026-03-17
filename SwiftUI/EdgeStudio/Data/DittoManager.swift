@@ -157,6 +157,7 @@ actor DittoManager {
                     config.connect.webSocketURLs.remove(databaseConfig.websocketUrl)
                 }
             }
+            logTransportReadback(from: ditto, context: "hydrate")
 
             // Apply strict mode setting before starting sync (required by Ditto SDK)
             let strictModeValue = databaseConfig.isStrictModeEnabled ? "true" : "false"
@@ -349,6 +350,25 @@ extension DittoManager {
             .info(
                 "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
             )
+        logTransportReadback(from: ditto, context: "applyTransportConfig")
+    }
+
+    /// Reads the current transport config back from the SDK and writes it to the app log.
+    ///
+    /// Call this immediately after every `updateTransportConfig` to confirm the SDK
+    /// accepted the values you intended. The `context` label distinguishes call sites
+    /// (e.g. "hydrate", "applyTransportConfig") in the log output.
+    private func logTransportReadback(from ditto: Ditto, context: String) {
+        let tc = ditto.transportConfig
+        let wsURLs = tc.connect.webSocketURLs
+        let wsDescription = wsURLs.isEmpty ? "(none)" : wsURLs.joined(separator: ", ")
+        Log.info(
+            "[Transport] Readback (\(context)): " +
+                "bluetoothLE=\(tc.peerToPeer.bluetoothLE.isEnabled) " +
+                "lan=\(tc.peerToPeer.lan.isEnabled) " +
+                "awdl=\(tc.peerToPeer.awdl.isEnabled) " +
+                "webSocketURLs=[\(wsDescription)]"
+        )
     }
 }
 
