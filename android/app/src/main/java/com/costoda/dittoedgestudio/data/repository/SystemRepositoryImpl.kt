@@ -73,6 +73,7 @@ class SystemRepositoryImpl(
                 val dict = item.value
                 val peerId = dict["_id"].stringOrNull ?: continue
                 syncMetrics[peerId] = dict
+                item.dematerialize()
             }
         }.onFailure { e ->
             Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)

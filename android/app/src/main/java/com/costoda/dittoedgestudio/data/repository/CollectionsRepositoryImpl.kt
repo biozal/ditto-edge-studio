@@ -115,6 +115,7 @@ class CollectionsRepositoryImpl(
                     map.getOrPut(collection) { mutableListOf() }
                         .add(DittoIndex(id = id, collection = collection, fields = fields))
                 }
+                item.dematerialize()
             }
             result.close()
         }

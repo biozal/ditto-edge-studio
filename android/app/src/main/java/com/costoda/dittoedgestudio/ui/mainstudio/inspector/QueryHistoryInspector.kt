@@ -1,7 +1,9 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package com.costoda.dittoedgestudio.ui.mainstudio.inspector
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,11 +11,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +31,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -75,6 +85,7 @@ fun QueryHistoryInspector(
                         item = item,
                         onTap = { viewModel.restoreQuery(item.query) },
                         onDelete = { viewModel.deleteHistory(item.id) },
+                        onAddToFavorites = { viewModel.addHistoryToFavorites(item.query) },
                     )
                 }
             }
@@ -87,8 +98,10 @@ private fun SwipeToDismissHistoryItem(
     item: DittoQueryHistory,
     onTap: () -> Unit,
     onDelete: () -> Unit,
+    onAddToFavorites: () -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
+    var showContextMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(dismissState.currentValue) {
         if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
@@ -97,35 +110,61 @@ private fun SwipeToDismissHistoryItem(
         }
     }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            Surface(color = MaterialTheme.colorScheme.errorContainer) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(end = 16.dp),
-                    contentAlignment = Alignment.CenterEnd,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                    )
+    Box {
+        SwipeToDismissBox(
+            state = dismissState,
+            backgroundContent = {
+                Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 16.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
                 }
-            }
-        },
-        enableDismissFromStartToEnd = false,
-    ) {
-        HistoryItemRow(item = item, onClick = onTap)
+            },
+            enableDismissFromStartToEnd = false,
+        ) {
+            HistoryItemRow(
+                item = item,
+                onClick = onTap,
+                onLongClick = { showContextMenu = true },
+            )
+        }
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Remove from History") },
+                onClick = { showContextMenu = false; onDelete() },
+                leadingIcon = { Icon(Icons.Outlined.Delete, null, Modifier.size(18.dp)) },
+            )
+            DropdownMenuItem(
+                text = { Text("Add to Favorites") },
+                onClick = { showContextMenu = false; onAddToFavorites() },
+                leadingIcon = { Icon(Icons.Outlined.BookmarkAdd, null, Modifier.size(18.dp)) },
+            )
+        }
     }
 }
 
 @Composable
-private fun HistoryItemRow(item: DittoQueryHistory, onClick: () -> Unit) {
+private fun HistoryItemRow(
+    item: DittoQueryHistory,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Column(
             modifier = Modifier

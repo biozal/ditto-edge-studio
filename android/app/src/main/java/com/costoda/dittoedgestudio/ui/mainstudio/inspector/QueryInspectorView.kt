@@ -4,14 +4,22 @@ package com.costoda.dittoedgestudio.ui.mainstudio.inspector
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
 
@@ -31,17 +39,15 @@ fun QueryInspectorView(
     Column(modifier = modifier.fillMaxSize()) {
         SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
             tabs.forEach { tab ->
+                val (icon, label) = tabIcon(tab)
                 Tab(
                     selected = selectedTab == tab,
                     onClick = { viewModel.setInspectorTab(tab) },
-                    text = {
-                        Text(
-                            text = when (tab) {
-                                QueryInspectorTab.HISTORY -> "History"
-                                QueryInspectorTab.FAVORITES -> "Favorites"
-                                QueryInspectorTab.JSON -> "JSON"
-                                QueryInspectorTab.METRICS -> "Metrics"
-                            },
+                    icon = {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            modifier = Modifier.size(20.dp),
                         )
                     },
                 )
@@ -69,4 +75,11 @@ fun QueryInspectorView(
             )
         }
     }
+}
+
+private fun tabIcon(tab: QueryInspectorTab): Pair<ImageVector, String> = when (tab) {
+    QueryInspectorTab.HISTORY -> Pair(Icons.Outlined.History, "History")
+    QueryInspectorTab.FAVORITES -> Pair(Icons.Outlined.BookmarkBorder, "Favorites")
+    QueryInspectorTab.JSON -> Pair(Icons.Outlined.Code, "JSON")
+    QueryInspectorTab.METRICS -> Pair(Icons.Outlined.Analytics, "Metrics")
 }

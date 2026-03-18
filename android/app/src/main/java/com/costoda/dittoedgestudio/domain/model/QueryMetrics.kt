@@ -9,4 +9,5 @@ data class QueryMetrics(
     val bytesRead: Long,
     val explainPlan: String?,
     val capturedAt: Long,
+    val queryText: String = "",
 )

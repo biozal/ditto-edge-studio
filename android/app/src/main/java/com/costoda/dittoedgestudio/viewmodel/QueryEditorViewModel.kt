@@ -123,6 +123,7 @@ class QueryEditorViewModel(
                     bytesRead = 0L,
                     explainPlan = result.explainPlan,
                     capturedAt = System.currentTimeMillis(),
+                    queryText = query,
                 )
                 metricsRepository.save(metrics)
                 _queryMetrics.value = metrics
@@ -154,6 +155,7 @@ class QueryEditorViewModel(
                     bytesRead = 0L,
                     explainPlan = result.explainPlan,
                     capturedAt = System.currentTimeMillis(),
+                    queryText = query,
                 )
                 metricsRepository.save(metrics)
                 _queryMetrics.value = metrics
@@ -200,6 +202,13 @@ class QueryEditorViewModel(
                 favoritesRepository.saveFavorite(databaseId, query)
             }
             checkFavorited(query)
+        }
+    }
+
+    fun addHistoryToFavorites(query: String) {
+        viewModelScope.launch {
+            favoritesRepository.saveFavorite(databaseId, query)
+            checkFavorited(_queryText.value.trim())
         }
     }
 

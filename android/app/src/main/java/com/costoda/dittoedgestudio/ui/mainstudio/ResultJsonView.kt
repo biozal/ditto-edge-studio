@@ -93,6 +93,7 @@ private fun DocumentCard(
                 )
                 Text(
                     text = "#${index + 1}  $id",
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
@@ -109,6 +110,7 @@ private fun DocumentCard(
                 SelectionContainer {
                     Text(
                         text = jsonString,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,

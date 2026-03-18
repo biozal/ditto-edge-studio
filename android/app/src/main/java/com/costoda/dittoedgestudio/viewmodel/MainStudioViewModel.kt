@@ -156,11 +156,13 @@ class MainStudioViewModel(
                 transportLanEnabled = database.isLanEnabled
                 transportWifiAwareEnabled = database.isAwdlEnabled
                 transportCloudSyncEnabled = database.isCloudSyncEnabled
+
                 val ditto = dittoManager.hydrate(database)
                 systemRepository.startObserving(ditto)
                 collectionsRepository.startObserving(ditto)
                 syncEnabled = true
                 val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
+
                 saved.forEach { sub ->
                     runCatching {
                         val handle = ditto.sync.registerSubscription(sub.query)

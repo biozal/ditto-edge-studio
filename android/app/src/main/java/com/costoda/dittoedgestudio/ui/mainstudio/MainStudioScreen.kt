@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -66,6 +67,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
@@ -157,9 +159,10 @@ private fun PhoneLayout(
         Scaffold(
             topBar = {
                 StudioTopBar(
-                    isTablet = false,
+
                     viewModel = viewModel,
                     queryEditorViewModel = queryEditorViewModel,
+                    isTablet = false,
                     onBack = onBack,
                     onNavigationClick = { scope.launch { drawerState.open() } },
                 )
@@ -239,7 +242,7 @@ private fun TabletLayout(
     queryEditorViewModel: QueryEditorViewModel?,
     onBack: () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
+    Row(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         // Column 1: Navigation Rail — nav items only, no FAB
         NavigationRail {
             StudioNavItem.entries.forEach { item ->
@@ -247,7 +250,11 @@ private fun TabletLayout(
                     selected = viewModel.selectedNavItem == item,
                     onClick = { viewModel.selectedNavItem = item },
                     icon = { Icon(item.icon, contentDescription = item.label) },
-                    label = { Text(item.label) },
+                    colors = NavigationRailItemDefaults.colors(
+                        indicatorColor = SulfurYellow,
+                        selectedIconColor = JetBlack,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 )
             }
         }
@@ -713,7 +720,7 @@ private fun ContentPlaceholder(
                     val isTablet = LocalConfiguration.current.screenWidthDp >= 600
                     QueryEditorScreen(
                         viewModel = queryEditorViewModel,
-                        isTablet = isTablet,
+
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -804,7 +811,6 @@ private fun QueryBottomBar(
     val queryResult by viewModel.queryResult.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()
     val pageSize by viewModel.pageSize.collectAsState()
-    val isFavorited by viewModel.isFavorited.collectAsState()
     val pageSizeOptions by viewModel.pageSizeOptions.collectAsState()
 
     var connectionsExpanded by remember { mutableStateOf(false) }
@@ -831,7 +837,7 @@ private fun QueryBottomBar(
                 FilterChip(
                     selected = false,
                     onClick = { connectionsExpanded = true },
-                    label = { Text("((•)) ${connections.total}", style = MaterialTheme.typography.labelSmall) },
+                    label = { Text("((•)) ${connections.total}", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.Wifi,
@@ -875,10 +881,12 @@ private fun QueryBottomBar(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = "Previous page",
                         modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 Text(
                     text = "Pg ${currentPage + 1} / $pageCount",
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.labelSmall,
                 )
                 IconButton(
@@ -889,6 +897,7 @@ private fun QueryBottomBar(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Next page",
                         modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -901,6 +910,7 @@ private fun QueryBottomBar(
                     Icon(
                         imageVector = Icons.Outlined.MoreVert,
                         contentDescription = "More options",
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 DropdownMenu(
@@ -919,29 +929,6 @@ private fun QueryBottomBar(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Explain") },
-                        onClick = {
-                            overflowExpanded = false
-                            viewModel.explainQuery()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (isFavorited) "Remove Favorite" else "Add Favorite") },
-                        onClick = {
-                            overflowExpanded = false
-                            viewModel.toggleFavorite()
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (isFavorited) Icons.Filled.Star else Icons.Outlined.Star,
-                                contentDescription = null,
-                                tint = if (isFavorited) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
                             )
                         },
                     )
@@ -1352,6 +1339,7 @@ private fun SubscriptionListItem(
             Text(
                 text = subscription.name.ifBlank { subscription.query },
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

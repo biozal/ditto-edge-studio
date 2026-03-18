@@ -67,6 +67,7 @@ fun CollectionListItem(
             Text(
                 text = collection.name,
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -127,6 +128,7 @@ private fun IndexListItem(index: DittoIndex) {
             Text(
                 text = index.displayName,
                 style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

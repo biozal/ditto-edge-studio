@@ -68,6 +68,7 @@ fun ResultTableView(
                 columns.forEach { col ->
                     Text(
                         text = col,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
@@ -100,6 +101,7 @@ fun ResultTableView(
                         val value = doc[col]?.toString() ?: ""
                         Text(
                             text = value,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
