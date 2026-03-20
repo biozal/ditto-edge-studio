@@ -34,5 +34,15 @@ namespace EdgeStudio.Shared.Data
             lock (_lock)
                 return _metrics.AsReadOnly();
         }
+
+        public void ClearAll()
+        {
+            lock (_lock)
+            {
+                _metrics.Clear();
+                Latest = null;
+            }
+            MetricsUpdated?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

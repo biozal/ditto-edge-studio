@@ -19,5 +19,7 @@ namespace EdgeStudio.Shared.Data
             bool awdlEnabled,
             bool wifiAwareEnabled,
             bool webSocketEnabled);
+
+        string? GetPersistenceDirectory();
     }
 }

@@ -96,8 +96,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.InspectorContentView
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView
+import com.costoda.dittoedgestudio.ui.mainstudio.metrics.AppMetricsScreen
+import com.costoda.dittoedgestudio.ui.mainstudio.metrics.QueryMetricsScreen
+import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
+import org.koin.compose.koinInject
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
@@ -721,6 +726,20 @@ private fun ContentPlaceholder(
                     QueryEditorScreen(
                         viewModel = queryEditorViewModel,
 
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                viewModel.selectedNavItem == StudioNavItem.APP_METRICS -> {
+                    val appMetricsViewModel: AppMetricsViewModel = koinViewModel()
+                    AppMetricsScreen(
+                        viewModel = appMetricsViewModel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                viewModel.selectedNavItem == StudioNavItem.QUERY_METRICS -> {
+                    val metricsRepo: QueryMetricsRepository = koinInject()
+                    QueryMetricsScreen(
+                        metricsRepository = metricsRepo,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

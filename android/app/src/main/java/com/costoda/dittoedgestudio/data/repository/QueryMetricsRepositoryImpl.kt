@@ -27,6 +27,10 @@ class QueryMetricsRepositoryImpl(private val dao: QueryMetricsDao) : QueryMetric
         dao.getByHistoryId(historyId)?.toDomain()
     }
 
+    override suspend fun getAllMetrics(): List<QueryMetrics> = withContext(Dispatchers.IO) {
+        dao.getAll().map { it.toDomain() }
+    }
+
     override suspend fun deleteAll() = withContext(Dispatchers.IO) {
         dao.deleteAll()
     }

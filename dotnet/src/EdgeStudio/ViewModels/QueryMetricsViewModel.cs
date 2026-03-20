@@ -23,7 +23,13 @@ public partial class QueryMetricsViewModel : LoadableViewModelBase
     [ObservableProperty]
     private QueryMetric? _latestMetric;
 
+    [ObservableProperty]
+    private QueryMetric? _selectedRecord;
+
     public ObservableCollection<QueryMetric> RecentMetrics { get; } = new();
+
+    public bool HasRecords => RecentMetrics.Count > 0;
+    public string RecordCountText => $"{RecentMetrics.Count} records";
 
     public QueryMetricsViewModel(IQueryMetricsService? metricsService = null, IToastService? toastService = null)
         : base(toastService)
@@ -41,7 +47,15 @@ public partial class QueryMetricsViewModel : LoadableViewModelBase
             RecentMetrics.Clear();
             foreach (var m in _metricsService.GetAll())
                 RecentMetrics.Add(m);
+            OnPropertyChanged(nameof(HasRecords));
+            OnPropertyChanged(nameof(RecordCountText));
         });
+    }
+
+    [RelayCommand]
+    private void ClearAll()
+    {
+        _metricsService?.ClearAll();
     }
 
     [RelayCommand]

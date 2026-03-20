@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
@@ -25,6 +26,7 @@ class QueryEditorViewModel(
     private val historyRepository: HistoryRepository,
     private val favoritesRepository: FavoritesRepository,
     private val metricsRepository: QueryMetricsRepository,
+    private val appMetricsRepository: AppMetricsRepository,
 ) : ViewModel() {
 
     // ── Editor state ─────────────────────────────────────────────────────────
@@ -127,6 +129,8 @@ class QueryEditorViewModel(
                 )
                 metricsRepository.save(metrics)
                 _queryMetrics.value = metrics
+                appMetricsRepository.incrementQueryCount()
+                appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
             }.onFailure { e ->
                 _executionError.value = e.message ?: "Unknown error"
             }
@@ -159,6 +163,8 @@ class QueryEditorViewModel(
                 )
                 metricsRepository.save(metrics)
                 _queryMetrics.value = metrics
+                appMetricsRepository.incrementQueryCount()
+                appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
                 _selectedInspectorTab.value = QueryInspectorTab.METRICS
             }.onFailure { e ->
                 _executionError.value = e.message ?: "Unknown error"

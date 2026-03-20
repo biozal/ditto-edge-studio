@@ -6,8 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Messages;
+using EdgeStudio.Shared.Models;
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace EdgeStudio.ViewModels
@@ -29,6 +31,8 @@ namespace EdgeStudio.ViewModels
         private readonly TableResultsViewModel? _tableResults;
         private readonly ExplainResultsViewModel? _explainResults;
         private readonly IQueryService? _queryService;
+        private readonly IQueryMetricsService? _queryMetricsService;
+        private readonly IAppMetricsService? _appMetricsService;
 
         [ObservableProperty]
         private string _selectedQueryMode = "Local";
@@ -83,7 +87,9 @@ namespace EdgeStudio.ViewModels
             TableResultsViewModel? tableResults,
             ExplainResultsViewModel? explainResults,
             IQueryService? queryService = null,
-            string queryText = "")
+            string queryText = "",
+            IQueryMetricsService? queryMetricsService = null,
+            IAppMetricsService? appMetricsService = null)
         {
             Id = Guid.NewGuid().ToString();
             _baseTitle = title;
@@ -94,6 +100,8 @@ namespace EdgeStudio.ViewModels
             _tableResults = tableResults;
             _explainResults = explainResults;
             _queryService = queryService;
+            _queryMetricsService = queryMetricsService;
+            _appMetricsService = appMetricsService;
 
             if (_jsonResults != null)
             {
@@ -147,9 +155,12 @@ namespace EdgeStudio.ViewModels
             IsExecuting = true;
             SelectedDocumentJson = null;
 
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 var result = await _queryService.ExecuteLocalAsync(QueryText);
+                stopwatch.Stop();
+                var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
 
                 if (result.IsError)
                 {
@@ -176,10 +187,27 @@ namespace EdgeStudio.ViewModels
                     ResultCount = result.ResultCount;
                 }
 
+                // Capture metrics
+                if (_queryMetricsService != null)
+                {
+                    var metric = new QueryMetric(
+                        Id: Guid.NewGuid().ToString(),
+                        DqlQuery: QueryText,
+                        ExecutionTimeMs: elapsedMs,
+                        ResultCount: result.ResultCount,
+                        ExplainOutput: string.Empty,
+                        Timestamp: DateTime.UtcNow
+                    );
+                    _queryMetricsService.Capture(metric);
+                    _appMetricsService?.IncrementQueryCount();
+                    _appMetricsService?.RecordQueryLatency(elapsedMs);
+                }
+
                 WeakReferenceMessenger.Default.Send(new QueryExecutedMessage(QueryText, result));
             }
             finally
             {
+                if (stopwatch.IsRunning) stopwatch.Stop();
                 IsExecuting = false;
             }
         }

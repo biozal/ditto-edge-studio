@@ -7,6 +7,7 @@ namespace EdgeStudio.Shared.Data
     public interface IQueryMetricsService
     {
         void Capture(QueryMetric metric);
+        void ClearAll();
         QueryMetric? Latest { get; }
         IReadOnlyList<QueryMetric> GetAll();
         event EventHandler MetricsUpdated;

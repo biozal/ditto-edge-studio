@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.StudioView.Sidebar.QueryMetricsListingView"
              x:DataType="vm:QueryMetricsViewModel"
@@ -14,17 +15,23 @@
                        FontSize="16"
                        FontWeight="SemiBold"/>
         </Border>
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="24">
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" Margin="24">
+            <materialIcons:MaterialIcon Kind="ChartLine"
+                                        Width="48"
+                                        Height="48"
+                                        Opacity="0.2"
+                                        HorizontalAlignment="Center"/>
             <TextBlock Text="Query Metrics"
                        FontSize="14"
                        FontWeight="SemiBold"
                        HorizontalAlignment="Center"
                        Opacity="0.7"/>
-            <TextBlock Text="Coming soon"
-                       FontSize="12"
+            <TextBlock Text="Execution time, result count, and query profiling for each DQL statement."
+                       FontSize="11"
                        HorizontalAlignment="Center"
                        Opacity="0.5"
-                       FontStyle="Italic"/>
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"/>
         </StackPanel>
     </Grid>
 </UserControl>

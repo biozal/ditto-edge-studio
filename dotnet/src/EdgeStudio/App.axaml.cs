@@ -166,6 +166,7 @@ public partial class App : Application
 
         // Register query execution and metrics services
         services.AddSingleton<IQueryMetricsService, InMemoryQueryMetricsService>();
+        services.AddSingleton<IAppMetricsService, AppMetricsService>();
         services.AddSingleton<IQueryService, DittoQueryService>();
 
         // Register SQLite-backed repositories

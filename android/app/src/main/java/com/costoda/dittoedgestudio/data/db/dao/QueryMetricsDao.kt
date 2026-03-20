@@ -15,6 +15,9 @@ interface QueryMetricsDao {
     @Query("SELECT * FROM query_metrics WHERE history_id = :historyId LIMIT 1")
     suspend fun getByHistoryId(historyId: Long): QueryMetricsEntity?
 
+    @Query("SELECT * FROM query_metrics ORDER BY captured_at DESC")
+    suspend fun getAll(): List<QueryMetricsEntity>
+
     @Query("DELETE FROM query_metrics")
     suspend fun deleteAll()
 }

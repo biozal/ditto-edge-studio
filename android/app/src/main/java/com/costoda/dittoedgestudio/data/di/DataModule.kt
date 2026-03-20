@@ -5,6 +5,8 @@ import com.costoda.dittoedgestudio.data.db.DatabaseKeyManager
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.logging.LoggingService
+import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.AppMetricsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
@@ -27,6 +29,7 @@ import com.costoda.dittoedgestudio.data.repository.SystemRepositoryImpl
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayViewModel
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
+import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -64,10 +67,12 @@ val dataModule = module {
     single<CollectionsRepository> { CollectionsRepositoryImpl(get<CoroutineScope>()) }
     single { QueryExecutionService(get()) }
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
+    single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
     viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get()) }
-    viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get()) }
+    viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
+    viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get(), get()) }
     viewModelOf(::QrScannerViewModel)
     viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }
 }

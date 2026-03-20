@@ -17,6 +17,8 @@ public partial class QueryViewModel : LoadableViewModelBase
 {
     private readonly ICollectionsRepository _collectionsRepository;
     private readonly IQueryService? _queryService;
+    private readonly IQueryMetricsService? _queryMetricsService;
+    private readonly IAppMetricsService? _appMetricsService;
     private int _queryCounter = 1;
     private bool _httpAvailable;
 
@@ -114,10 +116,14 @@ public partial class QueryViewModel : LoadableViewModelBase
     public QueryViewModel(
         ICollectionsRepository collectionsRepository,
         IQueryService? queryService = null,
-        IToastService? toastService = null) : base(toastService)
+        IToastService? toastService = null,
+        IQueryMetricsService? queryMetricsService = null,
+        IAppMetricsService? appMetricsService = null) : base(toastService)
     {
         _collectionsRepository = collectionsRepository;
         _queryService = queryService;
+        _queryMetricsService = queryMetricsService;
+        _appMetricsService = appMetricsService;
 
         // Initialize results ViewModels
         JsonResults = new JsonResultsViewModel();
@@ -176,7 +182,7 @@ public partial class QueryViewModel : LoadableViewModelBase
 
     private QueryDocumentViewModel CreateQueryDocument(string title, string queryText = "")
     {
-        var doc = new QueryDocumentViewModel(title, JsonResults, TableResults, ExplainResults, _queryService, queryText);
+        var doc = new QueryDocumentViewModel(title, JsonResults, TableResults, ExplainResults, _queryService, queryText, _queryMetricsService, _appMetricsService);
         doc.SetHttpAvailable(_httpAvailable);
         return doc;
     }

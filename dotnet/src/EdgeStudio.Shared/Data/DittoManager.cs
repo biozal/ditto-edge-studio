@@ -87,6 +87,14 @@ namespace EdgeStudio.Shared.Data
             }
         }
 
+        public string? GetPersistenceDirectory()
+        {
+            if (SelectedDatabaseConfig == null) return null;
+            var dbName = $"{SelectedDatabaseConfig.Name.Trim().ToLower()}-{SelectedDatabaseConfig.DatabaseId}";
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(appDataPath, "DittoEdgeStudio", dbName);
+        }
+
         public Ditto GetSelectedAppDitto() => DittoSelectedApp ?? throw new InvalidOperationException("DittoManager is not properly initialized.");
 
         public async Task<bool> InitializeDittoSelectedApp(DittoDatabaseConfig dittoDatabaseConfig)
