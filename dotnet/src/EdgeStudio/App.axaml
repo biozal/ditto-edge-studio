@@ -1,0 +1,50 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="https://github.com/kikipoulet/SukiUI"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="EdgeStudio.App"
+             xmlns:local="using:EdgeStudio"
+             Name="Edge Studio"
+             RequestedThemeVariant="Default">
+             <!-- RequestedThemeVariant set to Default to let SukiTheme control it -->
+
+    <!-- Application-level native menu for macOS (About, Preferences, etc.) -->
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <NativeMenuItem Header="About Edge Studio" Click="AboutMenuItem_Click" />
+            <NativeMenuItem Header="Preferences…" Gesture="Meta+," />
+        </NativeMenu>
+    </NativeMenu.Menu>
+
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <FontFamily x:Key="KairosSans">avares://EdgeStudio/Assets/Fonts/KairosSansVariableRoman.woff2</FontFamily>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://EdgeStudio/Styles/CompletionWindowStyles.axaml" />
+                <ResourceInclude Source="avares://EdgeStudio/Styles/BrandColors.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+
+        <!-- SukiUI theme (no built-in ThemeColor — Ditto themes registered in App.axaml.cs) -->
+        <suki:SukiTheme />
+
+        <!-- Ditto brand button styling — must come after SukiTheme to take precedence -->
+        <StyleInclude Source="avares://EdgeStudio/Styles/ButtonStyles.axaml" />
+
+        <!-- Other custom styles -->
+        <StyleInclude Source="avares://EdgeStudio/Styles/GlassCardStyles.axaml" />
+        <StyleInclude Source="avares://EdgeStudio/Styles/MaterialIconStyles.axaml" />
+        <StyleInclude Source="avares://EdgeStudio/Styles/TextStyles.axaml" />
+        <StyleInclude Source="avares://EdgeStudio/Styles/WrapPanelStyles.axaml" />
+        <materialIcons:MaterialIconStyles />
+    </Application.Styles>
+</Application>

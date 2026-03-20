@@ -1,0 +1,11 @@
+Go into planning mode.  The dotnet version of the app has some issues.  When I click on Logging from the Navigation Bar - the logging screen shows up with a split of Logging and how many enteries - then it shows the main details of logging and the inspector.  A few things:
+
+1.  On logging there shouldn't be Navigation Bar, LoggingListingView, LoggingDetailView, and then Inspector.  It should just be Navigation Bar, LoggingDetailView, Inspector (if it's open).  There is no need for the ListingListingView.  It should be completely removed as it serves no purpose.  
+
+2.  The information about how many entries that is listed on the LoggingListingView should be on the DetailBottomBar.  
+
+3.  It's like EdgeStudioView and LoggingDetailView are both drawing a DetailBottomBar.  Look at the screenshots logging-bottom-dotnet.png which is what happens when I click on the Logging option from the Navigation Bar.  The DetailBottomBar is rendered.  If I hide the DetailBottomBar - a different bar is under it - see the screenshot logging-bottom-minimized-dotnet.png.  This shows how many enteries and a button to clear the logs.  There should only be 1 DetailBottomBar - it should be rendered by EdgeStudioView - but the contents of that DetailBottomBar should be different based on which Navigation Bar icon is selected.  The DtailBottomBar when Logging is selected should have the listing of how many log enteries are rendered on the LoggingDetailView listing and it should have a clear button that clears the logs.  The button should have a Yellow background and a black icon color (it's red right now).  
+
+4.  The inspector view should be custom based on which icon is selected in the Navigation Bar.  This is how the SwiftUI and Android versions work.  For logging it should show a help icon and render the help documentation for logging.  The documentation is shared for dotnet, swift, and android in the docs\help folder.  The logging screen md file is logging.md.  This should render in a scrollable view when the user selects logging.  All help files (anything in docs\help) should be copied into the dotnet project on build so that the md files can be used in the dotnet version of the app.  
+
+Make a plan to fix these issues.  Let me know when you are ready to review.

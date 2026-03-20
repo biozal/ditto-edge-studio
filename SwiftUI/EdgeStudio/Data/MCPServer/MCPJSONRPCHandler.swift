@@ -4,7 +4,7 @@ import Foundation
 // MARK: - JSON-RPC ID
 
 /// Type-safe representation of a JSON-RPC request ID.
-enum JSONRPCId: Sendable {
+enum JSONRPCId {
     case string(String)
     case integer(Int)
     case null

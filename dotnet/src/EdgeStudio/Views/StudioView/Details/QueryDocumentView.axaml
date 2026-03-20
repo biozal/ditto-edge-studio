@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:details="using:EdgeStudio.Views.StudioView.Details"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.StudioView.Details.QueryDocumentView"
+             x:DataType="vm:QueryDocumentViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="*,5,300">
+        <details:QueryEditorView Grid.Row="0"/>
+        <GridSplitter Grid.Row="1"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      Background="Transparent"
+                      ResizeDirection="Rows">
+            <GridSplitter.Styles>
+                <Style Selector="GridSplitter:pointerover">
+                    <Setter Property="Background" Value="#20FFFFFF"/>
+                </Style>
+                <Style Selector="GridSplitter:pressed">
+                    <Setter Property="Background" Value="#007ACC"/>
+                </Style>
+            </GridSplitter.Styles>
+        </GridSplitter>
+        <details:QueryResultsView Grid.Row="2"/>
+    </Grid>
+</UserControl>

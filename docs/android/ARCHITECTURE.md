@@ -15,9 +15,12 @@ Edge Studio for Android follows Clean Architecture with MVVM, using Room + SQLCi
 │  Repository interfaces  ·  Domain models             │
 ├─────────────────────────────────────────────────────┤
 │  Data Layer                                          │
-│  Repository Impls  ·  Room DAOs                      │
-│  AppDatabase (Room + SQLCipher)                      │
-│  DatabaseKeyManager (Android Keystore)               │
+│  ┌─────────────────┐  ┌──────────────────────────┐  │
+│  │  Ditto SDK       │  │  Room DAOs               │  │
+│  │  DittoManager    │  │  AppDatabase + SQLCipher │  │
+│  │  SystemRepository│  │  DatabaseKeyManager      │  │
+│  │  NetworkDiagRepo │  └──────────────────────────┘  │
+│  └─────────────────┘                                 │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -40,6 +43,13 @@ Located in `domain/model/`:
 | `DittoObservable` | Stored observable (name + query + active state) |
 | `DittoQueryHistory` | Query history entry (query + timestamp) |
 | `AuthMode` | Enum: `SERVER` or `SMALL_PEERS_ONLY` |
+| `SyncStatusInfo` | Remote peer info from Ditto presence graph |
+| `LocalPeerInfo` | This device's identity in the Ditto mesh |
+| `ConnectionsByTransport` | Aggregated connection counts by transport type |
+| `NetworkInterfaceInfo` | WiFi/Ethernet interface diagnostics |
+| `P2PTransportInfo` | WiFi Aware / WiFi Direct hardware status |
+| `PeerOS` | Enum: iOS, Android, macOS, Linux, Windows, Unknown |
+| `ConnectionType` | Enum: Bluetooth, LAN, P2PWiFi, WebSocket, Unknown |
 
 All domain models are Kotlin `data class` with no Android or Room imports.
 

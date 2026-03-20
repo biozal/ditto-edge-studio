@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <radialGradient id="warpGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#141211" stop-opacity="0" />
+      <stop offset="20%" stop-color="#141211" stop-opacity="0" />
+      <stop offset="60%" stop-color="#dbdad8" stop-opacity="0.7" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
+    </radialGradient>
+    
+    <clipPath id="boundaryClip">
+      <rect x="0" y="0" width="1920" height="1080" />
+    </clipPath>
+
+    <g id="burst-a">
+      <line x1="960" y1="430" x2="960" y2="-100" stroke-width="2"/>
+      <line x1="945" y1="450" x2="880" y2="-150" stroke-width="1" stroke-dasharray="80 30"/>
+      <line x1="975" y1="470" x2="1020" y2="-50" stroke-width="1.5"/>
+    </g>
+
+    <g id="burst-b">
+      <line x1="960" y1="400" x2="960" y2="50" stroke-width="2.5" stroke-dasharray="150 50"/>
+      <line x1="930" y1="480" x2="800" y2="0" stroke-width="1"/>
+    </g>
+
+    <g id="burst-c">
+      <line x1="960" y1="460" x2="960" y2="-200" stroke-width="1.2"/>
+      <line x1="985" y1="440" x2="1100" y2="-80" stroke-width="2"/>
+    </g>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#141211" />
+
+  <g clip-path="url(#boundaryClip)">
+    <g stroke="url(#warpGlow)" stroke-linecap="round">
+      
+      <use href="#burst-a" transform="rotate(0 960 540)" />
+      <use href="#burst-a" transform="rotate(73 960 540)" />
+      <use href="#burst-a" transform="rotate(142 960 540)" />
+      <use href="#burst-a" transform="rotate(215 960 540)" />
+      <use href="#burst-a" transform="rotate(292 960 540)" />
+
+      <use href="#burst-b" transform="rotate(37 960 540)" />
+      <use href="#burst-b" transform="rotate(108 960 540)" />
+      <use href="#burst-b" transform="rotate(185 960 540)" />
+      <use href="#burst-b" transform="rotate(256 960 540)" />
+      <use href="#burst-b" transform="rotate(331 960 540)" />
+
+      <use href="#burst-c" transform="rotate(19 960 540)" />
+      <use href="#burst-c" transform="rotate(88 960 540)" />
+      <use href="#burst-c" transform="rotate(164 960 540)" />
+      <use href="#burst-c" transform="rotate(233 960 540)" />
+      <use href="#burst-c" transform="rotate(312 960 540)" />
+
+      <g transform="translate(960, 540) scale(0.55) translate(-960, -540)" stroke-opacity="0.45">
+        <use href="#burst-a" transform="rotate(45 960 540)" />
+        <use href="#burst-a" transform="rotate(120 960 540)" />
+        <use href="#burst-a" transform="rotate(195 960 540)" />
+        <use href="#burst-a" transform="rotate(270 960 540)" />
+        <use href="#burst-a" transform="rotate(345 960 540)" />
+
+        <use href="#burst-b" transform="rotate(15 960 540)" />
+        <use href="#burst-b" transform="rotate(90 960 540)" />
+        <use href="#burst-b" transform="rotate(165 960 540)" />
+        <use href="#burst-b" transform="rotate(240 960 540)" />
+        <use href="#burst-b" transform="rotate(315 960 540)" />
+
+        <use href="#burst-c" transform="rotate(65 960 540)" />
+        <use href="#burst-c" transform="rotate(140 960 540)" />
+        <use href="#burst-c" transform="rotate(215 960 540)" />
+        <use href="#burst-c" transform="rotate(290 960 540)" />
+        <use href="#burst-c" transform="rotate(355 960 540)" />
+      </g>
+      
+    </g>
+  </g>
+</svg>

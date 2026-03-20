@@ -1,6 +1,7 @@
 [versions]
-agp = "8.9.0"
+agp = "8.12.0"
 kotlin = "2.1.20"
+ditto = "5.0.0-preview.5"
 ksp = "2.1.20-1.0.32"
 mlkitBarcode = "17.3.0"
 camerax = "1.4.2"
@@ -21,6 +22,9 @@ koinBom = "4.1.1"
 coroutines = "1.10.2"
 mockk = "1.13.14"
 navigationCompose = "2.8.9"
+timber = "5.0.1"
+orgJson = "20231013"
+markwon = "4.6.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,6 +34,7 @@ androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-ui-test = { group = "androidx.compose.ui", name = "ui-test" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
@@ -67,6 +72,16 @@ camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", vers
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# Ditto SDK
+ditto-kotlin = { module = "com.ditto:ditto-kotlin-android", version.ref = "ditto" }
+# Logging
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
+# Markdown rendering
+markwon-core    = { group = "io.noties.markwon", name = "core",       version.ref = "markwon" }
+markwon-html    = { group = "io.noties.markwon", name = "html",       version.ref = "markwon" }
+markwon-tables  = { group = "io.noties.markwon", name = "ext-tables", version.ref = "markwon" }
+markwon-linkify = { group = "io.noties.markwon", name = "linkify",    version.ref = "markwon" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

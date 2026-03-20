@@ -1,6 +1,5 @@
 package com.costoda.dittoedgestudio.ui
 
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -41,6 +40,9 @@ class DatabaseEditorScreenTest {
 
         override fun observeAll(): Flow<List<DittoDatabase>> = flowOf(databases.toList())
         override suspend fun getAll() = databases.toList()
+        override suspend fun getById(id: Long): DittoDatabase? =
+            databases.firstOrNull { it.id == id }
+
         override suspend fun getByDatabaseId(databaseId: String) =
             databases.firstOrNull { it.databaseId == databaseId }
 

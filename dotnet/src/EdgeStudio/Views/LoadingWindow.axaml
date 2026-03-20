@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="200"
+        x:Class="EdgeStudio.Views.LoadingWindow"
+        Title="Ditto Edge Studio"
+        Width="400" Height="200"
+        WindowStartupLocation="CenterScreen"
+        CanResize="false"
+        ShowInTaskbar="false">
+    
+    <Border Background="#2D3748" CornerRadius="8">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+            <!-- Logo or App Name -->
+            <TextBlock Text="Ditto Edge Studio" 
+                       FontSize="24" 
+                       FontWeight="Bold" 
+                       Foreground="White"
+                       HorizontalAlignment="Center"/>
+            
+            <!-- Loading Indicator -->
+            <ProgressBar IsIndeterminate="True" 
+                         Width="200" 
+                         Height="4"
+                         Foreground="#3182CE"/>
+            
+            <!-- Loading Text -->
+            <TextBlock Text="Initializing application..." 
+                       FontSize="14" 
+                       Foreground="#A0AEC0"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+    </Border>
+</Window>

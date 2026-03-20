@@ -52,7 +52,11 @@ actor SystemRepository {
         }
     }
 
-    private func extractPeerEnrichment(from peer: DittoPeer, filteredBy config: DittoConfigForDatabase? = nil) -> PeerEnrichmentData {
+    private func extractPeerEnrichment(
+        from peer: DittoPeer,
+        localPeerKeyString: String? = nil,
+        filteredBy config: DittoConfigForDatabase? = nil
+    ) -> PeerEnrichmentData {
         // Convert DittoPeerOS to custom PeerOS
         let osInfo: PeerOS? = {
             guard let dittoOS = peer.osV2 else { return nil }
@@ -125,11 +129,21 @@ actor SystemRepository {
         }()
 
         // Convert connections array to custom ConnectionInfo.
-        // The SDK returns one DittoConnection per directional endpoint (A→B and B→A are
-        // separate objects with the same type but different IDs). Deduplicate by keeping
-        // the first-seen entry per connection type so the peer card shows accurate counts.
+        // First filter to only direct connections (local peer must be an endpoint), then
+        // deduplicate by type. The SDK returns one DittoConnection per directional endpoint
+        // (A→B and B→A are separate objects with the same type but different IDs).
         let connections: [ConnectionInfo]? = {
-            let peerConnections = peer.connections
+            let rawConnections = peer.connections
+            // Only include connections where the local peer is an endpoint (direct connections).
+            // presenceGraph.remotePeers includes multihop peers; filtering here ensures only
+            // directly connected transports appear on the peer card.
+            let peerConnections: [DittoConnection] = if let localKey = localPeerKeyString {
+                rawConnections.filter {
+                    $0.peerKeyString1 == localKey || $0.peerKeyString2 == localKey
+                }
+            } else {
+                rawConnections
+            }
 
             guard !peerConnections.isEmpty else { return nil }
 
@@ -192,8 +206,16 @@ actor SystemRepository {
             Task { [weak self] in
                 guard let self else { return }
 
-                // Step 1: Extract connected peers from presence graph (source of truth)
-                let connectedPeers = presenceGraph.remotePeers
+                // Step 1: Extract directly connected peers from presence graph (source of truth).
+                // presenceGraph.remotePeers returns the full mesh topology (all peers, including
+                // multihop). Filter to only peers where the local device is an endpoint of at
+                // least one connection to avoid showing peers we never directly communicated with.
+                let localPeerKeyString = presenceGraph.localPeer.peerKeyString
+                let connectedPeers = presenceGraph.remotePeers.filter { peer in
+                    peer.connections.contains {
+                        $0.peerKeyString1 == localPeerKeyString || $0.peerKeyString2 == localPeerKeyString
+                    }
+                }
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
@@ -245,8 +267,9 @@ actor SystemRepository {
                 for peer in dedupedPeers {
                     let peerId = peer.peerKeyString
 
-                    // Extract peer enrichment data from presence, filtering disabled transports
-                    let enrichment = await extractPeerEnrichment(from: peer, filteredBy: appConfig)
+                    // Extract peer enrichment data from presence, filtering to direct connections
+                    // and disabled transports (SDK bug workaround)
+                    let enrichment = await extractPeerEnrichment(from: peer, localPeerKeyString: localPeerKeyString, filteredBy: appConfig)
 
                     // Look up sync metrics for this peer (may not exist)
                     var dict: [String: Any]
@@ -433,12 +456,17 @@ actor SystemRepository {
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
 
-                // Iterate through all remote peers in the presence graph.
-                // Deduplicate by type before counting — the SDK returns one DittoConnection
-                // per directional endpoint (A→B and B→A), which would otherwise double counts.
+                // Only count connections where the local peer is a direct endpoint.
+                // presenceGraph.remotePeers includes multihop peers; their connections are not
+                // direct and should not contribute to the transport counts in the status bar.
+                // Also deduplicate by type — the SDK returns one DittoConnection per directional
+                // endpoint (A→B and B→A), which would otherwise double-count.
+                let localPeerKeyString = presenceGraph.localPeer.peerKeyString
                 for peer in presenceGraph.remotePeers {
                     var seenTypes: Set<String> = []
                     for connection in peer.connections {
+                        guard connection.peerKeyString1 == localPeerKeyString ||
+                            connection.peerKeyString2 == localPeerKeyString else { continue }
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }
 
                         let connectionType = await convertConnectionType(connection.type)

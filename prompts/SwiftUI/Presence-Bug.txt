@@ -1,0 +1,14 @@
+Go into planning mode.  I believe we have a bug with the code in the SystemRepository that we use to draw the peer cards in all versions of the app (SwiftUI, dotnet, and Android).  I reported a bug where it felt like the cards we were getting were wrong, but the SDK team came back with this information:
+
+The peers list was showing all remote peers in the mesh, including multihop ones, because presenceGraph.remotePeers returns the full topology rather than only directly connected devices. This inflated both the peer count and the connection count/type.
+
+The fix is to only consider directly connected peers and direct connections by checking whether the local peer key is an endpoint of the connection.  RemotePeers has always include all peers.
+
+We need to take this into accound for both the Presence Graph and the Peer Listing cards.  For the Peer Listing cards we only want to know about directly connected peers.  
+
+We need a plan to fix this. To start out, let's just fix the code in SwiftUI, dotnet, and Android to only draw the peer cards for the directly connected peers.  We need to test and make sure this is correct and not an error so please explain to me the business logic on each platform you will use to validate that we are only drawing cards for the directly connected remote peers.  We have the local peer information so this should be easy to compare and filter out.
+
+Make a plan to fix this.  Once it's ready for review let me know.
+
+
+

@@ -1,0 +1,25 @@
+Go into planning mode.  In the SwiftUI version of the app, when we select one of the database config, it goes into the MainStudioView.swift.  It runs the DatabaseManager.swift function hydrateDittoSelectedDatabase - which hydrates an instance of the Ditto Database.  This instance is live until the user taps the close button on the top toolbar or closes the window in MacOS.  This allows the app then to draw the Peer List, which is done in the SystemRepository.swift and DetailViews.swift funciton syncTabsDetailView.  This calls the code in the ConnectedPeersView.swift.  
+
+The Android app needs to have the same functionality.  In android, we need to use the v5 beta of the SDK.  The location of it's install is here:
+https://repo1.maven.org/maven2/com/ditto/ditto-kotlin/5.0.0-preview.5/
+
+The API reference documentation can be found here:
+https://software.ditto.live/kotlin/ditto-kotlin/5.0.0-preview.5/api-reference/index.html
+
+In the main Ditto repo, there is a cars demo Kotlin Multiplatform app which has the latest beta versino setup and is a good example on what changes need to be done to get Ditto configured properly in the project:
+https://github.com/getditto/ditto/tree/main/sdks/kotlin/examples/dittocarsapp-kmp
+
+I also have the Android quickstart updated to v5 - which you can see here:
+/Users/labeaaa/Developer/quickstart-v5/android-kotlin
+
+The SDK team has done some helpful migration documentation here:
+https://github.com/getditto/ditto/blob/main/sdks/kotlin/docs/DITTO_KOTLIN_V5_MIGRATION.md
+
+Some of the documentation might be out of date already, but you should be able to use this along with the API Reference documentation to figure out what has changed.
+
+We need to create a plan to implement the DittoManager and allow a database config to spin up an instance of Ditto so it can draw a list of Peers.  The UI for the list of Peers should match the iOS version of the UI.  When the user taps the close button OR the user hits the back button to back to the Database Listing screen, the ditto instance MUST be closed and all memory should be cleared.  
+
+The plan should include tests and updating the documentation.  You should use the SwfitUI code as a guide on how the code should be structured in Android, however, we should use Android best pratices at all times. 
+
+Let me know when you have a plan in place to implement this.
+

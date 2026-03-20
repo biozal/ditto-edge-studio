@@ -1,0 +1,5 @@
+Go into planning mode.  I would like to have a new Sync icon that appears to the left of the Close button.  This button shouold be green when sync is enabled and red when it's disabled.  It should use a sync icon and the button should look like the close button with the same styling and size.  There should be padding between the two buttons.  
+
+The Ditto Manager should handle controlling the sync state.  When the user clicks on the button it should either run DittoSelectedApp.Sync.Start() or DittoSelectedApp.Sync.Stop().  When an Ditto app is opened the sync status should be started, so the default state should be started.  
+
+Create a plan to update the UI with the button and code it takes to handle when the button is selected.  Let me know when you have the plan ready for review.       

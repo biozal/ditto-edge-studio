@@ -18,6 +18,10 @@ class DatabaseRepositoryImpl(private val dao: DatabaseConfigDao) : DatabaseRepos
         dao.getAll().map { it.toDomain() }
     }
 
+    override suspend fun getById(id: Long): DittoDatabase? = withContext(Dispatchers.IO) {
+        dao.getById(id)?.toDomain()
+    }
+
     override suspend fun getByDatabaseId(databaseId: String): DittoDatabase? =
         withContext(Dispatchers.IO) {
             dao.getByDatabaseId(databaseId)?.toDomain()

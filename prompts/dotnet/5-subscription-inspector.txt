@@ -1,0 +1,15 @@
+Go into planning mode.  In the dotnet version When the Subscriptions is selected from the NavigationBar - the inspector needs updating.  When the inspector opens it should render the contents of the subscription.md file that is copied into the project.  It should use the same method as Logging which was recently fixed to display markdown content.
+
+The menu in the upper right hand corner has the icons in the wrong order.  It should be:
+
+Sync 
+Close 
+inspector
+
+Right now it's:
+
+Inspector
+Sync
+Close
+
+Create a plan to update the dotnet version to fix these issues.  Let me know when you are ready to review.

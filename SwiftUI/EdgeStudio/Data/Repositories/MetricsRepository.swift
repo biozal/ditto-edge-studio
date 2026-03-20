@@ -6,7 +6,7 @@ import Darwin
 
 // MARK: - Snapshot types
 
-struct ProcessMetricSnapshot: Sendable {
+struct ProcessMetricSnapshot {
     let residentMemoryBytes: Double?
     let virtualMemoryBytes: Double?
     let cpuTimeSeconds: Double?
@@ -14,7 +14,7 @@ struct ProcessMetricSnapshot: Sendable {
     let processUptimeSeconds: Double
 }
 
-struct QueryMetricSnapshot: Sendable {
+struct QueryMetricSnapshot {
     let totalQueryCount: Double
     let avgQueryLatencyMs: Double?
     let lastQueryLatencyMs: Double?

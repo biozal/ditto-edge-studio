@@ -1,0 +1,11 @@
+I would like to update the SubscriptionsDetailsView to include a new UI design.  I would like it to have 3 tabs that are centered labeled:
+
+Peers List
+Presence Viewer
+Settings
+
+The current UI that is in the app should be rendered under the Peers List tab.  I would like to have place holders for the Presence Viewer tab and Settings.  Placeholders can be as simply as some text that says coming soon.
+
+It would be recommended that each tab probably have it's Views and ViewModels broken down into separate files for easier code management.  
+
+Create a plan to implement this and let me know when you have the plan ready for me to review.  

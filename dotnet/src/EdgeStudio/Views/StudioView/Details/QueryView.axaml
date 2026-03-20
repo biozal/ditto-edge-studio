@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:details="using:EdgeStudio.Views.StudioView.Details"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="EdgeStudio.Views.StudioView.Details.QueryView"
+             x:DataType="vm:QueryViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.Styles>
+        <!-- Tab Control Styling -->
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <!-- Tab Item Styling - Inactive tabs -->
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,2,2,0"/>
+            <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <!-- Tab Item Styling - Active/Selected tab: Ditto Yellow bottom underline -->
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource DittoAccent}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+        </Style>
+
+        <!-- Tab Item Hover state -->
+        <Style Selector="TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Main Tab Control -->
+    <TabControl ItemsSource="{Binding QueryDocuments}"
+                SelectedItem="{Binding CurrentQueryDocument}">
+
+        <TabControl.ItemTemplate>
+            <DataTemplate DataType="vm:QueryDocumentViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Title}"
+                               VerticalAlignment="Center"/>
+                    <Button Classes="Icon"
+                            Width="16"
+                            Height="16"
+                            Padding="0"
+                            Background="Transparent"
+                            Command="{Binding $parent[UserControl].((vm:QueryViewModel)DataContext).CloseQueryCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="Close query"
+                            Foreground="{Binding $parent[TabItem].Foreground}">
+                        <materialIcons:MaterialIcon Kind="Close" Width="11" Height="11"/>
+                    </Button>
+                </StackPanel>
+            </DataTemplate>
+        </TabControl.ItemTemplate>
+
+        <TabControl.ContentTemplate>
+            <DataTemplate DataType="vm:QueryDocumentViewModel">
+                <details:QueryDocumentView/>
+            </DataTemplate>
+        </TabControl.ContentTemplate>
+    </TabControl>
+</UserControl>
