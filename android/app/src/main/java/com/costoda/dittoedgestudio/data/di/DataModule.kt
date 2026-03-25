@@ -32,6 +32,7 @@ import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
+import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -72,6 +73,7 @@ val dataModule = module {
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
     viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
+    viewModel { DiskUsageViewModel(androidContext(), get(), get()) }
     viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get(), get()) }
     viewModelOf(::QrScannerViewModel)
     viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }

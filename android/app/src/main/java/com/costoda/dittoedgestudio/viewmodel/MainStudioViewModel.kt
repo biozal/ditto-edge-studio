@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
+import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Storage
@@ -47,7 +48,8 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
     OBSERVERS("Observers", Icons.Outlined.Visibility),
     LOGGING("Logging", Icons.Outlined.Description),
     APP_METRICS("App Metrics", Icons.Outlined.Memory),
-    QUERY_METRICS("Query Metrics", Icons.AutoMirrored.Outlined.ManageSearch);
+    QUERY_METRICS("Query Metrics", Icons.AutoMirrored.Outlined.ManageSearch),
+    DISK_USAGE("Disk Usage", Icons.Outlined.DataUsage);
 
     val helpFileName: String get() = when (this) {
         SUBSCRIPTIONS -> "subscription.md"
@@ -56,6 +58,7 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
         LOGGING -> "logging.md"
         APP_METRICS -> "appmetrics.md"
         QUERY_METRICS -> "querymetrics.md"
+        DISK_USAGE -> "diskusage.md"
     }
 }
 

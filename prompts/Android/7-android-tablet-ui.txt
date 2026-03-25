@@ -1,0 +1,30 @@
+The UI for Android tablet needs a lot of work.  The following issues were observed - check out the image peer-list-android-tablet.png and query-android-tablet.png.
+
+1.  On all screens in Android tablet when the navigation menu is setup in the OS, the app doesn't respect safe areas and thus parts of the app are not able to be accessed on the bottom of the screen because they are covered up by the navigation menu and navigation buttons from the OS.  
+
+2.  The app also isn't taking into the acount the top area where the app is drawing in the same area that the time is displayed making that text impossible to read.  This needs to work on modern Android 16 with safe areas on tablet in both vertical and horiztal viewing.  
+
+3.  The text for the collection name and index name is unreadable in dark mode.
+
+4.  In Query the Query Editor is on the left side and the Query Results are on the right side.  This is supposed to be where the Query Editor is on the top and the Query Results are on the bottom on tablet in Android.  This renders correctly on phone, but wrong on tablet.
+
+Make a plan to fix these issues.
+
+----
+
+Go into plan mode.  Look at the screenshot query-table-android.png.  When using the Query option on Android and running a query then clicking on table you can see the font colors are really bad - I can't even read the text in dark mode.  The same thing is happening to the JSON text in the JSON viewer.  Also the names of the tabs at the top of the inspector for query should be icons like they are in dotnet and swiftui.  The pagnation controls on the bottom are also unreadable in dark mode.  
+
+Create a plan to fix the font colors, the json viewer in the inspector, and the tabs for the inspector options under query to use icons like in SwiftUI and dotnet.
+
+
+-- 
+
+Go into planning mode.  Still more problems to fix on Android tablet.  See the screenshot query-tablet-android.png.  The page left and right chevron icons are the wrong color in dark mode which makes them almost impossle to see.  The overflow menu icon on the right of the bottom toolbar has the same problem.
+
+The overflow menu items are wrong.  It should have page size and Clear results.  Add favorite should be done from history on a long press on any query in the history listing and when you long press a menu pops up to allow you remove the query from history or to add it to favorite.  On favorites long press should bring up an option to delete the favorite.  
+
+The query metrics aren't displaying properly compared to SwiftUI and dotnet version.  Please look at the code for the dotnet and SwiftUI ane make sure the UI is updated to reflect that UI and that the metrics are being properly collected.  
+
+The navigation menu on the far left looks out of place with the words and icons.  In dotnet we only show the icons and we use the Ditto Yellow color on the selected icon with the black for the color of the selected icon.  Can you look at implementing the menu to look more like the dotnet version of the menu?
+
+Create a plan to do all these changes and let me know when the plan is ready to review.

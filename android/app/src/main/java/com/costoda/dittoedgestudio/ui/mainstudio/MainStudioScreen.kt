@@ -100,8 +100,10 @@ import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.InspectorContentView
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.AppMetricsScreen
+import com.costoda.dittoedgestudio.ui.mainstudio.metrics.DiskUsageScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.QueryMetricsScreen
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
+import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 import org.koin.compose.koinInject
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
@@ -740,6 +742,13 @@ private fun ContentPlaceholder(
                     val metricsRepo: QueryMetricsRepository = koinInject()
                     QueryMetricsScreen(
                         metricsRepository = metricsRepo,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                viewModel.selectedNavItem == StudioNavItem.DISK_USAGE -> {
+                    val diskUsageViewModel: DiskUsageViewModel = koinViewModel()
+                    DiskUsageScreen(
+                        viewModel = diskUsageViewModel,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
