@@ -351,6 +351,11 @@ class PresenceNetworkScene: SKScene {
                     offset = baseOffset - (step * CGFloat(index))
                 }
 
+                // Arc outward for peer-to-peer connections (neither endpoint is the local peer).
+                // This routes the chord around the outside of the node cluster instead of
+                // cutting through nodes that sit between the two ring-1 endpoints.
+                let localKey = localPeer.peerKeyString
+                let isPeerToPeer = conn.from != localKey && conn.to != localKey && !conn.isCloud
                 let line = ConnectionLine(
                     from: conn.from,
                     to: conn.to,
@@ -358,7 +363,8 @@ class PresenceNetworkScene: SKScene {
                     fromPos: fromNode.position,
                     toPos: toNode.position,
                     offset: offset,
-                    isCloudConnection: conn.isCloud
+                    isCloudConnection: conn.isCloud,
+                    arcOutward: isPeerToPeer
                 )
 
                 connectionLines[conn.connectionId] = line

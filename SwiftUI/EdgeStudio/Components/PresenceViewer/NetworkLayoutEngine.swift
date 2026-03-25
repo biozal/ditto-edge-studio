@@ -52,13 +52,14 @@ class NetworkLayoutEngine {
         // Calculate ring radii (may expand if too many peers)
         let ringRadii = calculateRingRadii(ringAssignments: ringAssignments)
 
-        // Calculate positions: ring-1 peers spread evenly, ring-2+ peers placed
-        // behind their parent to avoid edges crossing through unrelated nodes
+        // Calculate positions: ring-1 peers spread evenly in connection-aware order,
+        // ring-2+ peers placed behind their parent to avoid crossing unrelated nodes
         let positions = calculatePositions(
             ringAssignments: ringAssignments,
             ringRadii: ringRadii,
             localPeer: localPeerKey,
-            parentMap: parentMap
+            parentMap: parentMap,
+            adjacencyGraph: adjacencyGraph
         )
 
         return LayoutResult(
@@ -175,7 +176,8 @@ class NetworkLayoutEngine {
         ringAssignments: [Int: [String]],
         ringRadii: [Int: CGFloat],
         localPeer: String,
-        parentMap: [String: String]
+        parentMap: [String: String],
+        adjacencyGraph: [String: Set<String>]
     ) -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
 
@@ -191,9 +193,12 @@ class NetworkLayoutEngine {
             }
 
             if ring == 1 {
-                // Ring 1: evenly distribute directly-connected peers around the center
-                let angles = calculateOptimalAngles(peerCount: peers.count)
-                for (index, peerKey) in peers.enumerated() {
+                // Ring 1: sort peers so directly-connected pairs land adjacent on the circle,
+                // then distribute evenly. This prevents connection chords from cutting through
+                // unrelated nodes that sit between the two endpoints.
+                let orderedPeers = sortRing1Peers(peers, adjacencyGraph: adjacencyGraph)
+                let angles = calculateOptimalAngles(peerCount: orderedPeers.count)
+                for (index, peerKey) in orderedPeers.enumerated() {
                     let angle = angles[index]
                     positions[peerKey] = CGPoint(x: radius * cos(angle), y: radius * sin(angle))
                 }
@@ -258,6 +263,91 @@ class NetworkLayoutEngine {
         }
 
         return positions
+    }
+
+    /// Reorder ring-1 peers using a greedy double-ended path algorithm so that peers with
+    /// direct connections between them end up adjacent on the circle.
+    ///
+    /// The algorithm:
+    /// 1. Build a sub-graph of ring-1 → ring-1 edges only (ignoring the centre node).
+    /// 2. Start a path from the highest-degree node in that sub-graph.
+    /// 3. Greedily extend the path at the *tail*, then the *head*, prioritising
+    ///    neighbours with more ring-1 connections (to keep clusters together).
+    /// 4. When no connected neighbour remains at either end, append the next
+    ///    highest-degree unvisited peer and continue — this handles disconnected
+    ///    sub-graphs (e.g. a peer with no ring-1 peer connections at all).
+    ///
+    /// The resulting linear order is mapped onto the circle by `calculateOptimalAngles`,
+    /// so connected pairs are placed at adjacent angular positions, keeping their
+    /// chord short and away from unrelated nodes.
+    private func sortRing1Peers(_ peers: [String], adjacencyGraph: [String: Set<String>]) -> [String] {
+        guard peers.count > 2 else { return peers }
+
+        let peerSet = Set(peers)
+
+        // Count ring-1 connections (peer-to-peer edges, not spokes to centre)
+        var ring1Degree: [String: Int] = [:]
+        for peer in peers {
+            ring1Degree[peer] = (adjacencyGraph[peer] ?? []).count(where: { peerSet.contains($0) })
+        }
+
+        // No inter-peer connections — even distribution is already optimal
+        if ring1Degree.values.allSatisfy({ $0 == 0 }) { return peers }
+
+        var remaining = Set(peers)
+        var path: [String] = []
+
+        // Start from the peer with the most ring-1 connections (best anchor for clustering)
+        let start = peers
+            .sorted { $0 < $1 } // secondary sort for determinism
+            .max(by: { (ring1Degree[$0] ?? 0) < (ring1Degree[$1] ?? 0) }) ?? peers[0]
+        path.append(start)
+        remaining.remove(start)
+
+        while !remaining.isEmpty {
+            // Try to extend the path at the tail
+            let tail = path.last!
+            let tailNeighbour = (adjacencyGraph[tail] ?? [])
+                .filter { remaining.contains($0) }
+                .sorted { // deterministic: degree desc, then key asc
+                    let d0 = ring1Degree[$0] ?? 0
+                    let d1 = ring1Degree[$1] ?? 0
+                    return d0 != d1 ? d0 > d1 : $0 < $1
+                }
+                .first
+
+            if let next = tailNeighbour {
+                path.append(next)
+                remaining.remove(next)
+                continue
+            }
+
+            // Tail is stuck — try to extend at the head instead
+            let head = path.first!
+            let headNeighbour = (adjacencyGraph[head] ?? [])
+                .filter { remaining.contains($0) }
+                .sorted {
+                    let d0 = ring1Degree[$0] ?? 0
+                    let d1 = ring1Degree[$1] ?? 0
+                    return d0 != d1 ? d0 > d1 : $0 < $1
+                }
+                .first
+
+            if let prev = headNeighbour {
+                path.insert(prev, at: 0)
+                remaining.remove(prev)
+                continue
+            }
+
+            // Both ends stuck (disconnected sub-graph) — append the highest-degree remainder
+            let fallback = remaining
+                .sorted { $0 < $1 }
+                .max(by: { (ring1Degree[$0] ?? 0) < (ring1Degree[$1] ?? 0) }) ?? remaining.first!
+            path.append(fallback)
+            remaining.remove(fallback)
+        }
+
+        return path
     }
 
     /// Distribute `peerCount` peers evenly around a full circle, starting at the top (90°).

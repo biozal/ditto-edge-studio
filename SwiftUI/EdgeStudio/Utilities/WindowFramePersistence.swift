@@ -12,7 +12,7 @@ import SwiftUI
 ///   .background(WindowFrameRestorer())
 struct WindowFrameRestorer: NSViewRepresentable {
     private static let frameKey = "EdgeStudio.MainStudioWindowFrame"
-    private static let minimumSize = CGSize(width: 1400, height: 820)
+    private static let minimumSize = CGSize(width: 960, height: 680)
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -54,15 +54,31 @@ struct WindowFrameRestorer: NSViewRepresentable {
 
             var frame = NSRectFromString(saved)
 
-            // Clamp to minimum size, preserving the saved origin
+            // Clamp to minimum size
             frame.size.width = max(frame.size.width, WindowFrameRestorer.minimumSize.width)
             frame.size.height = max(frame.size.height, WindowFrameRestorer.minimumSize.height)
 
-            // Ensure the frame is on a visible screen before restoring
-            if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) {
+            // Find the screen with the greatest overlap with the saved frame
+            let targetScreen = NSScreen.screens.max(by: { lhs, rhs in
+                let lhsIntersect = lhs.visibleFrame.intersection(frame)
+                let rhsIntersect = rhs.visibleFrame.intersection(frame)
+                return (lhsIntersect.width * lhsIntersect.height) < (rhsIntersect.width * rhsIntersect.height)
+            })
+
+            if let screen = targetScreen, !screen.visibleFrame.intersection(frame).isEmpty {
+                let visible = screen.visibleFrame
+
+                // Clamp window size so it never exceeds the screen
+                frame.size.width = min(frame.size.width, visible.width)
+                frame.size.height = min(frame.size.height, visible.height)
+
+                // Clamp origin so the window is fully on-screen
+                frame.origin.x = max(visible.minX, min(frame.origin.x, visible.maxX - frame.size.width))
+                frame.origin.y = max(visible.minY, min(frame.origin.y, visible.maxY - frame.size.height))
+
                 window.setFrame(frame, display: true, animate: false)
             } else {
-                // Saved position is off-screen — use size but re-center
+                // Saved position is fully off-screen — use size but re-center
                 window.setContentSize(frame.size)
                 window.center()
             }
