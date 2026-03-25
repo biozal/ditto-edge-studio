@@ -47,6 +47,11 @@ class DittoManager(
         // Set device name for peer identification
         newDitto.deviceName = "Edge Studio"
 
+        // Set peer metadata to include deviceName so it is visible to other peers
+        // (mirrors Swift: ditto.presence.setPeerMetadata(["deviceName": "Edge Studio"]))
+        runCatching { newDitto.presence.peerMetadataJsonString = """{"deviceName":"Edge Studio"}""" }
+            .onFailure { e -> Log.e(TAG, "Failed to set peer metadata: ${e.message}") }
+
         // Register auth handler BEFORE starting sync
         setupAuth(newDitto, database)
 
