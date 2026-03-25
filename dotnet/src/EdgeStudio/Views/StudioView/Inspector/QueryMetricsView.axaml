@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:converters="using:EdgeStudio.Converters"
+             mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="500"
+             x:Class="EdgeStudio.Views.StudioView.Inspector.QueryMetricsView"
+             x:DataType="vm:QueryMetricsViewModel">
+
+    <UserControl.Resources>
+        <converters:BoolToIndexColorConverter x:Key="BoolToIndexColorConverter"/>
+        <converters:BoolToIndexLabelConverter x:Key="BoolToIndexLabelConverter"/>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="12">
+
+            <!-- Empty state -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Spacing="8"
+                        IsVisible="{Binding LatestMetric, Converter={x:Static ObjectConverters.IsNull}}">
+                <materialIcons:MaterialIcon Kind="ChartLine" Width="32" Height="32" Opacity="0.3"/>
+                <TextBlock Text="No metrics yet" FontSize="12" Opacity="0.5" HorizontalAlignment="Center"/>
+                <TextBlock Text="Execute a query to see performance metrics"
+                           FontSize="11"
+                           Opacity="0.4"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="200"/>
+            </StackPanel>
+
+            <!-- Metrics content -->
+            <StackPanel Spacing="8"
+                        IsVisible="{Binding LatestMetric, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+                <!-- Section: DQL Statement -->
+                <TextBlock Text="DQL Statement"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Opacity="0.6"
+                           Margin="0,0,0,2"/>
+
+                <Border Background="{DynamicResource SukiBackground}"
+                        CornerRadius="6"
+                        Padding="8,6">
+                    <TextBox Text="{Binding LatestMetric.DqlQuery}"
+                             IsReadOnly="True"
+                             FontFamily="Cascadia Code, Consolas, monospace"
+                             FontSize="13"
+                             TextWrapping="Wrap"
+                             Background="Transparent"
+                             BorderThickness="0"/>
+                </Border>
+
+                <!-- Stat badges -->
+                <WrapPanel>
+                    <!-- Time badge: Ditto yellow / black -->
+                    <Border Background="{DynamicResource DittoAccent}"
+                            CornerRadius="12"
+                            Padding="8,3"
+                            Margin="0,0,6,4">
+                        <TextBlock Text="{Binding LatestMetric.FormattedExecutionTime}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource DittoJetBlack}"/>
+                    </Border>
+
+                    <!-- Docs badge -->
+                    <Border Background="{DynamicResource SukiControlBackground}"
+                            CornerRadius="12"
+                            Padding="8,3"
+                            Margin="0,0,6,4">
+                        <TextBlock Text="{Binding LatestMetric.ResultCount, StringFormat='{}{0} docs'}"
+                                   FontSize="11"/>
+                    </Border>
+
+                    <!-- Indexed badge: Ditto yellow / black (same scheme as buttons) -->
+                    <Border Background="{DynamicResource DittoAccent}"
+                            CornerRadius="12"
+                            Padding="8,3"
+                            Margin="0,0,6,4">
+                        <TextBlock Text="{Binding LatestMetric.UsedIndex, Converter={StaticResource BoolToIndexLabelConverter}}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource DittoJetBlack}"/>
+                    </Border>
+                </WrapPanel>
+
+                <!-- Timestamp -->
+                <TextBlock Text="{Binding LatestMetric.Timestamp, StringFormat='{}{0:g}'}"
+                           FontSize="11"
+                           Opacity="0.5"/>
+
+                <!-- Section: EXPLAIN Output -->
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="EXPLAIN Output"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Opacity="0.6"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Copy button inherits global DittoAccent/DittoJetBlack from ButtonStyles.axaml -->
+                    <Button Grid.Column="1"
+                            Command="{Binding CopyExplainOutputCommand}"
+                            Padding="8,4"
+                            FontSize="11"
+                            CornerRadius="6">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <materialIcons:MaterialIcon Kind="ContentCopy" Width="12" Height="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="Copy" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Border Background="{DynamicResource SukiBackground}"
+                        CornerRadius="6"
+                        Padding="8">
+                    <TextBox Text="{Binding LatestMetric.ExplainOutput}"
+                             IsReadOnly="True"
+                             FontFamily="Cascadia Code, Consolas, monospace"
+                             FontSize="12"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             Background="Transparent"
+                             BorderThickness="0"/>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

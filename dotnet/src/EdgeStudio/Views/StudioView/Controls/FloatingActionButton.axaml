@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d"
+             x:Class="EdgeStudio.Views.StudioView.Controls.FloatingActionButton"
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
+
+    <Button Width="48" Height="48"
+            CornerRadius="24"
+            Background="{DynamicResource DittoAccent}"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Margin="12,0,0,12"
+            Padding="0"
+            ToolTip.Tip="Actions">
+
+        <Button.Flyout>
+            <MenuFlyout Placement="TopEdgeAlignedLeft">
+
+                <MenuItem Header="New Query"
+                          Command="{Binding NewQueryTabCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Magnify" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <Separator/>
+
+                <MenuItem Header="Add Subscription"
+                          Command="{Binding AddSubscriptionCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <MenuItem Header="Add Observer"
+                          Command="{Binding AddObserverCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Eye" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <MenuItem Header="Add Index"
+                          Command="{Binding AddIndexCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="MagnifyPlus" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <Separator/>
+
+                <MenuItem Header="Import via QR Code"
+                          Command="{Binding ImportSubscriptionsQrCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Qrcode" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <MenuItem Header="Import from Server"
+                          Command="{Binding ImportSubscriptionsServerCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Download" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+                <Separator/>
+
+                <MenuItem Header="Import JSON Data"
+                          Command="{Binding ImportJsonDataCommand}">
+                    <MenuItem.Icon>
+                        <avalonia:MaterialIcon Kind="Upload" Width="16" Height="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+
+            </MenuFlyout>
+        </Button.Flyout>
+
+        <avalonia:MaterialIcon Kind="Plus" Width="22" Height="22"
+                               Foreground="{DynamicResource DittoJetBlack}"/>
+    </Button>
+</UserControl>

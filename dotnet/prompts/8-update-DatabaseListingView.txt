@@ -1,0 +1,13 @@
+Go into plan mode.  I would like to make updates to the DatabaseListingView.  I have a screenshot of the SwiftUI version of the screen in the designs folder called database-listing-swiftui.png.  I would like to update the DatbaseListingView to match this UI better.
+
+I don't care about the Ditto logo - instead I just want it to have Edge Studio in Ditto Yellow.  That font is KairosSansVaribleRoman.  I have the two files that the designer provided for me in woff and woff2 format.  Will those work?  The are font.woff and font.woff2 in the design folder.  It's a "8-bit" style font.  
+
+The first button is + Database Config which should replace the Add Databse button on the current page.  
+
+the second button with the Cloud icon and then Ditto Portal with a -> is trying to tell the user that it will open a web page to https://portal.ditto.live.  You need to add that button and when the user clicks on it call up that webpage.  
+
+The third button is a new button that if you can just render it we will handle the event if clicking it later.  
+
+The list of Databases are now in a container that is semi-transparent so you can see the background svg.  I only show the name of the database config in Ditto Yello and then the the databaseId is hidden like it is today.  there is a Database icon that comes from Font Awesome.
+
+The background is an SVG file called step_and_repeat_banner.svg.  This should be the background.  The screen should be able to grow and shrink and the UI should react and the background should scale.  Make a plan to update the UI based on these new requirements.  Let me know when you have a plan so I can review it.

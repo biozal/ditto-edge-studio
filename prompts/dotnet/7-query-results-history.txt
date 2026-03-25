@@ -1,0 +1,56 @@
+Go into plan mode.  We need to make changes to the dotnet version of the app to match the functionality of the SwiftUI version.
+
+1.  When I click on Query from the navigation bar, type in a query, and then click execute, it doesn't return the proper information from the database when I have local selected.  This should match the SwiftUI functionality which runs a DQL statement and then returns the results into the JSON Viewer with full pagination controls.  You can review the SwiftUI version to see how it works.  A screenshot of the swiftui version is query-results-json.png.
+
+2.  When I tap on Table, it's not implemented at all.  This should draw a Table with the data listed with full pagination like the SwiftUI version.  It should render information like the SwiftUI version - but I believe dotnet has a better built in table control for this.  A screenshot of the swift version is query-results.table.png.  
+
+3.  When a query is ran it should be added to the query history and the inspector for query history should show a listing of query history.  It doesn't right now.  It should follow the same business rules as SwiftUI where a query can't be in the list more than once, if it's already in the list then it shows up at the top as an update vs an insert.  A screenshot of the swift version can be found in the inspector-query-history.png.  Any query in the history can be right clicked and added to favorites.  This should update the database and the favorites inspector listing of queries.  
+
+4.  Query metrics should be tracked on every query ran and it should show up in the query metrics UI in the inspector.  It should render as close to the SwiftUI version as possible.  A screenshot of the swift verison is inspector-query-metrics-swiftui.png
+
+5.  When an individual document is selected in the JSON results or the table results, it should then update the inspector JSON Viewer.  The inspector JSON Viewer should be empty until a document is selected.  It should only every render a single document.  A copy button should be provided that copies the document to the clipboard.  A screenshot of the swift version is inspector-query-viewer.
+
+6.  The favorite queries in the inspector is not implemented.  It should list out favorite queries from the database.  Clicking on any of the queries should put them in the query editor.  Right clicking on a favorite should give the option to delete it.  
+
+
+Create a plan to review the SwiftUI version of this and implement this functionality in dotnet.  The functionality should match SwiftUI in dotnet when possible.  If it doesn't currenlty, you should have a plan to fix the dotnet version.  All new functionality should have tests to prove that it works.  This should be included in the plan.  Finally I can manually test things so you should break down the plan into steps that automated and manual tests can be ran before moving onto the next step.  
+
+Once you have a plan ready let me know so I can review.
+
+
+-- 
+
+Go into plan mode.  Things are still not working properly in dotnet.
+
+1.  The pagination controls for moving forward and backward do NOT work in either JSON or Table view.
+2.  The ability to select how many records to show does not work in table view.
+3.  The JSON Viewer that lists JSON records font is too small and it would be nice if it was color formatted.  Also the font is almost is almost impossible to read - it's way too small for a 14" laptop.  See screenshots query-json.png and query-table.png.
+4.  The table font is too small, very hard to read.
+5.  When you select JSON record or at table row - it's supposed to show the JSON viewer in the inspector and this isn't working.
+6.  There is spacing between the tabs in Query Result and the Table/JSON viewer that isn't needed.  It causes unneeded scrolling.
+7.  The inspector query metrics for dotnet does not match SwiftUI.  See screenshots:  inspector-query-metrics-swift.png and inspector-query-metrics.png.  In Swift we have a label that says DQL Statement, then it lists it belwo the lable.  Next we have several stats:  Time it took to run, the results and if it was indexed or not.  Finally we have the EXPLAIN Output which is nicely formatted with a copy button that will copy it to the clip board.  
+
+Make a plan to fix these problems.  Let me know when the plan is ready to review.  
+
+
+-- 
+
+Go into plan mode.  In dotnet we need to make some more changes in the Query controls.
+
+1.  When I double click on a query in the Query History of the inspector the query should be added to the Query Editor and then ran.  The point of the Query History is so you don't have to type in queries.  Query Favorites should work the same way.  
+
+2.  The Query Results JSON viewer shows formatted text for the default records that are paged, 10.  If I increase that number to 200, only the first 10 documents are formatted.  The rest of them font color is just white in dark mode.  All records should be color formmated, so if the page amount changes, the JSON results should be recalculated and formatted properly.  This also goes for moving between pages with the chevron controls left and right.  All JSON results should always be formatted.
+
+3.  If a user double clicks on a document in the JSON results or in the Table Results and if the inspector is closed, it should auto open the inspector.  The inspector should also auto navigate to the JSON Viewer because if the user double clicks on the record they want to be able to see the record in details, which is the point of the JSON viewer in the Inspector.
+
+4.  The text in the Query Editor is too close to the left divider of the text editor.  Add a few more pixels of padding so that there is spacing between the left divider and the actual DQL code.  Also add in 8 more pixels of padding between the editor and the row above it that draws the execute button and the pull down for locations.
+
+5.  In the inspector the selected icon should have it's background be the Ditto Yello and the icon color black.  
+
+6.  In the inspector when you hover over an icon the color turns so dark you can't see it anymore.  The icon color should turn to the ditto yello when it's hovered over.  
+
+7.  The Query Editor has tabs that allow you to have multiple queries open.  Under the query name is a line - that line should be the Ditto Yello color.  The line highlights which query is selected.  When the query text changes, the name of the tab should change to be the text of the query.  If the query becomes too long it should just have ... so that the tab doesn't become too large.  
+
+8.  The Query Results have a line under which ever tab is selected (JSON or Table).  The line should be the Ditto Yellow color.  
+
+Make a plan to do these changes and let me know when the plan is ready for me to review.

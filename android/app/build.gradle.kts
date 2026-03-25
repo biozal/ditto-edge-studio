@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -33,9 +35,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
     }
@@ -44,10 +43,33 @@ android {
             isReturnDefaultValues = true
         }
     }
+    sourceSets {
+        getByName("main") {
+            assets.srcDirs("src/main/assets")
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+    }
 }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// Sync help docs from the central docs/help/ directory at the repo root.
+val syncHelpDocs by tasks.registering(Copy::class) {
+    description = "Copies help markdown files from docs/help/ into assets/help/"
+    from(rootProject.file("../docs/help"))
+    into(layout.projectDirectory.dir("src/main/assets/help"))
+    include("*.md")
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncHelpDocs)
 }
 
 dependencies {
@@ -82,6 +104,18 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
+    // Ditto SDK
+    implementation(libs.ditto.kotlin)
+
+    // Markdown rendering (for Help inspector)
+    implementation(libs.markwon.core)
+    implementation(libs.markwon.html)
+    implementation(libs.markwon.tables)
+    implementation(libs.markwon.linkify)
+
+    // Logging
+    implementation(libs.timber)
+
     // QR Code — ML Kit barcode scanning + CameraX + ZXing + serialization
     implementation(libs.mlkit.barcode)
     implementation(libs.camerax.core)
@@ -98,11 +132,13 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.org.json)
 
     // Instrumented tests
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)

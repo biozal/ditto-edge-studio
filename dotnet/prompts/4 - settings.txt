@@ -1,0 +1,31 @@
+Go into plan mode.  I would like to add a new feature to update the Settings tab to show a list of settings for Transports that can be configured from the end user.  A copy of the UI from the SwiftuI versoin is located in the designs folder named Settings.  
+
+This screen allows the user to configure which Transports should be enabled on the DittoSelectedApp in the Ditto Manager.  The API for this can be found there in the Ditto Documentation:
+
+https://docs.ditto.live/sdk/latest/sync/customizing-transport-configurations
+
+We should give the ability to turn off and on various transports based on the platform we are running on.
+
+The options should include:
+Bluetooth LE
+Local Area Network
+Apple Wireless Direct Link (on MacOS platform only)
+WifiAware (on Windows and Android platform only)
+
+Cloud Sync
+
+See the sceenshot for the UI design and wording.  The colors are important they match the colors in the Presence Viwer and the Ditto "Rainbow" diagrams in the documentation.  So the icons should match those colors in the screenshot.  
+
+The screen should have a warning telling them to make these changes sync has to be stopped and started again.  When the user clicks the Apply Transport Settings button a message should appear below it telling them the status of turning off sync, setting the transports and then turnning it back on.  
+
+This screen will need to know what platform it's running on for the WifiAware and Apple Wireless Direct Link settings.  
+
+When the user clicks the button it should call the Ditto Manager which needs a new function created that will:
+
+1. turn off sync on the selected app
+2. change the transport configuration settings
+3. turn sync back on the selected app
+
+While this is going on the sync button should be disabled.  When it's completed the sync button should be enabled again and turned on since this starts sync.  
+
+Create a plan to create the UI and update the code for this feature.  Once you have the plan completed tell me about it so I can review.  

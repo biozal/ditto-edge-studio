@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - MetricSample
 
-struct MetricSample: Sendable {
+struct MetricSample {
     let timestamp: Date
     let value: Double
 }
@@ -54,7 +54,7 @@ actor InMemoryMetricsStore {
 
 // MARK: - AppMetricsCounter
 
-struct AppMetricsCounter: Sendable {
+struct AppMetricsCounter {
     let label: String
 
     func increment(by amount: Double = 1.0) {
@@ -66,7 +66,7 @@ struct AppMetricsCounter: Sendable {
 
 // MARK: - AppMetricsTimer
 
-struct AppMetricsTimer: Sendable {
+struct AppMetricsTimer {
     let label: String
 
     func recordMilliseconds(_ ms: Double) {

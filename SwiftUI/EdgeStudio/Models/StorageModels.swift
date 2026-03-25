@@ -1,7 +1,7 @@
 import Foundation
 
 /// Per-collection CBOR payload estimate.
-struct CollectionStats: Sendable, Identifiable {
+struct CollectionStats: Identifiable {
     var id: String {
         name
     }
@@ -13,7 +13,7 @@ struct CollectionStats: Sendable, Identifiable {
 
 /// Categorized disk usage breakdown from the diskUsage tree.
 /// Return type of `StorageRepository.categorizeFiles(_:)`.
-struct DiskBreakdown: Sendable {
+struct DiskBreakdown {
     var storeBytes = 0
     var replicationBytes = 0
     var attachmentsBytes = 0
@@ -23,7 +23,7 @@ struct DiskBreakdown: Sendable {
     var otherBytes = 0
 }
 
-struct StorageSnapshot: Sendable {
+struct StorageSnapshot {
     /// From diskUsage tree — ditto_store/ directory
     var storeBytes = 0
 

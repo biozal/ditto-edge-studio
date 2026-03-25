@@ -1,0 +1,28 @@
+Go into plan mode.  The icons in the sidebar of dotnet don't match what's in SwiftUI.  In SwiftUI we have the following:
+
+Subscriptions
+Query
+Observers
+Logging
+App Metrics
+Query Metrics
+
+In the dotnet menu we have:
+Sync
+Query database
+Observable Events
+Database Tools
+
+I would like you to update Dotnet to match the way tha tthe menu is layed out in SwfitUI.  When you hover over the icons in dotnet they should have the same names as from SwiftUI.
+
+Every view in SwiftUI is broken down into a possible 3 column layout:
+
+sidebar
+detail
+inspector
+
+This is done via a NavigationSplitView in SwiftUI.  Every menu option needs to have the same structure in dotnet.  A button at the top right hand corner allows you to hide and show the inspector.  Most screens have a view that renders a MD file for help.  We need this option in the dotnet version of the app.
+
+The SwiftUI version of the app has a Logging feature.  This will help us debug future features, so we should implement this.  You can look at the LoggingService.Swfit, LogFileParser.swfit, LogEntry.swift, LoggingDetailView.swift, and LogEntryRowView.swift to see the implementation that was done in SwiftUI.  I would like the dotnet implementation to match the SwiftUI version including the UI layout and the featureset.  
+
+Make a plan to implement these features.  Let me know when the plan is ready to review.

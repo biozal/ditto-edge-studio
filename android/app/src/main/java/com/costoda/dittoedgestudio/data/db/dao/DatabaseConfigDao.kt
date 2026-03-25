@@ -17,6 +17,9 @@ interface DatabaseConfigDao {
     @Query("SELECT * FROM databaseConfigs ORDER BY name ASC")
     suspend fun getAll(): List<DatabaseConfigEntity>
 
+    @Query("SELECT * FROM databaseConfigs WHERE _id = :id LIMIT 1")
+    suspend fun getById(id: Long): DatabaseConfigEntity?
+
     @Query("SELECT * FROM databaseConfigs WHERE databaseId = :databaseId LIMIT 1")
     suspend fun getByDatabaseId(databaseId: String): DatabaseConfigEntity?
 

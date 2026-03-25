@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:suki="using:SukiUI.Controls"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
+             x:Class="EdgeStudio.Views.StudioView.Sidebar.SubscriptionListingView"
+             x:DataType="vm:SubscriptionViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto,*">
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Height="40"
+                Padding="12,8"
+                BorderThickness="0,0,0,1">
+            <TextBlock Text="{Binding ListingTitle}"
+                       FontSize="11"
+                       FontWeight="Normal"
+                       VerticalAlignment="Center"/>
+        </Border>
+        
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Loading Spinner -->
+            <Border IsVisible="{Binding IsLoading}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="16">
+                    <ProgressBar IsIndeterminate="True"
+                                Width="32"
+                                Height="32"/>
+                    <TextBlock Text="Loading subscriptions..."
+                              FontSize="12"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Subscription Cards -->
+            <ScrollViewer IsVisible="{Binding HasItems}"
+                         VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Items}"
+                             Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:DittoDatabaseSubscription}">
+                            <suki:GlassCard Margin="0,0,0,12">
+                                <StackPanel Spacing="12"
+                                           Margin="12">
+                                    <!-- Header with Name and Actions -->
+                                    <Grid ColumnDefinitions="*,Auto,Auto"
+                                          Margin="0,0,-20,0">
+                                        <TextBlock Grid.Column="0"
+                                                  Text="{Binding Name}"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"/>
+
+                                        <!-- Edit Button -->
+                                        <Button Grid.Column="1"
+                                               Command="{Binding $parent[ItemsControl].DataContext.EditSubscriptionCommand}"
+                                               CommandParameter="{Binding}"
+                                               Width="24"
+                                               Height="24"
+                                               Margin="0,0,4,0"
+                                               Padding="0"
+                                               Classes="Flat"
+                                               ToolTip.Tip="Edit Subscription">
+                                            <TextBlock Text="edit"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"/>
+                                        </Button>
+
+                                        <!-- Delete Button -->
+                                        <Button Grid.Column="2"
+                                               Command="{Binding $parent[ItemsControl].DataContext.DeleteSubscriptionCommand}"
+                                               CommandParameter="{Binding}"
+                                               Width="24"
+                                               Height="24"
+                                               Padding="0"
+                                               Background="{DynamicResource DittoAccent}"
+                                               ToolTip.Tip="Delete Subscription">
+                                            <TextBlock Text="delete"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="14"
+                                                      Foreground="{DynamicResource DittoJetBlack}"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Query Text (Word Wrapped) -->
+                                    <TextBlock Text="{Binding Query}"
+                                              FontSize="12"
+                                              Opacity="0.8"
+                                              TextWrapping="Wrap"
+                                              FontFamily="Consolas"/>
+                                </StackPanel>
+                            </suki:GlassCard>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            
+            <!-- Empty State -->
+            <Border IsVisible="{Binding ShowEmptyState}"
+                   Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="No Subscriptions Found"
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="Click the + icon to add a new Subscription"
+                              FontSize="12"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

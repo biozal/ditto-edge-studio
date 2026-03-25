@@ -1,0 +1,77 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ===================================================================
+         Ditto Brand Colors
+         Theme-aware semantic tokens (Light / Dark) and invariant RAL values.
+         Usage in XAML: {DynamicResource DittoAccent}
+         Usage in C#:   DittoBrushes.Accent  /  DittoBrushes.Ditto.SulfurYellow
+         =================================================================== -->
+
+    <!-- Theme-aware semantic tokens -->
+    <ResourceDictionary.ThemeDictionaries>
+
+        <ResourceDictionary x:Key="Light">
+            <!-- App background: RAL 9018 Papyrus White -->
+            <Color x:Key="DittoAppBackgroundColor">#D0CFC8</Color>
+            <SolidColorBrush x:Key="DittoAppBackground" Color="{StaticResource DittoAppBackgroundColor}" />
+
+            <!-- Card surface: RAL 9016 Traffic White -->
+            <Color x:Key="DittoCardSurfaceColor">#F1F0EA</Color>
+            <SolidColorBrush x:Key="DittoCardSurface" Color="{StaticResource DittoCardSurfaceColor}" />
+
+            <!-- Text on card-surface buttons: dark in light mode -->
+            <Color x:Key="DittoCardTextColor">#0A0A0A</Color>
+            <SolidColorBrush x:Key="DittoCardText" Color="{StaticResource DittoCardTextColor}" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Dark">
+            <!-- App background: RAL 9005 Jet Black -->
+            <Color x:Key="DittoAppBackgroundColor">#0A0A0A</Color>
+            <SolidColorBrush x:Key="DittoAppBackground" Color="{StaticResource DittoAppBackgroundColor}" />
+
+            <!-- Card surface: RAL 9017 Traffic Black -->
+            <Color x:Key="DittoCardSurfaceColor">#2A292A</Color>
+            <SolidColorBrush x:Key="DittoCardSurface" Color="{StaticResource DittoCardSurfaceColor}" />
+
+            <!-- Text on card-surface buttons: light in dark mode -->
+            <Color x:Key="DittoCardTextColor">#D0CFC8</Color>
+            <SolidColorBrush x:Key="DittoCardText" Color="{StaticResource DittoCardTextColor}" />
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- ===================================================================
+         Invariant colors — same value in both light and dark themes
+         =================================================================== -->
+
+    <!-- Semantic tokens -->
+    <Color x:Key="DittoAccentColor">#F0D830</Color>
+    <SolidColorBrush x:Key="DittoAccent" Color="{StaticResource DittoAccentColor}" />
+
+    <Color x:Key="DittoDangerColor">#D93025</Color>
+    <SolidColorBrush x:Key="DittoDanger" Color="{StaticResource DittoDangerColor}" />
+
+    <Color x:Key="DittoSecondaryColor">#9D9D9F</Color>
+    <SolidColorBrush x:Key="DittoSecondary" Color="{StaticResource DittoSecondaryColor}" />
+
+    <!-- Raw RAL values -->
+    <Color x:Key="DittoJetBlackColor">#0A0A0A</Color>
+    <SolidColorBrush x:Key="DittoJetBlack" Color="{StaticResource DittoJetBlackColor}" />
+
+    <Color x:Key="DittoTrafficBlackColor">#2A292A</Color>
+    <SolidColorBrush x:Key="DittoTrafficBlack" Color="{StaticResource DittoTrafficBlackColor}" />
+
+    <Color x:Key="DittoPapyrusWhiteColor">#D0CFC8</Color>
+    <SolidColorBrush x:Key="DittoPapyrusWhite" Color="{StaticResource DittoPapyrusWhiteColor}" />
+
+    <Color x:Key="DittoTrafficWhiteColor">#F1F0EA</Color>
+    <SolidColorBrush x:Key="DittoTrafficWhite" Color="{StaticResource DittoTrafficWhiteColor}" />
+
+    <Color x:Key="DittoSulfurYellowColor">#F0D830</Color>
+    <SolidColorBrush x:Key="DittoSulfurYellow" Color="{StaticResource DittoSulfurYellowColor}" />
+
+    <Color x:Key="DittoPearlLightGreyColor">#9D9D9F</Color>
+    <SolidColorBrush x:Key="DittoPearlLightGrey" Color="{StaticResource DittoPearlLightGreyColor}" />
+
+</ResourceDictionary>

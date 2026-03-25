@@ -1,0 +1,8 @@
+Go into plan mode.  While I like  SukiUI look, the gradiant background colors used in the windows it renders don't match the Ditto branding.  
+
+Is there a way to define a custom set of colors to use with SukiUI for the gradiant background so we can use the Ditto brand colors so that the UI matches more of the SwiftUI look?   They include several theme "colors" - I would like you to research making our own that would match more the Ditto branding colors and the colors used in the SwiftUI version of the app.
+
+Look through the SukiUI source code here:
+https://github.com/kikipoulet/SukiUI
+
+Do research and give me some options that I can review for defining a custom gradiant for the background.

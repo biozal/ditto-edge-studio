@@ -1,0 +1,271 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:navigation="using:EdgeStudio.Views.StudioView.Navigation"
+             xmlns:sidebar="using:EdgeStudio.Views.StudioView.Sidebar" xmlns:details="using:EdgeStudio.Views.StudioView.Details" xmlns:logging="using:EdgeStudio.Views.Logging" xmlns:metrics="using:EdgeStudio.Views.Metrics"
+             xmlns:inspector="using:EdgeStudio.Views.StudioView.Inspector"
+             
+             xmlns:controls="using:EdgeStudio.Views.StudioView.Controls"
+             xmlns:suki="using:SukiUI.Controls"
+             xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
+             x:Class="EdgeStudio.Views.StudioView.EdgeStudioView"
+             x:DataType="vm:EdgeStudioViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.Styles>
+        <!-- Sync button icon - enabled state (green) -->
+        <Style Selector="Button.SyncButton.SyncEnabled > avalonia|MaterialIcon">
+            <Setter Property="Foreground" Value="#4CAF50"/>
+        </Style>
+
+        <!-- Sync button icon - disabled state (red) -->
+        <Style Selector="Button.SyncButton.SyncDisabled > avalonia|MaterialIcon">
+            <Setter Property="Foreground" Value="#F44336"/>
+        </Style>
+
+        <!-- Sync button icon - hover states (brighter) -->
+        <Style Selector="Button.SyncButton.SyncEnabled:pointerover > avalonia|MaterialIcon">
+            <Setter Property="Foreground" Value="#66BB6A"/>
+        </Style>
+
+        <Style Selector="Button.SyncButton.SyncDisabled:pointerover > avalonia|MaterialIcon">
+            <Setter Property="Foreground" Value="#EF5350"/>
+        </Style>
+
+        <!-- Disabled state -->
+        <Style Selector="Button.SyncButton:disabled > avalonia|MaterialIcon">
+            <Setter Property="Opacity" Value="0.5"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Design.DataContext>
+        <vm:EdgeStudioViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar with Database Name -->
+        <Border Grid.Row="0"
+                BorderThickness="0,0,0,1"
+                Padding="16,20,16,12">
+            <TextBlock Text="{Binding DatabaseName}"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- Button Container in Top Right -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="0,8,16,6"
+                    Spacing="8">
+
+            <!-- Sync Toggle Button -->
+            <Button Command="{Binding ToggleSyncCommand}"
+                    Classes="Rounded SyncButton"
+                    Classes.SyncEnabled="{Binding IsSyncEnabled}"
+                    Classes.SyncDisabled="{Binding !IsSyncEnabled}"
+                    Background="{DynamicResource DittoCardSurface}"
+                    Foreground="{DynamicResource DittoCardText}"
+                    Width="36"
+                    Height="36"
+                    Padding="0"
+                    IsEnabled="{Binding IsSyncButtonEnabled}"
+                    ToolTip.Tip="{Binding SyncButtonTooltip}">
+                <avalonia:MaterialIcon Kind="Sync" Width="20" Height="20"/>
+            </Button>
+
+            <!-- Close Button -->
+            <Button Command="{Binding CloseDatabaseCommand}"
+                    Classes="Rounded"
+                    Background="{DynamicResource DittoDanger}"
+                    Foreground="White"
+                    Width="36"
+                    Height="36"
+                    Padding="0"
+                    ToolTip.Tip="Close Database">
+                <avalonia:MaterialIcon Kind="Close" Width="20" Height="20"/>
+            </Button>
+
+            <!-- Inspector Toggle Button -->
+            <Button Command="{Binding ToggleInspectorCommand}"
+                    Classes="Rounded"
+                    Background="{DynamicResource DittoCardSurface}"
+                    Foreground="{DynamicResource DittoCardText}"
+                    Width="36"
+                    Height="36"
+                    Padding="0"
+                    ToolTip.Tip="Toggle Inspector">
+                <avalonia:MaterialIcon Kind="DockRight" Width="20" Height="20"/>
+            </Button>
+        </StackPanel>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <!-- Nav Bar -->
+                <ColumnDefinition Width="48" MinWidth="48" MaxWidth="60"/>
+                <!-- First Splitter -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Collections Panel (collapsed when IsListingPanelVisible=false) -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Second Splitter -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Main Content Area (Detail Views) -->
+                <ColumnDefinition Width="*" MinWidth="400"/>
+                <!-- Inspector Splitter (visible only when inspector is open) -->
+                <ColumnDefinition Width="Auto"/>
+                <!-- Inspector Panel (collapses when IsVisible=false) -->
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Icon Navigation Bar -->
+            <Border Grid.Column="0" Background="#10000000">
+                <navigation:NavigationBar DataContext="{Binding NavigationViewModel}"/>
+            </Border>
+
+            <!-- First Splitter (hidden when listing panel is hidden) -->
+            <GridSplitter Grid.Column="1"
+                          Width="5"
+                          Background="Transparent"
+                          ResizeDirection="Columns"
+                          IsVisible="{Binding IsListingPanelVisible}">
+                <GridSplitter.Styles>
+                    <Style Selector="GridSplitter:pointerover">
+                        <Setter Property="Background" Value="#20FFFFFF"/>
+                    </Style>
+                    <Style Selector="GridSplitter:pressed">
+                        <Setter Property="Background" Value="#007ACC"/>
+                    </Style>
+                </GridSplitter.Styles>
+            </GridSplitter>
+
+            <!-- Collections/Listing Panel (hidden for Logging nav) -->
+            <Panel Grid.Column="2"
+                   Width="250" MinWidth="200" MaxWidth="500"
+                   IsVisible="{Binding IsListingPanelVisible}">
+                <Border Background="#05000000">
+                    <ContentControl Content="{Binding CurrentListingViewModel}">
+                        <ContentControl.DataTemplates>
+                            <DataTemplate DataType="{x:Type vm:SubscriptionViewModel}">
+                                <sidebar:SubscriptionListingView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:QueryViewModel}">
+                                <sidebar:QueryListingView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:ObserversViewModel}">
+                                <sidebar:ObserverListingView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:LoggingViewModel}">
+                                <logging:LoggingListingView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:AppMetricsViewModel}">
+                                <sidebar:AppMetricsListingView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:QueryMetricsViewModel}">
+                                <sidebar:QueryMetricsListingView/>
+                            </DataTemplate>
+                        </ContentControl.DataTemplates>
+                    </ContentControl>
+                </Border>
+                <!-- Floating Action Button overlaid at bottom-left of sidebar -->
+                <controls:FloatingActionButton/>
+            </Panel>
+
+            <!-- Second Splitter -->
+            <GridSplitter Grid.Column="3"
+                          Width="5"
+                          Background="Transparent"
+                          ResizeDirection="Columns">
+                <GridSplitter.Styles>
+                    <Style Selector="GridSplitter:pointerover">
+                        <Setter Property="Background" Value="#20FFFFFF"/>
+                    </Style>
+                    <Style Selector="GridSplitter:pressed">
+                        <Setter Property="Background" Value="#007ACC"/>
+                    </Style>
+                </GridSplitter.Styles>
+            </GridSplitter>
+
+            <!-- Main Content Area - Detail Views -->
+            <Grid Grid.Column="4">
+              <Border Background="#05000000">
+                <ContentControl Content="{Binding CurrentDetailViewModel}">
+                    <ContentControl.DataTemplates>
+
+                        <!-- Query View -->
+                        <DataTemplate DataType="{x:Type vm:QueryViewModel}">
+                            <details:QueryView/>
+                        </DataTemplate>
+
+                        <!-- Subscription Details View -->
+                        <DataTemplate DataType="{x:Type vm:SubscriptionDetailsViewModel}">
+                            <details:SubscriptionDetailsView/>
+                        </DataTemplate>
+
+                        <!-- Observers View -->
+                        <DataTemplate DataType="{x:Type vm:ObserversViewModel}">
+                            <details:ObserverDetailView/>
+                        </DataTemplate>
+
+                        <!-- Logging View -->
+                        <DataTemplate DataType="{x:Type vm:LoggingViewModel}">
+                            <logging:LoggingDetailView/>
+                        </DataTemplate>
+
+                        <!-- App Metrics View -->
+                        <DataTemplate DataType="{x:Type vm:AppMetricsViewModel}">
+                            <metrics:AppMetricsDetailView/>
+                        </DataTemplate>
+
+                        <!-- Query Metrics View -->
+                        <DataTemplate DataType="{x:Type vm:QueryMetricsViewModel}">
+                            <details:QueryMetricsDetailView/>
+                        </DataTemplate>
+
+                    </ContentControl.DataTemplates>
+                </ContentControl>
+              </Border>
+
+              <!-- Floating DetailBottomBar overlay — inherits EdgeStudioViewModel DataContext -->
+              <controls:DetailBottomBar VerticalAlignment="Bottom"/>
+
+            </Grid>
+
+            <!-- Inspector Splitter (visible when IsInspectorVisible=true) -->
+            <GridSplitter Grid.Column="5"
+                          Width="5"
+                          Background="Transparent"
+                          ResizeDirection="Columns"
+                          IsVisible="{Binding IsInspectorVisible}">
+                <GridSplitter.Styles>
+                    <Style Selector="GridSplitter:pointerover">
+                        <Setter Property="Background" Value="#20FFFFFF"/>
+                    </Style>
+                    <Style Selector="GridSplitter:pressed">
+                        <Setter Property="Background" Value="#007ACC"/>
+                    </Style>
+                </GridSplitter.Styles>
+            </GridSplitter>
+
+            <!-- Inspector Panel -->
+            <Border Grid.Column="6"
+                    Width="280"
+                    MinWidth="200"
+                    MaxWidth="500"
+                    IsVisible="{Binding IsInspectorVisible}">
+                <inspector:InspectorView/>
+            </Border>
+
+        </Grid>
+    </Grid>
+</UserControl>

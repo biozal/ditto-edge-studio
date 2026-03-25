@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="400"
+             x:Class="EdgeStudio.Views.StudioView.Details.QueryEditorView"
+             x:DataType="vm:QueryDocumentViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Execute bar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="8,6,8,8">
+            <ComboBox ItemsSource="{Binding AvailableQueryModes}"
+                      SelectedItem="{Binding SelectedQueryMode}"
+                      MinWidth="90"
+                      VerticalAlignment="Center"/>
+            <Button Command="{Binding ExecuteQueryCommand}"
+                    Background="{DynamicResource DittoAccent}"
+                    Foreground="{DynamicResource DittoJetBlack}"
+                    Width="32" Height="32"
+                    Padding="0"
+                    ToolTip.Tip="Execute Query">
+                <materialIcons:MaterialIcon Kind="Play" Width="18" Height="18"/>
+            </Button>
+        </StackPanel>
+
+        <!-- Query Editor -->
+        <avaloniaEdit:TextEditor Grid.Row="1"
+                                 Name="QueryEditor"
+                                 FontFamily="Consolas"
+                                 FontSize="14"
+                                 ShowLineNumbers="True"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 WordWrap="False"
+                                 Padding="8,4,4,4"
+                                 Background="{DynamicResource SukiBackground}"
+                                 Foreground="{DynamicResource DittoCardText}"
+                                 LineNumbersForeground="{DynamicResource DittoSecondary}"/>
+    </Grid>
+</UserControl>

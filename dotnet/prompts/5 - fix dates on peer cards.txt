@@ -1,0 +1,5 @@
+The dates we are showing on the Peer Listing cards are wrong - they say a date and time that is in the future for me.  Can you look at how you are calculating them and make sure they are correct using .NET DateTime and my current time zone.  
+
+You can see this in the peer-list.png screenshot.
+
+The PeersListView.axmal draws the actual list of cards.  Make a plan on how to fix this and let me know when you have a plan ready for my review.

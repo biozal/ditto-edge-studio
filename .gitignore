@@ -26,3 +26,18 @@ SwiftUI/coverage_files.txt
 android/.idea
 android/.kotlin
 *.dmg
+dotnet/src/.idea
+dotnet/src/EdgeStudio/bin
+dotnet/src/EdgeStudio/obj
+dotnet/src/EdgeStudio.Console/bin
+dotnet/src/EdgeStudio.Console/obj
+dotnet/src/EdgeStudio.Shared/bin
+dotnet/src/EdgeStudio.Shared/obj
+dotnet/src/EdgeStudio.app
+dotnet/src/EdgeStudioTests/bin
+dotnet/src/EdgeStudioTests/obj
+
+# Help docs — generated at build time from docs/help/
+# Source of truth is docs/help/*.md — run scripts/sync-help-docs.sh to populate
+android/app/src/main/assets/help/
+dotnet/src/EdgeStudio/Assets/Help/*.md

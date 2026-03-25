@@ -14,9 +14,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Standard tools (Read, Grep, Glob, Write) are for documentation (`.md`) and config files outside the Xcode project only.  Never use grep, ls, or other shell tools to discover code unless Xcode MCP is not available.
 
+For SwiftUI always use the swiftui-pro skill.
+
 ## Plans
 
 All plans should be stored in the plans folder.  If you are told to create a plan for a new feature or bug fix, you should create a plan in the plans folder and name it with the feature or bug fix.  The plan should be a markdown file and should be named with the feature or bug fix.  Research should also go in this folder but approved research implementations should be in stored in the docs folder.
+
+## Multi-Platform Versions
+
+This repository contains multiple platform implementations of Edge Studio:
+
+| Platform | Location | Framework |
+|----------|----------|-----------|
+| **SwiftUI** (macOS/iPadOS) | `SwiftUI/` | Swift / SwiftUI — this is the primary codebase documented in this file |
+| **Android** | `android/` | Kotlin / Jetpack Compose |
+| **.NET / Avalonia** | `dotnet/` | C# / Avalonia UI — see `dotnet/CLAUDE.md` for guidance |
+
+Each platform has its own `CLAUDE.md` with platform-specific instructions.
 
 ## Project Overview
 
@@ -655,6 +669,7 @@ Located in the `SwiftUI/` directory:
   - `ObservableRepository.swift`: Observable events management with diffing
   - `CollectionsRepository.swift`: Collections data management
   - `SystemRepository.swift`: System metrics and health monitoring, including sync status and connection transport statistics
+    > **⚠️ Presence Graph Pitfall**: `presenceGraph.remotePeers` includes ALL peers in the mesh, not just directly connected ones. Always filter to direct connections before building peer cards or counting transports. See [`docs/PRESENCE_GRAPH.md`](docs/PRESENCE_GRAPH.md) for the required pattern.
   - All repositories use Task.detached(priority: .utility) for cleanup operations to prevent threading priority inversions
   
 - **Views** (`Views/` folder):
