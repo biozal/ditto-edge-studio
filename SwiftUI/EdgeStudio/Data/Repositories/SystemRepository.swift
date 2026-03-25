@@ -318,17 +318,18 @@ actor SystemRepository {
                         continue
                     }
 
-                    newDittoServerCount += 1
-
                     // Create dict with sync metrics
                     var dict = syncMetrics
 
-                    // Check sync_session_status from documents object
+                    // Skip (and do NOT count) servers that are not currently connected.
+                    // Counting here before the guard was the source of count=2 with 1 card.
                     let syncSessionStatus = (dict["documents"] as? [String: Any])?["sync_session_status"] as? String
                     let isNotConnected = syncSessionStatus == "Not Connected"
                     guard !isNotConnected else {
                         continue
                     }
+
+                    newDittoServerCount += 1
 
                     // Set syncSessionStatus to "Connected" in the documents object
                     if var documents = dict["documents"] as? [String: Any] {
