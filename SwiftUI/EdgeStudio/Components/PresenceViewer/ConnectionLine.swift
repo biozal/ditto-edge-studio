@@ -18,6 +18,11 @@ class ConnectionLine: SKNode {
     // MARK: - Initialization
 
     private var lineOffset: CGFloat = 0
+    /// When true the Bézier control point is pushed radially outward from the scene origin
+    /// (i.e. away from the local peer at centre) rather than perpendicular to the chord.
+    /// Use this for ring-to-ring connections so the arc bends around the outside of the
+    /// peer cluster instead of cutting through it.
+    private let arcOutward: Bool
 
     init(
         from: String,
@@ -26,13 +31,15 @@ class ConnectionLine: SKNode {
         fromPos: CGPoint,
         toPos: CGPoint,
         offset: CGFloat = 0,
-        isCloudConnection: Bool = false
+        isCloudConnection: Bool = false,
+        arcOutward: Bool = false
     ) {
         fromPeerKey = from
         toPeerKey = to
         connectionType = type
         lineOffset = offset
         self.isCloudConnection = isCloudConnection
+        self.arcOutward = arcOutward
 
         // Set color and dash pattern based on connection type
         if isCloudConnection {
@@ -126,19 +133,38 @@ class ConnectionLine: SKNode {
             toPoint = CGPoint(x: to.x + offsetX, y: to.y + offsetY)
         }
 
-        // Calculate control point for quadratic curve
-        // Control point is offset perpendicular to the line
+        // Calculate control point for the quadratic Bézier curve
         let midX = (fromPoint.x + toPoint.x) / 2
         let midY = (fromPoint.y + toPoint.y) / 2
 
-        // Curve amount based on distance (more curve for longer lines)
-        let curveAmount = min(distance * 0.15, 60.0)
-
-        // Perpendicular offset for curve
-        let perpX = -dy / distance * curveAmount
-        let perpY = dx / distance * curveAmount
-
-        let controlPoint = CGPoint(x: midX + perpX, y: midY + perpY)
+        let controlPoint: CGPoint
+        if arcOutward {
+            // Push the arc radially outward from the scene origin (local peer at (0,0)).
+            // This keeps ring-to-ring connection lines on the exterior of the peer cluster
+            // so they never thread through unrelated nodes near the centre.
+            let midLen = sqrt(midX * midX + midY * midY)
+            let curveAmount = min(distance * 0.25, 90.0) // larger bow for longer chords
+            if midLen > 1.0 {
+                // Outward direction = unit vector from origin toward midpoint
+                controlPoint = CGPoint(
+                    x: midX + (midX / midLen) * curveAmount,
+                    y: midY + (midY / midLen) * curveAmount
+                )
+            } else {
+                // Midpoint is at or very near origin (nearly antipodal nodes) —
+                // fall back to perpendicular so the line is still visible.
+                let curveAmountFallback = min(distance * 0.15, 60.0)
+                let perpX = -dy / distance * curveAmountFallback
+                let perpY = dx / distance * curveAmountFallback
+                controlPoint = CGPoint(x: midX + perpX, y: midY + perpY)
+            }
+        } else {
+            // Standard perpendicular offset for centre-to-ring spokes
+            let curveAmount = min(distance * 0.15, 60.0)
+            let perpX = -dy / distance * curveAmount
+            let perpY = dx / distance * curveAmount
+            controlPoint = CGPoint(x: midX + perpX, y: midY + perpY)
+        }
 
         // Create quadratic curve
         path.move(to: fromPoint)

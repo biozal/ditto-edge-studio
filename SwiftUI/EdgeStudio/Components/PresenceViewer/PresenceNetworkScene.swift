@@ -244,13 +244,17 @@ class PresenceNetworkScene: SKScene {
         // Build what connections SHOULD exist (without clearing current ones yet)
         var expectedConnectionIds: Set<String> = []
 
-        // Collect peer-to-peer connection IDs — deduplicate by type because the SDK returns
-        // one DittoConnection per directional endpoint (A→B and B→A are separate objects).
+        // Collect peer-to-peer connection IDs using actual endpoints (peerKeyString1/2).
+        // Deduplicate globally by (pairKey, type) — the SDK returns A→B and B→A as separate
+        // DittoConnection objects with the same type, so normalization prevents double entries.
+        var seenExpectedPairTypes: Set<String> = []
         for remotePeer in remotePeers {
-            var seenTypes: Set<String> = []
             for connection in remotePeer.connectionProtocols {
-                guard seenTypes.insert("\(connection.type)").inserted else { continue }
-                expectedConnectionIds.insert("\(remotePeer.peerKeyString)_\(connection.type)")
+                let pairKey = [connection.peerKeyString1, connection.peerKeyString2]
+                    .sorted().joined(separator: "_")
+                let id = "\(pairKey)_\(connection.type)"
+                guard seenExpectedPairTypes.insert(id).inserted else { continue }
+                expectedConnectionIds.insert(id)
             }
         }
 
@@ -273,20 +277,23 @@ class PresenceNetworkScene: SKScene {
         // Group connections by peer pair (to detect bidirectional connections)
         var peerPairConnections: [String: [PeerConnectionInfo]] = [:]
 
-        // Collect all peer-to-peer connections — deduplicate by type because the SDK returns
-        // one DittoConnection per directional endpoint (A→B and B→A are separate objects with
-        // the same type but different IDs). Keep one line per transport type per peer pair.
+        // Collect all peer-to-peer connections using actual endpoints from peerKeyString1/2.
+        // This correctly draws edges between the real participants of each connection, so
+        // multihop peers (e.g. iPhone→DT0-4196→Mac) appear linked to their actual neighbor,
+        // not falsely drawn as if they connect directly to the local device.
+        // Deduplicate globally by (pairKey, type) — the SDK returns A→B and B→A as separate
+        // DittoConnection objects with the same type but different IDs.
+        var seenPairTypes: Set<String> = []
         for remotePeer in remotePeers {
-            var seenTypes: Set<String> = []
             for connection in remotePeer.connectionProtocols {
-                guard seenTypes.insert("\(connection.type)").inserted else { continue }
+                let pk1 = connection.peerKeyString1
+                let pk2 = connection.peerKeyString2
+                guard !pk1.isEmpty, !pk2.isEmpty else { continue }
 
-                let connectionId = "\(remotePeer.peerKeyString)_\(connection.type)"
-                let fromKey = remotePeer.peerKeyString
-                let toKey = localPeer.peerKeyString
+                let pairKey = [pk1, pk2].sorted().joined(separator: "_")
+                let connectionId = "\(pairKey)_\(connection.type)"
 
-                // Create normalized pair key (always same order)
-                let pairKey = [fromKey, toKey].sorted().joined(separator: "_")
+                guard seenPairTypes.insert(connectionId).inserted else { continue }
 
                 if peerPairConnections[pairKey] == nil {
                     peerPairConnections[pairKey] = []
@@ -294,8 +301,8 @@ class PresenceNetworkScene: SKScene {
 
                 peerPairConnections[pairKey]?.append(PeerConnectionInfo(
                     connectionId: connectionId,
-                    from: fromKey,
-                    to: toKey,
+                    from: pk1,
+                    to: pk2,
                     type: connection.type,
                     isCloud: false
                 ))
@@ -344,6 +351,11 @@ class PresenceNetworkScene: SKScene {
                     offset = baseOffset - (step * CGFloat(index))
                 }
 
+                // Arc outward for peer-to-peer connections (neither endpoint is the local peer).
+                // This routes the chord around the outside of the node cluster instead of
+                // cutting through nodes that sit between the two ring-1 endpoints.
+                let localKey = localPeer.peerKeyString
+                let isPeerToPeer = conn.from != localKey && conn.to != localKey && !conn.isCloud
                 let line = ConnectionLine(
                     from: conn.from,
                     to: conn.to,
@@ -351,7 +363,8 @@ class PresenceNetworkScene: SKScene {
                     fromPos: fromNode.position,
                     toPos: toNode.position,
                     offset: offset,
-                    isCloudConnection: conn.isCloud
+                    isCloudConnection: conn.isCloud,
+                    arcOutward: isPeerToPeer
                 )
 
                 connectionLines[conn.connectionId] = line

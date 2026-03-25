@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Displays connected peers in a responsive adaptive grid layout.
 ///
-/// **Layout**: `GridItem(.adaptive(minimum: 460, maximum: 520))` — column count adjusts
-/// automatically to available width (1 on iPhone/iPad mini, 2 on iPad Pro / Mac).
+/// **Layout**: `GridItem(.adaptive(minimum: 260, maximum: 520))` — column count adjusts
+/// automatically to available width (1 on small screens, 2-3+ on larger Mac/iPad displays).
 ///
 /// **Backpressure**: Observer updates throttled to match UI render capacity (see SystemRepository).
 ///
@@ -11,6 +11,7 @@ import SwiftUI
 struct ConnectedPeersView: View {
     @Bindable var viewModel: MainStudioView.ViewModel
     @State private var networkInterfaces: [NetworkInterfaceInfo] = []
+    @State private var copiedText: String?
 
     var body: some View {
         let hasLocalPeer = viewModel.localPeerDeviceName != nil
@@ -28,9 +29,9 @@ struct ConnectedPeersView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Peer cards grid
+                        // Peer cards grid — bottom padding handled by VStack below
                         LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 340, maximum: 520))],
+                            columns: [GridItem(.adaptive(minimum: 260, maximum: 520))],
                             spacing: 16
                         ) {
                             ForEach(viewModel.syncStatusItems) { statusInfo in
@@ -76,7 +77,7 @@ struct ConnectedPeersView: View {
                             .padding(.vertical, 16)
 
                             LazyVGrid(
-                                columns: [GridItem(.adaptive(minimum: 340, maximum: 520))],
+                                columns: [GridItem(.adaptive(minimum: 260, maximum: 520))],
                                 spacing: 16
                             ) {
                                 ForEach(networkInterfaces) { iface in
@@ -91,6 +92,10 @@ struct ConnectedPeersView: View {
                             .padding(.bottom)
                         }
                     }
+                    // Extra bottom clearance so the last card is never hidden behind
+                    // the DetailBottomBar overlay (~56pt tall). Covers both the
+                    // network-interfaces case and the peers-only case.
+                    .padding(.bottom, 72)
                 }
                 .transition(.blurReplace)
             }
@@ -128,9 +133,11 @@ struct ConnectedPeersView: View {
 
                     Text(status.id)
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.80))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                        .foregroundColor(copiedText == status.id ? .green : .white.opacity(0.80))
+                    #if os(macOS)
+                        .help("Double-click to copy ID")
+                        .onTapGesture(count: 2) { copyToClipboard(status.id) }
+                    #endif
                 }
 
                 Spacer()
@@ -167,9 +174,11 @@ struct ConnectedPeersView: View {
                         FontAwesomeText(icon: connectionIcon(for: addressInfo.connectionType), size: 12, color: .white.opacity(0.80))
                         Text(addressInfo.displayText)
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.80))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                            .foregroundColor(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
+                        #if os(macOS)
+                            .help("Double-click to copy address")
+                            .onTapGesture(count: 2) { copyToClipboard(addressInfo.displayText) }
+                        #endif
                     }
                 }
 
@@ -368,6 +377,21 @@ struct ConnectedPeersView: View {
             return ConnectivityIcon.broadcastTower
         }
     }
+
+    #if os(macOS)
+    /// Copies `text` to the system clipboard and briefly flashes the text green as confirmation.
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copiedText = text
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await MainActor.run {
+                if copiedText == text { copiedText = nil }
+            }
+        }
+    }
+    #endif
 
     private func loadNetworkDiagnostics() async {
         await NetworkDiagnosticsService.shared.requestLocationPermissionIfNeeded()

@@ -15,31 +15,31 @@ struct PresenceViewerSK: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            #if os(macOS)
-            // Test mode toggle bar
-            testModeToggle
-            #endif
+        // Main scene view with overlays
+        ZStack(alignment: .bottomTrailing) {
+            // SpriteKit scene
+            SpriteKitSceneView(scene: $scene, viewModel: viewModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .focusable() // Allow view to receive keyboard and scroll events
 
-            // Main scene view with overlays
-            ZStack(alignment: .bottomTrailing) {
-                // SpriteKit scene
-                SpriteKitSceneView(scene: $scene, viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .focusable() // Allow view to receive keyboard and scroll events
-
-                // Zoom controls overlay (bottom-right)
+            // Bottom-right controls (Direct Connected toggle + zoom controls)
+            // Bottom padding clears the DetailBottomBar overlay (~56pt) that sits
+            // at the bottom of the parent syncTabsDetailView.
+            VStack(alignment: .trailing, spacing: 8) {
+                directConnectedToggle
                 zoomControls
-                    .padding(16)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 72)
 
-                // Connection legend overlay (bottom-left)
-                VStack {
+            // Connection legend overlay (bottom-left)
+            VStack {
+                Spacer()
+                HStack {
+                    connectionLegend
+                        .padding(.leading, 16)
+                        .padding(.bottom, 72)
                     Spacer()
-                    HStack {
-                        connectionLegend
-                            .padding(16)
-                        Spacer()
-                    }
                 }
             }
         }
@@ -51,32 +51,20 @@ struct PresenceViewerSK: View {
         }
     }
 
-    // MARK: - Test Mode Toggle
+    // MARK: - Direct Connected Toggle
 
-    /// Test mode toggle bar at top of view
-    private var testModeToggle: some View {
-        HStack {
-            Spacer()
-
-            Toggle("Test Mode", isOn: Binding(
-                get: { viewModel.isTestMode },
-                set: { viewModel.isTestMode = $0 }
-            ))
-            .toggleStyle(.switch)
-            .help("Enable test mode to use mock data with 30 simulated devices")
-
-            if viewModel.isTestMode {
-                Text("Using Mock Data")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(8)
-            }
-        }
-        .padding()
+    /// Toggle switch to filter peers to only directly connected ones
+    private var directConnectedToggle: some View {
+        Toggle("Direct Connected", isOn: Binding(
+            get: { viewModel.showDirectConnectedOnly },
+            set: { viewModel.showDirectConnectedOnly = $0 }
+        ))
+        .toggleStyle(.switch)
+        .font(.caption)
+        .padding(8)
         .background(.ultraThinMaterial)
+        .cornerRadius(8)
+        .help("Show only peers directly connected to this device")
     }
 
     // MARK: - Zoom Controls
@@ -299,37 +287,22 @@ struct SpriteKitSceneView: UIViewRepresentable {
 
 extension PresenceViewerSK {
     /// ViewModel for PresenceViewerSK
-    /// Manages presence graph observation, test mode, and scene state
+    /// Manages presence graph observation and scene state
     /// Accesses DittoManager.shared singleton directly (no Ditto parameter needed)
     @MainActor
     @Observable
     class ViewModel {
         // MARK: - Published State
 
-        /// Test mode flag - when true, uses mock data instead of real Ditto presence
-        var isTestMode = false {
+        /// When true, only peers directly connected to this device are shown
+        var showDirectConnectedOnly = true {
             didSet {
-                if isTestMode {
-                    startTestMode()
-                } else {
-                    Task {
-                        await stopTestModeAndResume()
-                    }
-                }
+                updateSceneWithCurrentFilter()
             }
         }
 
         /// Current zoom level (0.5 = 50%, 1.0 = 100%, 2.0 = 200%)
         var zoomLevel: CGFloat = 1.0
-
-        /// Local peer data (supports both real DittoPeer and mock test data)
-        var localPeer: PeerProtocol?
-
-        /// Remote peers data (supports both real DittoPeer and mock test data)
-        var remotePeers: [PeerProtocol] = []
-
-        /// Local peer key string for quick lookup
-        var localPeerKey: String?
 
         // MARK: - Scene Reference
 
@@ -341,16 +314,15 @@ extension PresenceViewerSK {
         /// Presence observer for real-time updates
         private var presenceObserver: DittoObserver?
 
-        /// Timer for test mode updates
-        private var testModeTimer: Timer?
+        /// Raw local peer from the presence graph
+        private var rawLocalPeer: PeerProtocol?
 
-        /// Mock data generator for test mode
-        private var mockDataGenerator: MockPresenceDataGenerator?
+        /// All remote peers from the presence graph (unfiltered)
+        private var rawRemotePeers: [PeerProtocol] = []
 
         // MARK: - Initialization
 
         init() {
-            // Start production mode - accesses DittoManager.shared directly
             Task {
                 await startProductionMode()
             }
@@ -359,9 +331,7 @@ extension PresenceViewerSK {
         // MARK: - Production Mode (Real Ditto Presence)
 
         /// Start observing real Ditto presence graph
-        /// Accesses DittoManager.shared.dittoSelectedApp (actor-isolated)
         func startProductionMode() async {
-            // Access actor-isolated property
             guard let ditto = await DittoManager.shared.dittoSelectedApp else {
                 Log.warning("PresenceViewerViewModel: No Ditto instance available")
                 return
@@ -373,16 +343,10 @@ extension PresenceViewerSK {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
 
-                    localPeer = presenceGraph.localPeer
-                    remotePeers = Array(presenceGraph.remotePeers)
-                    localPeerKey = presenceGraph.localPeer.peerKeyString
+                    rawLocalPeer = presenceGraph.localPeer
+                    rawRemotePeers = Array(presenceGraph.remotePeers)
 
-                    if let scene {
-                        scene.updatePresenceGraph(
-                            localPeer: presenceGraph.localPeer,
-                            remotePeers: Array(presenceGraph.remotePeers)
-                        )
-                    }
+                    updateSceneWithCurrentFilter()
                 }
             }
         }
@@ -393,51 +357,34 @@ extension PresenceViewerSK {
             presenceObserver = nil
         }
 
-        // MARK: - Test Mode (Mock Data)
+        // MARK: - Filtering
 
-        /// Start test mode with mock data generation
-        func startTestMode() {
-            stopProductionMode()
-
-            mockDataGenerator = MockPresenceDataGenerator()
-
-            // Generate initial data
-            updateTestData()
-
-            // Update every 7 seconds
-            testModeTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.updateTestData()
+        /// Returns only peers directly connected to the local peer
+        private func directlyConnectedPeers(
+            from peers: [PeerProtocol],
+            localPeerKey: String
+        ) -> [PeerProtocol] {
+            peers.filter { peer in
+                peer.connectionProtocols.contains {
+                    $0.peerKeyString1 == localPeerKey || $0.peerKeyString2 == localPeerKey
                 }
             }
         }
 
-        /// Stop test mode and return to production mode
-        func stopTestModeAndResume() async {
-            testModeTimer?.invalidate()
-            testModeTimer = nil
-            mockDataGenerator = nil
+        /// Push the current filtered graph state to the scene
+        func updateSceneWithCurrentFilter() {
+            guard let localPeer = rawLocalPeer, let scene else { return }
 
-            await startProductionMode()
-        }
-
-        /// Update scene with new mock data
-        private func updateTestData() {
-            guard let generator = mockDataGenerator else { return }
-
-            let mockData = generator.generateUpdate()
-
-            localPeer = mockData.localPeer
-            remotePeers = mockData.remotePeers
-            localPeerKey = mockData.localPeer.peerKeyString
-
-            // Update scene if available
-            if let scene {
-                scene.updatePresenceGraph(
-                    localPeer: mockData.localPeer,
-                    remotePeers: mockData.remotePeers
+            let peersToShow: [PeerProtocol] = if showDirectConnectedOnly {
+                directlyConnectedPeers(
+                    from: rawRemotePeers,
+                    localPeerKey: localPeer.peerKeyString
                 )
+            } else {
+                rawRemotePeers
             }
+
+            scene.updatePresenceGraph(localPeer: localPeer, remotePeers: peersToShow)
         }
 
         // MARK: - Zoom Control
@@ -465,7 +412,6 @@ extension PresenceViewerSK {
 
         // Note: Cleanup happens automatically when ViewModel is deallocated
         // - DittoObserver cleans up when released
-        // - Timer is invalidated in stopTestModeAndResume() when needed
     }
 }
 
