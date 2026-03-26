@@ -59,7 +59,7 @@ actor SystemRepository {
     ) -> PeerEnrichmentData {
         // Convert DittoPeerOS to custom PeerOS
         let osInfo: PeerOS? = {
-            guard let dittoOS = peer.osV2 else { return nil }
+            guard let dittoOS = peer.os else { return nil }
 
             // Map DittoPeerOS to custom PeerOS enum
             let osString = "\(dittoOS)"
@@ -138,8 +138,8 @@ actor SystemRepository {
             // presenceGraph.remotePeers includes multihop peers; filtering here ensures only
             // directly connected transports appear on the peer card.
             let peerConnections: [DittoConnection] = if let localKey = localPeerKeyString {
-                rawConnections.filter {
-                    $0.peerKeyString1 == localKey || $0.peerKeyString2 == localKey
+                rawConnections.filter { (conn: DittoConnection) in
+                    conn.peer1 == localKey || conn.peer2 == localKey
                 }
             } else {
                 rawConnections
@@ -154,9 +154,9 @@ actor SystemRepository {
                 ConnectionInfo(
                     id: connection.id,
                     type: self.convertConnectionType(connection.type),
-                    peerKeyString1: connection.peerKeyString1,
-                    peerKeyString2: connection.peerKeyString2,
-                    approximateDistanceInMeters: connection.approximateDistanceInMeters
+                    peerKeyString1: connection.peer1,
+                    peerKeyString2: connection.peer2,
+                    approximateDistanceInMeters: nil // removed in Ditto SDK v5
                 )
             }
             guard let config else { return mapped.isEmpty ? nil : mapped }

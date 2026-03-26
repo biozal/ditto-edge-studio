@@ -64,7 +64,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 
     <!-- Ditto SDK -->
-    <PackageReference Include="Ditto" Version="4.14.3" />
+    <PackageReference Include="Ditto" Version="5.0.0-rc.1" />
 
     <!-- Dependency Injection -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />

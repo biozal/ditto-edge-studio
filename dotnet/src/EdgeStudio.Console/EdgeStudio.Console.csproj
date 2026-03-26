@@ -32,6 +32,7 @@
     <PackageReference Include="Avalonia.Remote.Protocol" Version="11.3.12" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Consolonia" Version="11.3.9-beta.2218" />
+    <PackageReference Include="Ditto" Version="5.0.0-rc.1" />
   </ItemGroup>
 
 </Project>

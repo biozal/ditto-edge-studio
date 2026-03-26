@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DittoSDK;
+using DittoSDK.Logging;
 using EdgeStudio.Models.Logging;
 using EdgeStudio.Services;
 using EdgeStudio.Shared.Data;

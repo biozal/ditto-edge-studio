@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <!-- Test framework packages -->
-    <PackageReference Include="Ditto" Version="4.14.3" />
+    <PackageReference Include="Ditto" Version="5.0.0-rc.1" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.5" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3mc" Version="2.1.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />

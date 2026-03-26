@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using DittoSDK;
+using DittoSDK.Auth;
+using DittoSDK.Logging;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 
@@ -131,8 +133,6 @@ namespace EdgeStudio.Shared.Data
                         throw new InvalidOperationException("Ditto authentication failed.", error);
                     }
                 };
-
-                DittoSelectedApp.DisableSyncWithV3();
 
                 // Apply strict mode BEFORE starting sync (matches SwiftUI hydrateDittoSelectedDatabase order)
                 var strictMode = dittoDatabaseConfig.IsStrictModeEnabled ? "true" : "false";

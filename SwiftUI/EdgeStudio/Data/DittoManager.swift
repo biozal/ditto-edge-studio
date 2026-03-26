@@ -119,7 +119,7 @@ actor DittoManager {
                 ) { _, error in
                     if let error {
                         Task {
-                            self.appState?.setError(error)
+                            await self.appState?.setError(error)
                         }
                     } else {
                         Log.info("[Auth] Authentication successful \(secondsRemaining)")

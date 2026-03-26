@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DittoSDK;
+using DittoSDK.Sync;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 

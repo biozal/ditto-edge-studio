@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using DittoSDK;
+using DittoSDK.Store;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 using System;
