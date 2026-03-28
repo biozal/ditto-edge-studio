@@ -43,6 +43,8 @@ enum LogEntrySource: Equatable {
     case dittoSDK
     case application
     case imported(label: String)
+    case transportConditions
+    case connectionRequests
 }
 
 /// Log component, mapped from the Ditto SDK `target` field or inferred heuristically.

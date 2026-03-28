@@ -20,6 +20,10 @@ actor DittoManager {
                 ditto.sync.stop()
             }.value
         }
+        await MainActor.run {
+            DittoLogCaptureService.shared.stopTransportConditionObserver()
+            DittoLogCaptureService.shared.stopConnectionRequestHandler()
+        }
         dittoSelectedApp = nil
     }
 
@@ -180,6 +184,13 @@ actor DittoManager {
             dittoSelectedApp = ditto
             guard dittoSelectedApp != nil else {
                 throw AppError.error(message: "Failed to create Ditto instance")
+            }
+            // Start transport condition observer for the database lifetime
+            await MainActor.run {
+                DittoLogCaptureService.shared.clearTransportEntries()
+                DittoLogCaptureService.shared.startTransportConditionObserver(ditto: ditto)
+                DittoLogCaptureService.shared.clearConnectionRequestEntries()
+                DittoLogCaptureService.shared.startConnectionRequestHandler(ditto: ditto)
             }
             isSuccess = true
         } catch {

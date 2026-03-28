@@ -413,7 +413,7 @@ namespace EdgeStudioTests
             // Assert
             peerCard.CardType.Should().Be(PeerCardType.Server);
             peerCard.IsDittoServer.Should().BeTrue();
-            peerCard.DisplayName.Should().Be("Server");
+            peerCard.DisplayName.Should().Be("Ditto Server");
             peerCard.IsConnected.Should().BeTrue();
             peerCard.ConnectionStatus.Should().Be("Connected");
         }

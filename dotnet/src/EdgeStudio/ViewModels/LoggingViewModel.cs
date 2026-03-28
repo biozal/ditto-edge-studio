@@ -14,7 +14,7 @@ using EdgeStudio.Shared.Services;
 
 namespace EdgeStudio.ViewModels;
 
-public enum LogSourceTab { DittoSdk, AppLogs, Imported }
+public enum LogSourceTab { DittoSdk, AppLogs, Imported, TransportConditions, ConnectionRequests }
 
 /// <summary>
 /// Performance design:
@@ -27,7 +27,9 @@ public enum LogSourceTab { DittoSdk, AppLogs, Imported }
 public partial class LoggingViewModel : LoadableViewModelBase
 {
     private readonly DittoLogCaptureService _captureService;
+    private readonly ILogCaptureService _logCaptureService;
     private readonly ILoggingService? _loggingService;
+    private readonly IDittoManager _dittoManager;
     private readonly DispatcherTimer _pollTimer;
     private bool _isRefreshing;
     private volatile List<LogEntry> _appLogEntries = new();
@@ -55,9 +57,11 @@ public partial class LoggingViewModel : LoadableViewModelBase
     [ObservableProperty]
     private LogSourceTab _selectedSource = LogSourceTab.DittoSdk;
 
-    public bool IsSourceDittoSdk => SelectedSource == LogSourceTab.DittoSdk;
-    public bool IsSourceAppLogs  => SelectedSource == LogSourceTab.AppLogs;
-    public bool IsSourceImported => SelectedSource == LogSourceTab.Imported;
+    public bool IsSourceDittoSdk            => SelectedSource == LogSourceTab.DittoSdk;
+    public bool IsSourceAppLogs             => SelectedSource == LogSourceTab.AppLogs;
+    public bool IsSourceImported            => SelectedSource == LogSourceTab.Imported;
+    public bool IsSourceTransportConditions => SelectedSource == LogSourceTab.TransportConditions;
+    public bool IsSourceConnectionRequests  => SelectedSource == LogSourceTab.ConnectionRequests;
 
     [ObservableProperty]
     private int _appLogsEntryCount;
@@ -135,13 +139,16 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     public LoggingViewModel(
         DittoLogCaptureService captureService,
+        ILogCaptureService logCaptureService,
         IDittoManager dittoManager,
         ILoggingService? loggingService = null,
         IToastService? toastService = null)
         : base(toastService)
     {
         _captureService = captureService;
+        _logCaptureService = logCaptureService;
         _loggingService = loggingService;
+        _dittoManager = dittoManager;
         _captureService.Cleared += OnCaptureServiceCleared;
 
         // Initialize the dropdown to match the level set by DittoManager from the database config.
@@ -198,7 +205,10 @@ public partial class LoggingViewModel : LoadableViewModelBase
         OnPropertyChanged(nameof(IsSourceDittoSdk));
         OnPropertyChanged(nameof(IsSourceAppLogs));
         OnPropertyChanged(nameof(IsSourceImported));
-        IsComponentFilterVisible = value != LogSourceTab.AppLogs;
+        OnPropertyChanged(nameof(IsSourceTransportConditions));
+        OnPropertyChanged(nameof(IsSourceConnectionRequests));
+        // Component filter is only meaningful for DittoSdk and Imported sources
+        IsComponentFilterVisible = value == LogSourceTab.DittoSdk || value == LogSourceTab.Imported;
 
         if (value == LogSourceTab.AppLogs && !_appLogsLoaded)
             _ = LoadAppLogsAsync();
@@ -267,6 +277,24 @@ public partial class LoggingViewModel : LoadableViewModelBase
             case LogSourceTab.Imported:
                 // Not yet implemented
                 break;
+
+            case LogSourceTab.TransportConditions:
+                _logCaptureService.ClearTransportConditionEntries();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    FilteredEntries = Array.Empty<LogEntry>();
+                    TotalEntryCount = 0;
+                });
+                break;
+
+            case LogSourceTab.ConnectionRequests:
+                _logCaptureService.ClearConnectionRequestEntries();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    FilteredEntries = Array.Empty<LogEntry>();
+                    TotalEntryCount = 0;
+                });
+                break;
         }
     }
 
@@ -278,6 +306,12 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     [RelayCommand]
     private void SelectSourceImported() => SelectedSource = LogSourceTab.Imported;
+
+    [RelayCommand]
+    private void SelectSourceTransportConditions() => SelectedSource = LogSourceTab.TransportConditions;
+
+    [RelayCommand]
+    private void SelectSourceConnectionRequests() => SelectedSource = LogSourceTab.ConnectionRequests;
 
     [RelayCommand]
     private void ClearSearch() => SearchText = string.Empty;
@@ -294,9 +328,12 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     private async void OnPollTimerTick(object? sender, EventArgs e)
     {
-        if (SelectedSource != LogSourceTab.DittoSdk) return;
-        if (!_captureService.HasNewEntries) return;
-        await RefreshEntriesAsync();
+        if (SelectedSource == LogSourceTab.DittoSdk && _captureService.HasNewEntries)
+            await RefreshEntriesAsync();
+        else if (SelectedSource == LogSourceTab.TransportConditions && _logCaptureService.HasNewTransportEntries)
+            await RefreshEntriesAsync();
+        else if (SelectedSource == LogSourceTab.ConnectionRequests && _logCaptureService.HasNewConnectionRequestEntries)
+            await RefreshEntriesAsync();
     }
 
     private void OnCaptureServiceCleared(object? sender, EventArgs e)
@@ -408,10 +445,17 @@ public partial class LoggingViewModel : LoadableViewModelBase
             // Snapshot the source entries on the UI thread.
             List<LogEntry> sourceEntries = source switch
             {
-                LogSourceTab.DittoSdk => _captureService.GetSnapshot(),
-                LogSourceTab.AppLogs  => _appLogEntries,
-                _                     => new List<LogEntry>()
+                LogSourceTab.DittoSdk              => _captureService.GetSnapshot(),
+                LogSourceTab.AppLogs               => _appLogEntries,
+                LogSourceTab.TransportConditions   => new List<LogEntry>(_logCaptureService.TransportConditionEntries),
+                LogSourceTab.ConnectionRequests    => new List<LogEntry>(_logCaptureService.ConnectionRequestEntries),
+                _                                  => new List<LogEntry>()
             };
+            // Reset the dirty flag after snapshotting
+            if (source == LogSourceTab.TransportConditions)
+                _logCaptureService.AcknowledgeNewEntries();
+            else if (source == LogSourceTab.ConnectionRequests)
+                _logCaptureService.AcknowledgeConnectionRequestEntries();
 
             var (result, totalCount) = await Task.Run(() =>
                 BuildFilteredSnapshot(
@@ -457,8 +501,10 @@ public partial class LoggingViewModel : LoadableViewModelBase
                 e.Timestamp.DateTime >= start && e.Timestamp.DateTime < end);
         }
 
-        // Component filter (DittoSdk and Imported only)
+        // Component filter (DittoSdk and Imported only — not AppLogs, TransportConditions, or ConnectionRequests)
         if (source != LogSourceTab.AppLogs
+            && source != LogSourceTab.TransportConditions
+            && source != LogSourceTab.ConnectionRequests
             && selectedComponent != "All"
             && Enum.TryParse<LogComponent>(selectedComponent, out var comp))
         {

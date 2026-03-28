@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Services;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
@@ -23,6 +24,7 @@ namespace EdgeStudio.ViewModels
         private readonly IHistoryRepository _historyRepository;
         private readonly IFavoritesRepository _favoritesRepository;
         private readonly IQrCodeService _qrCodeService;
+        private readonly ILogCaptureService _logCaptureService;
 
         public MainWindowViewModel(
             IDittoManager dittoManager,
@@ -32,6 +34,7 @@ namespace EdgeStudio.ViewModels
             IHistoryRepository historyRepository,
             IFavoritesRepository favoritesRepository,
             IQrCodeService qrCodeService,
+            ILogCaptureService logCaptureService,
             IToastService? toastService = null)
             : base(toastService)
         {
@@ -42,6 +45,7 @@ namespace EdgeStudio.ViewModels
             _historyRepository = historyRepository ?? throw new ArgumentNullException(nameof(historyRepository));
             _favoritesRepository = favoritesRepository ?? throw new ArgumentNullException(nameof(favoritesRepository));
             _qrCodeService = qrCodeService ?? throw new ArgumentNullException(nameof(qrCodeService));
+            _logCaptureService = logCaptureService ?? throw new ArgumentNullException(nameof(logCaptureService));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
             DatabaseFormModel = new DatabaseFormModel();
@@ -236,6 +240,12 @@ namespace EdgeStudio.ViewModels
             {
                 var success = await _dittoManager.InitializeDittoSelectedApp(config);
 
+                if (success && _dittoManager.DittoSelectedApp != null)
+                {
+                    _logCaptureService.ClearTransportConditionEntries();
+                    _logCaptureService.StartCapture(_dittoManager.DittoSelectedApp);
+                }
+
                 if (!success)
                 {
                     ShowError("Could not initialize database. Please check your configuration and try again.");
@@ -271,6 +281,9 @@ namespace EdgeStudio.ViewModels
 
             try
             {
+                // Stop transport condition observer before closing the database
+                _logCaptureService.StopCapture();
+
                 // Close repositories in parallel (they're independent)
                 await Task.WhenAll(
                     _systemRepository.CloseDatabaseAsync(),

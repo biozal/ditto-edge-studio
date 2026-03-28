@@ -163,6 +163,7 @@ public partial class App : Application
         // Register logging services (use the same instance passed to DittoManager)
         services.AddSingleton<ILoggingService>(loggingService);
         services.AddSingleton<DittoLogCaptureService>();
+        services.AddSingleton<ILogCaptureService, LogCaptureService>();
 
         // Register query execution and metrics services
         services.AddSingleton<IQueryMetricsService, InMemoryQueryMetricsService>();
