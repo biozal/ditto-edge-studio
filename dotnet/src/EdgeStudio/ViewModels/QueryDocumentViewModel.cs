@@ -195,7 +195,7 @@ namespace EdgeStudio.ViewModels
                         DqlQuery: QueryText,
                         ExecutionTimeMs: elapsedMs,
                         ResultCount: result.ResultCount,
-                        ExplainOutput: string.Empty,
+                        ExplainOutput: result.ExplainOutput,
                         Timestamp: DateTime.UtcNow
                     );
                     _queryMetricsService.Capture(metric);

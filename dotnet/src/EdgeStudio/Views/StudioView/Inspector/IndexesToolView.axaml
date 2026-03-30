@@ -5,26 +5,204 @@
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:suki="https://github.com/kikipoulet/SukiUI"
-             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="500"
              x:Class="EdgeStudio.Views.StudioView.Inspector.IndexesToolView"
              x:DataType="vm:IndexesToolViewModel">
 
-    <ScrollViewer Margin="10">
-        <StackPanel Spacing="10">
-            <!-- Empty state with proper styling -->
-            <suki:GlassCard CornerRadius="10" Padding="15">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <materialIcons:MaterialIcon Kind="InformationCircle"
-                                               Foreground="{DynamicResource SukiPrimaryColor}"
-                                               Width="16"
-                                               Height="16"
-                                               VerticalAlignment="Center"/>
-                    <TextBlock Text="No indexes available"
-                               Foreground="{DynamicResource SukiLowText}"
-                               VerticalAlignment="Center"
-                               FontStyle="Italic"/>
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Toolbar -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,6,8,4">
+            <TextBlock Grid.Column="0"
+                       Text="Collections &amp; Indexes"
+                       FontSize="11"
+                       Opacity="0.6"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Command="{Binding RefreshCommand}"
+                    ToolTip.Tip="Refresh"
+                    Padding="4"
+                    IsEnabled="{Binding !IsLoading}">
+                <materialIcons:MaterialIcon Kind="Refresh" Width="14" Height="14"/>
+            </Button>
+        </Grid>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="4,0,4,8">
+
+                <!-- Loading -->
+                <StackPanel IsVisible="{Binding IsLoading}"
+                            Orientation="Horizontal" Spacing="6" Margin="8,6">
+                    <materialIcons:MaterialIcon Kind="Loading" Width="14" Height="14" Opacity="0.5"/>
+                    <TextBlock Text="Loading..." FontSize="11" Opacity="0.5" VerticalAlignment="Center"/>
                 </StackPanel>
-            </suki:GlassCard>
-        </StackPanel>
-    </ScrollViewer>
+
+                <!-- Error -->
+                <Border IsVisible="{Binding HasError}"
+                        Background="{DynamicResource SukiErrorColor}"
+                        CornerRadius="6" Padding="8,6" Margin="4,4">
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               FontSize="11" TextWrapping="Wrap" Opacity="0.9"/>
+                </Border>
+
+                <!-- Empty state -->
+                <suki:GlassCard IsVisible="{Binding !HasCollections}"
+                                CornerRadius="8" Padding="12" Margin="4,4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <materialIcons:MaterialIcon Kind="DatabaseSearch"
+                                                    Foreground="{DynamicResource SukiPrimaryColor}"
+                                                    Width="16" Height="16"
+                                                    VerticalAlignment="Center"/>
+                        <TextBlock Text="No collections found"
+                                   Foreground="{DynamicResource SukiLowText}"
+                                   FontStyle="Italic" FontSize="12"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </suki:GlassCard>
+
+                <!-- ── Collection tree ── -->
+                <ItemsControl ItemsSource="{Binding CollectionNodes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CollectionTreeNode">
+                            <StackPanel Margin="0,1">
+
+                                <!-- Collection header row -->
+                                <Border CornerRadius="6"
+                                        Padding="4,3"
+                                        Background="Transparent">
+                                    <Grid ColumnDefinitions="20,18,*">
+
+                                        <!-- Chevron — only visible when collection has indexes -->
+                                        <Button Grid.Column="0"
+                                                Command="{Binding ToggleExpandCommand}"
+                                                IsVisible="{Binding HasIndexes}"
+                                                Padding="2"
+                                                Background="Transparent"
+                                                BorderThickness="0">
+                                            <Panel>
+                                                <materialIcons:MaterialIcon Kind="ChevronDown"
+                                                                            Width="14" Height="14"
+                                                                            IsVisible="{Binding IsExpanded}"
+                                                                            Opacity="0.7"/>
+                                                <materialIcons:MaterialIcon Kind="ChevronRight"
+                                                                            Width="14" Height="14"
+                                                                            IsVisible="{Binding !IsExpanded}"
+                                                                            Opacity="0.7"/>
+                                            </Panel>
+                                        </Button>
+
+                                        <!-- Table icon -->
+                                        <materialIcons:MaterialIcon Grid.Column="1"
+                                                                    Kind="TableLarge"
+                                                                    Width="14" Height="14"
+                                                                    Opacity="0.6"
+                                                                    VerticalAlignment="Center"/>
+
+                                        <!-- Collection name -->
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Name}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ── Index children (when expanded) ── -->
+                                <ItemsControl ItemsSource="{Binding Indexes}"
+                                              IsVisible="{Binding IsExpanded}"
+                                              Margin="20,0,0,2">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:IndexTreeNode">
+                                            <StackPanel Margin="0,1">
+
+                                                <!-- Index header row -->
+                                                <Grid ColumnDefinitions="18,16,*,Auto">
+
+                                                    <!-- Chevron for index -->
+                                                    <Button Grid.Column="0"
+                                                            Command="{Binding ToggleExpandCommand}"
+                                                            Padding="2"
+                                                            Background="Transparent"
+                                                            BorderThickness="0">
+                                                        <Panel>
+                                                            <materialIcons:MaterialIcon Kind="ChevronDown"
+                                                                                        Width="12" Height="12"
+                                                                                        IsVisible="{Binding IsExpanded}"
+                                                                                        Opacity="0.6"/>
+                                                            <materialIcons:MaterialIcon Kind="ChevronRight"
+                                                                                        Width="12" Height="12"
+                                                                                        IsVisible="{Binding !IsExpanded}"
+                                                                                        Opacity="0.6"/>
+                                                        </Panel>
+                                                    </Button>
+
+                                                    <!-- Index icon -->
+                                                    <materialIcons:MaterialIcon Grid.Column="1"
+                                                                                Kind="Magnify"
+                                                                                Width="12" Height="12"
+                                                                                Opacity="0.5"
+                                                                                VerticalAlignment="Center"/>
+
+                                                    <!-- Index name -->
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Name}"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               Margin="3,0,0,0"
+                                                               TextTrimming="CharacterEllipsis"/>
+
+                                                    <!-- Drop button -->
+                                                    <Button Grid.Column="3"
+                                                            Command="{Binding $parent[UserControl].DataContext.DropIndexCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Drop index"
+                                                            Padding="3"
+                                                            Opacity="0.5"
+                                                            Background="Transparent"
+                                                            BorderThickness="0">
+                                                        <materialIcons:MaterialIcon Kind="TrashCanOutline"
+                                                                                    Width="12" Height="12"/>
+                                                    </Button>
+                                                </Grid>
+
+                                                <!-- ── Field children (when expanded) ── -->
+                                                <ItemsControl ItemsSource="{Binding Fields}"
+                                                              IsVisible="{Binding IsExpanded}"
+                                                              Margin="18,0,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:IndexFieldNode">
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        Spacing="5"
+                                                                        Margin="2,2">
+                                                                <materialIcons:MaterialIcon Kind="CircleSmall"
+                                                                                            Width="10" Height="10"
+                                                                                            Opacity="0.4"
+                                                                                            VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontSize="10"
+                                                                           FontFamily="Consolas"
+                                                                           Opacity="0.7"
+                                                                           VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
 </UserControl>

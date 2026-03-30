@@ -125,7 +125,7 @@
                 <!-- Inspector Splitter (visible only when inspector is open) -->
                 <ColumnDefinition Width="Auto"/>
                 <!-- Inspector Panel (collapses when IsVisible=false) -->
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="280" MinWidth="200" MaxWidth="600"/>
             </Grid.ColumnDefinitions>
 
             <!-- Icon Navigation Bar -->
@@ -151,7 +151,7 @@
 
             <!-- Collections/Listing Panel (hidden for Logging nav) -->
             <Panel Grid.Column="2"
-                   Width="250" MinWidth="200" MaxWidth="500"
+                   MinWidth="200" MaxWidth="500"
                    IsVisible="{Binding IsListingPanelVisible}">
                 <Border Background="#05000000">
                     <ContentControl Content="{Binding CurrentListingViewModel}">
@@ -259,9 +259,6 @@
 
             <!-- Inspector Panel -->
             <Border Grid.Column="6"
-                    Width="280"
-                    MinWidth="200"
-                    MaxWidth="500"
                     IsVisible="{Binding IsInspectorVisible}">
                 <inspector:InspectorView/>
             </Border>

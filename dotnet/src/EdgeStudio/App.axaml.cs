@@ -194,6 +194,7 @@ public partial class App : Application
         services.AddTransient<QueryMetricsViewModel>();
         services.AddSingleton<HistoryToolViewModel>();
         services.AddSingleton<FavoritesToolViewModel>();
+        services.AddSingleton<IndexesToolViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
@@ -204,6 +205,7 @@ public partial class App : Application
         services.AddTransient<Lazy<QueryMetricsViewModel>>();
         services.AddSingleton(provider => new Lazy<HistoryToolViewModel>(() => provider.GetRequiredService<HistoryToolViewModel>()));
         services.AddSingleton(provider => new Lazy<FavoritesToolViewModel>(() => provider.GetRequiredService<FavoritesToolViewModel>()));
+        services.AddSingleton(provider => new Lazy<IndexesToolViewModel>(() => provider.GetRequiredService<IndexesToolViewModel>()));
 
         _serviceProvider = services.BuildServiceProvider();
     }

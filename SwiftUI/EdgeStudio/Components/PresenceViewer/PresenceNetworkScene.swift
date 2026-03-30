@@ -20,6 +20,9 @@ class PresenceNetworkScene: SKScene {
     /// Initial zoom level to apply when scene first appears
     var initialZoomLevel: CGFloat = 1.0
 
+    /// When true, only draw connection lines that involve the local peer directly
+    var showDirectConnectedOnly = true
+
     /// Callbacks
     /// Called when user changes zoom level via scroll wheel or gestures
     var onZoomChanged: ((CGFloat) -> Void)?
@@ -247,11 +250,15 @@ class PresenceNetworkScene: SKScene {
         // Collect peer-to-peer connection IDs using actual endpoints (peerKeyString1/2).
         // Deduplicate globally by (pairKey, type) — the SDK returns A→B and B→A as separate
         // DittoConnection objects with the same type, so normalization prevents double entries.
+        let localPeerKey = localPeer.peerKeyString
         var seenExpectedPairTypes: Set<String> = []
         for remotePeer in remotePeers {
             for connection in remotePeer.connectionProtocols {
-                let pairKey = [connection.peerKeyString1, connection.peerKeyString2]
-                    .sorted().joined(separator: "_")
+                let pk1 = connection.peerKeyString1
+                let pk2 = connection.peerKeyString2
+                // Apply the same filter as the draw loop so change-detection stays in sync
+                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey { continue }
+                let pairKey = [pk1, pk2].sorted().joined(separator: "_")
                 let id = "\(pairKey)_\(connection.type)"
                 guard seenExpectedPairTypes.insert(id).inserted else { continue }
                 expectedConnectionIds.insert(id)
@@ -289,6 +296,10 @@ class PresenceNetworkScene: SKScene {
                 let pk1 = connection.peerKeyString1
                 let pk2 = connection.peerKeyString2
                 guard !pk1.isEmpty, !pk2.isEmpty else { continue }
+
+                // When filtering to direct connections only, skip edges that don't
+                // involve the local device (e.g., PeerA ↔ PeerB connections).
+                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey { continue }
 
                 let pairKey = [pk1, pk2].sorted().joined(separator: "_")
                 let connectionId = "\(pairKey)_\(connection.type)"
@@ -354,8 +365,7 @@ class PresenceNetworkScene: SKScene {
                 // Arc outward for peer-to-peer connections (neither endpoint is the local peer).
                 // This routes the chord around the outside of the node cluster instead of
                 // cutting through nodes that sit between the two ring-1 endpoints.
-                let localKey = localPeer.peerKeyString
-                let isPeerToPeer = conn.from != localKey && conn.to != localKey && !conn.isCloud
+                let isPeerToPeer = conn.from != localPeerKey && conn.to != localPeerKey && !conn.isCloud
                 let line = ConnectionLine(
                     from: conn.from,
                     to: conn.to,

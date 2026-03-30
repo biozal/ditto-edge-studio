@@ -130,6 +130,15 @@ namespace EdgeStudio.Shared.Data.Repositories
                 "SELECT * FROM system:data_sync_info ORDER BY documents.last_update_received_time desc",
                 (result) =>
                 {
+                    // Guard: skip processing if observer has already been cancelled.
+                    // CloseSelectedDatabase() sets _syncStatusObserver = null before calling
+                    // Cancel(), so any in-flight or post-cancel callback can detect this early.
+                    if (_syncStatusObserver == null)
+                    {
+                        result.Dispose();
+                        return;
+                    }
+
                     _logger?.Debug($"Observer fired: {result.Items.Count} items in system:data_sync_info");
 
                     if (result.Items.Count == 0)
@@ -146,8 +155,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                         }
                         else
                         {
-                            // Not on UI thread - invoke synchronously
-                            Dispatcher.UIThread.Invoke(() =>
+                            // Not on UI thread - invoke asynchronously to avoid blocking the SDK
+                            // thread. A synchronous Invoke here can deadlock the close flow by
+                            // blocking the background thread while async continuations are queued.
+                            Dispatcher.UIThread.InvokeAsync(() =>
                             {
                                 var remotePeers = peerCards.Where(p => p.CardType != PeerCardType.Local).ToList();
                                 foreach (var peer in remotePeers)
@@ -268,8 +279,8 @@ namespace EdgeStudio.Shared.Data.Repositories
                 }
                 else
                 {
-                    // Not on UI thread - invoke synchronously
-                    Dispatcher.UIThread.Invoke(() =>
+                    // Not on UI thread - invoke asynchronously to avoid blocking the calling thread
+                    Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         var remotePeers = _registeredPeerCards
                             .Where(p => p.CardType != PeerCardType.Local)

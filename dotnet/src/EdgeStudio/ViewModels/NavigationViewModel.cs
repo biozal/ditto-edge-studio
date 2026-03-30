@@ -58,4 +58,15 @@ public partial class NavigationViewModel : ViewModelBase
             _navigationService.NavigateTo(item.Type);
         }
     }
+
+    /// <summary>
+    /// Syncs the toolbar highlight to the given navigation type without triggering navigation.
+    /// Used when the content is changed externally (e.g., on database open).
+    /// </summary>
+    public void SyncSelectionTo(NavigationItemType type)
+    {
+        var item = NavigationItems.FirstOrDefault(x => x.Type == type);
+        if (item != null)
+            SelectedItem = item;
+    }
 }

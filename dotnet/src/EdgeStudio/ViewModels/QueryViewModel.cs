@@ -221,6 +221,12 @@ public partial class QueryViewModel : LoadableViewModelBase
     }
 
     [RelayCommand]
+    public async Task RefreshCollectionsAsync()
+    {
+        await LoadCollectionsAsync();
+    }
+
+    [RelayCommand]
     private void InsertQuery(string collectionName)
     {
         var text = $"SELECT * FROM {collectionName}";

@@ -12,7 +12,8 @@ namespace EdgeStudio.Shared.Models
         double ExecutionTimeMs,
         int ResultCount,
         bool IsMutation,
-        string? ErrorMessage)
+        string? ErrorMessage,
+        string ExplainOutput = "")
     {
         public bool IsError => ErrorMessage != null;
 

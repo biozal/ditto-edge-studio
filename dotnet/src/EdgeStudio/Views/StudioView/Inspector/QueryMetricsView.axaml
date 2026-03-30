@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:local="using:EdgeStudio.Views.StudioView.Inspector"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:converters="using:EdgeStudio.Converters"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="500"
@@ -123,15 +124,8 @@
 
                 <Border Background="{DynamicResource SukiBackground}"
                         CornerRadius="6"
-                        Padding="8">
-                    <TextBox Text="{Binding LatestMetric.ExplainOutput}"
-                             IsReadOnly="True"
-                             FontFamily="Cascadia Code, Consolas, monospace"
-                             FontSize="12"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             Background="Transparent"
-                             BorderThickness="0"/>
+                        Padding="4">
+                    <local:JsonDocumentCard DataContext="{Binding LatestMetric.ExplainOutput}"/>
                 </Border>
             </StackPanel>
         </StackPanel>

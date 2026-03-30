@@ -130,7 +130,7 @@ namespace EdgeStudio.Shared.Data.Repositories
 
                     var fields = new List<string>();
                     if (item.Value.TryGetValue("fields", out var rawFields) && rawFields is IEnumerable<object> fieldList)
-                        fields.AddRange(fieldList.Select(f => f?.ToString()?.Trim('`') ?? string.Empty).Where(f => f.Length > 0));
+                        fields.AddRange(fieldList.Select(ExtractFieldName).Where(f => f.Length > 0));
 
                     if (!indexesByCollection.TryGetValue(collection, out var list))
                         indexesByCollection[collection] = list = [];
@@ -143,6 +143,21 @@ namespace EdgeStudio.Shared.Data.Repositories
                 // system:indexes may not be available in all SDK versions — return empty
             }
             return indexesByCollection;
+        }
+
+        /// <summary>
+        /// Extracts the field name from a system:indexes field entry.
+        /// The SDK returns each entry as: { "direction": "asc", "key": ["fieldName"] }
+        /// </summary>
+        private static string ExtractFieldName(object? f)
+        {
+            if (f is IDictionary<string, object> dict &&
+                dict.TryGetValue("key", out var keyVal) &&
+                keyVal is IEnumerable<object> keyList)
+            {
+                return keyList.FirstOrDefault()?.ToString()?.Trim('`') ?? string.Empty;
+            }
+            return f?.ToString()?.Trim('`') ?? string.Empty;
         }
 
         public void CloseSelectedDatabase()

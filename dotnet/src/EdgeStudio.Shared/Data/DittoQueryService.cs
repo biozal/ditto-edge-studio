@@ -13,13 +13,11 @@ namespace EdgeStudio.Shared.Data
     public class DittoQueryService : IQueryService
     {
         private readonly IDittoManager _dittoManager;
-        private readonly IQueryMetricsService? _metricsService;
         private static readonly JsonSerializerOptions PrettyOptions = new() { WriteIndented = true };
 
-        public DittoQueryService(IDittoManager dittoManager, IQueryMetricsService? metricsService = null)
+        public DittoQueryService(IDittoManager dittoManager)
         {
             _dittoManager = dittoManager;
-            _metricsService = metricsService;
         }
 
         public async Task<QueryExecutionResult> ExecuteLocalAsync(string dql)
@@ -57,7 +55,8 @@ namespace EdgeStudio.Shared.Data
                         ExecutionTimeMs: executionTimeMs,
                         ResultCount: mutatedIds.Count,
                         IsMutation: true,
-                        ErrorMessage: null);
+                        ErrorMessage: null,
+                        ExplainOutput: string.Empty);
                 }
                 else
                 {
@@ -80,6 +79,9 @@ namespace EdgeStudio.Shared.Data
                     }
                     result.Dispose();
 
+                    // Run EXPLAIN and await it inline, mirroring the SwiftUI implementation
+                    var explainOutput = await RunExplainAsync(dql, ditto);
+
                     queryResult = new QueryExecutionResult(
                         JsonDocuments: documents,
                         MutatedDocumentIds: [],
@@ -87,12 +89,9 @@ namespace EdgeStudio.Shared.Data
                         ExecutionTimeMs: executionTimeMs,
                         ResultCount: documents.Count,
                         IsMutation: false,
-                        ErrorMessage: null);
+                        ErrorMessage: null,
+                        ExplainOutput: explainOutput);
                 }
-
-                // Capture metrics (run EXPLAIN async, don't block the result)
-                if (_metricsService != null)
-                    _ = CaptureMetricsAsync(dql, queryResult, ditto);
 
                 return queryResult;
             }
@@ -102,19 +101,6 @@ namespace EdgeStudio.Shared.Data
             }
         }
 
-        private async Task CaptureMetricsAsync(string dql, QueryExecutionResult result, DittoSDK.Ditto ditto)
-        {
-            var explainOutput = await RunExplainAsync(dql, ditto);
-            var metric = new QueryMetric(
-                Id: Guid.NewGuid().ToString(),
-                DqlQuery: dql,
-                ExecutionTimeMs: result.ExecutionTimeMs,
-                ResultCount: result.ResultCount,
-                ExplainOutput: explainOutput,
-                Timestamp: DateTime.UtcNow);
-            _metricsService!.Capture(metric);
-        }
-
         private static async Task<string> RunExplainAsync(string dql, DittoSDK.Ditto ditto)
         {
             var trimmed = dql.TrimStart();
@@ -122,19 +108,16 @@ namespace EdgeStudio.Shared.Data
                 return string.Empty;
             try
             {
-                var result = await ditto.Store.ExecuteAsync($"EXPLAIN {dql}");
+                using var result = await ditto.Store.ExecuteAsync($"EXPLAIN {dql}");
                 if (result.Items.Count == 0)
-                {
-                    result.Dispose();
                     return string.Empty;
-                }
-                var json = JsonSerializer.Serialize(result.Items[0].Value, PrettyOptions);
-                result.Dispose();
-                return json;
+                var rawJson = result.Items[0].JsonString();
+                using var doc = JsonDocument.Parse(rawJson);
+                return JsonSerializer.Serialize(doc.RootElement, PrettyOptions);
             }
-            catch
+            catch (Exception ex)
             {
-                return string.Empty;
+                return $"EXPLAIN failed: {ex.Message}";
             }
         }
 

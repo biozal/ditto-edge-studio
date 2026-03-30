@@ -63,6 +63,11 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private bool isClosingDatabase;
 
+        /// <summary>
+        /// Guards against concurrent close operations (e.g., rapid double-click on Close button).
+        /// </summary>
+        private bool _isCloseInProgress;
+
         [ObservableProperty]
         private DittoDatabaseConfig? selectedDatabaseConfig;
 
@@ -274,17 +279,23 @@ namespace EdgeStudio.ViewModels
         /// </summary>
         public async Task CloseDatabaseAsync()
         {
-            if (_selectedDatabase == null)
+            if (_selectedDatabase == null || _isCloseInProgress)
                 return;
 
+            _isCloseInProgress = true;
             IsClosingDatabase = true;
 
             try
             {
-                // Stop transport condition observer before closing the database
+                // Stop live observers synchronously FIRST — before any async work begins.
+                // This prevents SDK callbacks from firing during the async close and competing
+                // with async continuations in the Avalonia dispatcher queue (which would cause
+                // the IsClosingDatabase = false continuation to be indefinitely delayed).
                 _logCaptureService.StopCapture();
+                _systemRepository.CloseSelectedDatabase();
+                _subscriptionRepository.CloseSelectedDatabase();
 
-                // Close repositories in parallel (they're independent)
+                // Async cleanup: flush/dispose on background threads (all have timeouts)
                 await Task.WhenAll(
                     _systemRepository.CloseDatabaseAsync(),
                     _subscriptionRepository.CloseDatabaseAsync(),
@@ -306,6 +317,7 @@ namespace EdgeStudio.ViewModels
             }
             finally
             {
+                _isCloseInProgress = false;
                 IsClosingDatabase = false;
             }
         }
