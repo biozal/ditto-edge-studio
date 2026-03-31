@@ -39,7 +39,7 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         // Instantiate child ViewModels (not resolved from DI, following QueryViewModel pattern)
         PeersList = new PeersListViewModel(systemRepositoryLazy, networkAdapterService, toastService);
-        PresenceViewer = new PresenceViewerViewModel(toastService);
+        PresenceViewer = new PresenceViewerViewModel(systemRepositoryLazy, toastService);
         Settings = new SubscriptionSettingsViewModel(syncService, dittoManager, toastService);
     }
 
