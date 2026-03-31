@@ -353,88 +353,6 @@ namespace EdgeStudioTests
 
         #endregion
 
-        #region DetailViewMode Tests
-
-        [Fact]
-        public void SetDetailViewMode_ChangesMode()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-
-            vm.SetDetailViewModeCommand.Execute("table");
-
-            vm.DetailViewMode.Should().Be("table");
-            vm.IsTableMode.Should().BeTrue();
-            vm.IsRawMode.Should().BeFalse();
-        }
-
-        [Fact]
-        public void SetDetailViewMode_DefaultIsRaw()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-
-            vm.DetailViewMode.Should().Be("raw");
-            vm.IsRawMode.Should().BeTrue();
-            vm.IsTableMode.Should().BeFalse();
-        }
-
-        [Fact]
-        public void SetDetailViewMode_TogglesBackToRaw()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-
-            vm.SetDetailViewModeCommand.Execute("table");
-            vm.IsTableMode.Should().BeTrue();
-
-            vm.SetDetailViewModeCommand.Execute("raw");
-            vm.IsRawMode.Should().BeTrue();
-            vm.IsTableMode.Should().BeFalse();
-        }
-
-        #endregion
-
-        #region FilterModeIndicator Tests
-
-        [Fact]
-        public void FilterModeIndicators_ReflectCurrentFilter()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-
-            // Default is "items"
-            vm.IsFilterItems.Should().BeTrue();
-            vm.IsFilterInserted.Should().BeFalse();
-            vm.IsFilterUpdated.Should().BeFalse();
-
-            vm.EventFilterMode = "inserted";
-            vm.IsFilterItems.Should().BeFalse();
-            vm.IsFilterInserted.Should().BeTrue();
-            vm.IsFilterUpdated.Should().BeFalse();
-
-            vm.EventFilterMode = "updated";
-            vm.IsFilterUpdated.Should().BeTrue();
-            vm.IsFilterInserted.Should().BeFalse();
-            vm.IsFilterItems.Should().BeFalse();
-        }
-
-        [Fact]
-        public void FilterModeIndicators_BackToItems()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-
-            vm.EventFilterMode = "updated";
-            vm.IsFilterUpdated.Should().BeTrue();
-
-            vm.EventFilterMode = "items";
-            vm.IsFilterItems.Should().BeTrue();
-            vm.IsFilterUpdated.Should().BeFalse();
-        }
-
-        #endregion
-
         #region Pagination Tests
 
         [Fact]
@@ -447,85 +365,21 @@ namespace EdgeStudioTests
         }
 
         [Fact]
-        public void DetailPagination_PagedFilteredDataRespectPageSize()
+        public void SelectedEvent_FeedsDataToJsonAndTableResults()
         {
             var mockRepo = new Mock<IObserverRepository>();
             var vm = new ObserversViewModel(mockRepo.Object);
-            vm.DetailPageSize = 2;
             var testEvent = new ObserverEvent
             {
                 ObserverId = "obs1",
-                Data = new List<string> { "a", "b", "c", "d", "e" },
+                Data = new List<string> { "{\"_id\":\"1\"}", "{\"_id\":\"2\"}", "{\"_id\":\"3\"}", "{\"_id\":\"4\"}", "{\"_id\":\"5\"}" },
                 EventTime = DateTime.Now
             };
+
             vm.SelectedEvent = testEvent;
 
-            // First page should have 2 items
-            vm.PagedFilteredEventData.Should().HaveCount(2);
-            vm.PagedFilteredEventData[0].Should().Be("a");
-            vm.PagedFilteredEventData[1].Should().Be("b");
-            vm.DetailPageCount.Should().Be(3); // ceil(5/2)
-        }
-
-        [Fact]
-        public void DetailPagination_NextPageShowsNextItems()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-            vm.DetailPageSize = 2;
-            var testEvent = new ObserverEvent
-            {
-                ObserverId = "obs1",
-                Data = new List<string> { "a", "b", "c", "d", "e" },
-                EventTime = DateTime.Now
-            };
-            vm.SelectedEvent = testEvent;
-            vm.DetailNextPageCommand.Execute(null);
-
-            vm.DetailCurrentPage.Should().Be(2);
-            vm.PagedFilteredEventData.Should().HaveCount(2);
-            vm.PagedFilteredEventData[0].Should().Be("c");
-            vm.PagedFilteredEventData[1].Should().Be("d");
-        }
-
-        [Fact]
-        public void DetailPagination_LastPageShowsRemainingItems()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-            vm.DetailPageSize = 2;
-            var testEvent = new ObserverEvent
-            {
-                ObserverId = "obs1",
-                Data = new List<string> { "a", "b", "c", "d", "e" },
-                EventTime = DateTime.Now
-            };
-            vm.SelectedEvent = testEvent;
-            vm.DetailNextPageCommand.Execute(null); // page 2
-            vm.DetailNextPageCommand.Execute(null); // page 3
-
-            vm.DetailCurrentPage.Should().Be(3);
-            vm.PagedFilteredEventData.Should().HaveCount(1);
-            vm.PagedFilteredEventData[0].Should().Be("e");
-        }
-
-        [Fact]
-        public void DetailPagination_PreviousPageAtFirstPageStaysAtFirst()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-            vm.DetailPageSize = 2;
-            var testEvent = new ObserverEvent
-            {
-                ObserverId = "obs1",
-                Data = new List<string> { "a", "b", "c" },
-                EventTime = DateTime.Now
-            };
-            vm.SelectedEvent = testEvent;
-            vm.DetailPreviousPageCommand.Execute(null);
-
-            vm.DetailCurrentPage.Should().Be(1);
-            vm.PagedFilteredEventData[0].Should().Be("a");
+            vm.JsonResults.TotalCount.Should().Be(5);
+            vm.JsonResults.PagedDocuments.Should().HaveCount(5);
         }
 
         [Fact]
@@ -536,29 +390,6 @@ namespace EdgeStudioTests
             // No events, so page count is 1
             vm.EventNextPageCommand.Execute(null);
             vm.EventCurrentPage.Should().Be(1);
-        }
-
-        [Fact]
-        public void DetailPagination_ChangingFilterResetsToFirstPage()
-        {
-            var mockRepo = new Mock<IObserverRepository>();
-            var vm = new ObserversViewModel(mockRepo.Object);
-            vm.DetailPageSize = 2;
-            var testEvent = new ObserverEvent
-            {
-                ObserverId = "obs1",
-                Data = new List<string> { "a", "b", "c", "d", "e" },
-                InsertIndexes = new List<int> { 0, 1, 2 },
-                UpdatedIndexes = new List<int> { 3, 4 },
-                EventTime = DateTime.Now
-            };
-            vm.SelectedEvent = testEvent;
-            vm.DetailNextPageCommand.Execute(null); // page 2
-            vm.DetailCurrentPage.Should().Be(2);
-
-            // Changing filter should reset to page 1
-            vm.SetEventFilterCommand.Execute("inserted");
-            vm.DetailCurrentPage.Should().Be(1);
         }
 
         [Fact]

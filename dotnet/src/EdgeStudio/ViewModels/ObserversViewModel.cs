@@ -35,15 +35,6 @@ public partial class ObserversViewModel : LoadableViewModelBase
     [ObservableProperty]
     private string _eventFilterMode = "items"; // "items", "inserted", "updated"
 
-    [ObservableProperty]
-    private string _detailViewMode = "raw"; // "raw" or "table"
-
-    // Boolean helpers for XAML binding
-    public bool IsRawMode => DetailViewMode == "raw";
-    public bool IsTableMode => DetailViewMode == "table";
-    public bool IsFilterItems => EventFilterMode == "items";
-    public bool IsFilterInserted => EventFilterMode == "inserted";
-    public bool IsFilterUpdated => EventFilterMode == "updated";
 
     /// <summary>
     /// All observer definitions for the current database.
@@ -75,16 +66,6 @@ public partial class ObserversViewModel : LoadableViewModelBase
     public int EventPageCount => Events.Count == 0 ? 1 : (int)Math.Ceiling((double)Events.Count / EventPageSize);
     public ObservableCollection<ObserverEvent> PagedEvents { get; } = new();
 
-    // Detail data pagination
-    [ObservableProperty]
-    private int _detailCurrentPage = 1;
-
-    [ObservableProperty]
-    private int _detailPageSize = 10;
-
-    public int DetailPageCount => _allFilteredData.Count == 0 ? 1 : (int)Math.Ceiling((double)_allFilteredData.Count / DetailPageSize);
-    public ObservableCollection<string> PagedFilteredEventData { get; } = new();
-    private List<string> _allFilteredData = new();
 
     public bool HasItems => Items.Count > 0;
     public bool ShowEmptyState => !IsLoading && !HasItems;
@@ -328,18 +309,6 @@ public partial class ObserversViewModel : LoadableViewModelBase
     }
 
     [RelayCommand]
-    private void SetDetailViewMode(string mode)
-    {
-        DetailViewMode = mode;
-    }
-
-    partial void OnDetailViewModeChanged(string value)
-    {
-        OnPropertyChanged(nameof(IsRawMode));
-        OnPropertyChanged(nameof(IsTableMode));
-    }
-
-    [RelayCommand]
     private void SetEventFilter(string mode)
     {
         EventFilterMode = mode;
@@ -492,18 +461,6 @@ public partial class ObserversViewModel : LoadableViewModelBase
         if (EventCurrentPage > 1) { EventCurrentPage--; RefreshPagedEvents(); }
     }
 
-    [RelayCommand]
-    private void DetailNextPage()
-    {
-        if (DetailCurrentPage < DetailPageCount) { DetailCurrentPage++; RefreshPagedFilteredData(); }
-    }
-
-    [RelayCommand]
-    private void DetailPreviousPage()
-    {
-        if (DetailCurrentPage > 1) { DetailCurrentPage--; RefreshPagedFilteredData(); }
-    }
-
     private void RefreshPagedEvents()
     {
         PagedEvents.Clear();
@@ -511,15 +468,6 @@ public partial class ObserversViewModel : LoadableViewModelBase
         foreach (var e in Events.Skip(skip).Take(EventPageSize))
             PagedEvents.Add(e);
         OnPropertyChanged(nameof(EventPageCount));
-    }
-
-    private void RefreshPagedFilteredData()
-    {
-        PagedFilteredEventData.Clear();
-        var skip = (DetailCurrentPage - 1) * DetailPageSize;
-        foreach (var item in _allFilteredData.Skip(skip).Take(DetailPageSize))
-            PagedFilteredEventData.Add(item);
-        OnPropertyChanged(nameof(DetailPageCount));
     }
 
     private void LoadEventsForSelectedObserver()
@@ -543,7 +491,7 @@ public partial class ObserversViewModel : LoadableViewModelBase
 
     private void RefreshFilteredEventData()
     {
-        _allFilteredData = SelectedEvent == null
+        var filteredData = SelectedEvent == null
             ? new List<string>()
             : EventFilterMode switch
             {
@@ -552,17 +500,14 @@ public partial class ObserversViewModel : LoadableViewModelBase
                 _ => SelectedEvent.Data.ToList()
             };
 
-        DetailCurrentPage = 1;
-        RefreshPagedFilteredData();
+        // Feed data into reusable result viewers
+        JsonResults.SetResults(filteredData);
+        TableResults.SetResults(filteredData);
 
+        // Keep FilteredEventData for existing tests
         FilteredEventData.Clear();
-        foreach (var item in _allFilteredData)
-        {
+        foreach (var item in filteredData)
             FilteredEventData.Add(item);
-        }
-
-        JsonResults.SetResults(_allFilteredData);
-        TableResults.SetResults(_allFilteredData);
     }
 
     partial void OnSelectedEventChanged(ObserverEvent? value)
@@ -574,8 +519,5 @@ public partial class ObserversViewModel : LoadableViewModelBase
     partial void OnEventFilterModeChanged(string value)
     {
         RefreshFilteredEventData();
-        OnPropertyChanged(nameof(IsFilterItems));
-        OnPropertyChanged(nameof(IsFilterInserted));
-        OnPropertyChanged(nameof(IsFilterUpdated));
     }
 }
