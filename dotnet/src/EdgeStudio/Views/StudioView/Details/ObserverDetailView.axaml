@@ -12,7 +12,7 @@
     <Grid RowDefinitions="*,Auto,*">
 
         <!-- Top Pane: Events List (50%) -->
-        <Grid Grid.Row="0" RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" RowDefinitions="Auto,*,Auto">
 
             <!-- No Observer Selected -->
             <Border Grid.RowSpan="2"
@@ -88,7 +88,7 @@
 
             <!-- Events DataGrid -->
             <DataGrid Grid.Row="1"
-                      ItemsSource="{Binding Events}"
+                      ItemsSource="{Binding PagedEvents}"
                       SelectedItem="{Binding SelectedEvent}"
                       IsVisible="{Binding HasEvents}"
                       CanUserReorderColumns="False"
@@ -126,6 +126,24 @@
                                        MinWidth="60"/>
                 </DataGrid.Columns>
             </DataGrid>
+
+            <!-- Event Pagination -->
+            <Border Grid.Row="2" Padding="8,4" IsVisible="{Binding HasEvents}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,*">
+                    <Button Grid.Column="1" Content="&lt;" Classes="Flat" Padding="8,2" FontSize="11"
+                            Command="{Binding EventPreviousPageCommand}"/>
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center" Margin="8,0">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="Page {0} of {1}">
+                                <Binding Path="EventCurrentPage"/>
+                                <Binding Path="EventPageCount"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <Button Grid.Column="3" Content="&gt;" Classes="Flat" Padding="8,2" FontSize="11"
+                            Command="{Binding EventNextPageCommand}"/>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- Divider -->
@@ -135,7 +153,7 @@
                       Background="Transparent"/>
 
         <!-- Bottom Pane: Event Detail (50%) -->
-        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+        <Grid Grid.Row="2" RowDefinitions="Auto,*,Auto">
 
             <!-- No Event Selected -->
             <Border Grid.RowSpan="2"
@@ -223,7 +241,7 @@
             <ScrollViewer Grid.Row="1"
                          VerticalScrollBarVisibility="Auto"
                          IsVisible="{Binding IsRawMode}">
-                <ItemsControl ItemsSource="{Binding FilteredEventData}"
+                <ItemsControl ItemsSource="{Binding PagedFilteredEventData}"
                              Margin="4"
                              IsVisible="{Binding HasSelectedEvent}">
                     <ItemsControl.ItemTemplate>
@@ -263,6 +281,24 @@
                               Opacity="0.7"
                               HorizontalAlignment="Center"/>
                 </StackPanel>
+            </Border>
+
+            <!-- Detail Pagination -->
+            <Border Grid.Row="2" Padding="8,4" IsVisible="{Binding HasSelectedEvent}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,*">
+                    <Button Grid.Column="1" Content="&lt;" Classes="Flat" Padding="8,2" FontSize="11"
+                            Command="{Binding DetailPreviousPageCommand}"/>
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center" Margin="8,0">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="Page {0} of {1}">
+                                <Binding Path="DetailCurrentPage"/>
+                                <Binding Path="DetailPageCount"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <Button Grid.Column="3" Content="&gt;" Classes="Flat" Padding="8,2" FontSize="11"
+                            Command="{Binding DetailNextPageCommand}"/>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

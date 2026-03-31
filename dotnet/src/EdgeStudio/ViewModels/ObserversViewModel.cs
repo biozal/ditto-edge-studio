@@ -65,6 +65,27 @@ public partial class ObserversViewModel : LoadableViewModelBase
     /// </summary>
     public ObserverFormModel ObserverFormModel { get; } = new();
 
+    // Event list pagination
+    [ObservableProperty]
+    private int _eventCurrentPage = 1;
+
+    [ObservableProperty]
+    private int _eventPageSize = 25;
+
+    public int EventPageCount => Events.Count == 0 ? 1 : (int)Math.Ceiling((double)Events.Count / EventPageSize);
+    public ObservableCollection<ObserverEvent> PagedEvents { get; } = new();
+
+    // Detail data pagination
+    [ObservableProperty]
+    private int _detailCurrentPage = 1;
+
+    [ObservableProperty]
+    private int _detailPageSize = 10;
+
+    public int DetailPageCount => _allFilteredData.Count == 0 ? 1 : (int)Math.Ceiling((double)_allFilteredData.Count / DetailPageSize);
+    public ObservableCollection<string> PagedFilteredEventData { get; } = new();
+    private List<string> _allFilteredData = new();
+
     public bool HasItems => Items.Count > 0;
     public bool ShowEmptyState => !IsLoading && !HasItems;
     public bool HasEvents => Events.Count > 0;
@@ -372,6 +393,7 @@ public partial class ObserversViewModel : LoadableViewModelBase
                 {
                     Events.Add(observerEvent);
                     OnPropertyChanged(nameof(HasEvents));
+                    RefreshPagedEvents();
                 }
             });
 
@@ -453,6 +475,48 @@ public partial class ObserversViewModel : LoadableViewModelBase
         return null;
     }
 
+    [RelayCommand]
+    private void EventNextPage()
+    {
+        if (EventCurrentPage < EventPageCount) { EventCurrentPage++; RefreshPagedEvents(); }
+    }
+
+    [RelayCommand]
+    private void EventPreviousPage()
+    {
+        if (EventCurrentPage > 1) { EventCurrentPage--; RefreshPagedEvents(); }
+    }
+
+    [RelayCommand]
+    private void DetailNextPage()
+    {
+        if (DetailCurrentPage < DetailPageCount) { DetailCurrentPage++; RefreshPagedFilteredData(); }
+    }
+
+    [RelayCommand]
+    private void DetailPreviousPage()
+    {
+        if (DetailCurrentPage > 1) { DetailCurrentPage--; RefreshPagedFilteredData(); }
+    }
+
+    private void RefreshPagedEvents()
+    {
+        PagedEvents.Clear();
+        var skip = (EventCurrentPage - 1) * EventPageSize;
+        foreach (var e in Events.Skip(skip).Take(EventPageSize))
+            PagedEvents.Add(e);
+        OnPropertyChanged(nameof(EventPageCount));
+    }
+
+    private void RefreshPagedFilteredData()
+    {
+        PagedFilteredEventData.Clear();
+        var skip = (DetailCurrentPage - 1) * DetailPageSize;
+        foreach (var item in _allFilteredData.Skip(skip).Take(DetailPageSize))
+            PagedFilteredEventData.Add(item);
+        OnPropertyChanged(nameof(DetailPageCount));
+    }
+
     private void LoadEventsForSelectedObserver()
     {
         Events.Clear();
@@ -468,22 +532,26 @@ public partial class ObserversViewModel : LoadableViewModelBase
         }
 
         OnPropertyChanged(nameof(HasEvents));
+        EventCurrentPage = 1;
+        RefreshPagedEvents();
     }
 
     private void RefreshFilteredEventData()
     {
+        _allFilteredData = SelectedEvent == null
+            ? new List<string>()
+            : EventFilterMode switch
+            {
+                "inserted" => SelectedEvent.GetInsertedData(),
+                "updated" => SelectedEvent.GetUpdatedData(),
+                _ => SelectedEvent.Data.ToList()
+            };
+
+        DetailCurrentPage = 1;
+        RefreshPagedFilteredData();
+
         FilteredEventData.Clear();
-
-        if (SelectedEvent == null) return;
-
-        var data = EventFilterMode switch
-        {
-            "inserted" => SelectedEvent.GetInsertedData(),
-            "updated" => SelectedEvent.GetUpdatedData(),
-            _ => SelectedEvent.Data
-        };
-
-        foreach (var item in data)
+        foreach (var item in _allFilteredData)
         {
             FilteredEventData.Add(item);
         }
