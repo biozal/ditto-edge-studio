@@ -97,12 +97,17 @@ public partial class ObserversViewModel : LoadableViewModelBase
     // Track all events per observer (events persist for session even if user switches observers)
     private readonly Dictionary<string, List<ObserverEvent>> _allEvents = new();
 
+    public JsonResultsViewModel JsonResults { get; }
+    public TableResultsViewModel TableResults { get; }
+
     public ObserversViewModel(
         IObserverRepository observerRepository,
         IToastService? toastService = null)
         : base(toastService)
     {
         _observerRepository = observerRepository;
+        JsonResults = new JsonResultsViewModel();
+        TableResults = new TableResultsViewModel();
     }
 
     protected override void OnActivated()
@@ -277,12 +282,12 @@ public partial class ObserversViewModel : LoadableViewModelBase
             {
                 Items[index] = observer with { IsActive = true };
 
-                // If this was the selected observer, update selection too
-                if (SelectedObserver?.Id == observer.Id)
-                {
-                    SelectedObserver = Items[index];
-                    OnPropertyChanged(nameof(HasSelectedObserver));
-                }
+                // Auto-select the activated observer (matches SwiftUI behavior)
+                SelectedObserver = Items[index];
+                OnPropertyChanged(nameof(HasSelectedObserver));
+                LoadEventsForSelectedObserver();
+
+                WeakReferenceMessenger.Default.Send(new ListingItemSelectedMessage(Items[index], "Observer"));
             }
 
             ShowSuccess($"Observer '{observer.Name}' activated");
@@ -555,6 +560,9 @@ public partial class ObserversViewModel : LoadableViewModelBase
         {
             FilteredEventData.Add(item);
         }
+
+        JsonResults.SetResults(_allFilteredData);
+        TableResults.SetResults(_allFilteredData);
     }
 
     partial void OnSelectedEventChanged(ObserverEvent? value)

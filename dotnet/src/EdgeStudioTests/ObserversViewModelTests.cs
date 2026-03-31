@@ -561,6 +561,48 @@ namespace EdgeStudioTests
             vm.DetailCurrentPage.Should().Be(1);
         }
 
+        [Fact]
+        public void SelectedEvent_PopulatesJsonResultsAndTableResults()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+            var testEvent = new ObserverEvent
+            {
+                ObserverId = "obs1",
+                Data = new List<string> { "{\"_id\":\"1\",\"name\":\"test\"}", "{\"_id\":\"2\",\"name\":\"test2\"}" },
+                InsertIndexes = new List<int> { 0, 1 },
+                EventTime = DateTime.Now
+            };
+
+            vm.SelectedEvent = testEvent;
+
+            vm.JsonResults.Should().NotBeNull();
+            vm.TableResults.Should().NotBeNull();
+            vm.JsonResults.TotalCount.Should().Be(2);
+            vm.JsonResults.PagedDocuments.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public void EventFilterChange_UpdatesJsonResultsWithFilteredData()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+            var testEvent = new ObserverEvent
+            {
+                ObserverId = "obs1",
+                Data = new List<string> { "{\"_id\":\"1\"}", "{\"_id\":\"2\"}", "{\"_id\":\"3\"}" },
+                InsertIndexes = new List<int> { 0, 2 },
+                UpdatedIndexes = new List<int> { 1 },
+                EventTime = DateTime.Now
+            };
+            vm.SelectedEvent = testEvent;
+            vm.JsonResults.TotalCount.Should().Be(3);
+
+            vm.EventFilterMode = "inserted";
+
+            vm.JsonResults.TotalCount.Should().Be(2);
+        }
+
         #endregion
 
         #region DeactivateObserver Tests
