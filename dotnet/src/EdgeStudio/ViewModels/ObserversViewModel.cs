@@ -35,6 +35,16 @@ public partial class ObserversViewModel : LoadableViewModelBase
     [ObservableProperty]
     private string _eventFilterMode = "items"; // "items", "inserted", "updated"
 
+    [ObservableProperty]
+    private string _detailViewMode = "raw"; // "raw" or "table"
+
+    // Boolean helpers for XAML binding
+    public bool IsRawMode => DetailViewMode == "raw";
+    public bool IsTableMode => DetailViewMode == "table";
+    public bool IsFilterItems => EventFilterMode == "items";
+    public bool IsFilterInserted => EventFilterMode == "inserted";
+    public bool IsFilterUpdated => EventFilterMode == "updated";
+
     /// <summary>
     /// All observer definitions for the current database.
     /// </summary>
@@ -292,6 +302,18 @@ public partial class ObserversViewModel : LoadableViewModelBase
     }
 
     [RelayCommand]
+    private void SetDetailViewMode(string mode)
+    {
+        DetailViewMode = mode;
+    }
+
+    partial void OnDetailViewModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsRawMode));
+        OnPropertyChanged(nameof(IsTableMode));
+    }
+
+    [RelayCommand]
     private void SetEventFilter(string mode)
     {
         EventFilterMode = mode;
@@ -476,5 +498,8 @@ public partial class ObserversViewModel : LoadableViewModelBase
     partial void OnEventFilterModeChanged(string value)
     {
         RefreshFilteredEventData();
+        OnPropertyChanged(nameof(IsFilterItems));
+        OnPropertyChanged(nameof(IsFilterInserted));
+        OnPropertyChanged(nameof(IsFilterUpdated));
     }
 }

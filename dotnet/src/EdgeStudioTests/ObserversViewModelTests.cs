@@ -353,6 +353,88 @@ namespace EdgeStudioTests
 
         #endregion
 
+        #region DetailViewMode Tests
+
+        [Fact]
+        public void SetDetailViewMode_ChangesMode()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+
+            vm.SetDetailViewModeCommand.Execute("table");
+
+            vm.DetailViewMode.Should().Be("table");
+            vm.IsTableMode.Should().BeTrue();
+            vm.IsRawMode.Should().BeFalse();
+        }
+
+        [Fact]
+        public void SetDetailViewMode_DefaultIsRaw()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+
+            vm.DetailViewMode.Should().Be("raw");
+            vm.IsRawMode.Should().BeTrue();
+            vm.IsTableMode.Should().BeFalse();
+        }
+
+        [Fact]
+        public void SetDetailViewMode_TogglesBackToRaw()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+
+            vm.SetDetailViewModeCommand.Execute("table");
+            vm.IsTableMode.Should().BeTrue();
+
+            vm.SetDetailViewModeCommand.Execute("raw");
+            vm.IsRawMode.Should().BeTrue();
+            vm.IsTableMode.Should().BeFalse();
+        }
+
+        #endregion
+
+        #region FilterModeIndicator Tests
+
+        [Fact]
+        public void FilterModeIndicators_ReflectCurrentFilter()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+
+            // Default is "items"
+            vm.IsFilterItems.Should().BeTrue();
+            vm.IsFilterInserted.Should().BeFalse();
+            vm.IsFilterUpdated.Should().BeFalse();
+
+            vm.EventFilterMode = "inserted";
+            vm.IsFilterItems.Should().BeFalse();
+            vm.IsFilterInserted.Should().BeTrue();
+            vm.IsFilterUpdated.Should().BeFalse();
+
+            vm.EventFilterMode = "updated";
+            vm.IsFilterUpdated.Should().BeTrue();
+            vm.IsFilterInserted.Should().BeFalse();
+            vm.IsFilterItems.Should().BeFalse();
+        }
+
+        [Fact]
+        public void FilterModeIndicators_BackToItems()
+        {
+            var mockRepo = new Mock<IObserverRepository>();
+            var vm = new ObserversViewModel(mockRepo.Object);
+
+            vm.EventFilterMode = "updated";
+            vm.IsFilterUpdated.Should().BeTrue();
+
+            vm.EventFilterMode = "items";
+            vm.IsFilterItems.Should().BeTrue();
+            vm.IsFilterUpdated.Should().BeFalse();
+        }
+
+        #endregion
+
         #region DeactivateObserver Tests
 
         [Fact]
