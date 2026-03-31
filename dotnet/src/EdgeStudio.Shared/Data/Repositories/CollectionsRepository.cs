@@ -181,6 +181,12 @@ namespace EdgeStudio.Shared.Data.Repositories
             }).GetTask();
         }
 
+        public async Task<List<string>> GetCollectionNamesAsync()
+        {
+            var ditto = dittoManager.GetSelectedAppDitto();
+            return await FetchCollectionNamesAsync(ditto);
+        }
+
         public void Dispose()
         {
             if (!_disposed)

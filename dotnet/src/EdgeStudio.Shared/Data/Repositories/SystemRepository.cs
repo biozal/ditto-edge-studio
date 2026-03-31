@@ -349,25 +349,23 @@ namespace EdgeStudio.Shared.Data.Repositories
                         // Build nodes: local peer first, then all remote peers
                         var nodes = new List<PresenceNode>();
                         var localPeer = presenceGraph.LocalPeer;
+                        var isConnectedToCloud = localPeer.IsConnectedToDittoServer;
+
                         nodes.Add(new PresenceNode(
                             PeerKey: localPeer.PeerKey,
                             DeviceName: "Edge Studio",
                             IsLocal: true,
                             IsCloudNode: false,
-                            IsConnectedToCloud: false,
+                            IsConnectedToCloud: isConnectedToCloud,
                             Os: localPeer.Os?.ToString()));
 
                         foreach (var remotePeer in presenceGraph.RemotePeers)
                         {
-                            // Determine if this peer is a Ditto server by checking sync info
-                            var syncInfo = extractedItems.FirstOrDefault(x => x.Id == remotePeer.PeerKey);
-                            var isDittoServer = syncInfo?.IsDittoServer ?? false;
-
                             nodes.Add(new PresenceNode(
                                 PeerKey: remotePeer.PeerKey,
                                 DeviceName: remotePeer.DeviceName ?? remotePeer.PeerKey,
                                 IsLocal: false,
-                                IsCloudNode: isDittoServer,
+                                IsCloudNode: false,
                                 IsConnectedToCloud: false,
                                 Os: remotePeer.Os?.ToString()));
                         }
@@ -384,6 +382,29 @@ namespace EdgeStudio.Shared.Data.Repositories
                                     ConnectionType: conn.ConnectionType.ToString(),
                                     ConnectionId: conn.Id.ToString()));
                             }
+                        }
+
+                        // Synthetic cloud node: matches SwiftUI's PresenceNetworkScene pattern.
+                        // Cloud connectivity is only knowable for the local device — the SDK
+                        // does not expose remote peer cloud status through the presence graph.
+                        // We check localPeer.IsConnectedToDittoServer (same as SwiftUI's
+                        // isConnectedToDittoCloud bridged from isConnectedToDittoServer).
+                        const string cloudNodeKey = "ditto-cloud-node";
+                        if (isConnectedToCloud)
+                        {
+                            nodes.Add(new PresenceNode(
+                                PeerKey: cloudNodeKey,
+                                DeviceName: "Ditto Cloud",
+                                IsLocal: false,
+                                IsCloudNode: true,
+                                IsConnectedToCloud: false,
+                                Os: null));
+
+                            edges.Add(new PresenceEdge(
+                                PeerKey1: localPeerKey,
+                                PeerKey2: cloudNodeKey,
+                                ConnectionType: "WebSocket",
+                                ConnectionId: $"cloud_{localPeerKey}"));
                         }
 
                         var snapshot = new PresenceGraphSnapshot(nodes, edges, localPeerKey);

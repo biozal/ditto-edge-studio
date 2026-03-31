@@ -41,20 +41,11 @@ namespace EdgeStudio.Views.StudioView
         {
             try
             {
-                // Load collections into the ComboBox by triggering a refresh and reading them
-                var collections = new System.Collections.ObjectModel.ObservableCollection<EdgeStudio.Shared.Models.CollectionInfo>();
-                _collectionsRepository.RegisterObserver(collections, _ => { });
+                var names = await _collectionsRepository.GetCollectionNamesAsync();
 
-                // Give the observer a moment to populate
-                await Task.Delay(500);
-
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    var names = collections.Select(c => c.Name).OrderBy(n => n).ToList();
-                    CollectionComboBox.ItemsSource = names;
-                    if (names.Count > 0)
-                        CollectionComboBox.SelectedIndex = 0;
-                });
+                CollectionComboBox.ItemsSource = names;
+                if (names.Count > 0)
+                    CollectionComboBox.SelectedIndex = 0;
             }
             catch
             {

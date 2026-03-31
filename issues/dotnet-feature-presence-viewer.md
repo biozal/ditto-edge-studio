@@ -21,6 +21,8 @@ A visual mesh network graph showing all connected peers in the Ditto sync mesh. 
 - Match the visual layout of the SwiftUI presence viewer
 
 ## Key Implementation Notes
+- Use Skia Sharp for drawing 2D 
+- Must have all features of the SwiftUI version including filtering of peers and zooming in and out
 - The Ditto .NET SDK provides presence/peer data via `ditto.Presence` or equivalent API
 - The SwiftUI version wraps `DittoPresenceViewer` — the .NET SDK may have an equivalent component or the graph must be built manually
 - Peer data is already partially available via `PeersListViewModel` and `SystemRepository` — the presence viewer extends this with topology visualization

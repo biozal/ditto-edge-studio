@@ -125,7 +125,7 @@
                 <!-- Inspector Splitter (visible only when inspector is open) -->
                 <ColumnDefinition Width="Auto"/>
                 <!-- Inspector Panel (collapses when IsVisible=false) -->
-                <ColumnDefinition Width="280" MinWidth="200" MaxWidth="600"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Icon Navigation Bar -->
@@ -259,6 +259,9 @@
 
             <!-- Inspector Panel -->
             <Border Grid.Column="6"
+                    Width="280"
+                    MinWidth="200"
+                    MaxWidth="600"
                     IsVisible="{Binding IsInspectorVisible}">
                 <inspector:InspectorView/>
             </Border>
