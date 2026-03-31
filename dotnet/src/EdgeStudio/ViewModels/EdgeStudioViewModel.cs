@@ -10,6 +10,7 @@ using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
+using EdgeStudio.Views.StudioView;
 
 namespace EdgeStudio.ViewModels
 {
@@ -332,7 +333,51 @@ namespace EdgeStudio.ViewModels
         private void ImportSubscriptionsServer() { }
 
         [RelayCommand]
-        private void ImportJsonData() { }
+        private async Task ImportJsonData()
+        {
+            if (_selectedDatabase == null)
+            {
+                ShowWarning("No database connected", "Import");
+                return;
+            }
+
+            try
+            {
+                var serviceProvider = App.ServiceProvider;
+                if (serviceProvider == null)
+                {
+                    ShowError("Application services not available", "Import");
+                    return;
+                }
+
+                var importService = serviceProvider.GetService(typeof(IImportService)) as IImportService;
+                var collectionsRepo = serviceProvider.GetService(typeof(ICollectionsRepository)) as ICollectionsRepository;
+
+                if (importService == null || collectionsRepo == null)
+                {
+                    ShowError("Import service not available", "Import");
+                    return;
+                }
+
+                var window = new ImportDataWindow(importService, collectionsRepo);
+
+                // Find the parent window to show as dialog
+                if (Avalonia.Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                    && desktop.MainWindow != null)
+                {
+                    await window.ShowDialog(desktop.MainWindow);
+                }
+                else
+                {
+                    window.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError($"Failed to open import dialog: {ex.Message}", "Import");
+            }
+        }
 
         private void OnDocumentDoubleClicked(object recipient, DocumentDoubleClickedMessage message)
         {
