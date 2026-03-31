@@ -17,6 +17,7 @@ namespace EdgeStudio.Shared.Data.Repositories
     {
         private readonly ILoggingService? _logger = logger;
         private DittoStoreObserver? _syncStatusObserver;
+        private DittoStoreObserver? _presenceGraphObserver;
         private bool _disposedValue;
 
         // Store registration parameters for re-registration
@@ -41,6 +42,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                 // Ditto instance already disposed - this is expected during database switching
             }
             _syncStatusObserver = null;
+
+            try { _presenceGraphObserver?.Cancel(); }
+            catch (ObjectDisposedException) { }
+            _presenceGraphObserver = null;
         }
 
         /// <summary>
@@ -314,6 +319,99 @@ namespace EdgeStudio.Shared.Data.Repositories
 
             RegisterPeerCardObservers(_registeredPeerCards, _registeredErrorCallback);
             _logger?.Debug("ReregisterPeerCardObservers: Observer registered");
+        }
+
+        public void RegisterPresenceGraphObserver(Action<PresenceGraphSnapshot> onUpdate, Action<string> onError)
+        {
+            var ditto = dittoManager.GetSelectedAppDitto();
+            var localPeerKey = ditto.Presence.Graph.LocalPeer.PeerKey;
+
+            _presenceGraphObserver = ditto.Store.RegisterObserver(
+                "SELECT * FROM system:data_sync_info",
+                (result) =>
+                {
+                    // Guard: skip processing if observer has already been cancelled.
+                    if (_presenceGraphObserver == null)
+                    {
+                        result.Dispose();
+                        return;
+                    }
+
+                    try
+                    {
+                        // Extract sync info items immediately before dematerialization
+                        var extractedItems = result.Items
+                            .Select(item => GetDittoSyncStatusInfoFromQueryResult(item.JsonString()))
+                            .ToList();
+
+                        var presenceGraph = ditto.Presence.Graph;
+
+                        // Build nodes: local peer first, then all remote peers
+                        var nodes = new List<PresenceNode>();
+                        var localPeer = presenceGraph.LocalPeer;
+                        nodes.Add(new PresenceNode(
+                            PeerKey: localPeer.PeerKey,
+                            DeviceName: "Edge Studio",
+                            IsLocal: true,
+                            IsCloudNode: false,
+                            IsConnectedToCloud: false,
+                            Os: localPeer.Os?.ToString()));
+
+                        foreach (var remotePeer in presenceGraph.RemotePeers)
+                        {
+                            // Determine if this peer is a Ditto server by checking sync info
+                            var syncInfo = extractedItems.FirstOrDefault(x => x.Id == remotePeer.PeerKey);
+                            var isDittoServer = syncInfo?.IsDittoServer ?? false;
+
+                            nodes.Add(new PresenceNode(
+                                PeerKey: remotePeer.PeerKey,
+                                DeviceName: remotePeer.DeviceName ?? remotePeer.PeerKey,
+                                IsLocal: false,
+                                IsCloudNode: isDittoServer,
+                                IsConnectedToCloud: false,
+                                Os: remotePeer.Os?.ToString()));
+                        }
+
+                        // Build edges from all remote peer connections
+                        var edges = new List<PresenceEdge>();
+                        foreach (var remotePeer in presenceGraph.RemotePeers)
+                        {
+                            foreach (var conn in remotePeer.Connections)
+                            {
+                                edges.Add(new PresenceEdge(
+                                    PeerKey1: conn.PeerKey1,
+                                    PeerKey2: conn.PeerKey2,
+                                    ConnectionType: conn.ConnectionType.ToString(),
+                                    ConnectionId: conn.Id.ToString()));
+                            }
+                        }
+
+                        var snapshot = new PresenceGraphSnapshot(nodes, edges, localPeerKey);
+                        onUpdate(snapshot);
+                    }
+                    catch (Exception ex)
+                    {
+                        onError($"PresenceGraphObserver error: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { result.Dispose(); }
+                        catch (Exception e) { onError($"PresenceGraphObserver disposal error: {e.Message}"); }
+                    }
+                });
+        }
+
+        public void CancelPresenceGraphObserver()
+        {
+            try
+            {
+                _presenceGraphObserver?.Cancel();
+                _presenceGraphObserver = null;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore - already disposed
+            }
         }
 
         private static PeerCardInfo CreateLocalPeerCard(DittoPeer localPeer)
