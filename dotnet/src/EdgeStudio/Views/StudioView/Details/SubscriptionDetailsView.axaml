@@ -56,7 +56,7 @@
         </Border>
 
         <!-- Tabbed Content Area -->
-        <TabControl Grid.Row="1">
+        <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex}">
             <!-- Center the tabs -->
             <TabControl.Styles>
                 <Style Selector="TabControl > WrapPanel">

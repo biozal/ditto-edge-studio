@@ -14,6 +14,9 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     [ObservableProperty]
     private string _detailsTitle = string.Empty;
 
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
     /// <summary>
     /// Peers List tab ViewModel
     /// </summary>
@@ -43,6 +46,22 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
         Settings = new SubscriptionSettingsViewModel(syncService, dittoManager, toastService);
     }
 
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        // Tab 0 = Peers List, Tab 1 = Presence Viewer
+        switch (value)
+        {
+            case 0:
+                PresenceViewer.StopObserving();
+                PeersList.Activate();
+                break;
+            case 1:
+                PeersList.Deactivate();
+                PresenceViewer.StartObserving();
+                break;
+        }
+    }
+
     /// <summary>
     /// Called when the view becomes active - activate child ViewModels
     /// </summary>
@@ -50,8 +69,10 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         base.OnActivated();
 
-        // Activate the PeersList ViewModel to start observing peers
-        PeersList.Activate();
+        if (SelectedTabIndex == 0)
+            PeersList.Activate();
+        else if (SelectedTabIndex == 1)
+            PresenceViewer.StartObserving();
     }
 
     /// <summary>
@@ -61,8 +82,8 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         base.OnDeactivated();
 
-        // Deactivate the PeersList ViewModel to stop observing peers
         PeersList.Deactivate();
+        PresenceViewer.StopObserving();
     }
 
     protected override void OnDisposing()
