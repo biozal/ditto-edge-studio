@@ -33,6 +33,9 @@
     
     <!-- FluentAssertions for better test assertions -->
     <PackageReference Include="FluentAssertions" Version="8.8.0" />
+
+    <!-- SkiaSharp for PresenceGraphRenderer tests -->
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
   </ItemGroup>
 
   <ItemGroup>
