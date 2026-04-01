@@ -274,7 +274,7 @@ public partial class App : Application
             {
                 Text = message,
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                FontSize = 14
+                FontSize = 16
             });
 
             var okButton = new Button
@@ -337,7 +337,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = $"Version {version}",
-            FontSize = 14,
+            FontSize = 16,
             Foreground = new SolidColorBrush(Color.Parse("#CCCCCC")),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 10)
@@ -346,7 +346,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = description,
-            FontSize = 13,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#AAAAAA")),
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
@@ -364,7 +364,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = company,
-            FontSize = 13,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#AAAAAA")),
             HorizontalAlignment = HorizontalAlignment.Center
         });
@@ -372,7 +372,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = copyright,
-            FontSize = 12,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#888888")),
             HorizontalAlignment = HorizontalAlignment.Center
         });

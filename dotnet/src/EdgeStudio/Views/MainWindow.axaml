@@ -102,7 +102,7 @@
                 
                 <!-- Loading Message -->
                 <TextBlock Text="Initializing Database..."
-                         FontSize="16"
+                         FontSize="18"
                          FontWeight="SemiBold"
                          Foreground="White"
                          HorizontalAlignment="Center"/>
@@ -119,12 +119,12 @@
                              Width="60" Height="60"
                              Classes="circular"/>
                 <TextBlock Text="Closing database resources..."
-                         FontSize="16"
+                         FontSize="18"
                          FontWeight="SemiBold"
                          Foreground="White"
                          HorizontalAlignment="Center"/>
                 <TextBlock Text="This may take a few moments"
-                         FontSize="12"
+                         FontSize="14"
                          Opacity="0.7"
                          Foreground="White"
                          HorizontalAlignment="Center"/>

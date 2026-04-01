@@ -56,7 +56,7 @@
                                                 Padding="0,4,0,8">
                                             <StackPanel>
                                                 <TextBlock Text="Connections"
-                                                           FontSize="11"
+                                                           FontSize="12"
                                                            Foreground="White"
                                                            Opacity="0.5"
                                                            Margin="14,8,14,4"/>
@@ -74,7 +74,7 @@
                                                                         CornerRadius="4"
                                                                         VerticalAlignment="Center"
                                                                         Background="{Binding DotBrush}"/>
-                                                                <TextBlock FontSize="13"
+                                                                <TextBlock FontSize="14"
                                                                            Foreground="White"
                                                                            VerticalAlignment="Center">
                                                                     <Run Text="{Binding Name}"/>
@@ -99,7 +99,7 @@
                                                     <TextBlock Text="No Active Connections"
                                                                Foreground="White"
                                                                Opacity="0.55"
-                                                               FontSize="13"
+                                                               FontSize="14"
                                                                VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </StackPanel>
@@ -114,7 +114,7 @@
                                                            Opacity="0.65"
                                                            VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding TotalConnections}"
-                                               FontSize="14"
+                                               FontSize="16"
                                                FontFamily="Monospace"
                                                Foreground="White"
                                                VerticalAlignment="Center"/>
@@ -133,7 +133,7 @@
                                                            VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding TotalResultCount}"
                                                FontFamily="Monospace"
-                                               FontSize="13"
+                                               FontSize="14"
                                                Foreground="White"
                                                Opacity="0.85"
                                                VerticalAlignment="Center"/>
@@ -143,7 +143,7 @@
                                 <ComboBox ItemsSource="{Binding PageSizeOptions}"
                                           SelectedItem="{Binding PageSize}"
                                           VerticalAlignment="Center"
-                                          FontSize="12"
+                                          FontSize="14"
                                           MinWidth="60"/>
 
                                 <!-- Previous page -->
@@ -157,7 +157,7 @@
                                 </Button>
 
                                 <!-- Page X of Y -->
-                                <TextBlock FontSize="13" Foreground="White" Opacity="0.85"
+                                <TextBlock FontSize="14" Foreground="White" Opacity="0.85"
                                            VerticalAlignment="Center">
                                     <Run Text="{Binding CurrentPage}"/>
                                     <Run Text=" of "/>
@@ -182,7 +182,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="20,0">
                                 <TextBlock Text="{Binding FooterText}"
                                            FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                                           FontSize="11"
+                                           FontSize="12"
                                            Foreground="White"
                                            Opacity="0.75"
                                            VerticalAlignment="Center"/>

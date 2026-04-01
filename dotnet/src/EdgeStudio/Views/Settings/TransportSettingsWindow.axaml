@@ -29,7 +29,7 @@
 
             <!-- Status message — only shown while applying -->
             <TextBlock Text="{Binding StatusMessage}"
-                       FontSize="12"
+                       FontSize="14"
                        Opacity="0.8"
                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 

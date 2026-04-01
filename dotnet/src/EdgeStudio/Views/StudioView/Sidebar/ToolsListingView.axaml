@@ -14,7 +14,7 @@
                 Padding="16,12"
                 BorderThickness="0,0,0,1">
             <TextBlock Text="{Binding ListingTitle}"
-                       FontSize="16"
+                       FontSize="18"
                        FontWeight="SemiBold"/>
         </Border>
         

@@ -15,7 +15,7 @@
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,6,8,4">
             <TextBlock Grid.Column="0"
                        Text="Collections &amp; Indexes"
-                       FontSize="11"
+                       FontSize="12"
                        Opacity="0.6"
                        VerticalAlignment="Center"/>
             <Button Grid.Column="1"
@@ -35,7 +35,7 @@
                 <StackPanel IsVisible="{Binding IsLoading}"
                             Orientation="Horizontal" Spacing="6" Margin="8,6">
                     <materialIcons:MaterialIcon Kind="Loading" Width="14" Height="14" Opacity="0.5"/>
-                    <TextBlock Text="Loading..." FontSize="11" Opacity="0.5" VerticalAlignment="Center"/>
+                    <TextBlock Text="Loading..." FontSize="12" Opacity="0.5" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Error -->
@@ -43,7 +43,7 @@
                         Background="{DynamicResource SukiErrorColor}"
                         CornerRadius="6" Padding="8,6" Margin="4,4">
                     <TextBlock Text="{Binding ErrorMessage}"
-                               FontSize="11" TextWrapping="Wrap" Opacity="0.9"/>
+                               FontSize="12" TextWrapping="Wrap" Opacity="0.9"/>
                 </Border>
 
                 <!-- Empty state -->
@@ -56,7 +56,7 @@
                                                     VerticalAlignment="Center"/>
                         <TextBlock Text="No collections found"
                                    Foreground="{DynamicResource SukiLowText}"
-                                   FontStyle="Italic" FontSize="12"
+                                   FontStyle="Italic" FontSize="14"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                 </suki:GlassCard>
@@ -102,7 +102,7 @@
                                         <!-- Collection name -->
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding Name}"
-                                                   FontSize="12"
+                                                   FontSize="14"
                                                    FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
                                                    Margin="4,0,0,0"
@@ -149,7 +149,7 @@
                                                     <!-- Index name -->
                                                     <TextBlock Grid.Column="2"
                                                                Text="{Binding Name}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                VerticalAlignment="Center"
                                                                Margin="3,0,0,0"
                                                                TextTrimming="CharacterEllipsis"/>
@@ -182,7 +182,7 @@
                                                                                             Opacity="0.4"
                                                                                             VerticalAlignment="Center"/>
                                                                 <TextBlock Text="{Binding Name}"
-                                                                           FontSize="10"
+                                                                           FontSize="12"
                                                                            FontFamily="Consolas"
                                                                            Opacity="0.7"
                                                                            VerticalAlignment="Center"/>

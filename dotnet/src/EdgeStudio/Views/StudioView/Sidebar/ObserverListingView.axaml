@@ -17,7 +17,7 @@
                 Padding="12,8"
                 BorderThickness="0,0,0,1">
             <TextBlock Text="{Binding ListingTitle}"
-                       FontSize="11"
+                       FontSize="12"
                        FontWeight="Normal"
                        VerticalAlignment="Center"/>
         </Border>
@@ -34,7 +34,7 @@
                                 Width="32"
                                 Height="32"/>
                     <TextBlock Text="Loading observers..."
-                              FontSize="12"
+                              FontSize="14"
                               HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
@@ -60,11 +60,11 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="4">
                                                 <TextBlock Text="{Binding Name}"
-                                                          FontSize="14"
+                                                          FontSize="16"
                                                           FontWeight="SemiBold"
                                                           VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding Query}"
-                                                          FontSize="11"
+                                                          FontSize="12"
                                                           Opacity="0.7"
                                                           TextWrapping="Wrap"
                                                           MaxLines="2"
@@ -74,7 +74,7 @@
                                             <!-- Active indicator -->
                                             <TextBlock Grid.Column="1"
                                                       Text="Active"
-                                                      FontSize="10"
+                                                      FontSize="12"
                                                       FontWeight="SemiBold"
                                                       Foreground="Green"
                                                       VerticalAlignment="Top"
@@ -95,7 +95,7 @@
                                                CommandParameter="{Binding}">
                                             <TextBlock Text="play_arrow"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="16"
+                                                      FontSize="18"
                                                       Foreground="Green"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
@@ -109,7 +109,7 @@
                                                CommandParameter="{Binding}">
                                             <TextBlock Text="stop"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="16"
+                                                      FontSize="18"
                                                       Foreground="Orange"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
@@ -123,7 +123,7 @@
                                                CommandParameter="{Binding}">
                                             <TextBlock Text="edit"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="14"
+                                                      FontSize="16"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
                                         </Button>
@@ -136,7 +136,7 @@
                                                CommandParameter="{Binding}">
                                             <TextBlock Text="delete"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="14"
+                                                      FontSize="16"
                                                       Foreground="{DynamicResource DittoJetBlack}"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
@@ -156,11 +156,11 @@
                            VerticalAlignment="Center"
                            Spacing="8">
                     <TextBlock Text="No Observers Found"
-                              FontSize="14"
+                              FontSize="16"
                               FontWeight="SemiBold"
                               HorizontalAlignment="Center"/>
                     <TextBlock Text="Click the + icon to add a new Observer"
-                              FontSize="12"
+                              FontSize="14"
                               Opacity="0.7"
                               HorizontalAlignment="Center"/>
                 </StackPanel>

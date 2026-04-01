@@ -32,6 +32,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
     private readonly IDittoManager _dittoManager;
     private readonly DispatcherTimer _pollTimer;
     private bool _isRefreshing;
+    private bool _refreshPending;
     private volatile List<LogEntry> _appLogEntries = new();
     private bool _appLogsLoaded;
 
@@ -101,8 +102,8 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     // ── Derived display state ────────────────────────────────────────────────
 
-    public bool IsEmpty       => !IsLoading && FilteredEntries.Count == 0;
-    public bool HasEntries    => !IsLoading && FilteredEntries.Count > 0;
+    public bool IsEmpty       => FilteredEntries.Count == 0 && !IsLoading;
+    public bool HasEntries    => FilteredEntries.Count > 0;
     public bool HasSearchText => !string.IsNullOrEmpty(SearchText);
 
     // ── Footer ──────────────────────────────────────────────────────────────
@@ -158,6 +159,14 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
         _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _pollTimer.Tick += OnPollTimerTick;
+
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IsLoading))
+            {
+                OnPropertyChanged(nameof(IsEmpty));
+            }
+        };
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -165,6 +174,7 @@ public partial class LoggingViewModel : LoadableViewModelBase
     protected override void OnActivated()
     {
         base.OnActivated();
+        IsLoading = true;
         _captureService.StartCapture();
         _pollTimer.Start();
         _ = RefreshEntriesAsync();
@@ -203,17 +213,25 @@ public partial class LoggingViewModel : LoadableViewModelBase
     partial void OnSelectedSourceChanged(LogSourceTab value)
     {
         OnPropertyChanged(nameof(IsSourceDittoSdk));
-        OnPropertyChanged(nameof(IsSourceAppLogs));
-        OnPropertyChanged(nameof(IsSourceImported));
         OnPropertyChanged(nameof(IsSourceTransportConditions));
         OnPropertyChanged(nameof(IsSourceConnectionRequests));
+        OnPropertyChanged(nameof(IsSourceAppLogs));
+        OnPropertyChanged(nameof(IsSourceImported));
+
         // Component filter is only meaningful for DittoSdk and Imported sources
         IsComponentFilterVisible = value == LogSourceTab.DittoSdk || value == LogSourceTab.Imported;
 
+        // Stop poll timer to prevent stale-source refresh from racing with us
+        _pollTimer.Stop();
+        _isRefreshing = false;
+        _refreshPending = false;
+
+        IsLoading = true;
+
         if (value == LogSourceTab.AppLogs && !_appLogsLoaded)
-            _ = LoadAppLogsAsync();
+            _ = LoadAppLogsAsync().ContinueWith(_ => Dispatcher.UIThread.Post(() => _pollTimer.Start()));
         else
-            _ = RefreshEntriesAsync();
+            _ = RefreshEntriesAsync().ContinueWith(_ => Dispatcher.UIThread.Post(() => _pollTimer.Start()));
     }
 
     partial void OnIsErrorSelectedChanged(bool value)   { OnPropertyChanged(nameof(FooterText)); _ = RefreshEntriesAsync(); }
@@ -424,48 +442,60 @@ public partial class LoggingViewModel : LoadableViewModelBase
 
     private async Task RefreshEntriesAsync()
     {
-        if (_isRefreshing) return;
+        // If already refreshing, mark pending so the current run re-triggers when done.
+        if (_isRefreshing)
+        {
+            _refreshPending = true;
+            return;
+        }
         _isRefreshing = true;
 
         try
         {
-            // Capture all filter state on the UI thread before going async.
-            var source      = SelectedSource;
-            var searchText  = SearchText;
-            var component   = SelectedComponent;
-            var isError     = IsErrorSelected;
-            var isWarn      = IsWarningSelected;
-            var isInfo      = IsInfoSelected;
-            var isDebug     = IsDebugSelected;
-            var isVerbose   = IsVerboseSelected;
-            var isDateFilter = IsDateFilterEnabled;
-            var dateStart   = DateFilterStart;
-            var dateEnd     = DateFilterEnd;
-
-            // Snapshot the source entries on the UI thread.
-            List<LogEntry> sourceEntries = source switch
+            do
             {
-                LogSourceTab.DittoSdk              => _captureService.GetSnapshot(),
-                LogSourceTab.AppLogs               => _appLogEntries,
-                LogSourceTab.TransportConditions   => new List<LogEntry>(_logCaptureService.TransportConditionEntries),
-                LogSourceTab.ConnectionRequests    => new List<LogEntry>(_logCaptureService.ConnectionRequestEntries),
-                _                                  => new List<LogEntry>()
-            };
-            // Reset the dirty flag after snapshotting
-            if (source == LogSourceTab.TransportConditions)
-                _logCaptureService.AcknowledgeNewEntries();
-            else if (source == LogSourceTab.ConnectionRequests)
-                _logCaptureService.AcknowledgeConnectionRequestEntries();
+                _refreshPending = false;
 
-            var (result, totalCount) = await Task.Run(() =>
-                BuildFilteredSnapshot(
-                    sourceEntries, searchText, source, component,
-                    isError, isWarn, isInfo, isDebug, isVerbose,
-                    isDateFilter, dateStart, dateEnd));
+                // Capture all filter state on the UI thread before going async.
+                var source      = SelectedSource;
+                var searchText  = SearchText;
+                var component   = SelectedComponent;
+                var isError     = IsErrorSelected;
+                var isWarn      = IsWarningSelected;
+                var isInfo      = IsInfoSelected;
+                var isDebug     = IsDebugSelected;
+                var isVerbose   = IsVerboseSelected;
+                var isDateFilter = IsDateFilterEnabled;
+                var dateStart   = DateFilterStart;
+                var dateEnd     = DateFilterEnd;
 
-            FilteredEntries = result;
-            TotalEntryCount = totalCount;
-            OnPropertyChanged(nameof(FooterText));
+                // Snapshot the source entries on the UI thread.
+                List<LogEntry> sourceEntries = source switch
+                {
+                    LogSourceTab.DittoSdk              => _captureService.GetSnapshot(),
+                    LogSourceTab.TransportConditions   => new List<LogEntry>(_logCaptureService.TransportConditionEntries),
+                    LogSourceTab.ConnectionRequests    => new List<LogEntry>(_logCaptureService.ConnectionRequestEntries),
+                    LogSourceTab.AppLogs               => _appLogEntries,
+                    _                                  => new List<LogEntry>()
+                };
+                // Reset the dirty flag after snapshotting
+                if (source == LogSourceTab.TransportConditions)
+                    _logCaptureService.AcknowledgeNewEntries();
+                else if (source == LogSourceTab.ConnectionRequests)
+                    _logCaptureService.AcknowledgeConnectionRequestEntries();
+
+                var (result, totalCount) = await Task.Run(() =>
+                    BuildFilteredSnapshot(
+                        sourceEntries, searchText, source, component,
+                        isError, isWarn, isInfo, isDebug, isVerbose,
+                        isDateFilter, dateStart, dateEnd));
+
+                IsLoading = false;
+                FilteredEntries = result;
+                TotalEntryCount = totalCount;
+                OnPropertyChanged(nameof(FooterText));
+
+            } while (_refreshPending);
         }
         finally
         {

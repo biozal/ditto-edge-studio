@@ -17,7 +17,7 @@
                 Padding="12,8"
                 BorderThickness="0,0,0,1">
             <TextBlock Text="{Binding ListingTitle}"
-                       FontSize="11"
+                       FontSize="12"
                        FontWeight="Normal"
                        VerticalAlignment="Center"/>
         </Border>
@@ -34,7 +34,7 @@
                                 Width="32"
                                 Height="32"/>
                     <TextBlock Text="Loading subscriptions..."
-                              FontSize="12"
+                              FontSize="14"
                               HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
@@ -54,7 +54,7 @@
                                           Margin="0,0,-20,0">
                                         <TextBlock Grid.Column="0"
                                                   Text="{Binding Name}"
-                                                  FontSize="14"
+                                                  FontSize="16"
                                                   FontWeight="SemiBold"
                                                   VerticalAlignment="Center"/>
 
@@ -70,7 +70,7 @@
                                                ToolTip.Tip="Edit Subscription">
                                             <TextBlock Text="edit"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="14"/>
+                                                      FontSize="16"/>
                                         </Button>
 
                                         <!-- Delete Button -->
@@ -84,14 +84,14 @@
                                                ToolTip.Tip="Delete Subscription">
                                             <TextBlock Text="delete"
                                                       FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
-                                                      FontSize="14"
+                                                      FontSize="16"
                                                       Foreground="{DynamicResource DittoJetBlack}"/>
                                         </Button>
                                     </Grid>
 
                                     <!-- Query Text (Word Wrapped) -->
                                     <TextBlock Text="{Binding Query}"
-                                              FontSize="12"
+                                              FontSize="14"
                                               Opacity="0.8"
                                               TextWrapping="Wrap"
                                               FontFamily="Consolas"/>
@@ -109,11 +109,11 @@
                            VerticalAlignment="Center"
                            Spacing="8">
                     <TextBlock Text="No Subscriptions Found"
-                              FontSize="14"
+                              FontSize="16"
                               FontWeight="SemiBold"
                               HorizontalAlignment="Center"/>
                     <TextBlock Text="Click the + icon to add a new Subscription"
-                              FontSize="12"
+                              FontSize="14"
                               Opacity="0.7"
                               HorizontalAlignment="Center"/>
                 </StackPanel>

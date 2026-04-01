@@ -29,13 +29,13 @@ internal static class SimpleMarkdownRenderer
             }
 
             if (line.StartsWith("#### "))
-                panel.Children.Add(MakeHeading(line[5..], 13, FontWeight.Bold, 6));
+                panel.Children.Add(MakeHeading(line[5..], 16, FontWeight.Bold, 6));
             else if (line.StartsWith("### "))
-                panel.Children.Add(MakeHeading(line[4..], 13, FontWeight.Bold, 8));
+                panel.Children.Add(MakeHeading(line[4..], 18, FontWeight.Bold, 8));
             else if (line.StartsWith("## "))
-                panel.Children.Add(MakeHeading(line[3..], 15, FontWeight.Bold, 10));
+                panel.Children.Add(MakeHeading(line[3..], 20, FontWeight.Bold, 10));
             else if (line.StartsWith("# "))
-                panel.Children.Add(MakeHeading(line[2..], 18, FontWeight.Bold, 12));
+                panel.Children.Add(MakeHeading(line[2..], 24, FontWeight.Bold, 12));
             else if (line == "---" || line == "***" || line == "___")
                 panel.Children.Add(MakeHR());
             else if (line.StartsWith("```"))
@@ -105,7 +105,7 @@ internal static class SimpleMarkdownRenderer
             {
                 Text = code,
                 FontFamily = new FontFamily("Cascadia Code,Consolas,Courier New,monospace"),
-                FontSize = 11,
+                FontSize = 14,
                 Foreground = new SolidColorBrush(Color.FromRgb(200, 210, 220)),
                 TextWrapping = TextWrapping.Wrap
             }
@@ -119,21 +119,21 @@ internal static class SimpleMarkdownRenderer
             BorderBrush = new SolidColorBrush(Color.FromRgb(80, 140, 220)),
             BorderThickness = new Thickness(3, 0, 0, 0),
             Background = new SolidColorBrush(Color.FromArgb(30, 80, 140, 220)),
-            Child = MakeInlineTextBlock(text, 11)
+            Child = MakeInlineTextBlock(text, 14)
         };
 
     private static Border MakeListItem(string text, bool numbered) =>
         new()
         {
             Margin = new Thickness(12, 1, 0, 1),
-            Child = MakeInlineTextBlock(text, 12)
+            Child = MakeInlineTextBlock(text, 14)
         };
 
     private static Control MakeParagraph(string text) =>
         new Border
         {
             Margin = new Thickness(0, 1, 0, 1),
-            Child = MakeInlineTextBlock(text, 12)
+            Child = MakeInlineTextBlock(text, 14)
         };
 
     private static SelectableTextBlock MakeInlineTextBlock(string text, double fontSize)
@@ -169,7 +169,7 @@ internal static class SimpleMarkdownRenderer
                 yield return new Run(m.Groups[3].Value)
                 {
                     FontFamily = new FontFamily("Cascadia Code,Consolas,Courier New,monospace"),
-                    FontSize = 10,
+                    FontSize = 14,
                     Background = new SolidColorBrush(Color.FromArgb(100, 80, 80, 100))
                 };
             else if (m.Groups[4].Success)
@@ -215,7 +215,7 @@ internal static class SimpleMarkdownRenderer
                     Background = isHeader
                         ? new SolidColorBrush(Color.FromArgb(30, 100, 100, 140))
                         : Brushes.Transparent,
-                    Child = MakeInlineTextBlock(rows[r][c], isHeader ? 11 : 11)
+                    Child = MakeInlineTextBlock(rows[r][c], isHeader ? 14 : 14)
                 };
                 if (isHeader)
                     ((SelectableTextBlock)cell.Child!).FontWeight = FontWeight.SemiBold;

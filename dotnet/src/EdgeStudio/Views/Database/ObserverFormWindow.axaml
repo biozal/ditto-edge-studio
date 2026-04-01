@@ -29,7 +29,7 @@
             <TextBlock Grid.Row="0"
                        x:Name="WindowTitle"
                        Text="Add Observer"
-                       FontSize="18"
+                       FontSize="20"
                        FontWeight="SemiBold"
                        Margin="0,0,0,20"/>
 
@@ -41,22 +41,22 @@
                     <!-- Observer Name -->
                     <StackPanel Spacing="8">
                         <TextBlock Text="Observer Name*"
-                                   FontSize="12"
+                                   FontSize="14"
                                    FontWeight="SemiBold"/>
                         <TextBox Text="{Binding ObserverFormModel.Name}"
                                  Watermark="Enter observer name..."
-                                 FontSize="14"
+                                 FontSize="16"
                                  Padding="12,8"/>
                     </StackPanel>
 
                     <!-- DQL Query -->
                     <StackPanel Spacing="8">
                         <TextBlock Text="DQL Query*"
-                                   FontSize="12"
+                                   FontSize="14"
                                    FontWeight="SemiBold"/>
                         <TextBox Text="{Binding ObserverFormModel.Query}"
                                  Watermark="Enter DQL query..."
-                                 FontSize="12"
+                                 FontSize="14"
                                  FontFamily="Consolas"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
@@ -65,7 +65,7 @@
                                  Padding="12,8"
                                  VerticalContentAlignment="Top"/>
                         <TextBlock Text="Example: SELECT * FROM tasks WHERE completed = false"
-                                   FontSize="10"
+                                   FontSize="12"
                                    Opacity="0.7"/>
                     </StackPanel>
 

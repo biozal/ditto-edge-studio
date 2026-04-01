@@ -56,7 +56,7 @@
                 BorderThickness="0,0,0,1"
                 Padding="16,20,16,12">
             <TextBlock Text="{Binding DatabaseName}"
-                       FontSize="14"
+                       FontSize="16"
                        FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
         </Border>
@@ -110,7 +110,7 @@
         </StackPanel>
 
         <!-- Main Content Area -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" x:Name="MainLayoutGrid">
             <Grid.ColumnDefinitions>
                 <!-- Nav Bar -->
                 <ColumnDefinition Width="48" MinWidth="48" MaxWidth="60"/>
@@ -125,7 +125,7 @@
                 <!-- Inspector Splitter (visible only when inspector is open) -->
                 <ColumnDefinition Width="Auto"/>
                 <!-- Inspector Panel (collapses when IsVisible=false) -->
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="280" MinWidth="200"/>
             </Grid.ColumnDefinitions>
 
             <!-- Icon Navigation Bar -->
@@ -259,9 +259,6 @@
 
             <!-- Inspector Panel -->
             <Border Grid.Column="6"
-                    Width="280"
-                    MinWidth="200"
-                    MaxWidth="600"
                     IsVisible="{Binding IsInspectorVisible}">
                 <inspector:InspectorView/>
             </Border>

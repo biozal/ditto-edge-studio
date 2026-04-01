@@ -42,7 +42,7 @@
                                            Text="{Binding Query}"
                                            MaxLines="3"
                                            TextTrimming="CharacterEllipsis"
-                                           FontSize="12"
+                                           FontSize="14"
                                            FontFamily="Consolas"
                                            Margin="6,0,0,0"
                                            TextWrapping="Wrap"/>

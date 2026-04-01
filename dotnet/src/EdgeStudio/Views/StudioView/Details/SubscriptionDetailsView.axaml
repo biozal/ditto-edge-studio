@@ -25,7 +25,7 @@
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding DetailsTitle}"
-                           FontSize="11"
+                           FontSize="12"
                            FontWeight="Normal"
                            VerticalAlignment="Center"/>
 
@@ -36,10 +36,10 @@
                             VerticalAlignment="Center"
                             Margin="0,0,8,0">
                     <TextBlock Text="Last updated:"
-                               FontSize="10"
+                               FontSize="12"
                                Opacity="0.7"/>
                     <TextBlock Text="{Binding PeersList.LastUpdatedText, FallbackValue='--:--:-- --'}"
-                               FontSize="10"
+                               FontSize="12"
                                Opacity="0.7"/>
                 </StackPanel>
 

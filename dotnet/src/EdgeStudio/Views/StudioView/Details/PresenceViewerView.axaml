@@ -24,11 +24,11 @@
                     IsVisible="{Binding Snapshot, Converter={x:Static ObjectConverters.IsNull}}">
             <materialIcons:MaterialIcon Kind="GraphLine" Width="48" Height="48" Opacity="0.4"/>
             <TextBlock Text="Waiting for peer connections..."
-                       FontSize="14"
+                       FontSize="16"
                        Opacity="0.5"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="Start sync to see the mesh network"
-                       FontSize="12"
+                       FontSize="14"
                        Opacity="0.3"
                        HorizontalAlignment="Center"/>
         </StackPanel>
@@ -46,7 +46,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Direct Only"
                                Foreground="White"
-                               FontSize="12"
+                               FontSize="14"
                                VerticalAlignment="Center"/>
                     <ToggleSwitch IsChecked="{Binding ShowDirectOnly}"
                                   OnContent="" OffContent=""
@@ -66,7 +66,7 @@
                     </Button>
                     <TextBlock Text="{Binding ZoomPercentage}"
                                Foreground="White"
-                               FontSize="12"
+                               FontSize="14"
                                VerticalAlignment="Center"
                                MinWidth="40"
                                TextAlignment="Center"/>

@@ -24,7 +24,7 @@
             <!-- Title -->
             <TextBlock Grid.Row="0"
                        Text="Add Index"
-                       FontSize="18"
+                       FontSize="20"
                        FontWeight="SemiBold"
                        Margin="0,0,0,20"/>
 
@@ -38,37 +38,37 @@
                         Background="{DynamicResource SukiErrorColor}"
                         Opacity="0.85">
                     <TextBlock Text="{Binding ErrorMessage}"
-                               FontSize="12"
+                               FontSize="14"
                                TextWrapping="Wrap"/>
                 </Border>
 
                 <!-- Collection dropdown -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="Collection *"
-                               FontSize="12"
+                               FontSize="14"
                                FontWeight="SemiBold"/>
                     <ComboBox ItemsSource="{Binding AvailableCollections}"
                               SelectedItem="{Binding NewIndexCollection}"
                               PlaceholderText="Select a collection..."
                               HorizontalAlignment="Stretch"
                               Padding="12,8"
-                              FontSize="14"/>
+                              FontSize="16"/>
                     <TextBlock Text="Choose the collection to index."
-                               FontSize="11"
+                               FontSize="12"
                                Opacity="0.55"/>
                 </StackPanel>
 
                 <!-- Field name -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="Field *"
-                               FontSize="12"
+                               FontSize="14"
                                FontWeight="SemiBold"/>
                     <TextBox Text="{Binding NewIndexField}"
                              Watermark="e.g. status, userId, createdAt"
-                             FontSize="14"
+                             FontSize="16"
                              FontFamily="Consolas"
                              Padding="12,8"/>
-                    <TextBlock FontSize="11" Opacity="0.55">
+                    <TextBlock FontSize="12" Opacity="0.55">
                         <Run Text="Index will be named: "/>
                         <Run Text="idx_{collection}_{field}" FontFamily="Consolas"/>
                     </TextBlock>

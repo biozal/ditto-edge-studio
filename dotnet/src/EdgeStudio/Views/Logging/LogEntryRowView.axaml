@@ -20,7 +20,7 @@
                 <!-- Timestamp -->
                 <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.fff}'}"
                            FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                           FontSize="11"
+                           FontSize="12"
                            Opacity="0.5"
                            VerticalAlignment="Center"
                            MinWidth="80"/>
@@ -34,7 +34,7 @@
                     <TextBlock Text="{Binding LevelAbbreviation}"
                                Foreground="{Binding LevelForegroundHex}"
                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                               FontSize="10"
+                               FontSize="12"
                                FontWeight="Bold"
                                HorizontalAlignment="Center"/>
                 </Border>
@@ -46,7 +46,7 @@
                         VerticalAlignment="Center"
                         IsVisible="{Binding IsComponentVisible}">
                     <TextBlock Text="{Binding Component}"
-                               FontSize="10"
+                               FontSize="12"
                                FontWeight="Medium"
                                Opacity="0.7"/>
                 </Border>
@@ -56,7 +56,7 @@
             <!-- Row 2: message text -->
             <TextBlock Text="{Binding Message}"
                        FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                       FontSize="12"
+                       FontSize="14"
                        TextWrapping="Wrap"
                        MaxLines="2"
                        TextTrimming="CharacterEllipsis"/>
