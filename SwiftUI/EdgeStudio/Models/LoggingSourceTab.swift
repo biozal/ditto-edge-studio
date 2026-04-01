@@ -4,8 +4,8 @@
 /// across navigation (the view is recreated each time it appears).
 enum LoggingSourceTab: String, CaseIterable {
     case dittoSDK = "Ditto SDK"
-    case application = "App Logs"
-    case imported = "Imported"
     case transportConditions = "Transport Conditions"
     case connectionRequests = "Connection Requests"
+    case application = "App Logs"
+    case imported = "Imported"
 }

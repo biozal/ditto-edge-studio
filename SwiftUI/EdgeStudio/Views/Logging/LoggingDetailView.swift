@@ -32,7 +32,7 @@ struct LoggingDetailView: View {
         #if os(macOS)
         return LoggingSourceTab.allCases
         #else
-        return [.dittoSDK, .application, .connectionRequests, .transportConditions]
+        return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
     }
 
