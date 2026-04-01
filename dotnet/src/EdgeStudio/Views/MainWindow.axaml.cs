@@ -26,11 +26,20 @@ public partial class MainWindow : SukiWindow,
     /// </summary>
     public ISukiToastManager ToastManager { get; }
 
+    /// <summary>
+    /// Dialog manager for displaying modal dialogs
+    /// </summary>
+    public SukiUI.Dialogs.ISukiDialogManager DialogManager { get; }
+
     public MainWindow()
     {
         // Get the toast manager from the service provider
         ToastManager = App.ServiceProvider?.GetService(typeof(ISukiToastManager)) as ISukiToastManager
             ?? new SukiToastManager();
+
+        // Get the dialog manager from the service provider
+        DialogManager = App.ServiceProvider?.GetService(typeof(SukiUI.Dialogs.ISukiDialogManager)) as SukiUI.Dialogs.ISukiDialogManager
+            ?? new SukiUI.Dialogs.SukiDialogManager();
 
         InitializeComponent();
         ConfigurePlatformSpecificStyles();

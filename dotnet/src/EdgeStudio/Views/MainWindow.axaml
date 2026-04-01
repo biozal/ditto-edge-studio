@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
         xmlns:vm="using:EdgeStudio.ViewModels"
+        xmlns:views="using:EdgeStudio.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:database="using:EdgeStudio.Views.Database"
@@ -18,9 +19,10 @@
         Height="900"
         BackgroundStyle="Flat">
 
-    <!-- Toast notification host -->
+    <!-- Toast and dialog notification hosts -->
     <suki:SukiWindow.Hosts>
-        <suki:SukiToastHost />
+        <suki:SukiToastHost Manager="{Binding ToastManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
+        <suki:SukiDialogHost Manager="{Binding DialogManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
     </suki:SukiWindow.Hosts>
 
     <!-- Window-level native menu for macOS (File, Edit, View, Window, Help) -->

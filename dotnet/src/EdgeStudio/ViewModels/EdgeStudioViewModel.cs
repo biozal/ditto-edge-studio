@@ -36,6 +36,14 @@ namespace EdgeStudio.ViewModels
         private object? _currentListingViewModel;
         private object? _currentDetailViewModel;
 
+        /// <summary>
+        /// Tracks which navigation type is currently active (has Activate() called).
+        /// Used by DeactivateCurrentViewModels to deactivate the correct ViewModel.
+        /// This is separate from NavigationService.CurrentNavigationType which can
+        /// get out of sync when UpdateCurrentViews is called directly.
+        /// </summary>
+        private NavigationItemType? _activeNavigationType;
+
         [ObservableProperty]
         private bool _isSyncEnabled = false;
 
@@ -204,7 +212,10 @@ namespace EdgeStudio.ViewModels
                             {
                                 QueryViewModel.SetDatabaseConfig(_selectedDatabase);
                                 UpdateCurrentViews(NavigationItemType.Subscriptions);
+                                // Sync both the nav bar highlight and the NavigationService state
+                                // so that subsequent NavigateTo() calls see the correct current type
                                 NavigationViewModel.SyncSelectionTo(NavigationItemType.Subscriptions);
+                                _navigationService.SetCurrentType(NavigationItemType.Subscriptions);
                                 _ = IndexesToolViewModel.LoadAsync();
                             });
                         });
@@ -312,7 +323,12 @@ namespace EdgeStudio.ViewModels
         }
 
         [RelayCommand]
-        private void AddObserver() { }
+        private void AddObserver()
+        {
+            if (_navigationService.CurrentNavigationType != NavigationItemType.Observers)
+                UpdateCurrentViews(NavigationItemType.Observers);
+            ObserversViewModel.AddObserverCommand.Execute(null);
+        }
 
         [RelayCommand]
         private void AddIndex()
@@ -434,9 +450,11 @@ namespace EdgeStudio.ViewModels
         private void UpdateCurrentViews(NavigationItemType navigationType)
         {
             DeactivateCurrentViewModels();
+            _activeNavigationType = navigationType;
 
             if (_selectedDatabase == null)
             {
+                _activeNavigationType = null;
                 CurrentListingViewModel = null;
                 CurrentDetailViewModel = null;
                 return;
@@ -622,7 +640,7 @@ namespace EdgeStudio.ViewModels
 
         private void DeactivateCurrentViewModels()
         {
-            switch (_navigationService.CurrentNavigationType)
+            switch (_activeNavigationType)
             {
                 case NavigationItemType.Subscriptions:
                     if (_subscriptionViewModelLazy.IsValueCreated)

@@ -155,6 +155,13 @@ public partial class App : Application
         {
             return new SukiUI.Toasts.SukiToastManager();
         });
+
+        // Register dialog service for modal error dialogs
+        services.AddSingleton<SukiUI.Dialogs.ISukiDialogManager>(provider =>
+        {
+            return new SukiUI.Dialogs.SukiDialogManager();
+        });
+        services.AddSingleton<IDialogService, SukiDialogService>();
         services.AddSingleton<IToastService, SukiToastService>();
         services.AddSingleton<ISyncService, SyncService>();
         services.AddSingleton<IQrCodeService, QrCodeService>();
@@ -177,6 +184,7 @@ public partial class App : Application
         services.AddSingleton<IHistoryRepository, SqliteHistoryRepository>();
         services.AddSingleton<IFavoritesRepository, SqliteFavoritesRepository>();
         services.AddSingleton<ICollectionsRepository, CollectionsRepository>();
+        services.AddSingleton<IObserverRepository, SqliteObserverRepository>();
 
         // Register system repository as singleton
         services.AddSingleton<ISystemRepository, SystemRepository>();
