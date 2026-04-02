@@ -14,17 +14,29 @@ actor DittoManager {
     static var shared = DittoManager()
 
     func closeDittoSelectedDatabase() async {
-        // if an app was already selected, cancel the subscription, observations, and remove the app
+        let closeStart = CFAbsoluteTimeGetCurrent()
+
+        // Stop sync
         if let ditto = dittoSelectedApp {
             await Task.detached(priority: .utility) {
                 ditto.sync.stop()
             }.value
+            let syncStopElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+            Log.info("[Close:Ditto] sync.stop() complete (\(String(format: "%.3f", syncStopElapsed))s)")
         }
+
+        // Stop log capture observers
         await MainActor.run {
             DittoLogCaptureService.shared.stopTransportConditionObserver()
             DittoLogCaptureService.shared.stopConnectionRequestHandler()
         }
+        let logCaptureElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+        Log.info("[Close:Ditto] Log capture stopped (\(String(format: "%.3f", logCaptureElapsed))s)")
+
+        // Release Ditto reference
         dittoSelectedApp = nil
+        let totalElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+        Log.info("[Close:Ditto] Ditto reference released (\(String(format: "%.3f", totalElapsed))s)")
     }
 
     /// Creates the appropriate Ditto DatabaseConfig based on selected Database configuration
