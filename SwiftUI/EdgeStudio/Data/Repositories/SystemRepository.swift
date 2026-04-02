@@ -233,7 +233,7 @@ actor SystemRepository {
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
 
-                // Bail early if session was invalidated during actor hop
+                // Bail early if session was invalidated before the expensive DQL query
                 guard await sessionId == capturedSession else {
                     Log.info("[SystemRepository] syncStatus callback bailed: session invalidated")
                     return
@@ -478,17 +478,17 @@ actor SystemRepository {
                 guard let self else { return }
                 let capturedSession = await sessionId
 
-                // Initialize counters for each transport type
-                var totalAccessPoint = 0
-                var totalBluetooth = 0
-                var totalP2PWiFi = 0
-                var totalWebSocket = 0
-
                 // Bail early if session was invalidated
                 guard await sessionId == capturedSession else {
                     Log.info("[SystemRepository] connections callback bailed: session invalidated")
                     return
                 }
+
+                // Initialize counters for each transport type
+                var totalAccessPoint = 0
+                var totalBluetooth = 0
+                var totalP2PWiFi = 0
+                var totalWebSocket = 0
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
