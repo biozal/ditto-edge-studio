@@ -7,13 +7,19 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if viewModel.isMainStudioViewPresented,
-               let selectedApp = viewModel.selectedDittoConfigForDatabase
+            if viewModel.isClosingDatabase {
+                closingDatabaseView
+            } else if viewModel.isMainStudioViewPresented,
+                      let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
                 MainStudioView(
                     isMainStudioViewPresented: Binding(
                         get: { viewModel.isMainStudioViewPresented },
                         set: { viewModel.isMainStudioViewPresented = $0 }
+                    ),
+                    isClosingDatabase: Binding(
+                        get: { viewModel.isClosingDatabase },
+                        set: { viewModel.isClosingDatabase = $0 }
                     ),
                     dittoAppConfig: selectedApp
                 )
@@ -28,10 +34,10 @@ struct ContentView: View {
         }
         #if os(macOS)
         .frame(
-            minWidth: viewModel.isMainStudioViewPresented ? 1400 : 800,
-            maxWidth: viewModel.isMainStudioViewPresented ? .infinity : 800,
-            minHeight: viewModel.isMainStudioViewPresented ? 820 : 540,
-            maxHeight: viewModel.isMainStudioViewPresented ? .infinity : 540
+            minWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 1400 : 800,
+            maxWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 800,
+            minHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 820 : 540,
+            maxHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 540
         )
         .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
             guard let window = NSApplication.shared.windows.first(where: { $0.isMainWindow }) else { return }
@@ -55,6 +61,17 @@ struct ContentView: View {
                 await viewModel.loadApps(appState: appState)
             }
         }
+    }
+
+    private var closingDatabaseView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Closing database...")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -395,6 +412,7 @@ extension ContentView {
 
         // used for MainStudioView
         var isMainStudioViewPresented = false
+        var isClosingDatabase = false
         var selectedDittoConfigForDatabase: DittoConfigForDatabase?
 
         init() {

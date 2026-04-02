@@ -4,6 +4,7 @@ import SwiftUI
 struct MainStudioView: View {
     @EnvironmentObject var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
+    @Binding var isClosingDatabase: Bool
     @State var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
@@ -53,9 +54,11 @@ struct MainStudioView: View {
 
     init(
         isMainStudioViewPresented: Binding<Bool>,
+        isClosingDatabase: Binding<Bool>,
         dittoAppConfig: DittoConfigForDatabase
     ) {
         _isMainStudioViewPresented = isMainStudioViewPresented
+        _isClosingDatabase = isClosingDatabase
         _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
@@ -305,7 +308,12 @@ struct MainStudioView: View {
 
     private var closeButtonContent: some View {
         Button {
-            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+            isClosingDatabase = true
+            Task {
+                await viewModel.closeSelectedApp()
+                isClosingDatabase = false
+                isMainStudioViewPresented = false
+            }
         } label: {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         }
