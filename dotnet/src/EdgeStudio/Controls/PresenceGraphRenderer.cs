@@ -78,7 +78,8 @@ public class PresenceGraphRenderer
         SKCanvas canvas, float width, float height,
         PresenceGraphSnapshot snapshot,
         Dictionary<string, NodePosition> positions,
-        float zoom, float panX, float panY)
+        float zoom, float panX, float panY,
+        string? highlightedNodeKey = null)
     {
         canvas.Clear(SKColors.Transparent);
         if (snapshot.Nodes.Count == 0) return;
@@ -88,7 +89,7 @@ public class PresenceGraphRenderer
         canvas.Scale(zoom);
 
         DrawEdges(canvas, snapshot, positions);
-        DrawNodes(canvas, snapshot, positions);
+        DrawNodes(canvas, snapshot, positions, highlightedNodeKey);
 
         canvas.Restore();
 
@@ -184,7 +185,8 @@ public class PresenceGraphRenderer
         }
     }
 
-    private void DrawNodes(SKCanvas canvas, PresenceGraphSnapshot snapshot, Dictionary<string, NodePosition> positions)
+    private void DrawNodes(SKCanvas canvas, PresenceGraphSnapshot snapshot,
+        Dictionary<string, NodePosition> positions, string? highlightedNodeKey)
     {
         using var nodeFont = new SKFont(SKTypeface.Default, 11f);
         using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
@@ -193,12 +195,35 @@ public class PresenceGraphRenderer
         {
             if (!positions.TryGetValue(node.PeerKey, out var pos)) continue;
 
+            var isHighlighted = node.PeerKey == highlightedNodeKey;
             var fillColor = node.IsLocal ? LocalNodeColor : node.IsCloudNode ? CloudNodeColor : RemoteNodeColor;
             var label = node.IsLocal ? "Me" : TruncateLabel(node.DeviceName, 16);
             var textWidth = nodeFont.MeasureText(label);
             var pillWidth = textWidth + 24f;
             var pillHeight = 28f;
             var cornerRadius = pillHeight / 2;
+
+            // Apply 1.1x scale for highlighted (hovered/dragged) node, matching SwiftUI behavior
+            var scale = isHighlighted ? 1.1f : 1.0f;
+            var scaledPillWidth = pillWidth * scale;
+            var scaledPillHeight = pillHeight * scale;
+            var scaledCornerRadius = cornerRadius * scale;
+
+            // Draw a subtle glow behind the highlighted node
+            if (isHighlighted)
+            {
+                using var glowPaint = new SKPaint
+                {
+                    Color = fillColor.WithAlpha(80),
+                    IsAntialias = true,
+                    Style = SKPaintStyle.Fill,
+                    MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 6f)
+                };
+                var glowRect = new SKRect(
+                    (float)pos.X - scaledPillWidth / 2 - 4, (float)pos.Y - scaledPillHeight / 2 - 4,
+                    (float)pos.X + scaledPillWidth / 2 + 4, (float)pos.Y + scaledPillHeight / 2 + 4);
+                canvas.DrawRoundRect(glowRect, scaledCornerRadius + 4, scaledCornerRadius + 4, glowPaint);
+            }
 
             using var fillPaint = new SKPaint
             {
@@ -208,10 +233,20 @@ public class PresenceGraphRenderer
             };
 
             var rect = new SKRect(
-                (float)pos.X - pillWidth / 2, (float)pos.Y - pillHeight / 2,
-                (float)pos.X + pillWidth / 2, (float)pos.Y + pillHeight / 2);
-            canvas.DrawRoundRect(rect, cornerRadius, cornerRadius, fillPaint);
-            canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f, SKTextAlign.Center, nodeFont, textPaint);
+                (float)pos.X - scaledPillWidth / 2, (float)pos.Y - scaledPillHeight / 2,
+                (float)pos.X + scaledPillWidth / 2, (float)pos.Y + scaledPillHeight / 2);
+            canvas.DrawRoundRect(rect, scaledCornerRadius, scaledCornerRadius, fillPaint);
+
+            // Scale the font for highlighted nodes
+            if (isHighlighted)
+            {
+                using var highlightFont = new SKFont(SKTypeface.Default, 11f * scale);
+                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f * scale, SKTextAlign.Center, highlightFont, textPaint);
+            }
+            else
+            {
+                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f, SKTextAlign.Center, nodeFont, textPaint);
+            }
         }
     }
 
