@@ -14,6 +14,7 @@ actor SystemRepository {
     private var isProcessingUpdate = false
     private var hasPendingUpdate = false
     private var pendingStatusItems: [SyncStatusInfo]?
+    private var sessionId = 0
 
     // Store the callback inside the actor
     private var onSyncStatusUpdate: (([SyncStatusInfo], @escaping () -> Void) -> Void)?
@@ -24,6 +25,13 @@ actor SystemRepository {
     deinit {
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
+    }
+
+    /// Invalidates the current session, causing all in-flight observer callbacks to bail early.
+    /// Call this as the very first step when closing a database.
+    func invalidateSession() {
+        sessionId += 1
+        Log.info("[Close:SystemRepo] Session invalidated, new sessionId=\(sessionId)")
     }
 
     private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
@@ -201,10 +209,15 @@ actor SystemRepository {
             throw InvalidStateError(message: "No selected app available")
         }
 
+        sessionId += 1
+        let currentSession = sessionId
+        Log.info("[SystemRepository] Registering syncStatus observer, sessionId=\(currentSession)")
+
         // Register presence observer for real-time peer connection changes
         syncStatusObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
                 guard let self else { return }
+                let capturedSession = await sessionId
 
                 // Step 1: Extract directly connected peers from presence graph (source of truth).
                 // presenceGraph.remotePeers returns the full mesh topology (all peers, including
@@ -219,6 +232,12 @@ actor SystemRepository {
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
+
+                // Bail early if session was invalidated during actor hop
+                guard await sessionId == capturedSession else {
+                    Log.info("[SystemRepository] syncStatus callback bailed: session invalidated")
+                    return
+                }
 
                 // Step 2: Query DQL for sync metrics directly (bypassing QueryService so these
                 // internal system queries are invisible to Query Metrics).
@@ -237,6 +256,12 @@ actor SystemRepository {
                     Log.error("Failed to query system:data_sync_info: \(error.localizedDescription)")
                     // Fall through with empty syncMetricsLookup — presence graph is still the
                     // source of truth for which peers are connected, so cards will still render.
+                }
+
+                // Bail early if session was invalidated during DQL query
+                guard await sessionId == capturedSession else {
+                    Log.info("[SystemRepository] syncStatus callback bailed: session invalidated after DQL")
+                    return
                 }
 
                 // Step 4: Build status items for ALL connected peers (presence is source of truth)
@@ -443,16 +468,27 @@ actor SystemRepository {
             throw InvalidStateError(message: "No selected app available")
         }
 
+        sessionId += 1
+        let currentSession = sessionId
+        Log.info("[SystemRepository] Registering connections observer, sessionId=\(currentSession)")
+
         // Register presence observer for real-time connection updates
         connectionsPresenceObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
                 guard let self else { return }
+                let capturedSession = await sessionId
 
                 // Initialize counters for each transport type
                 var totalAccessPoint = 0
                 var totalBluetooth = 0
                 var totalP2PWiFi = 0
                 var totalWebSocket = 0
+
+                // Bail early if session was invalidated
+                guard await sessionId == capturedSession else {
+                    Log.info("[SystemRepository] connections callback bailed: session invalidated")
+                    return
+                }
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
