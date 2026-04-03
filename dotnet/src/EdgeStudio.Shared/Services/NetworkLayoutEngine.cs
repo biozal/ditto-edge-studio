@@ -137,7 +137,7 @@ public static class NetworkLayoutEngine
     private static double ComputeRingRadius(int ring, int peerCount)
     {
         var baseR = BaseRadius + (ring - 1) * RingIncrement;
-        var minRadius = peerCount * 30.0 / (2 * Math.PI);
+        var minRadius = peerCount * 80.0 / (2 * Math.PI);
         return Math.Max(baseR, minRadius);
     }
 }
