@@ -24,10 +24,11 @@ public class PresenceViewerViewModelTests
     {
         var vm = new PresenceViewerViewModel(_lazySystemRepo);
         vm.ShowDirectOnly.Should().BeFalse();
-        vm.ZoomLevel.Should().Be(1.0f);
-        vm.ZoomPercentage.Should().Be("100%");
+        vm.ZoomLevel.Should().Be(1.4f);
+        vm.ZoomPercentage.Should().Be("140%");
         vm.Snapshot.Should().BeNull();
         vm.Positions.Should().BeNull();
+        vm.LastUpdatedText.Should().Be("--:--:-- --");
     }
 
     [Fact]
@@ -75,6 +76,23 @@ public class PresenceViewerViewModelTests
         vm.Snapshot.Should().NotBeNull();
         vm.Positions.Should().NotBeNull();
         vm.Positions.Should().ContainKeys("local", "peer1");
+    }
+
+    [Fact]
+    public void HandleGraphUpdate_ShouldUpdateLastUpdatedText()
+    {
+        var vm = new PresenceViewerViewModel(_lazySystemRepo);
+        vm.LastUpdatedText.Should().Be("--:--:-- --");
+
+        var snapshot = new PresenceGraphSnapshot(
+            new List<PresenceNode> { new("local", "Me", true, false, false, null) },
+            new List<PresenceEdge>(),
+            "local");
+
+        vm.HandleGraphUpdate(snapshot);
+
+        vm.LastUpdatedText.Should().NotBe("--:--:-- --");
+        vm.LastUpdatedText.Should().MatchRegex(@"\d{1,2}:\d{2}:\d{2} [AP]M");
     }
 
     [Fact]

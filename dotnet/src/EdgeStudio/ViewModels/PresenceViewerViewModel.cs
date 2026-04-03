@@ -24,7 +24,10 @@ public partial class PresenceViewerViewModel : ViewModelBase
     private Dictionary<string, NodePosition>? _positions;
 
     [ObservableProperty]
-    private float _zoomLevel = 1.0f;
+    private float _zoomLevel = 1.4f;
+
+    [ObservableProperty]
+    private string _lastUpdatedText = "--:--:-- --";
 
     [ObservableProperty]
     private bool _showDirectOnly;
@@ -55,6 +58,7 @@ public partial class PresenceViewerViewModel : ViewModelBase
     public void HandleGraphUpdate(PresenceGraphSnapshot snapshot)
     {
         _fullSnapshot = snapshot;
+        LastUpdatedText = DateTime.Now.ToString("h:mm:ss tt");
         ApplyFilterAndLayout();
     }
 
@@ -85,7 +89,7 @@ public partial class PresenceViewerViewModel : ViewModelBase
     [RelayCommand]
     private void ResetZoom()
     {
-        ZoomLevel = 1.0f;
+        ZoomLevel = 1.4f;
     }
 
     public void StartObserving()
