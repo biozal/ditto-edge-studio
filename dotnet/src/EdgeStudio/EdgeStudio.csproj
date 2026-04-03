@@ -95,7 +95,7 @@
       <HelpDocsDest>$(MSBuildProjectDirectory)\Assets\Help\</HelpDocsDest>
     </PropertyGroup>
     <MakeDir Directories="$(HelpDocsDest)" Condition="!Exists('$(HelpDocsDest)')" />
-    <Copy SourceFiles="$(HelpDocsSource)query.md;$(HelpDocsSource)subscription.md;$(HelpDocsSource)logging.md;$(HelpDocsSource)observe.md;$(HelpDocsSource)appmetrics.md;$(HelpDocsSource)querymetrics.md" DestinationFolder="$(HelpDocsDest)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(HelpDocsSource)query.md;$(HelpDocsSource)subscription.md;$(HelpDocsSource)logging.md;$(HelpDocsSource)observe.md;$(HelpDocsSource)appmetrics.md;$(HelpDocsSource)querymetrics.md;$(HelpDocsSource)UserGuide.md" DestinationFolder="$(HelpDocsDest)" SkipUnchangedFiles="true" />
     <Message Text="Help docs synced to $(HelpDocsDest)" Importance="normal" />
   </Target>
 

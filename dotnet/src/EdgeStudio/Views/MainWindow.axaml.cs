@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -7,6 +8,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Services;
 using EdgeStudio.ViewModels;
+using EdgeStudio.Views.Help;
 using SukiUI;
 using SukiUI.Controls;
 using SukiUI.Enums;
@@ -141,6 +143,30 @@ public partial class MainWindow : SukiWindow,
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ERROR] Failed to close database: {ex}");
+        }
+    }
+
+    private void HelpDocumentation_Click(object? sender, EventArgs e)
+    {
+        var window = new UserGuideWindow();
+        window.Show();
+    }
+
+    private void VisitDittoWebsite_Click(object? sender, EventArgs e)
+    {
+        const string url = "https://www.ditto.com/";
+        try
+        {
+            if (OperatingSystem.IsWindows())
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            else if (OperatingSystem.IsMacOS())
+                Process.Start("open", url);
+            else
+                Process.Start("xdg-open", url);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] Could not open Ditto website: {ex.Message}");
         }
     }
 

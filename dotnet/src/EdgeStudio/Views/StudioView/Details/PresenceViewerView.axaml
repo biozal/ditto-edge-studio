@@ -15,7 +15,7 @@
         <controls:PresenceGraphControl x:Name="GraphControl"
                                         Snapshot="{Binding Snapshot}"
                                         Positions="{Binding Positions}"
-                                        ZoomLevel="{Binding ZoomLevel}"/>
+                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"/>
 
         <!-- Empty state overlay -->
         <StackPanel HorizontalAlignment="Center"

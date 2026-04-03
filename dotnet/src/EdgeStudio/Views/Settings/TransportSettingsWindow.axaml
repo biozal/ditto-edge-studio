@@ -38,21 +38,23 @@
                          IsVisible="{Binding IsLoading}"
                          Height="3"/>
 
-            <!-- Apply + Close side by side -->
+            <!-- Close + Apply side by side -->
             <Grid ColumnDefinitions="*,Auto">
                 <Button Grid.Column="0"
-                        Content="Apply Transport Settings"
-                        Command="{Binding ApplyTransportSettingsCommand}"
-                        IsEnabled="{Binding IsApplyEnabled}"
-                        Classes="Flat"
-                        HorizontalAlignment="Left"
-                        Padding="16,8"/>
-
-                <Button Grid.Column="1"
                         Content="Close"
                         Classes="Flat"
                         Padding="20,8"
+                        HorizontalAlignment="Left"
                         Click="Close_Click"/>
+
+                <Button Grid.Column="1"
+                        Content="Apply"
+                        Command="{Binding ApplyTransportSettingsCommand}"
+                        IsEnabled="{Binding IsApplyEnabled}"
+                        Padding="16,8"
+                        Background="#FFC628"
+                        Foreground="#1A1A1A"
+                        FontWeight="SemiBold"/>
             </Grid>
 
         </StackPanel>

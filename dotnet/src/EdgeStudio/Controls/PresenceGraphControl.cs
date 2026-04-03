@@ -26,7 +26,7 @@ public class PresenceGraphControl : Control
     private Avalonia.Threading.DispatcherTimer? _animationTimer;
     private DateTime _lastTickTime = DateTime.UtcNow;
 
-    private float _zoom = 1.0f;
+    private float _zoom = 1.4f;
     private float _panX = 0;
     private float _panY = 0;
     private Point _lastPointerPos;
@@ -47,7 +47,7 @@ public class PresenceGraphControl : Control
         AvaloniaProperty.Register<PresenceGraphControl, Dictionary<string, NodePosition>?>(nameof(Positions));
 
     public static readonly StyledProperty<float> ZoomLevelProperty =
-        AvaloniaProperty.Register<PresenceGraphControl, float>(nameof(ZoomLevel), 1.0f);
+        AvaloniaProperty.Register<PresenceGraphControl, float>(nameof(ZoomLevel), 1.4f);
 
     public PresenceGraphSnapshot? Snapshot
     {
@@ -388,13 +388,13 @@ public class PresenceGraphControl : Control
 
     public void ResetView()
     {
-        _zoom = 1.0f;
+        _zoom = 1.4f;
         _panX = 0;
         _panY = 0;
         _positionOverrides?.Clear();
         _animator.Clear();
         StopAnimationTimer();
-        ZoomLevel = 1.0f;
+        ZoomLevel = 1.4f;
         InvalidateVisual();
     }
 }

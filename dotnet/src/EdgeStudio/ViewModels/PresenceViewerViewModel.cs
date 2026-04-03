@@ -30,7 +30,7 @@ public partial class PresenceViewerViewModel : ViewModelBase
     private string _lastUpdatedText = "--:--:-- --";
 
     [ObservableProperty]
-    private bool _showDirectOnly;
+    private bool _showDirectOnly = true;
 
     public string ZoomPercentage => $"{(int)(ZoomLevel * 100)}%";
 

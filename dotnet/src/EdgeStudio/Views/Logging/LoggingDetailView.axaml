@@ -193,14 +193,6 @@
                     </StackPanel>
                 </Button>
 
-                <Button Theme="{StaticResource SourceTabTheme}"
-                        Classes.SourceActive="{Binding IsSourceImported}"
-                        Command="{Binding SelectSourceImportedCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Ellipse Classes="SourceDot" Width="7" Height="7" VerticalAlignment="Center"/>
-                        <TextBlock Text="Imported" FontSize="14" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
 
             </StackPanel>
         </Border>
@@ -244,7 +236,7 @@
                     <!-- spacer -->
                     <Grid Grid.Column="5"/>
 
-                    <!-- Component (SDK + Imported only) -->
+                    <!-- Component (SDK only) -->
                     <ComboBox Grid.Column="6"
                               ItemsSource="{Binding ComponentOptions}"
                               SelectedItem="{Binding SelectedComponent}"

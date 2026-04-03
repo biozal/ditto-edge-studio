@@ -71,8 +71,8 @@
             <!-- Help Menu -->
             <NativeMenuItem Header="Help">
                 <NativeMenu>
-                    <NativeMenuItem Header="Edge Studio Documentation" />
-                    <NativeMenuItem Header="Visit Ditto Website" />
+                    <NativeMenuItem Header="Edge Studio Documentation" Click="HelpDocumentation_Click" />
+                    <NativeMenuItem Header="Visit Ditto Website" Click="VisitDittoWebsite_Click" />
                 </NativeMenu>
             </NativeMenuItem>
         </NativeMenu>

@@ -23,7 +23,7 @@ public class PresenceViewerViewModelTests
     public void Constructor_ShouldInitializeWithDefaults()
     {
         var vm = new PresenceViewerViewModel(_lazySystemRepo);
-        vm.ShowDirectOnly.Should().BeFalse();
+        vm.ShowDirectOnly.Should().BeTrue();
         vm.ZoomLevel.Should().Be(1.4f);
         vm.ZoomPercentage.Should().Be("140%");
         vm.Snapshot.Should().BeNull();
