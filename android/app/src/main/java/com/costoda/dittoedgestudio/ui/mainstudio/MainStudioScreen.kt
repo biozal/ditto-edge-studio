@@ -111,6 +111,7 @@ import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 import com.costoda.dittoedgestudio.ui.theme.TrafficBlack
 import com.costoda.dittoedgestudio.ui.theme.TrafficWhite
 import androidx.compose.runtime.collectAsState
+import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
@@ -238,6 +239,7 @@ private fun PhoneLayout(
         }
 
         SubscriptionEditorSheetIfNeeded(viewModel)
+        ObserverEditorSheetIfNeeded(viewModel)
     }
 }
 
@@ -355,6 +357,7 @@ private fun TabletLayout(
     }
 
     SubscriptionEditorSheetIfNeeded(viewModel)
+    ObserverEditorSheetIfNeeded(viewModel)
 
     if (viewModel.showAddIndex) {
         val collections by viewModel.collections.collectAsState()
@@ -543,13 +546,36 @@ private fun PhoneDrawerContent(
             }
         }
 
-        SectionHeader(title = "OBSERVERS")
-        Text(
-            text = "No Observers",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        SectionHeader(
+            title = "OBSERVERS",
+            trailingIcon = Icons.Filled.Add,
+            onTrailingClick = { viewModel.editingObserver = DittoObservable() },
         )
+        val observers by viewModel.observers.collectAsState()
+        if (observers.isEmpty()) {
+            Text(
+                text = "No Observers",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        } else {
+            observers.forEach { observer ->
+                ObserverListItem(
+                    observer = observer,
+                    isSelected = viewModel.selectedObserver?.id == observer.id,
+                    isActive = viewModel.isObserverActive(observer),
+                    onSelect = {
+                        viewModel.selectObserver(observer)
+                        viewModel.selectedNavItem = StudioNavItem.OBSERVERS
+                    },
+                    onActivate = { viewModel.activateObserver(observer) },
+                    onDeactivate = { viewModel.deactivateObserver(observer) },
+                    onEdit = { viewModel.editingObserver = observer },
+                    onDelete = { viewModel.removeObserver(observer) },
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
@@ -635,13 +661,36 @@ private fun DataPanel(viewModel: MainStudioViewModel, modifier: Modifier = Modif
                 }
             }
 
-            SectionHeader(title = "OBSERVERS")
-            Text(
-                text = "No Observers",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            SectionHeader(
+                title = "OBSERVERS",
+                trailingIcon = Icons.Filled.Add,
+                onTrailingClick = { viewModel.editingObserver = DittoObservable() },
             )
+            val observers by viewModel.observers.collectAsState()
+            if (observers.isEmpty()) {
+                Text(
+                    text = "No Observers",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            } else {
+                observers.forEach { observer ->
+                    ObserverListItem(
+                        observer = observer,
+                        isSelected = viewModel.selectedObserver?.id == observer.id,
+                        isActive = viewModel.isObserverActive(observer),
+                        onSelect = {
+                            viewModel.selectObserver(observer)
+                            viewModel.selectedNavItem = StudioNavItem.OBSERVERS
+                        },
+                        onActivate = { viewModel.activateObserver(observer) },
+                        onDeactivate = { viewModel.deactivateObserver(observer) },
+                        onEdit = { viewModel.editingObserver = observer },
+                        onDelete = { viewModel.removeObserver(observer) },
+                    )
+                }
+            }
         }
 
         // FAB menu floats at bottom-right of the data panel
@@ -750,6 +799,16 @@ private fun ContentPlaceholder(
                     DiskUsageScreen(
                         viewModel = diskUsageViewModel,
                         modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                viewModel.selectedNavItem == StudioNavItem.OBSERVERS -> {
+                    ObserverDetailScreen(
+                        selectedObserver = viewModel.selectedObserver,
+                        events = viewModel.selectedObserverEvents(),
+                        selectedEvent = viewModel.selectedEvent,
+                        filterMode = viewModel.eventFilterMode,
+                        onSelectEvent = { viewModel.selectEvent(it) },
+                        onFilterChange = { viewModel.eventFilterMode = it },
                     )
                 }
                 else -> {
@@ -1056,6 +1115,20 @@ private fun SubscriptionEditorSheetIfNeeded(viewModel: MainStudioViewModel) {
                 else viewModel.updateSubscription(sub.copy(name = name, query = query))
             },
             onDismiss = { viewModel.editingSubscription = null },
+        )
+    }
+}
+
+@Composable
+private fun ObserverEditorSheetIfNeeded(viewModel: MainStudioViewModel) {
+    viewModel.editingObserver?.let { observer ->
+        ObserverEditorSheet(
+            initial = observer,
+            onSave = { name, query ->
+                if (observer.id == 0L) viewModel.addObserver(name, query)
+                else viewModel.updateObserver(observer, name, query)
+            },
+            onDismiss = { viewModel.editingObserver = null },
         )
     }
 }
