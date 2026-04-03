@@ -22,6 +22,9 @@ public class PresenceGraphControl : Control
 {
     private WriteableBitmap? _bitmap;
     private readonly PresenceGraphRenderer _renderer = new();
+    private readonly PresenceGraphAnimator _animator = new();
+    private Avalonia.Threading.DispatcherTimer? _animationTimer;
+    private DateTime _lastTickTime = DateTime.UtcNow;
 
     private float _zoom = 1.0f;
     private float _panX = 0;
@@ -73,9 +76,14 @@ public class PresenceGraphControl : Control
     {
         base.OnPropertyChanged(change);
         if (change.Property == ZoomLevelProperty)
+        {
             _zoom = change.GetNewValue<float>();
-        else if (change.Property == PositionsProperty)
+        }
+        else if (change.Property == PositionsProperty || change.Property == SnapshotProperty)
+        {
             PruneOverrides();
+            FeedAnimator();
+        }
     }
 
     /// <summary>
@@ -83,17 +91,22 @@ public class PresenceGraphControl : Control
     /// </summary>
     private Dictionary<string, NodePosition> GetEffectivePositions()
     {
-        var positions = Positions;
-        if (positions == null) return new();
-        if (_positionOverrides == null || _positionOverrides.Count == 0) return positions;
+        var positions = _animator.NodeStates.Count > 0
+            ? _animator.GetEffectivePositions()
+            : Positions ?? new Dictionary<string, NodePosition>();
 
-        var effective = new Dictionary<string, NodePosition>(positions);
-        foreach (var (key, pos) in _positionOverrides)
+        if (_positionOverrides != null && _positionOverrides.Count > 0)
         {
-            if (effective.ContainsKey(key))
-                effective[key] = pos;
+            var effective = new Dictionary<string, NodePosition>(positions);
+            foreach (var (key, pos) in _positionOverrides)
+            {
+                if (effective.ContainsKey(key))
+                    effective[key] = pos;
+            }
+            return effective;
         }
-        return effective;
+
+        return positions;
     }
 
     /// <summary>
@@ -106,6 +119,51 @@ public class PresenceGraphControl : Control
             .Where(k => !Positions.ContainsKey(k)).ToList();
         foreach (var key in keysToRemove)
             _positionOverrides.Remove(key);
+    }
+
+    private void FeedAnimator()
+    {
+        var positions = Positions;
+        var snapshot = Snapshot;
+        if (positions == null || snapshot == null) return;
+
+        _animator.UpdateLayout(positions, snapshot);
+        StartAnimationTimer();
+    }
+
+    private void StartAnimationTimer()
+    {
+        if (_animationTimer != null) return;
+        _lastTickTime = DateTime.UtcNow;
+        _animationTimer = new Avalonia.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(16) // ~60fps
+        };
+        _animationTimer.Tick += OnAnimationTick;
+        _animationTimer.Start();
+    }
+
+    private void StopAnimationTimer()
+    {
+        if (_animationTimer == null) return;
+        _animationTimer.Stop();
+        _animationTimer.Tick -= OnAnimationTick;
+        _animationTimer = null;
+    }
+
+    private void OnAnimationTick(object? sender, EventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        var dt = (float)(now - _lastTickTime).TotalSeconds;
+        _lastTickTime = now;
+
+        dt = MathF.Min(dt, 0.1f); // Clamp to prevent large jumps
+
+        _animator.Tick(dt);
+        InvalidateVisual();
+
+        if (!_animator.IsAnimating)
+            StopAnimationTimer();
     }
 
     /// <summary>
@@ -194,7 +252,8 @@ public class PresenceGraphControl : Control
 
             if (snapshot != null && positions.Count > 0)
                 _renderer.Render(canvas, pixelWidth, pixelHeight, snapshot, positions, _zoom, _panX, _panY,
-                    highlightedNodeKey: _draggedNodeKey ?? _hoveredNodeKey);
+                    highlightedNodeKey: _draggedNodeKey ?? _hoveredNodeKey,
+                    nodeStates: _animator.NodeStates.Count > 0 ? _animator.NodeStates : null);
             else
                 canvas.Clear(SKColors.Transparent);
         }
@@ -316,6 +375,8 @@ public class PresenceGraphControl : Control
         _panX = 0;
         _panY = 0;
         _positionOverrides?.Clear();
+        _animator.Clear();
+        StopAnimationTimer();
         ZoomLevel = 1.0f;
         InvalidateVisual();
     }
