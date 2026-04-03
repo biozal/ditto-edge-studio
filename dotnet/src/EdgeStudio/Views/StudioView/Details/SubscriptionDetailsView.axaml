@@ -38,7 +38,7 @@
                     <TextBlock Text="Last updated:"
                                FontSize="12"
                                Opacity="0.7"/>
-                    <TextBlock Text="{Binding PeersList.LastUpdatedText, FallbackValue='--:--:-- --'}"
+                    <TextBlock Text="{Binding LastUpdatedText, FallbackValue='--:--:-- --'}"
                                FontSize="12"
                                Opacity="0.7"/>
                 </StackPanel>
