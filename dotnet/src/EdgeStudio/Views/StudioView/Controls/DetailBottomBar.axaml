@@ -32,7 +32,9 @@
                 Background="#CC1A1F2E"
                 CornerRadius="10"
                 BoxShadow="0 -2 12 2 #40000000"
-                Margin="12,0,12,12">
+                Margin="12,0,12,12"
+                Cursor="Hand"
+                PointerPressed="ExpandedBar_PointerPressed">
             <Grid ColumnDefinitions="Auto,*,Auto" Height="44">
 
                 <!-- Left: context-aware content driven by CurrentBottomBarContent -->
@@ -186,6 +188,15 @@
                                            Foreground="White"
                                            Opacity="0.75"
                                            VerticalAlignment="Center"/>
+                                <Button Command="{Binding ExportLogsCommand}"
+                                        Padding="8,4"
+                                        CornerRadius="6"
+                                        Background="#4CAF50"
+                                        ToolTip.Tip="Export logs to file">
+                                    <avalonia:MaterialIcon Kind="FileExportOutline"
+                                                           Width="14" Height="14"
+                                                           Foreground="White"/>
+                                </Button>
                                 <Button Command="{Binding ClearCurrentSourceCommand}"
                                         Padding="8,4"
                                         CornerRadius="6"
@@ -201,20 +212,18 @@
                     </ContentControl.DataTemplates>
                 </ContentControl>
 
-                <!-- Center: empty spacer -->
+                <!-- Spacer: clickable area to collapse -->
                 <Panel Grid.Column="1"/>
 
-                <!-- Right: collapse button -->
-                <Button Grid.Column="2"
-                        Classes="BarButton"
-                        Padding="20,12"
-                        VerticalAlignment="Center"
-                        Click="CollapseButton_Click">
-                    <avalonia:MaterialIcon Kind="ChevronDoubleRight"
-                                           Width="16" Height="16"
-                                           Foreground="White"
-                                           Opacity="0.55"/>
-                </Button>
+                <!-- Right: collapse indicator icon (non-interactive, whole bar is clickable) -->
+                <avalonia:MaterialIcon Grid.Column="2"
+                                       Kind="ChevronDoubleRight"
+                                       Width="16" Height="16"
+                                       Foreground="White"
+                                       Opacity="0.55"
+                                       Margin="0,0,20,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"/>
 
             </Grid>
         </Border>
@@ -226,16 +235,14 @@
                 Background="#CC1A1F2E"
                 CornerRadius="10"
                 BoxShadow="0 -2 12 2 #40000000"
-                Margin="0,0,12,12">
-            <Button Classes="BarButton"
-                    Padding="20,12"
-                    VerticalAlignment="Center"
-                    Click="ExpandButton_Click">
-                <avalonia:MaterialIcon Kind="ChevronDoubleLeft"
-                                       Width="16" Height="16"
-                                       Foreground="White"
-                                       Opacity="0.55"/>
-            </Button>
+                Margin="0,0,12,12"
+                Cursor="Hand"
+                PointerPressed="CollapsedBar_PointerPressed"
+                Padding="20,12">
+            <avalonia:MaterialIcon Kind="ChevronDoubleLeft"
+                                   Width="16" Height="16"
+                                   Foreground="White"
+                                   Opacity="0.55"/>
         </Border>
 
     </Panel>

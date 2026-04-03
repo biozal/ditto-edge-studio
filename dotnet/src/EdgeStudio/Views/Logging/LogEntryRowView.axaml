@@ -18,12 +18,12 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
 
                 <!-- Timestamp -->
-                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.fff}'}"
+                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.ffffff}'}"
                            FontFamily="Cascadia Code, Consolas, Courier New, monospace"
                            FontSize="12"
                            Opacity="0.5"
                            VerticalAlignment="Center"
-                           MinWidth="80"/>
+                           MinWidth="105"/>
 
                 <!-- Level badge (colored pill matching SwiftUI levelBadge) -->
                 <Border Background="{Binding LevelBackgroundHex}"

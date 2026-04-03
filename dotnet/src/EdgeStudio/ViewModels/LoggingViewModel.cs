@@ -1,8 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -340,6 +346,66 @@ public partial class LoggingViewModel : LoadableViewModelBase
         IsDateFilterEnabled = false;
         DateFilterStart = DateTime.Today;
         DateFilterEnd   = DateTime.Now;
+    }
+
+    [RelayCommand]
+    private async Task ExportLogs()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: { } w })
+            return;
+
+        var storageProvider = TopLevel.GetTopLevel(w)?.StorageProvider;
+        if (storageProvider == null) return;
+
+        var sourceName = SelectedSource switch
+        {
+            LogSourceTab.DittoSdk            => "ditto-sdk",
+            LogSourceTab.TransportConditions => "transport-conditions",
+            LogSourceTab.ConnectionRequests  => "connection-requests",
+            LogSourceTab.AppLogs             => "app-logs",
+            LogSourceTab.Imported            => "imported",
+            _                                => "logs"
+        };
+
+        var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Logs",
+            SuggestedFileName = $"edge-studio-{sourceName}-{DateTime.Now:yyyy-MM-dd-HHmmss}.log",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("Log Files") { Patterns = new[] { "*.log" } },
+                new FilePickerFileType("Text Files") { Patterns = new[] { "*.txt" } }
+            }
+        });
+
+        if (file == null) return;
+
+        try
+        {
+            // Snapshot all entries for the current source (unfiltered)
+            List<LogEntry> entries = SelectedSource switch
+            {
+                LogSourceTab.DittoSdk            => _captureService.GetSnapshot(),
+                LogSourceTab.TransportConditions => new List<LogEntry>(_logCaptureService.TransportConditionEntries),
+                LogSourceTab.ConnectionRequests  => new List<LogEntry>(_logCaptureService.ConnectionRequestEntries),
+                LogSourceTab.AppLogs             => _appLogEntries,
+                _                                => new List<LogEntry>()
+            };
+
+            var sb = new StringBuilder();
+            foreach (var entry in entries)
+                sb.AppendLine($"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.ffffff} [{entry.LevelAbbreviation}] {entry.Message}");
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync(sb.ToString());
+
+            ShowSuccess($"Exported {entries.Count} log entries");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Export failed: {ex.Message}");
+        }
     }
 
     // ── Timer + event handlers ────────────────────────────────────────────────
