@@ -79,7 +79,8 @@ public class PresenceGraphRenderer
         PresenceGraphSnapshot snapshot,
         Dictionary<string, NodePosition> positions,
         float zoom, float panX, float panY,
-        string? highlightedNodeKey = null)
+        string? highlightedNodeKey = null,
+        Dictionary<string, AnimatedNodeState>? nodeStates = null)
     {
         canvas.Clear(SKColors.Transparent);
         if (snapshot.Nodes.Count == 0) return;
@@ -88,15 +89,17 @@ public class PresenceGraphRenderer
         canvas.Translate(width / 2 + panX, height / 2 + panY);
         canvas.Scale(zoom);
 
-        DrawEdges(canvas, snapshot, positions);
-        DrawNodes(canvas, snapshot, positions, highlightedNodeKey);
+        DrawEdges(canvas, snapshot, positions, nodeStates);
+        DrawNodes(canvas, snapshot, positions, highlightedNodeKey, nodeStates);
 
         canvas.Restore();
 
         DrawLegend(canvas, width, height, snapshot);
     }
 
-    private void DrawEdges(SKCanvas canvas, PresenceGraphSnapshot snapshot, Dictionary<string, NodePosition> positions)
+    private void DrawEdges(SKCanvas canvas, PresenceGraphSnapshot snapshot,
+        Dictionary<string, NodePosition> positions,
+        Dictionary<string, AnimatedNodeState>? nodeStates)
     {
         // Group edges by peer pair (without connection type) so we can offset
         // multiple connection types between the same two peers.
@@ -123,6 +126,16 @@ public class PresenceGraphRenderer
                 if (!positions.TryGetValue(edge.PeerKey1, out var pos1) ||
                     !positions.TryGetValue(edge.PeerKey2, out var pos2))
                     continue;
+
+                // Derive edge opacity from endpoint nodes
+                float edgeOpacity = 1f;
+                if (nodeStates != null)
+                {
+                    float op1 = nodeStates.TryGetValue(edge.PeerKey1, out var s1) ? s1.Opacity : 1f;
+                    float op2 = nodeStates.TryGetValue(edge.PeerKey2, out var s2) ? s2.Opacity : 1f;
+                    edgeOpacity = MathF.Min(op1, op2);
+                }
+                if (edgeOpacity < 0.01f) continue;
 
                 // Calculate perpendicular offset for this connection within the pair
                 float lineOffset = 0f;
@@ -166,6 +179,7 @@ public class PresenceGraphRenderer
                 var isCloudEdge = edge.PeerKey1 == "ditto-cloud-node" || edge.PeerKey2 == "ditto-cloud-node";
                 var colorKey = isCloudEdge ? "Cloud" : NormalizeConnectionType(edge.ConnectionType);
                 var color = ConnectionColors.GetValueOrDefault(colorKey, DefaultEdgeColor);
+                color = color.WithAlpha((byte)(color.Alpha * edgeOpacity));
                 var dashes = DashPatterns.GetValueOrDefault(colorKey);
 
                 using var paint = new SKPaint
@@ -186,14 +200,24 @@ public class PresenceGraphRenderer
     }
 
     private void DrawNodes(SKCanvas canvas, PresenceGraphSnapshot snapshot,
-        Dictionary<string, NodePosition> positions, string? highlightedNodeKey)
+        Dictionary<string, NodePosition> positions, string? highlightedNodeKey,
+        Dictionary<string, AnimatedNodeState>? nodeStates)
     {
         using var nodeFont = new SKFont(SKTypeface.Default, 11f);
-        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
 
         foreach (var node in snapshot.Nodes)
         {
             if (!positions.TryGetValue(node.PeerKey, out var pos)) continue;
+
+            // Look up per-node animation state
+            float nodeOpacity = 1f;
+            float nodeScale = 1f;
+            if (nodeStates != null && nodeStates.TryGetValue(node.PeerKey, out var animState))
+            {
+                nodeOpacity = animState.Opacity;
+                nodeScale = animState.Scale;
+            }
+            if (nodeOpacity < 0.01f) continue;
 
             var isHighlighted = node.PeerKey == highlightedNodeKey;
             var fillColor = node.IsLocal ? LocalNodeColor : node.IsCloudNode ? CloudNodeColor : RemoteNodeColor;
@@ -203,18 +227,23 @@ public class PresenceGraphRenderer
             var pillHeight = 28f;
             var cornerRadius = pillHeight / 2;
 
-            // Apply 1.1x scale for highlighted (hovered/dragged) node, matching SwiftUI behavior
-            var scale = isHighlighted ? 1.1f : 1.0f;
-            var scaledPillWidth = pillWidth * scale;
-            var scaledPillHeight = pillHeight * scale;
-            var scaledCornerRadius = cornerRadius * scale;
+            // Combine highlight scale with animation scale
+            var highlightScale = isHighlighted ? 1.1f : 1.0f;
+            var combinedScale = highlightScale * nodeScale;
+            var scaledPillWidth = pillWidth * combinedScale;
+            var scaledPillHeight = pillHeight * combinedScale;
+            var scaledCornerRadius = cornerRadius * combinedScale;
 
-            // Draw a subtle glow behind the highlighted node
-            if (isHighlighted)
+            // Apply opacity to fill and text colors
+            var alphaFill = fillColor.WithAlpha((byte)(fillColor.Alpha * nodeOpacity));
+            var alphaText = SKColors.White.WithAlpha((byte)(255 * nodeOpacity));
+
+            // Draw a subtle glow behind the highlighted node (only when sufficiently visible)
+            if (isHighlighted && nodeOpacity > 0.5f)
             {
                 using var glowPaint = new SKPaint
                 {
-                    Color = fillColor.WithAlpha(80),
+                    Color = fillColor.WithAlpha((byte)(80 * nodeOpacity)),
                     IsAntialias = true,
                     Style = SKPaintStyle.Fill,
                     MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 6f)
@@ -227,7 +256,7 @@ public class PresenceGraphRenderer
 
             using var fillPaint = new SKPaint
             {
-                Color = fillColor,
+                Color = alphaFill,
                 IsAntialias = true,
                 Style = SKPaintStyle.Fill
             };
@@ -237,15 +266,17 @@ public class PresenceGraphRenderer
                 (float)pos.X + scaledPillWidth / 2, (float)pos.Y + scaledPillHeight / 2);
             canvas.DrawRoundRect(rect, scaledCornerRadius, scaledCornerRadius, fillPaint);
 
-            // Scale the font for highlighted nodes
-            if (isHighlighted)
+            using var alphaTextPaint = new SKPaint { Color = alphaText, IsAntialias = true };
+
+            // Scale the font for combined scale
+            if (MathF.Abs(combinedScale - 1.0f) > 0.001f)
             {
-                using var highlightFont = new SKFont(SKTypeface.Default, 11f * scale);
-                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f * scale, SKTextAlign.Center, highlightFont, textPaint);
+                using var scaledFont = new SKFont(SKTypeface.Default, 11f * combinedScale);
+                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f * combinedScale, SKTextAlign.Center, scaledFont, alphaTextPaint);
             }
             else
             {
-                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f, SKTextAlign.Center, nodeFont, textPaint);
+                canvas.DrawText(label, (float)pos.X, (float)pos.Y + 4f, SKTextAlign.Center, nodeFont, alphaTextPaint);
             }
         }
     }
