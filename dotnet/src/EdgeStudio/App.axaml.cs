@@ -186,11 +186,17 @@ public partial class App : Application
         services.AddSingleton<ICollectionsRepository, CollectionsRepository>();
         services.AddSingleton<IObserverRepository, SqliteObserverRepository>();
 
+        // Register settings repository
+        var settingsRepo = new SqliteSettingsRepository(localDatabaseService);
+        await settingsRepo.InitializeAsync();
+        services.AddSingleton<ISettingsRepository>(settingsRepo);
+
         // Register system repository as singleton
         services.AddSingleton<ISystemRepository, SystemRepository>();
         services.AddSingleton(provider => new Lazy<ISystemRepository>(() => provider.GetRequiredService<ISystemRepository>()));
 
         // Register ViewModels - Both direct and lazy for DI resolution
+        services.AddTransient<PreferencesViewModel>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<EdgeStudioViewModel>();
         services.AddTransient<NavigationViewModel>();
@@ -398,5 +404,23 @@ public partial class App : Application
         {
             aboutWindow.Show();
         }
+    }
+
+    /// <summary>
+    /// Handles the Preferences menu item click event (macOS app menu)
+    /// </summary>
+    private async void PreferencesMenuItem_Click(object? sender, EventArgs e)
+    {
+        if (_serviceProvider == null) return;
+
+        var vm = _serviceProvider.GetRequiredService<PreferencesViewModel>();
+        await vm.LoadSettingsAsync();
+
+        var window = new Views.Settings.PreferencesWindow(vm);
+
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            _ = window.ShowDialog(desktop.MainWindow);
+        else
+            window.Show();
     }
 }

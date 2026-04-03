@@ -1,0 +1,74 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:vm="using:EdgeStudio.ViewModels"
+                 xmlns:suki="using:SukiUI.Controls"
+                 mc:Ignorable="d"
+                 d:DesignWidth="460"
+                 d:DesignHeight="320"
+                 x:Class="EdgeStudio.Views.Settings.PreferencesWindow"
+                 x:DataType="vm:PreferencesViewModel"
+                 x:CompileBindings="True"
+                 Title="Edge Studio Settings"
+                 Width="460"
+                 SizeToContent="Height"
+                 MaxHeight="500"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <!-- Settings content -->
+        <StackPanel Grid.Row="0" Margin="24,16,24,8" Spacing="16">
+
+            <!-- MCP Server Section -->
+            <TextBlock Text="MCP Server" FontSize="18" FontWeight="SemiBold" />
+
+            <StackPanel Spacing="8">
+                <ToggleSwitch IsChecked="{Binding IsMcpServerEnabled}"
+                              Content="Enable MCP Server"
+                              OnContent="Running"
+                              OffContent="Disabled" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8"
+                            IsVisible="{Binding IsMcpServerEnabled}">
+                    <TextBlock Text="Port:" VerticalAlignment="Center" />
+                    <NumericUpDown x:CompileBindings="False"
+                                   Value="{Binding McpServerPort, Mode=TwoWay}"
+                                   Minimum="1024"
+                                   Maximum="65535"
+                                   FormatString="0"
+                                   Width="120" />
+                </StackPanel>
+
+                <TextBlock Text="The MCP server allows AI assistants like Claude Code to interact with your Ditto databases. It listens on localhost only."
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Opacity="0.6" />
+            </StackPanel>
+
+        </StackPanel>
+
+        <!-- Footer: status + buttons -->
+        <StackPanel Grid.Row="1" Margin="24,4,24,16" Spacing="8">
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12"
+                       Opacity="0.7"
+                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <Grid ColumnDefinitions="*,Auto">
+                <Button Content="Close"
+                        Classes="Flat"
+                        Click="Close_Click" />
+                <Button Grid.Column="1"
+                        Content="Save"
+                        Command="{Binding SaveSettingsCommand}" />
+            </Grid>
+        </StackPanel>
+
+    </Grid>
+
+</suki:SukiWindow>

@@ -48,6 +48,8 @@
                     <NativeMenuItem Header="Paste" Gesture="Meta+V" />
                     <NativeMenuItemSeparator />
                     <NativeMenuItem Header="Select All" Gesture="Meta+A" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Settings…" Click="Settings_Click" />
                 </NativeMenu>
             </NativeMenuItem>
 

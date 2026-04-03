@@ -146,6 +146,16 @@ public partial class MainWindow : SukiWindow,
         }
     }
 
+    private async void Settings_Click(object? sender, EventArgs e)
+    {
+        var vm = App.ServiceProvider?.GetService(typeof(PreferencesViewModel)) as PreferencesViewModel;
+        if (vm == null) return;
+
+        await vm.LoadSettingsAsync();
+        var window = new Settings.PreferencesWindow(vm);
+        _ = window.ShowDialog(this);
+    }
+
     private void HelpDocumentation_Click(object? sender, EventArgs e)
     {
         var window = new UserGuideWindow();
