@@ -2,64 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Bundle Executable -->
-    <key>CFBundleExecutable</key>
-    <string>EdgeStudio</string>
-
-    <!-- Bundle Identifier (reverse DNS notation) -->
-    <key>CFBundleIdentifier</key>
-    <string>com.costoda.edgestudionet</string>
-
-    <!-- Info.plist version -->
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-
-    <!-- Bundle Name (internal name) -->
-    <key>CFBundleName</key>
-    <string>Edge Studio</string>
-
-    <!-- Bundle Display Name (shown to users) -->
-    <key>CFBundleDisplayName</key>
-    <string>Edge Studio</string>
-
-    <!-- Application Package Type -->
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-
-    <!-- Version String (shown in About dialog) -->
-    <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
-
-    <!-- Build Version -->
-    <key>CFBundleVersion</key>
-    <string>1</string>
-
-    <!-- Application Icon File -->
-    <key>CFBundleIconFile</key>
-    <string>EdgeStudio.icns</string>
-
-    <!-- Principal Class -->
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-
-    <!-- High Resolution Capable -->
-    <key>NSHighResolutionCapable</key>
-    <true/>
-
-    <!-- Minimum System Version (macOS 15+) -->
-    <key>LSMinimumSystemVersion</key>
-    <string>15.0</string>
-
-    <!-- Copyright -->
-    <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2025 under MIT License</string>
-
-    <!-- Category (Application Type) -->
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.developer-tools</string>
-
-    <!-- Bluetooth Permission (required by Ditto SDK for peer-to-peer sync) -->
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Edge Studio uses Bluetooth to synchronize your database with nearby devices for real-time collaboration and offline data sync.</string>
+	<key>CFBundleExecutable</key>
+	<string>EdgeStudio</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.costoda.edgestudionet</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Edge Studio</string>
+	<key>CFBundleDisplayName</key>
+	<string>Edge Studio</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0b4</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleIconFile</key>
+	<string>EdgeStudio.icns</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 under MIT License</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Edge Studio uses Bluetooth to synchronize your database with nearby devices for real-time collaboration and offline data sync.</string>
 </dict>
 </plist>

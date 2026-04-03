@@ -16,7 +16,7 @@ namespace EdgeStudioTests
         public PreferencesViewModelTests()
         {
             _mockSettings = new Mock<ISettingsRepository>();
-            _vm = new PreferencesViewModel(_mockSettings.Object, null);
+            _vm = new PreferencesViewModel(_mockSettings.Object, null, null!);
         }
 
         [Fact]

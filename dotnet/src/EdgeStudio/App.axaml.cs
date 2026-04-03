@@ -8,6 +8,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.Messaging;
 using SukiUI;
 using SukiUI.Models;
+using EdgeStudio.Data.McpServer;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Services;
@@ -73,6 +74,11 @@ public partial class App : Application
     {
         try
         {
+            // Stop MCP server if running
+            var mcpService = _serviceProvider?.GetService<McpServerService>();
+            if (mcpService?.IsRunning == true)
+                mcpService.StopAsync().GetAwaiter().GetResult();
+
             // Stop Ditto log capture
             var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
             logCapture?.Dispose();
@@ -195,6 +201,10 @@ public partial class App : Application
         services.AddSingleton<ISystemRepository, SystemRepository>();
         services.AddSingleton(provider => new Lazy<ISystemRepository>(() => provider.GetRequiredService<ISystemRepository>()));
 
+        // Register MCP server service as singleton (uses IServiceProvider from built container)
+        services.AddSingleton<McpServerService>(sp =>
+            new McpServerService(sp, sp.GetRequiredService<ISettingsRepository>()));
+
         // Register ViewModels - Both direct and lazy for DI resolution
         services.AddTransient<PreferencesViewModel>();
         services.AddTransient<MainWindowViewModel>();
@@ -223,6 +233,14 @@ public partial class App : Application
         services.AddSingleton(provider => new Lazy<IndexesToolViewModel>(() => provider.GetRequiredService<IndexesToolViewModel>()));
 
         _serviceProvider = services.BuildServiceProvider();
+
+        // Auto-start MCP server if enabled in settings
+        var mcpEnabled = await settingsRepo.GetBoolAsync("mcpServerEnabled", defaultValue: false);
+        if (mcpEnabled)
+        {
+            var mcpService = _serviceProvider.GetRequiredService<McpServerService>();
+            _ = Task.Run(async () => await mcpService.StartAsync());
+        }
     }
 
     private static void SetupDittoThemes()
