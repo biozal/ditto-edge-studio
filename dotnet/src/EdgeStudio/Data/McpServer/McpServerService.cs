@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
-using Serilog;
 
 namespace EdgeStudio.Data.McpServer
 {
@@ -17,9 +16,9 @@ namespace EdgeStudio.Data.McpServer
     {
         private readonly IServiceProvider _appServices;
         private readonly ISettingsRepository _settings;
+        private readonly ILoggingService _log;
         private WebApplication? _webApp;
         private CancellationTokenSource? _cts;
-        private Task? _serverTask;
 
         public bool IsRunning { get; private set; }
         public int Port { get; private set; }
@@ -28,6 +27,7 @@ namespace EdgeStudio.Data.McpServer
         {
             _appServices = appServices;
             _settings = settings;
+            _log = appServices.GetRequiredService<ILoggingService>();
         }
 
         public async Task StartAsync()
@@ -35,6 +35,7 @@ namespace EdgeStudio.Data.McpServer
             if (IsRunning) return;
 
             Port = await _settings.GetIntAsync("mcpServerPort", defaultValue: 65269);
+            _log.Info($"MCP server starting on port {Port}...");
 
             try
             {
@@ -67,19 +68,22 @@ namespace EdgeStudio.Data.McpServer
                 builder.Services.AddSingleton(_appServices.GetRequiredService<IImportService>());
 
                 _webApp = builder.Build();
+
+                // Map MCP at root — SSE endpoint at /sse, Streamable HTTP at /
                 _webApp.MapMcp();
 
                 _cts = new CancellationTokenSource();
 
                 await _webApp.StartAsync(_cts.Token);
-                _serverTask = Task.CompletedTask;
                 IsRunning = true;
 
-                Log.Information("MCP server started on port {Port}", Port);
+                _log.Info($"MCP server started successfully on http://localhost:{Port}");
+                _log.Info($"  SSE endpoint: http://localhost:{Port}/sse");
+                _log.Info($"  Streamable HTTP endpoint: http://localhost:{Port}/mcp");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to start MCP server");
+                _log.Error($"Failed to start MCP server: {ex.Message}");
                 IsRunning = false;
             }
         }
@@ -87,6 +91,8 @@ namespace EdgeStudio.Data.McpServer
         public async Task StopAsync()
         {
             if (!IsRunning) return;
+
+            _log.Info("MCP server stopping...");
 
             try
             {
@@ -99,23 +105,17 @@ namespace EdgeStudio.Data.McpServer
                     _webApp = null;
                 }
 
-                if (_serverTask != null)
-                {
-                    try { await _serverTask; } catch (OperationCanceledException) { }
-                    _serverTask = null;
-                }
-
                 _cts?.Dispose();
                 _cts = null;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error stopping MCP server");
+                _log.Error($"Error stopping MCP server: {ex.Message}");
             }
             finally
             {
                 IsRunning = false;
-                Log.Information("MCP server stopped");
+                _log.Info("MCP server stopped");
             }
         }
 

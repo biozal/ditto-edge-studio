@@ -58,13 +58,26 @@ namespace EdgeStudio.ViewModels
                 {
                     if (IsMcpServerEnabled && !_mcpServer.IsRunning)
                     {
-                        _ = Task.Run(async () => await _mcpServer.StartAsync());
-                        StatusMessage = "Settings saved. MCP server starting...";
+                        StatusMessage = "Starting MCP server...";
+                        try
+                        {
+                            await _mcpServer.StartAsync();
+                            IsMcpServerRunning = _mcpServer.IsRunning;
+                            StatusMessage = _mcpServer.IsRunning
+                                ? $"MCP server running on port {McpServerPort}."
+                                : "MCP server failed to start. Check App Logs.";
+                        }
+                        catch (Exception startEx)
+                        {
+                            StatusMessage = $"MCP server failed: {startEx.Message}";
+                            ShowError($"MCP server failed to start: {startEx.Message}");
+                        }
                     }
                     else if (!IsMcpServerEnabled && _mcpServer.IsRunning)
                     {
-                        _ = Task.Run(async () => await _mcpServer.StopAsync());
-                        StatusMessage = "Settings saved. MCP server stopped.";
+                        await _mcpServer.StopAsync();
+                        IsMcpServerRunning = false;
+                        StatusMessage = "MCP server stopped.";
                     }
                     else
                     {
