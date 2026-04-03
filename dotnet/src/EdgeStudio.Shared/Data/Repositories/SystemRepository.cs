@@ -467,23 +467,30 @@ namespace EdgeStudio.Shared.Data.Repositories
                     .Where(c => c.PeerKey1 == localPeerKey || c.PeerKey2 == localPeerKey))
                 {
                     var typeStr = conn.ConnectionType.ToString();
-                    if (!seenTypes.Add(typeStr))
+                    // Normalize casing — SDK returns varying forms (e.g. "bluetooth", "WiFi", "p2pWifi")
+                    var normalizedType = typeStr switch
+                    {
+                        "WiFi" or "Wifi" or "wifi" or "accessPoint" => "AccessPoint",
+                        "P2PWiFi" or "p2pwifi" or "P2Pwifi" or "p2pWifi" => "P2PWifi",
+                        "Awdl" or "awdl" => "AWDL",
+                        "bluetooth" => "Bluetooth",
+                        "websocket" or "Websocket" => "WebSocket",
+                        _ => typeStr
+                    };
+                    if (!seenTypes.Add(normalizedType))
                         continue;
 
-                    _logger?.Debug($"[ConnectionCount] peer={peer.PeerKey} connType=\"{typeStr}\" (int={conn.ConnectionType:D})");
+                    _logger?.Debug($"[ConnectionCount] peer={peer.PeerKey} connType=\"{normalizedType}\" raw=\"{typeStr}\"");
 
-                    switch (typeStr)
+                    switch (normalizedType)
                     {
                         case "AccessPoint":  accessPoint++;  break;
-                        case "AWDL":
-                        case "Awdl":
-                        case "awdl":         awdl++;         break;
+                        case "AWDL":         awdl++;         break;
                         case "Bluetooth":    bluetooth++;    break;
                         case "WebSocket":    webSocket++;    break;
-                        case "P2PWifi":
-                        case "P2PWiFi":      p2pWifi++;      break;
+                        case "P2PWifi":      p2pWifi++;      break;
                         default:
-                            _logger?.Warning($"[ConnectionCount] UNHANDLED type: \"{typeStr}\"");
+                            _logger?.Warning($"[ConnectionCount] UNHANDLED type: \"{normalizedType}\" (raw: \"{typeStr}\")");
                             break;
                     }
                 }
