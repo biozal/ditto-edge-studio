@@ -250,8 +250,25 @@ public class PresenceGraphControl : Control
             var snapshot = Snapshot;
             var positions = GetEffectivePositions();
 
-            if (snapshot != null && positions.Count > 0)
-                _renderer.Render(canvas, pixelWidth, pixelHeight, snapshot, positions, _zoom, _panX, _panY,
+            // Build extended snapshot that includes disappearing nodes
+            var renderSnapshot = snapshot;
+            if (snapshot != null && _animator.NodeStates.Count > 0)
+            {
+                var disappearingNodes = _animator.NodeStates
+                    .Where(kv => kv.Value.Phase == AnimationPhase.Disappearing
+                        && !snapshot.Nodes.Any(n => n.PeerKey == kv.Key))
+                    .Select(kv => new PresenceNode(kv.Key, kv.Key, false, false, false, null))
+                    .ToList();
+
+                if (disappearingNodes.Count > 0)
+                {
+                    var allNodes = snapshot.Nodes.Concat(disappearingNodes).ToList();
+                    renderSnapshot = new PresenceGraphSnapshot(allNodes, snapshot.AllEdges, snapshot.LocalPeerKey);
+                }
+            }
+
+            if (renderSnapshot != null && positions.Count > 0)
+                _renderer.Render(canvas, pixelWidth, pixelHeight, renderSnapshot, positions, _zoom, _panX, _panY,
                     highlightedNodeKey: _draggedNodeKey ?? _hoveredNodeKey,
                     nodeStates: _animator.NodeStates.Count > 0 ? _animator.NodeStates : null);
             else
