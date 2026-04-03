@@ -408,6 +408,12 @@ namespace EdgeStudio.Shared.Data.Repositories
                         }
 
                         var snapshot = new PresenceGraphSnapshot(nodes, edges, localPeerKey);
+
+                        // Update connection counts so the bottom bar stays current even when
+                        // the Peers List tab is not active (it deactivates its own observer).
+                        var dittoServerCount = isConnectedToCloud ? 1 : 0;
+                        PublishConnectionCounts(presenceGraph, dittoServerCount);
+
                         onUpdate(snapshot);
                     }
                     catch (Exception ex)
