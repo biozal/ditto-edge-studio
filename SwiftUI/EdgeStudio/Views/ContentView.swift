@@ -5,6 +5,17 @@ struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
+    #if os(macOS)
+    @State private var quickstartService = QuickstartDownloadService()
+    @State private var showNoConnectionAlert = false
+    @State private var showExistingFolderAlert = false
+    @State private var showDownloadErrorAlert = false
+    @State private var downloadErrorMessage = ""
+    @State private var quickstartDestination: URL?
+    @State private var existingFolderURL: URL?
+    @State private var continueWithoutConfig = false
+    #endif
+
     var body: some View {
         Group {
             if viewModel.isClosingDatabase {
@@ -241,6 +252,127 @@ extension ContentView {
                 Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
             }
             .frame(minWidth: 480, minHeight: 360)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+            startQuickstartDownload()
+        }
+        .alert("No Database Connection", isPresented: $showNoConnectionAlert) {
+            Button("Continue Anyway") {
+                continueWithoutConfig = true
+                openFolderPickerAndDownload(configureEnv: false)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
+        }
+        .alert("Quickstarts Folder Exists", isPresented: $showExistingFolderAlert) {
+            Button("Replace", role: .destructive) {
+                if let existing = existingFolderURL, let dest = quickstartDestination {
+                    try? quickstartService.removeExistingFolder(at: existing)
+                    let hasConfig = DittoManager.shared.dittoSelectedApp != nil
+                        && DittoManager.shared.dittoSelectedAppConfig != nil
+                    Task {
+                        await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
+                    }
+                }
+            }
+            Button("Choose Different Location") {
+                let hasConfig = DittoManager.shared.dittoSelectedApp != nil
+                    && DittoManager.shared.dittoSelectedAppConfig != nil
+                openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
+        }
+        .alert("Download Error", isPresented: $showDownloadErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(downloadErrorMessage)
+        }
+    }
+}
+
+// MARK: - Quickstart Download Flow (macOS)
+
+extension ContentView {
+    func startQuickstartDownload() {
+        let hasConnection = DittoManager.shared.dittoSelectedApp != nil
+            && DittoManager.shared.dittoSelectedAppConfig != nil
+
+        continueWithoutConfig = false
+
+        if !hasConnection {
+            showNoConnectionAlert = true
+        } else {
+            openFolderPickerAndDownload(configureEnv: true)
+        }
+    }
+
+    func openFolderPickerAndDownload(configureEnv: Bool) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Download Location for Quickstarts"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            return
+        }
+
+        quickstartDestination = selectedURL
+
+        // Check for existing folder
+        if let existing = quickstartService.existingQuickstartFolder(in: selectedURL) {
+            existingFolderURL = existing
+            showExistingFolderAlert = true
+            return
+        }
+
+        Task {
+            await performDownload(to: selectedURL, configureEnv: configureEnv)
+        }
+    }
+
+    func performDownload(to destination: URL, configureEnv: Bool) async {
+        do {
+            let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
+
+            if configureEnv, let config = await DittoManager.shared.dittoSelectedAppConfig {
+                quickstartService.configureEnvFiles(
+                    in: extractedDir,
+                    databaseId: config.databaseId,
+                    token: config.token,
+                    authUrl: config.authUrl,
+                    websocketUrl: config.websocketUrl
+                )
+
+                try? quickstartService.configureEdgeServerYaml(
+                    in: extractedDir,
+                    databaseId: config.databaseId,
+                    token: config.token,
+                    authUrl: config.authUrl
+                )
+            }
+
+            quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
+
+            // Small delay to let discoverProjects populate on MainActor
+            try? await Task.sleep(for: .milliseconds(100))
+
+            let projects = quickstartService.projects
+            WindowController.showQuickstartBrowser(
+                projects: projects,
+                isConfigured: configureEnv,
+                directory: extractedDir
+            )
+        } catch {
+            await MainActor.run {
+                downloadErrorMessage = error.localizedDescription
+                showDownloadErrorAlert = true
+            }
         }
     }
 }
