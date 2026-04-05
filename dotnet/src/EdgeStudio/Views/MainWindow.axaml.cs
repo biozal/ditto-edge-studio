@@ -191,9 +191,9 @@ public partial class MainWindow : SukiWindow,
 
     private async void DownloadQuickstarts_Click(object? sender, EventArgs e)
     {
+        var vm = DataContext as MainWindowViewModel;
         try
         {
-            var vm = DataContext as MainWindowViewModel;
             var hasDatabase = vm?.SelectedDatabase != null;
 
             // If no active database connection, warn the user
@@ -249,33 +249,51 @@ public partial class MainWindow : SukiWindow,
                 existingFolder = service.ExistingQuickstartFolder(chosenDirectory);
             }
 
-            // Download and extract
-            var quickstartDir = await service.DownloadAndExtractAsync(chosenDirectory);
+            // Show progress window
+            var progressWindow = new QuickstartProgressWindow();
+            progressWindow.Show(this);
 
-            // Configure if database is connected
-            bool isConfigured = false;
-            if (hasDatabase && vm?.SelectedDatabase != null)
+            try
             {
-                var db = vm.SelectedDatabase;
-                service.ConfigureEnvFiles(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl, db.WebsocketUrl);
-                service.ConfigureEdgeServerYaml(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl);
-                isConfigured = true;
-            }
+                // Download and extract
+                var progress = new Progress<string>(msg =>
+                    progressWindow.UpdateProgress(msg.Contains("Extracting") ? 50 : 10, msg));
+                progressWindow.UpdateProgress(10, "Downloading quickstarts from GitHub...");
+                var quickstartDir = await service.DownloadAndExtractAsync(chosenDirectory, progress);
 
-            // Discover projects and open browser window
-            var projects = service.DiscoverProjects(quickstartDir, isConfigured);
-            var browserWindow = new QuickstartBrowserWindow(projects, quickstartDir, isConfigured);
-            browserWindow.Show();
+                // Configure if database is connected
+                bool isConfigured = false;
+                if (hasDatabase && vm?.SelectedDatabase != null)
+                {
+                    progressWindow.UpdateProgress(60, "Configuring .env files...");
+                    var db = vm.SelectedDatabase;
+                    service.ConfigureEnvFiles(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl, db.WebsocketUrl);
+                    progressWindow.UpdateProgress(80, "Configuring edge-server...");
+                    service.ConfigureEdgeServerYaml(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl);
+                    isConfigured = true;
+                }
+
+                // Discover projects
+                progressWindow.UpdateProgress(90, "Discovering projects...");
+                var projects = service.DiscoverProjects(quickstartDir, isConfigured);
+
+                // Done — close progress and open browser window
+                progressWindow.ShowComplete();
+                await Task.Delay(600);
+                progressWindow.Close();
+
+                var browserWindow = new QuickstartBrowserWindow(projects, quickstartDir, isConfigured);
+                browserWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ERROR] Download Quickstarts failed: {ex}");
+                progressWindow.ShowError(ex.Message);
+            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ERROR] Download Quickstarts failed: {ex}");
-            var errorBuilder = DialogManager.CreateDialog();
-            errorBuilder.SetType(NotificationType.Error);
-            errorBuilder.SetTitle("Download Failed");
-            errorBuilder.SetContent($"Failed to download quickstarts: {ex.Message}");
-            errorBuilder.AddActionButton("OK", _ => { }, dismissOnClick: true, classes: []);
-            errorBuilder.TryShow();
+            System.Diagnostics.Debug.WriteLine($"[ERROR] Download Quickstarts pre-flight failed: {ex}");
         }
     }
 
