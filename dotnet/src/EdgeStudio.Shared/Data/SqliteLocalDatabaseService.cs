@@ -137,6 +137,16 @@ namespace EdgeStudio.Shared.Data
                     created_date    TEXT NOT NULL,
                     selected_app_id TEXT NOT NULL DEFAULT ''
                 );
+
+                CREATE TABLE IF NOT EXISTS observers (
+                    id              TEXT PRIMARY KEY,
+                    name            TEXT NOT NULL,
+                    query           TEXT NOT NULL,
+                    selected_app_id TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_observers_selected_app_id
+                    ON observers(selected_app_id);
             ";
             await cmd.ExecuteNonQueryAsync();
             await MigrateSchemaAsync(connection);

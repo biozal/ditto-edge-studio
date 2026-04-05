@@ -17,6 +17,7 @@ fontawesome
 SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 .periphery_baseline.json
+.worktrees
 
 # Test coverage reports
 SwiftUI/TestResults.xcresult
@@ -41,3 +42,4 @@ dotnet/src/EdgeStudioTests/obj
 # Source of truth is docs/help/*.md — run scripts/sync-help-docs.sh to populate
 android/app/src/main/assets/help/
 dotnet/src/EdgeStudio/Assets/Help/*.md
+.gitnexus

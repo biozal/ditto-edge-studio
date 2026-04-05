@@ -1,0 +1,41 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:suki="using:SukiUI.Controls"
+                 mc:Ignorable="d"
+                 d:DesignWidth="400"
+                 d:DesignHeight="180"
+                 x:Class="EdgeStudio.Views.Help.QuickstartProgressWindow"
+                 Title="Downloading Quickstarts"
+                 Width="400"
+                 Height="180"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <StackPanel Margin="24" Spacing="12">
+        <TextBlock x:Name="TitleText"
+                   Text="Downloading Quickstarts"
+                   FontSize="16"
+                   FontWeight="SemiBold" />
+        <ProgressBar x:Name="ProgressBar"
+                     Minimum="0"
+                     Maximum="100"
+                     Height="8" />
+        <TextBlock x:Name="StatusText"
+                   Text="Starting..."
+                   FontSize="12"
+                   Classes="Secondary" />
+        <TextBlock x:Name="ErrorText"
+                   Foreground="Red"
+                   IsVisible="False"
+                   TextWrapping="Wrap" />
+        <Button x:Name="ActionButton"
+                Content="Cancel"
+                Classes="Flat"
+                HorizontalAlignment="Right"
+                Click="ActionButton_Click" />
+    </StackPanel>
+
+</suki:SukiWindow>

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using DittoSDK;
+using DittoSDK.Logging;
 using EdgeStudio.Models.Logging;
 using EdgeStudio.Shared.Services;
 

@@ -428,6 +428,93 @@ namespace EdgeStudioTests
 
         #endregion
 
+        #region Real Implementation Tests - SetCurrentType
+
+        [Fact]
+        public void NavigationService_SetCurrentType_ShouldUpdateCurrentNavigationType()
+        {
+            // Arrange
+            var service = new NavigationService();
+
+            // Act
+            service.SetCurrentType(NavigationItemType.AppMetrics);
+
+            // Assert
+            service.CurrentNavigationType.Should().Be(NavigationItemType.AppMetrics);
+        }
+
+        [Fact]
+        public void NavigationService_SetCurrentType_ShouldNotSendMessage()
+        {
+            // Arrange
+            var service = new NavigationService();
+            var messageCount = 0;
+
+            WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, (r, m) =>
+            {
+                messageCount++;
+            });
+
+            // Act
+            service.SetCurrentType(NavigationItemType.Query);
+
+            // Assert
+            messageCount.Should().Be(0, "SetCurrentType should not send navigation messages");
+            service.CurrentNavigationType.Should().Be(NavigationItemType.Query);
+
+            // Cleanup
+            WeakReferenceMessenger.Default.Unregister<NavigationChangedMessage>(this);
+        }
+
+        [Fact]
+        public void NavigationService_SetCurrentType_ShouldAllowSubsequentNavigateTo()
+        {
+            // Arrange
+            var service = new NavigationService();
+            var messageCount = 0;
+
+            WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, (r, m) =>
+            {
+                messageCount++;
+            });
+
+            // Act - Set to Subscriptions silently, then NavigateTo AppMetrics
+            service.SetCurrentType(NavigationItemType.Subscriptions);
+            service.NavigateTo(NavigationItemType.AppMetrics);
+
+            // Assert - NavigateTo should see the correct current type and send message
+            messageCount.Should().Be(1);
+            service.CurrentNavigationType.Should().Be(NavigationItemType.AppMetrics);
+
+            // Cleanup
+            WeakReferenceMessenger.Default.Unregister<NavigationChangedMessage>(this);
+        }
+
+        [Fact]
+        public void NavigationService_SetCurrentType_ThenNavigateToSameType_ShouldNotSendMessage()
+        {
+            // Arrange
+            var service = new NavigationService();
+            var messageCount = 0;
+
+            WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, (r, m) =>
+            {
+                messageCount++;
+            });
+
+            // Act - Set to AppMetrics silently, then try to NavigateTo AppMetrics
+            service.SetCurrentType(NavigationItemType.AppMetrics);
+            service.NavigateTo(NavigationItemType.AppMetrics);
+
+            // Assert - NavigateTo should see CurrentNavigationType is already AppMetrics and skip
+            messageCount.Should().Be(0, "NavigateTo should not send message when type matches");
+
+            // Cleanup
+            WeakReferenceMessenger.Default.Unregister<NavigationChangedMessage>(this);
+        }
+
+        #endregion
+
         #region NavigationItemType Enum Tests
 
         [Fact]

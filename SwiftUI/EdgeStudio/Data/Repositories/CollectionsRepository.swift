@@ -115,13 +115,30 @@ actor CollectionsRepository {
         let results = try await ditto.store.execute(query: "SELECT * FROM system:indexes")
         var indexesByCollection: [String: [DittoIndex]] = [:]
         for item in results.items {
-            do {
-                let index = try decoder.decode(DittoIndex.self, from: item.jsonData())
-                item.dematerialize()
-                indexesByCollection[index.collection, default: []].append(index)
-            } catch {
-                item.dematerialize()
+            let jsonData = item.jsonData()
+            item.dematerialize()
+            guard let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let id = json["_id"] as? String,
+                  let collection = json["collection"] as? String else
+            {
+                Log.warning("Skipping index item: missing _id or collection field")
+                continue
             }
+
+            // SDK returns fields as [{"direction": "asc", "key": ["`fieldName`"]}]
+            var fields: [String] = []
+            if let rawFields = json["fields"] as? [[String: Any]] {
+                fields = rawFields.compactMap { dict -> String? in
+                    guard let keyArray = dict["key"] as? [String] else { return nil }
+                    return keyArray.first
+                }
+            } else if let stringFields = json["fields"] as? [String] {
+                // Fallback: plain string array (in case SDK format changes back)
+                fields = stringFields
+            }
+
+            let index = DittoIndex(id: id, collection: collection, fields: fields)
+            indexesByCollection[collection, default: []].append(index)
         }
         return indexesByCollection
     }

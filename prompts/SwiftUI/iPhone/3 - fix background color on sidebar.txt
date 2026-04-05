@@ -1,7 +1,0 @@
-Go into plan mode.  Use XCode MCP for all code discovery.  The various lists on the Sidebar don't look attractive on iPad and iPhone compared to MacOS.  The code I'm taking about is located in the SidebarViews.swift file in the Views\StudioView folder. 
-
-Let's compare the subscription listing.  I have a screenshot of MacOS called subscriptions-macos.png and of ios named subscriptions-ios.png.  With MacOS the cards draw directly on the background and they look extremely attractive.  On iOS and iPad - the background of this screen seems to be a different color than macOS and then the cards are in a seperate container and there seems to be a divider and some kind of | after the divider.  They don't look attracive at all.  The background color of the sidebar should be the same as MacOS and the cards would then look nicer since the gradient we picked was designed to draw on that background.  
-
-If you look at collections-ios.png and collections-macos.png you can see the same problem and observers also have this problem if you look at observers-ios.png and observers-macos.png.
-
-Make a plan on how we can improve the sidebar look and feel on iOS for iPad and iPhone users so that the background colors and cards render and look more like the attractive MacOS version.  Let me know when you have a plan that I can review.

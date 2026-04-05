@@ -1,5 +1,7 @@
 using Avalonia.Threading;
 using DittoSDK;
+using DittoSDK.Store;
+using DittoSDK.Transport;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 using System;
@@ -15,6 +17,7 @@ namespace EdgeStudio.Shared.Data.Repositories
     {
         private readonly ILoggingService? _logger = logger;
         private DittoStoreObserver? _syncStatusObserver;
+        private DittoStoreObserver? _presenceGraphObserver;
         private bool _disposedValue;
 
         // Store registration parameters for re-registration
@@ -39,6 +42,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                 // Ditto instance already disposed - this is expected during database switching
             }
             _syncStatusObserver = null;
+
+            try { _presenceGraphObserver?.Cancel(); }
+            catch (ObjectDisposedException) { }
+            _presenceGraphObserver = null;
         }
 
         /// <summary>
@@ -128,6 +135,15 @@ namespace EdgeStudio.Shared.Data.Repositories
                 "SELECT * FROM system:data_sync_info ORDER BY documents.last_update_received_time desc",
                 (result) =>
                 {
+                    // Guard: skip processing if observer has already been cancelled.
+                    // CloseSelectedDatabase() sets _syncStatusObserver = null before calling
+                    // Cancel(), so any in-flight or post-cancel callback can detect this early.
+                    if (_syncStatusObserver == null)
+                    {
+                        result.Dispose();
+                        return;
+                    }
+
                     _logger?.Debug($"Observer fired: {result.Items.Count} items in system:data_sync_info");
 
                     if (result.Items.Count == 0)
@@ -144,8 +160,10 @@ namespace EdgeStudio.Shared.Data.Repositories
                         }
                         else
                         {
-                            // Not on UI thread - invoke synchronously
-                            Dispatcher.UIThread.Invoke(() =>
+                            // Not on UI thread - invoke asynchronously to avoid blocking the SDK
+                            // thread. A synchronous Invoke here can deadlock the close flow by
+                            // blocking the background thread while async continuations are queued.
+                            Dispatcher.UIThread.InvokeAsync(() =>
                             {
                                 var remotePeers = peerCards.Where(p => p.CardType != PeerCardType.Local).ToList();
                                 foreach (var peer in remotePeers)
@@ -164,22 +182,37 @@ namespace EdgeStudio.Shared.Data.Repositories
                     // Merge sync info with presence graph data
                     var presenceGraph = ditto.Presence.Graph;
 
-                    // Count Ditto Cloud Servers from DQL results (they may not appear in presence graph)
-                    var dittoServerCount = extractedItems.Count(x => x.IsDittoServer);
+                    // Filter to peers with at least one direct connection (mirrors SwiftUI presence-first approach).
+                    // MergeSyncInfoWithPresenceGraph returns null for multihop peers, peers not in the
+                    // presence graph, and Cloud Servers with SyncSessionStatus == "Not Connected".
+                    var peerCardUpdates = extractedItems
+                        .Select(x => MergeSyncInfoWithPresenceGraph(x, presenceGraph, presenceGraph.LocalPeer.PeerKey))
+                        .Where(x => x != null)
+                        .Select(x => x!)
+                        .ToList();
+
+                    // Count Ditto Cloud Servers from FILTERED results only (matches SwiftUI: disconnected
+                    // servers are excluded from the count).
+                    var dittoServerCount = peerCardUpdates.Count(x => x.IsDittoServer);
 
                     // Publish updated connection counts derived from the presence graph
                     PublishConnectionCounts(presenceGraph, dittoServerCount);
 
-                    var peerCardUpdates = extractedItems
-                        .Select(x => MergeSyncInfoWithPresenceGraph(x, presenceGraph, presenceGraph.LocalPeer.PeerKeyString))
-                        .ToList();
-
-                    // Build lookup of current IDs from query results
-                    var currentIds = new HashSet<string>(extractedItems.Select(x => x.Id));
+                    // Build lookup of current IDs from FILTERED results so stale cards for peers that
+                    // lost direct connectivity are also removed from the UI.
+                    var currentIds = new HashSet<string>(peerCardUpdates.Select(x => x.Id));
 
                     Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        // Update or add peers from query results
+                        // Remove cards for peers no longer in the filtered set (e.g. multihop peers
+                        // that have lost their direct connection to us).
+                        var staleCards = peerCards
+                            .Where(p => p.CardType != PeerCardType.Local && !currentIds.Contains(p.Id))
+                            .ToList();
+                        foreach (var stale in staleCards)
+                            peerCards.Remove(stale);
+
+                        // Update or add peers from filtered results
                         foreach (var peerCard in peerCardUpdates)
                         {
                             var existingWrapper = peerCards.FirstOrDefault(p => p.Id == peerCard.Id);
@@ -251,8 +284,8 @@ namespace EdgeStudio.Shared.Data.Repositories
                 }
                 else
                 {
-                    // Not on UI thread - invoke synchronously
-                    Dispatcher.UIThread.Invoke(() =>
+                    // Not on UI thread - invoke asynchronously to avoid blocking the calling thread
+                    Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         var remotePeers = _registeredPeerCards
                             .Where(p => p.CardType != PeerCardType.Local)
@@ -288,14 +321,134 @@ namespace EdgeStudio.Shared.Data.Repositories
             _logger?.Debug("ReregisterPeerCardObservers: Observer registered");
         }
 
+        public void RegisterPresenceGraphObserver(Action<PresenceGraphSnapshot> onUpdate, Action<string> onError)
+        {
+            var ditto = dittoManager.GetSelectedAppDitto();
+            var localPeerKey = ditto.Presence.Graph.LocalPeer.PeerKey;
+
+            _presenceGraphObserver = ditto.Store.RegisterObserver(
+                "SELECT * FROM system:data_sync_info",
+                (result) =>
+                {
+                    // Guard: skip processing if observer has already been cancelled.
+                    if (_presenceGraphObserver == null)
+                    {
+                        result.Dispose();
+                        return;
+                    }
+
+                    try
+                    {
+                        // Extract sync info items immediately before dematerialization
+                        var extractedItems = result.Items
+                            .Select(item => GetDittoSyncStatusInfoFromQueryResult(item.JsonString()))
+                            .ToList();
+
+                        var presenceGraph = ditto.Presence.Graph;
+
+                        // Build nodes: local peer first, then all remote peers
+                        var nodes = new List<PresenceNode>();
+                        var localPeer = presenceGraph.LocalPeer;
+                        var isConnectedToCloud = localPeer.IsConnectedToDittoServer;
+
+                        nodes.Add(new PresenceNode(
+                            PeerKey: localPeer.PeerKey,
+                            DeviceName: "Edge Studio",
+                            IsLocal: true,
+                            IsCloudNode: false,
+                            IsConnectedToCloud: isConnectedToCloud,
+                            Os: localPeer.Os?.ToString()));
+
+                        foreach (var remotePeer in presenceGraph.RemotePeers)
+                        {
+                            nodes.Add(new PresenceNode(
+                                PeerKey: remotePeer.PeerKey,
+                                DeviceName: remotePeer.DeviceName ?? remotePeer.PeerKey,
+                                IsLocal: false,
+                                IsCloudNode: false,
+                                IsConnectedToCloud: false,
+                                Os: remotePeer.Os?.ToString()));
+                        }
+
+                        // Build edges from all remote peer connections
+                        var edges = new List<PresenceEdge>();
+                        foreach (var remotePeer in presenceGraph.RemotePeers)
+                        {
+                            foreach (var conn in remotePeer.Connections)
+                            {
+                                edges.Add(new PresenceEdge(
+                                    PeerKey1: conn.PeerKey1,
+                                    PeerKey2: conn.PeerKey2,
+                                    ConnectionType: conn.ConnectionType.ToString(),
+                                    ConnectionId: conn.Id.ToString()));
+                            }
+                        }
+
+                        // Synthetic cloud node: matches SwiftUI's PresenceNetworkScene pattern.
+                        // Cloud connectivity is only knowable for the local device — the SDK
+                        // does not expose remote peer cloud status through the presence graph.
+                        // We check localPeer.IsConnectedToDittoServer (same as SwiftUI's
+                        // isConnectedToDittoCloud bridged from isConnectedToDittoServer).
+                        const string cloudNodeKey = "ditto-cloud-node";
+                        if (isConnectedToCloud)
+                        {
+                            nodes.Add(new PresenceNode(
+                                PeerKey: cloudNodeKey,
+                                DeviceName: "Ditto Cloud",
+                                IsLocal: false,
+                                IsCloudNode: true,
+                                IsConnectedToCloud: false,
+                                Os: null));
+
+                            edges.Add(new PresenceEdge(
+                                PeerKey1: localPeerKey,
+                                PeerKey2: cloudNodeKey,
+                                ConnectionType: "WebSocket",
+                                ConnectionId: $"cloud_{localPeerKey}"));
+                        }
+
+                        var snapshot = new PresenceGraphSnapshot(nodes, edges, localPeerKey);
+
+                        // Update connection counts so the bottom bar stays current even when
+                        // the Peers List tab is not active (it deactivates its own observer).
+                        var dittoServerCount = isConnectedToCloud ? 1 : 0;
+                        PublishConnectionCounts(presenceGraph, dittoServerCount);
+
+                        onUpdate(snapshot);
+                    }
+                    catch (Exception ex)
+                    {
+                        onError($"PresenceGraphObserver error: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { result.Dispose(); }
+                        catch (Exception e) { onError($"PresenceGraphObserver disposal error: {e.Message}"); }
+                    }
+                });
+        }
+
+        public void CancelPresenceGraphObserver()
+        {
+            try
+            {
+                _presenceGraphObserver?.Cancel();
+                _presenceGraphObserver = null;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore - already disposed
+            }
+        }
+
         private static PeerCardInfo CreateLocalPeerCard(DittoPeer localPeer)
         {
             return new PeerCardInfo
             {
-                Id = localPeer.PeerKeyString,
+                Id = localPeer.PeerKey,
                 CardType = PeerCardType.Local,
                 DeviceName = "Edge Studio",
-                SdkPlatform = localPeer.Os,
+                SdkPlatform = localPeer.Os?.ToString(),
                 SdkVersion = localPeer.DittoSDKVersion,
                 SdkLanguage = "C# / .NET",
                 IsDittoServer = false
@@ -307,9 +460,7 @@ namespace EdgeStudio.Shared.Data.Repositories
             // Only count connections where the local peer is a direct endpoint.
             // presenceGraph.RemotePeers includes the full mesh topology (multihop peers);
             // their connections should not contribute to the transport counts in the status bar.
-            // ⚠️ NOTE: PeerKeyString1/PeerKeyString2 availability depends on Ditto SDK 4.13.0.
-            // If these properties do not compile, check SDK docs or use LocalPeer.Connections fallback.
-            var localPeerKey = presenceGraph.LocalPeer.PeerKeyString;
+            var localPeerKey = presenceGraph.LocalPeer.PeerKey;
             int accessPoint = 0, awdl = 0, bluetooth = 0, p2pWifi = 0, webSocket = 0;
 
             // The SDK returns one DittoConnection per directional endpoint (A→B and B→A are
@@ -319,26 +470,33 @@ namespace EdgeStudio.Shared.Data.Repositories
             {
                 var seenTypes = new HashSet<string>();
                 foreach (var conn in peer.Connections
-                    .Where(c => c.PeerKeyString1 == localPeerKey || c.PeerKeyString2 == localPeerKey))
+                    .Where(c => c.PeerKey1 == localPeerKey || c.PeerKey2 == localPeerKey))
                 {
                     var typeStr = conn.ConnectionType.ToString();
-                    if (!seenTypes.Add(typeStr))
+                    // Normalize casing — SDK returns varying forms (e.g. "bluetooth", "WiFi", "p2pWifi")
+                    var normalizedType = typeStr switch
+                    {
+                        "WiFi" or "Wifi" or "wifi" or "accessPoint" => "AccessPoint",
+                        "P2PWiFi" or "p2pwifi" or "P2Pwifi" or "p2pWifi" => "P2PWifi",
+                        "Awdl" or "awdl" => "AWDL",
+                        "bluetooth" => "Bluetooth",
+                        "websocket" or "Websocket" => "WebSocket",
+                        _ => typeStr
+                    };
+                    if (!seenTypes.Add(normalizedType))
                         continue;
 
-                    _logger?.Debug($"[ConnectionCount] peer={peer.PeerKeyString} connType=\"{typeStr}\" (int={conn.ConnectionType:D})");
+                    _logger?.Debug($"[ConnectionCount] peer={peer.PeerKey} connType=\"{normalizedType}\" raw=\"{typeStr}\"");
 
-                    switch (typeStr)
+                    switch (normalizedType)
                     {
                         case "AccessPoint":  accessPoint++;  break;
-                        case "AWDL":
-                        case "Awdl":
-                        case "awdl":         awdl++;         break;
+                        case "AWDL":         awdl++;         break;
                         case "Bluetooth":    bluetooth++;    break;
                         case "WebSocket":    webSocket++;    break;
-                        case "P2PWifi":
-                        case "P2PWiFi":      p2pWifi++;      break;
+                        case "P2PWifi":      p2pWifi++;      break;
                         default:
-                            _logger?.Warning($"[ConnectionCount] UNHANDLED type: \"{typeStr}\"");
+                            _logger?.Warning($"[ConnectionCount] UNHANDLED type: \"{normalizedType}\" (raw: \"{typeStr}\")");
                             break;
                     }
                 }
@@ -351,14 +509,18 @@ namespace EdgeStudio.Shared.Data.Repositories
             Dispatcher.UIThread.InvokeAsync(() => ConnectionsChanged?.Invoke(this, updated));
         }
 
-        private static PeerCardInfo MergeSyncInfoWithPresenceGraph(
+        private static PeerCardInfo? MergeSyncInfoWithPresenceGraph(
             SyncStatusInfo syncInfo,
             DittoPresenceGraph presenceGraph,
             string localPeerKey)
         {
-            // Server card
+            // Server card — skip servers that are not currently connected (mirrors SwiftUI behaviour:
+            // "Skip (and do NOT count) servers that are not currently connected.")
             if (syncInfo.IsDittoServer)
             {
+                if (syncInfo.Documents.SyncSessionStatus == "Not Connected")
+                    return null;
+
                 return new PeerCardInfo
                 {
                     Id = syncInfo.Id,
@@ -372,39 +534,44 @@ namespace EdgeStudio.Shared.Data.Repositories
 
             // Query presence graph for this peer using LINQ
             var remotePeer = presenceGraph.RemotePeers
-                .FirstOrDefault(x => x.PeerKeyString == syncInfo.Id);
+                .FirstOrDefault(x => x.PeerKey == syncInfo.Id);
 
-            // DittoPeer is a struct - check if PeerKeyString is not empty to see if we found a match
-            if (!string.IsNullOrEmpty(remotePeer.PeerKeyString))
+            // DittoPeer is a struct - check if PeerKey is not empty to see if we found a match
+            if (!string.IsNullOrEmpty(remotePeer.PeerKey))
             {
-                // Remote peer WITH presence data
+                // Filter to direct connections (local peer must be an endpoint), then deduplicate
+                // by type: the SDK returns one DittoConnection per directional endpoint (A→B and
+                // B→A), both with the same type. Keep first-seen per type to match SwiftUI's
+                // extractPeerEnrichment deduplication logic.
+                var directConnections = remotePeer.Connections
+                    .Where(c => c.PeerKey1 == localPeerKey || c.PeerKey2 == localPeerKey)
+                    .GroupBy(c => c.ConnectionType.ToString())
+                    .Select(g => g.First())
+                    .Select(c => new PeerConnectionInfo
+                    {
+                        ConnectionType = c.ConnectionType.ToString(),
+                        ConnectionId = c.Id.ToString(),
+                        ApproximateDistanceInMeters = null
+                    })
+                    .ToList();
+
+                // Mirror SwiftUI's presence-first filter: only show peers with at least one direct
+                // connection to the local device. Multihop peers appear in RemotePeers but have
+                // no connection where the local peer is an endpoint — exclude them.
+                if (directConnections.Count == 0)
+                    return null;
+
                 return new PeerCardInfo
                 {
                     Id = syncInfo.Id,
                     CardType = PeerCardType.Remote,
                     DittoAddress = syncInfo.Id,
                     DeviceName = remotePeer.DeviceName,
-                    OperatingSystem = remotePeer.Os,
+                    OperatingSystem = remotePeer.Os?.ToString(),
                     DittoSdkVersion = remotePeer.DittoSDKVersion,
-                    // TODO: populate IdentityMetadata and PeerMetadata when SDK exposes them on DittoPeer
                     IdentityMetadata = null,
                     PeerMetadata = null,
-                    // Filter to direct connections (local peer must be an endpoint), then
-                    // deduplicate by type: the SDK returns one DittoConnection per directional
-                    // endpoint (A→B and B→A), both with the same type. Keep first-seen per type
-                    // to match SwiftUI's extractPeerEnrichment deduplication logic.
-                    // ⚠️ NOTE: PeerKeyString1/PeerKeyString2 availability depends on Ditto SDK 4.13.0.
-                    ActiveConnections = remotePeer.Connections
-                        .Where(c => c.PeerKeyString1 == localPeerKey || c.PeerKeyString2 == localPeerKey)
-                        .GroupBy(c => c.ConnectionType.ToString())
-                        .Select(g => g.First())
-                        .Select(c => new PeerConnectionInfo
-                        {
-                            ConnectionType = c.ConnectionType.ToString(),
-                            ConnectionId = c.Id.ToString(),
-                            ApproximateDistanceInMeters = c.ApproximateDistanceInMeters
-                        })
-                        .ToList(),
+                    ActiveConnections = directConnections,
                     CommitId = syncInfo.Documents.SyncedUpToLocalCommitId,
                     LastUpdated = syncInfo.Documents.LastUpdateReceivedTime,
                     SyncSessionStatus = syncInfo.Documents.SyncSessionStatus,
@@ -412,20 +579,9 @@ namespace EdgeStudio.Shared.Data.Repositories
                 };
             }
 
-            // Remote peer WITHOUT presence data (shouldn't happen for connected peers, but fallback)
-            return new PeerCardInfo
-            {
-                Id = syncInfo.Id,
-                CardType = PeerCardType.Remote,
-                DittoAddress = syncInfo.Id,
-                DeviceName = null,
-                OperatingSystem = null,
-                ActiveConnections = null,
-                CommitId = syncInfo.Documents.SyncedUpToLocalCommitId,
-                LastUpdated = syncInfo.Documents.LastUpdateReceivedTime,
-                SyncSessionStatus = syncInfo.Documents.SyncSessionStatus,
-                IsDittoServer = false
-            };
+            // Remote peer NOT in presence graph = not directly connected to us.
+            // SwiftUI would never show this peer (it starts from filtered presence).
+            return null;
         }
 
     }

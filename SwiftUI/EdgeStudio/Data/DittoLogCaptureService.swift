@@ -4,9 +4,10 @@ import Foundation
 /// Manages all log sources: live Ditto SDK callback, historical file parsing, app logs, and external imports.
 ///
 /// This service is `@Observable` and must be accessed from the main actor.
+/// It also conforms to `DittoDelegate` to receive transport condition callbacks.
 @Observable
 @MainActor
-final class DittoLogCaptureService {
+final class DittoLogCaptureService: DittoDelegate {
     static let shared = DittoLogCaptureService()
 
     // MARK: - Published State
@@ -17,17 +18,36 @@ final class DittoLogCaptureService {
     private(set) var importedEntries: [LogEntry] = []
     private(set) var importedLabel = ""
     private(set) var isLoading = false
+    private(set) var transportEntries: [LogEntry] = []
+    private(set) var connectionRequestEntries: [LogEntry] = []
+
+    /// Persists the selected Logging source tab across navigation.
+    var selectedSource: LoggingSourceTab = .dittoSDK
 
     // MARK: - Constants
 
     private let maxLiveEntries = 10000
     private let maxHistoricalEntries = 10000
     private let maxAppEntries = 5000
+    private let maxTransportEntries = 5000
+    private let maxConnectionRequestEntries = 5000
 
     // MARK: - Live Batch Flush
 
     @ObservationIgnored private var pendingLiveEntries: [LogEntry] = []
     @ObservationIgnored private var flushTask: Task<Void, Never>?
+
+    // MARK: - Transport Condition Batch Flush
+
+    @ObservationIgnored private var observedDitto: Ditto?
+    @ObservationIgnored private var pendingTransportEntries: [LogEntry] = []
+    @ObservationIgnored private var transportFlushTask: Task<Void, Never>?
+
+    // MARK: - Connection Request Batch Flush
+
+    @ObservationIgnored private var connectionRequestDitto: Ditto?
+    @ObservationIgnored private var pendingConnectionRequestEntries: [LogEntry] = []
+    @ObservationIgnored private var connectionRequestFlushTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -175,5 +195,127 @@ final class DittoLogCaptureService {
     /// Clears all loaded historical entries.
     func clearHistorical() {
         historicalEntries = []
+    }
+
+    // MARK: - Transport Condition Observer
+
+    /// Starts observing Ditto transport condition changes via the DittoDelegate.
+    func startTransportConditionObserver(ditto: Ditto) {
+        guard observedDitto !== ditto else { return }
+        observedDitto = ditto
+        ditto.delegate = self
+        Log.info("DittoLogCaptureService: transport condition observer started")
+    }
+
+    /// Stops the transport condition observer and flushes any pending entries.
+    func stopTransportConditionObserver() {
+        transportFlushTask?.cancel()
+        transportFlushTask = nil
+        flushTransportEntries()
+        observedDitto?.delegate = nil
+        observedDitto = nil
+        Log.info("DittoLogCaptureService: transport condition observer stopped")
+    }
+
+    /// DittoDelegate — called on delegateEventQueue (background thread)
+    nonisolated func dittoTransportConditionDidChange(
+        ditto _: Ditto,
+        condition: DittoTransportCondition,
+        subsystem: DittoConditionSource
+    ) {
+        let msg = "Transport: \(subsystem) → \(condition)"
+        let entry = LogEntry(
+            timestamp: Date(),
+            level: .info,
+            message: msg,
+            component: .transport,
+            source: .transportConditions,
+            rawLine: msg
+        )
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            pendingTransportEntries.append(entry)
+            if transportFlushTask == nil {
+                transportFlushTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    self?.flushTransportEntries()
+                }
+            }
+        }
+    }
+
+    /// Clears all transport condition entries.
+    func clearTransportEntries() {
+        transportEntries = []
+    }
+
+    private func flushTransportEntries() {
+        guard !pendingTransportEntries.isEmpty else { transportFlushTask = nil; return }
+        transportEntries.append(contentsOf: pendingTransportEntries)
+        if transportEntries.count > maxTransportEntries {
+            transportEntries.removeFirst(transportEntries.count - maxTransportEntries)
+        }
+        pendingTransportEntries.removeAll()
+        transportFlushTask = nil
+    }
+
+    // MARK: - Connection Request Handler
+
+    /// Installs the connection request handler on the Ditto instance.
+    /// Every incoming connection is unconditionally accepted — this is log-only.
+    func startConnectionRequestHandler(ditto: Ditto) {
+        guard connectionRequestDitto !== ditto else { return }
+        connectionRequestDitto = ditto
+        ditto.presence.connectionRequestHandler = { [weak self] request async -> DittoConnectionRequestAuthorization in
+            let identity = request.identityServiceMetadata.isEmpty ? "none" : String(describing: request.identityServiceMetadata)
+            let meta = request.peerMetadata.isEmpty ? "none" : String(describing: request.peerMetadata)
+            let msg = "Connection Request | type=\(request.connectionType) | key=\(request.peerKey)" +
+                " | identity=\(identity) | meta=\(meta)"
+            let entry = LogEntry(
+                timestamp: Date(),
+                level: .info,
+                message: msg,
+                component: .auth,
+                source: .connectionRequests,
+                rawLine: msg
+            )
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                pendingConnectionRequestEntries.append(entry)
+                if connectionRequestFlushTask == nil {
+                    connectionRequestFlushTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .milliseconds(250))
+                        self?.flushConnectionRequestEntries()
+                    }
+                }
+            }
+            return .allow
+        }
+        Log.info("DittoLogCaptureService: connection request handler started")
+    }
+
+    /// Removes the connection request handler and flushes any pending entries.
+    func stopConnectionRequestHandler() {
+        connectionRequestFlushTask?.cancel()
+        connectionRequestFlushTask = nil
+        flushConnectionRequestEntries()
+        connectionRequestDitto?.presence.connectionRequestHandler = nil
+        connectionRequestDitto = nil
+        Log.info("DittoLogCaptureService: connection request handler stopped")
+    }
+
+    /// Clears all connection request entries.
+    func clearConnectionRequestEntries() {
+        connectionRequestEntries = []
+    }
+
+    private func flushConnectionRequestEntries() {
+        guard !pendingConnectionRequestEntries.isEmpty else { connectionRequestFlushTask = nil; return }
+        connectionRequestEntries.append(contentsOf: pendingConnectionRequestEntries)
+        if connectionRequestEntries.count > maxConnectionRequestEntries {
+            connectionRequestEntries.removeFirst(connectionRequestEntries.count - maxConnectionRequestEntries)
+        }
+        pendingConnectionRequestEntries.removeAll()
+        connectionRequestFlushTask = nil
     }
 }

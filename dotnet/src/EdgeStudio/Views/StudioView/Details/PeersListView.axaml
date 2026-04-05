@@ -15,7 +15,7 @@
         <!-- Header -->
         <Border Grid.Row="0" Padding="8" IsVisible="{Binding HasPeers}">
             <TextBlock Text="Connected Peers"
-                      FontSize="16"
+                      FontSize="18"
                       FontWeight="SemiBold"/>
         </Border>
 
@@ -27,7 +27,7 @@
                 <Border IsVisible="{Binding IsLoading}">
                     <StackPanel HorizontalAlignment="Center" Spacing="16">
                         <ProgressBar IsIndeterminate="True" Width="32" Height="32"/>
-                        <TextBlock Text="Loading peers..." FontSize="12"/>
+                        <TextBlock Text="Loading peers..." FontSize="14"/>
                     </StackPanel>
                 </Border>
 
@@ -40,7 +40,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="models:ObservablePeerCardInfo">
-                            <Panel Margin="0,0,12,12" Width="440">
+                            <Panel Margin="0,0,12,12" Width="320">
 
                                 <!-- ================================================
                                      REMOTE / SERVER CARD — colour-coded gradient
@@ -49,6 +49,7 @@
                                         MinHeight="240"
                                         Padding="20"
                                         BoxShadow="0 4 16 0 #50000000"
+                                        ClipToBounds="True"
                                         IsVisible="{Binding IsRemoteOrServer}"
                                         Background="{Binding GradientBrush}">
                                     <StackPanel>
@@ -57,7 +58,7 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="2">
                                                 <TextBlock Text="{Binding DisplayName}"
-                                                           FontSize="14" FontWeight="Bold"
+                                                           FontSize="16" FontWeight="Bold"
                                                            Foreground="White"/>
                                                 <StackPanel Orientation="Horizontal" Spacing="4"
                                                             IsVisible="{Binding OperatingSystem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
@@ -65,10 +66,10 @@
                                                                                Width="12" Height="12"
                                                                                Foreground="White" Opacity="0.8"/>
                                                     <TextBlock Text="{Binding OperatingSystem}"
-                                                               FontSize="11" Foreground="White" Opacity="0.8"/>
+                                                               FontSize="12" Foreground="White" Opacity="0.8"/>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Id}"
-                                                           FontSize="10" FontFamily="Consolas"
+                                                           FontSize="12" FontFamily="Consolas"
                                                            Foreground="White" Opacity="0.8"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
@@ -81,7 +82,7 @@
                                                          VerticalAlignment="Center"
                                                          Fill="{Binding StatusDotBrush}"/>
                                                 <TextBlock Text="{Binding SyncSessionStatus}"
-                                                           FontSize="11" Foreground="White"/>
+                                                           FontSize="12" Foreground="White"/>
                                             </StackPanel>
                                         </Grid>
 
@@ -89,26 +90,35 @@
                                         <Border Height="1" Background="#40FFFFFF" Margin="0,8"/>
 
                                         <!-- SDK Version row -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6"
-                                                    IsVisible="{Binding DittoSdkVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                            <materialIcons:MaterialIcon Kind="Memory"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6"
+                                              IsVisible="{Binding DittoSdkVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Memory"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding DittoSdkVersion, StringFormat='Ditto SDK: {0}'}"
-                                                       FontSize="12" Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding DittoSdkVersion, StringFormat='Ditto SDK: {0}'}"
+                                                       FontSize="14" Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                         <!-- Ditto Address row -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6"
-                                                    IsVisible="{Binding DittoAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                            <materialIcons:MaterialIcon Kind="Link"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6"
+                                              IsVisible="{Binding DittoAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Link"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding DittoAddress}"
-                                                       FontSize="12" FontFamily="Consolas"
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding DittoAddress}"
+                                                       FontSize="14" FontFamily="Consolas"
                                                        Foreground="White" Opacity="0.8"
-                                                       TextWrapping="Wrap"/>
-                                        </StackPanel>
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                         <!-- Identity Metadata expander -->
                                         <Expander Margin="0,4,0,0" Foreground="White"
@@ -119,12 +129,12 @@
                                                                                 Width="14" Height="14"
                                                                                 Foreground="White"/>
                                                     <TextBlock Text="Identity Metadata"
-                                                               FontSize="12" Foreground="White"/>
+                                                               FontSize="14" Foreground="White"/>
                                                 </StackPanel>
                                             </Expander.Header>
                                             <ScrollViewer MaxHeight="150">
                                                 <TextBlock Text="{Binding IdentityMetadata}"
-                                                           FontFamily="Consolas" FontSize="11"
+                                                           FontFamily="Consolas" FontSize="12"
                                                            Foreground="White" Opacity="0.8"
                                                            TextWrapping="Wrap"/>
                                             </ScrollViewer>
@@ -139,12 +149,12 @@
                                                                                 Width="14" Height="14"
                                                                                 Foreground="White"/>
                                                     <TextBlock Text="Peer Metadata"
-                                                               FontSize="12" Foreground="White"/>
+                                                               FontSize="14" Foreground="White"/>
                                                 </StackPanel>
                                             </Expander.Header>
                                             <ScrollViewer MaxHeight="150">
                                                 <TextBlock Text="{Binding PeerMetadata}"
-                                                           FontFamily="Consolas" FontSize="11"
+                                                           FontFamily="Consolas" FontSize="12"
                                                            Foreground="White" Opacity="0.8"
                                                            TextWrapping="Wrap"/>
                                             </ScrollViewer>
@@ -154,7 +164,7 @@
                                         <StackPanel Margin="0,4,0,0"
                                                     IsVisible="{Binding ActiveConnections, Converter={x:Static ObjectConverters.IsNotNull}}">
                                             <TextBlock Text="{Binding ActiveConnectionsCountText}"
-                                                       FontSize="12" FontWeight="SemiBold"
+                                                       FontSize="14" FontWeight="SemiBold"
                                                        Foreground="White" Margin="0,0,0,4"/>
                                             <ItemsControl ItemsSource="{Binding ActiveConnections}">
                                                 <ItemsControl.ItemTemplate>
@@ -166,15 +176,19 @@
                                                                 Padding="10,6"
                                                                 Margin="0,0,0,6">
                                                             <StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                                    <materialIcons:MaterialIcon Kind="{Binding IconKind}"
+                                                                <Grid ColumnDefinitions="Auto,*">
+                                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind}"
                                                                                                Width="12" Height="12"
-                                                                                               Foreground="White"/>
-                                                                    <TextBlock Text="{Binding DisplayName}"
-                                                                               FontSize="11" Foreground="White"/>
-                                                                </StackPanel>
+                                                                                               Foreground="White"
+                                                                                               Margin="0,0,6,0"
+                                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                                                               FontSize="12" Foreground="White"
+                                                                               TextWrapping="Wrap"
+                                                                               VerticalAlignment="Center"/>
+                                                                </Grid>
                                                                 <TextBlock Text="{Binding FormattedDistance, StringFormat='Distance: {0}'}"
-                                                                           FontSize="10" Foreground="White" Opacity="0.8"
+                                                                           FontSize="12" Foreground="White" Opacity="0.8"
                                                                            IsVisible="{Binding FormattedDistance, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                                             </StackPanel>
                                                         </Border>
@@ -184,23 +198,33 @@
                                         </StackPanel>
 
                                         <!-- Commit ID row -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0"
-                                                    IsVisible="{Binding CommitId, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                            <materialIcons:MaterialIcon Kind="CheckCircle"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0"
+                                              IsVisible="{Binding CommitId, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="CheckCircle"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding CommitId, StringFormat='Synced to commit: {0}'}"
-                                                       FontSize="12" Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding CommitId, StringFormat='Synced to commit: {0}'}"
+                                                       FontSize="14" Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                         <!-- Last Updated row -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                                            <materialIcons:MaterialIcon Kind="Schedule"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Schedule"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding LastUpdatedFormatted}"
-                                                       FontSize="12" Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding LastUpdatedFormatted}"
+                                                       FontSize="14" Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                     </StackPanel>
                                 </Border>
@@ -222,7 +246,7 @@
                                                                         Width="18" Height="18"
                                                                         Foreground="{DynamicResource SukiPrimaryColor}"/>
                                             <TextBlock Text="Local Peer"
-                                                       FontSize="14" FontWeight="Bold"/>
+                                                       FontSize="16" FontWeight="Bold"/>
                                         </StackPanel>
 
                                         <!-- Divider -->
@@ -234,34 +258,34 @@
                                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
                                               Margin="0,4">
                                             <TextBlock Grid.Row="0" Grid.Column="0"
-                                                       Text="Device Name" FontSize="11" Opacity="0.7"/>
+                                                       Text="Device Name" FontSize="12" Opacity="0.7"/>
                                             <TextBlock Grid.Row="0" Grid.Column="1"
                                                        Text="{Binding DeviceName}"
-                                                       FontSize="11" HorizontalAlignment="Right"
-                                                       TextTrimming="CharacterEllipsis"/>
+                                                       FontSize="12" HorizontalAlignment="Right"
+                                                       TextWrapping="Wrap"/>
 
                                             <TextBlock Grid.Row="1" Grid.Column="0"
-                                                       Text="SDK Language" FontSize="11" Opacity="0.7"
+                                                       Text="SDK Language" FontSize="12" Opacity="0.7"
                                                        Margin="0,6,0,0"/>
                                             <TextBlock Grid.Row="1" Grid.Column="1"
                                                        Text="{Binding SdkLanguage}"
-                                                       FontSize="11" HorizontalAlignment="Right"
+                                                       FontSize="12" HorizontalAlignment="Right"
                                                        Margin="0,6,0,0"/>
 
                                             <TextBlock Grid.Row="2" Grid.Column="0"
-                                                       Text="SDK Platform" FontSize="11" Opacity="0.7"
+                                                       Text="SDK Platform" FontSize="12" Opacity="0.7"
                                                        Margin="0,6,0,0"/>
                                             <TextBlock Grid.Row="2" Grid.Column="1"
                                                        Text="{Binding SdkPlatform}"
-                                                       FontSize="11" HorizontalAlignment="Right"
+                                                       FontSize="12" HorizontalAlignment="Right"
                                                        Margin="0,6,0,0"/>
 
                                             <TextBlock Grid.Row="3" Grid.Column="0"
-                                                       Text="SDK Version" FontSize="11" Opacity="0.7"
+                                                       Text="SDK Version" FontSize="12" Opacity="0.7"
                                                        Margin="0,6,0,0"/>
                                             <TextBlock Grid.Row="3" Grid.Column="1"
                                                        Text="{Binding SdkVersion}"
-                                                       FontSize="11" HorizontalAlignment="Right"
+                                                       FontSize="12" HorizontalAlignment="Right"
                                                        Margin="0,6,0,0"/>
                                         </Grid>
 
@@ -276,8 +300,8 @@
                 <!-- Empty State -->
                 <Border IsVisible="{Binding ShowEmptyState}">
                     <StackPanel HorizontalAlignment="Center" Spacing="8">
-                        <TextBlock Text="No Peers Found" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock Text="No connected peers at this time" FontSize="12" Opacity="0.7"/>
+                        <TextBlock Text="No Peers Found" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="No connected peers at this time" FontSize="14" Opacity="0.7"/>
                     </StackPanel>
                 </Border>
 
@@ -294,7 +318,7 @@
                                 VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
                                    Text="Local Network"
-                                   FontSize="12" FontWeight="SemiBold"
+                                   FontSize="14" FontWeight="SemiBold"
                                    Opacity="0.6"
                                    Margin="12,0"/>
                         <Border Grid.Column="2" Height="1"
@@ -313,9 +337,10 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="models:NetworkAdapterInfo">
                                 <Border CornerRadius="12"
-                                        Width="440"
+                                        Width="320"
                                         Padding="20"
                                         BoxShadow="0 4 16 0 #50000000"
+                                        ClipToBounds="True"
                                         Margin="0,0,12,12"
                                         Background="{Binding GradientBrush}">
                                     <StackPanel>
@@ -328,10 +353,10 @@
                                                                             Foreground="White"/>
                                                 <StackPanel Spacing="1">
                                                     <TextBlock Text="{Binding KindLabel}"
-                                                               FontSize="14" FontWeight="Bold"
+                                                               FontSize="16" FontWeight="Bold"
                                                                Foreground="White"/>
                                                     <TextBlock Text="{Binding Name}"
-                                                               FontSize="11" Foreground="White" Opacity="0.8"/>
+                                                               FontSize="12" Foreground="White" Opacity="0.8"/>
                                                 </StackPanel>
                                             </StackPanel>
                                             <!-- Active / inactive indicator -->
@@ -342,7 +367,7 @@
                                                          VerticalAlignment="Center"
                                                          Fill="{Binding ActiveDotBrush}"/>
                                                 <TextBlock Text="{Binding ActiveLabel}"
-                                                           FontSize="11" Foreground="White"/>
+                                                           FontSize="12" Foreground="White"/>
                                             </StackPanel>
                                         </Grid>
 
@@ -353,15 +378,18 @@
                                         <ItemsControl ItemsSource="{Binding IPv4Addresses}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="x:String">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
-                                                        <materialIcons:MaterialIcon Kind="Numeric4Circle"
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+                                                        <materialIcons:MaterialIcon Grid.Column="0" Kind="Numeric4Circle"
                                                                                     Width="14" Height="14"
-                                                                                    Foreground="White" Opacity="0.8"/>
-                                                        <TextBlock Text="{Binding}"
-                                                                   FontSize="12" FontFamily="Consolas"
+                                                                                    Foreground="White" Opacity="0.8"
+                                                                                    Margin="0,0,6,0"
+                                                                                    VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding}"
+                                                                   FontSize="14" FontFamily="Consolas"
                                                                    Foreground="White" Opacity="0.8"
-                                                                   TextWrapping="Wrap"/>
-                                                    </StackPanel>
+                                                                   TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
@@ -370,49 +398,67 @@
                                         <ItemsControl ItemsSource="{Binding IPv6Addresses}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="x:String">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
-                                                        <materialIcons:MaterialIcon Kind="Numeric6Circle"
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+                                                        <materialIcons:MaterialIcon Grid.Column="0" Kind="Numeric6Circle"
                                                                                     Width="14" Height="14"
-                                                                                    Foreground="White" Opacity="0.8"/>
-                                                        <TextBlock Text="{Binding}"
-                                                                   FontSize="11" FontFamily="Consolas"
+                                                                                    Foreground="White" Opacity="0.8"
+                                                                                    Margin="0,0,6,0"
+                                                                                    VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding}"
+                                                                   FontSize="12" FontFamily="Consolas"
                                                                    Foreground="White" Opacity="0.7"
-                                                                   TextWrapping="Wrap"/>
-                                                    </StackPanel>
+                                                                   TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
                                         <!-- Gateway -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6"
-                                                    IsVisible="{Binding GatewayAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                            <materialIcons:MaterialIcon Kind="Router"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6"
+                                              IsVisible="{Binding GatewayAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Router"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding GatewayAddress, StringFormat='Gateway: {0}'}"
-                                                       FontSize="12" Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding GatewayAddress, StringFormat='Gateway: {0}'}"
+                                                       FontSize="14" Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                         <!-- MAC Address -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,6"
-                                                    IsVisible="{Binding MacAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                            <materialIcons:MaterialIcon Kind="Chip"
+                                        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6"
+                                              IsVisible="{Binding MacAddress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Chip"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding MacAddress}"
-                                                       FontSize="12" FontFamily="Consolas"
-                                                       Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MacAddress}"
+                                                       FontSize="14" FontFamily="Consolas"
+                                                       Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                         <!-- Link Speed -->
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,0"
-                                                    IsVisible="{Binding LinkSpeedBps, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                            <materialIcons:MaterialIcon Kind="Speedometer"
+                                        <Grid ColumnDefinitions="Auto,*"
+                                              IsVisible="{Binding LinkSpeedBps, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="Speedometer"
                                                                         Width="14" Height="14"
-                                                                        Foreground="White" Opacity="0.8"/>
-                                            <TextBlock Text="{Binding LinkSpeedFormatted}"
-                                                       FontSize="12" Foreground="White" Opacity="0.8"/>
-                                        </StackPanel>
+                                                                        Foreground="White" Opacity="0.8"
+                                                                        Margin="0,0,6,0"
+                                                                        VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding LinkSpeedFormatted}"
+                                                       FontSize="14" Foreground="White" Opacity="0.8"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
 
                                     </StackPanel>
                                 </Border>

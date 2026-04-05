@@ -1,5 +1,6 @@
 using EdgeStudio.Shared.Models;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
@@ -22,5 +23,11 @@ namespace EdgeStudio.Shared.Data.Repositories
         /// </summary>
         /// <returns>Task that completes when collections are loaded.</returns>
         Task LoadCollectionsAsync();
+
+        /// <summary>
+        /// Returns the names of all user collections in the database.
+        /// Does not affect observer state — safe to call from any context.
+        /// </summary>
+        Task<List<string>> GetCollectionNamesAsync();
     }
 }

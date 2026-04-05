@@ -26,6 +26,11 @@ public partial class QueryMetricsViewModel : LoadableViewModelBase
     [ObservableProperty]
     private QueryMetric? _selectedRecord;
 
+    partial void OnSelectedRecordChanged(QueryMetric? value)
+    {
+        LatestMetric = value;
+    }
+
     public ObservableCollection<QueryMetric> RecentMetrics { get; } = new();
 
     public bool HasRecords => RecentMetrics.Count > 0;
@@ -43,9 +48,10 @@ public partial class QueryMetricsViewModel : LoadableViewModelBase
     {
         Dispatcher.UIThread.InvokeAsync(() =>
         {
-            LatestMetric = _metricsService!.Latest;
+            if (SelectedRecord == null)
+                LatestMetric = _metricsService!.Latest;
             RecentMetrics.Clear();
-            foreach (var m in _metricsService.GetAll())
+            foreach (var m in _metricsService!.GetAll())
                 RecentMetrics.Add(m);
             OnPropertyChanged(nameof(HasRecords));
             OnPropertyChanged(nameof(RecordCountText));

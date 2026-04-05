@@ -19,7 +19,7 @@
         <StackPanel Spacing="16">
 
             <TextBlock Text="Import Database Configuration"
-                       FontSize="18"
+                       FontSize="20"
                        FontWeight="Bold"/>
 
             <!-- File import -->
@@ -39,17 +39,17 @@
             <!-- Divider -->
             <Grid ColumnDefinitions="*,Auto,*" VerticalAlignment="Center">
                 <Border Grid.Column="0" Height="1" Background="{DynamicResource DittoCardSurface}" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="or" Margin="12,0" Opacity="0.6" FontSize="12"/>
+                <TextBlock Grid.Column="1" Text="or" Margin="12,0" Opacity="0.6" FontSize="14"/>
                 <Border Grid.Column="2" Height="1" Background="{DynamicResource DittoCardSurface}" VerticalAlignment="Center"/>
             </Grid>
 
             <!-- Paste payload -->
             <StackPanel Spacing="6">
-                <TextBlock Text="Paste EDS2 payload:" FontSize="13" Opacity="0.8"/>
+                <TextBlock Text="Paste EDS2 payload:" FontSize="14" Opacity="0.8"/>
                 <TextBox x:Name="PasteTextBox"
                          Watermark="EDS2:..."
                          FontFamily="Consolas"
-                         FontSize="12"
+                         FontSize="14"
                          Height="64"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"/>
@@ -66,7 +66,7 @@
             <!-- Status message -->
             <TextBlock x:Name="StatusText"
                        TextWrapping="Wrap"
-                       FontSize="13"
+                       FontSize="14"
                        IsVisible="False"/>
 
         </StackPanel>

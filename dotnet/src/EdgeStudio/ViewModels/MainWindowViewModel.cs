@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using EdgeStudio.Services;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
@@ -20,18 +21,24 @@ namespace EdgeStudio.ViewModels
         private readonly IDittoManager _dittoManager;
         private readonly ISystemRepository _systemRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IObserverRepository _observerRepository;
         private readonly IHistoryRepository _historyRepository;
         private readonly IFavoritesRepository _favoritesRepository;
         private readonly IQrCodeService _qrCodeService;
+        private readonly ILogCaptureService _logCaptureService;
+        private readonly IDialogService _dialogService;
 
         public MainWindowViewModel(
             IDittoManager dittoManager,
             IDatabaseRepository databaseRepository,
             ISystemRepository systemRepository,
             ISubscriptionRepository subscriptionRepository,
+            IObserverRepository observerRepository,
             IHistoryRepository historyRepository,
             IFavoritesRepository favoritesRepository,
             IQrCodeService qrCodeService,
+            ILogCaptureService logCaptureService,
+            IDialogService dialogService,
             IToastService? toastService = null)
             : base(toastService)
         {
@@ -39,9 +46,12 @@ namespace EdgeStudio.ViewModels
             _dittoManager = dittoManager ?? throw new ArgumentNullException(nameof(dittoManager));
             _systemRepository = systemRepository ?? throw new ArgumentNullException(nameof(systemRepository));
             _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
+            _observerRepository = observerRepository ?? throw new ArgumentNullException(nameof(observerRepository));
             _historyRepository = historyRepository ?? throw new ArgumentNullException(nameof(historyRepository));
             _favoritesRepository = favoritesRepository ?? throw new ArgumentNullException(nameof(favoritesRepository));
             _qrCodeService = qrCodeService ?? throw new ArgumentNullException(nameof(qrCodeService));
+            _logCaptureService = logCaptureService ?? throw new ArgumentNullException(nameof(logCaptureService));
+            _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
             
             DatabaseConfigs = new ObservableCollection<DittoDatabaseConfig>();
             DatabaseFormModel = new DatabaseFormModel();
@@ -58,6 +68,11 @@ namespace EdgeStudio.ViewModels
 
         [ObservableProperty]
         private bool isClosingDatabase;
+
+        /// <summary>
+        /// Guards against concurrent close operations (e.g., rapid double-click on Close button).
+        /// </summary>
+        private bool _isCloseInProgress;
 
         [ObservableProperty]
         private DittoDatabaseConfig? selectedDatabaseConfig;
@@ -84,6 +99,7 @@ namespace EdgeStudio.ViewModels
                         // Call CloseSelectedDatabase on all repositories that implement ICloseDatabase
                         _systemRepository.CloseSelectedDatabase();
                         _subscriptionRepository.CloseSelectedDatabase();
+                        _observerRepository.CloseSelectedDatabase();
                         _historyRepository.CloseSelectedDatabase();
                         _favoritesRepository.CloseSelectedDatabase();
                         _dittoManager.CloseSelectedDatabase();
@@ -236,9 +252,16 @@ namespace EdgeStudio.ViewModels
             {
                 var success = await _dittoManager.InitializeDittoSelectedApp(config);
 
+                if (success && _dittoManager.DittoSelectedApp != null)
+                {
+                    _logCaptureService.ClearTransportConditionEntries();
+                    _logCaptureService.StartCapture(_dittoManager.DittoSelectedApp);
+                }
+
                 if (!success)
                 {
-                    ShowError("Could not initialize database. Please check your configuration and try again.");
+                    _dialogService.ShowError("Database Initialization Failed",
+                        "Could not initialize database. Please check your configuration and try again.");
                     // Clear selection to stay on database listing view
                     _selectedDatabase = null;
                     OnPropertyChanged(nameof(SelectedDatabase));
@@ -247,7 +270,8 @@ namespace EdgeStudio.ViewModels
             }
             catch (Exception ex)
             {
-                ShowError($"Failed to initialize database: {ex.Message}");
+                _dialogService.ShowError("Database Initialization Failed",
+                    $"Failed to open database: {ex.Message}\n\nCheck your Database ID and other settings, then try again.");
                 // Clear selection to stay on database listing view
                 _selectedDatabase = null;
                 OnPropertyChanged(nameof(SelectedDatabase));
@@ -264,17 +288,28 @@ namespace EdgeStudio.ViewModels
         /// </summary>
         public async Task CloseDatabaseAsync()
         {
-            if (_selectedDatabase == null)
+            if (_selectedDatabase == null || _isCloseInProgress)
                 return;
 
+            _isCloseInProgress = true;
             IsClosingDatabase = true;
 
             try
             {
-                // Close repositories in parallel (they're independent)
+                // Stop live observers synchronously FIRST — before any async work begins.
+                // This prevents SDK callbacks from firing during the async close and competing
+                // with async continuations in the Avalonia dispatcher queue (which would cause
+                // the IsClosingDatabase = false continuation to be indefinitely delayed).
+                _logCaptureService.StopCapture();
+                _systemRepository.CloseSelectedDatabase();
+                _subscriptionRepository.CloseSelectedDatabase();
+                _observerRepository.CloseSelectedDatabase();
+
+                // Async cleanup: flush/dispose on background threads (all have timeouts)
                 await Task.WhenAll(
                     _systemRepository.CloseDatabaseAsync(),
                     _subscriptionRepository.CloseDatabaseAsync(),
+                    _observerRepository.CloseDatabaseAsync(),
                     _historyRepository.CloseDatabaseAsync(),
                     _favoritesRepository.CloseDatabaseAsync()
                 );
@@ -293,6 +328,7 @@ namespace EdgeStudio.ViewModels
             }
             finally
             {
+                _isCloseInProgress = false;
                 IsClosingDatabase = false;
             }
         }

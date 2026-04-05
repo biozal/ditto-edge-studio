@@ -32,7 +32,7 @@
         <avaloniaEdit:TextEditor Grid.Row="1"
                                  Name="QueryEditor"
                                  FontFamily="Consolas"
-                                 FontSize="14"
+                                 FontSize="16"
                                  ShowLineNumbers="True"
                                  HorizontalScrollBarVisibility="Auto"
                                  VerticalScrollBarVisibility="Auto"

@@ -8,6 +8,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.Messaging;
 using SukiUI;
 using SukiUI.Models;
+using EdgeStudio.Data.McpServer;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Services;
@@ -71,33 +72,46 @@ public partial class App : Application
 
     private void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
-        try
+        // Run all cleanup on a background thread with a hard timeout
+        // to prevent the UI thread from hanging on Ditto SDK or MCP server disposal.
+        var cleanupTask = Task.Run(async () =>
         {
-            // Stop Ditto log capture
-            var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
-            logCapture?.Dispose();
+            try
+            {
+                // Stop MCP server if running
+                var mcpService = _serviceProvider?.GetService<McpServerService>();
+                if (mcpService?.IsRunning == true)
+                    await mcpService.StopAsync();
 
-            // Dispose logging service
-            var loggingService = _serviceProvider?.GetService<ILoggingService>();
-            (loggingService as IDisposable)?.Dispose();
+                // Stop Ditto log capture
+                var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
+                logCapture?.Dispose();
 
-            // Dispose DittoManager
-            var dittoManager = _serviceProvider?.GetService<IDittoManager>();
-            if (dittoManager is IDisposable disposableDitto)
-                disposableDitto.Dispose();
+                // Dispose logging service
+                var loggingService = _serviceProvider?.GetService<ILoggingService>();
+                (loggingService as IDisposable)?.Dispose();
 
-            // Dispose local database service
-            var localDb = _serviceProvider?.GetService<ILocalDatabaseService>();
-            localDb?.Dispose();
+                // Close Ditto database using the async path (has its own 10s timeout)
+                var dittoManager = _serviceProvider?.GetService<IDittoManager>();
+                if (dittoManager != null)
+                    await dittoManager.CloseDatabaseAsync();
 
-            // Dispose ServiceProvider
-            if (_serviceProvider is IDisposable serviceProviderDisposable)
-                serviceProviderDisposable.Dispose();
-        }
-        catch
-        {
-            // Ignore any errors during cleanup
-        }
+                // Dispose local database service
+                var localDb = _serviceProvider?.GetService<ILocalDatabaseService>();
+                localDb?.Dispose();
+
+                // Dispose ServiceProvider
+                if (_serviceProvider is IDisposable serviceProviderDisposable)
+                    serviceProviderDisposable.Dispose();
+            }
+            catch
+            {
+                // Ignore any errors during cleanup
+            }
+        });
+
+        // Wait up to 5 seconds for cleanup, then let the process exit anyway
+        cleanupTask.Wait(TimeSpan.FromSeconds(5));
     }
 
     private async Task InitializeApplicationAsync(IClassicDesktopStyleApplicationLifetime desktop)
@@ -155,6 +169,13 @@ public partial class App : Application
         {
             return new SukiUI.Toasts.SukiToastManager();
         });
+
+        // Register dialog service for modal error dialogs
+        services.AddSingleton<SukiUI.Dialogs.ISukiDialogManager>(provider =>
+        {
+            return new SukiUI.Dialogs.SukiDialogManager();
+        });
+        services.AddSingleton<IDialogService, SukiDialogService>();
         services.AddSingleton<IToastService, SukiToastService>();
         services.AddSingleton<ISyncService, SyncService>();
         services.AddSingleton<IQrCodeService, QrCodeService>();
@@ -163,11 +184,13 @@ public partial class App : Application
         // Register logging services (use the same instance passed to DittoManager)
         services.AddSingleton<ILoggingService>(loggingService);
         services.AddSingleton<DittoLogCaptureService>();
+        services.AddSingleton<ILogCaptureService, LogCaptureService>();
 
         // Register query execution and metrics services
         services.AddSingleton<IQueryMetricsService, InMemoryQueryMetricsService>();
         services.AddSingleton<IAppMetricsService, AppMetricsService>();
         services.AddSingleton<IQueryService, DittoQueryService>();
+        services.AddSingleton<IImportService, ImportService>();
 
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();
@@ -175,12 +198,23 @@ public partial class App : Application
         services.AddSingleton<IHistoryRepository, SqliteHistoryRepository>();
         services.AddSingleton<IFavoritesRepository, SqliteFavoritesRepository>();
         services.AddSingleton<ICollectionsRepository, CollectionsRepository>();
+        services.AddSingleton<IObserverRepository, SqliteObserverRepository>();
+
+        // Register settings repository
+        var settingsRepo = new SqliteSettingsRepository(localDatabaseService);
+        await settingsRepo.InitializeAsync();
+        services.AddSingleton<ISettingsRepository>(settingsRepo);
 
         // Register system repository as singleton
         services.AddSingleton<ISystemRepository, SystemRepository>();
         services.AddSingleton(provider => new Lazy<ISystemRepository>(() => provider.GetRequiredService<ISystemRepository>()));
 
+        // Register MCP server service as singleton (uses IServiceProvider from built container)
+        services.AddSingleton<McpServerService>(sp =>
+            new McpServerService(sp, sp.GetRequiredService<ISettingsRepository>()));
+
         // Register ViewModels - Both direct and lazy for DI resolution
+        services.AddTransient<PreferencesViewModel>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<EdgeStudioViewModel>();
         services.AddTransient<NavigationViewModel>();
@@ -193,6 +227,7 @@ public partial class App : Application
         services.AddTransient<QueryMetricsViewModel>();
         services.AddSingleton<HistoryToolViewModel>();
         services.AddSingleton<FavoritesToolViewModel>();
+        services.AddSingleton<IndexesToolViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
@@ -203,8 +238,17 @@ public partial class App : Application
         services.AddTransient<Lazy<QueryMetricsViewModel>>();
         services.AddSingleton(provider => new Lazy<HistoryToolViewModel>(() => provider.GetRequiredService<HistoryToolViewModel>()));
         services.AddSingleton(provider => new Lazy<FavoritesToolViewModel>(() => provider.GetRequiredService<FavoritesToolViewModel>()));
+        services.AddSingleton(provider => new Lazy<IndexesToolViewModel>(() => provider.GetRequiredService<IndexesToolViewModel>()));
 
         _serviceProvider = services.BuildServiceProvider();
+
+        // Auto-start MCP server if enabled in settings
+        var mcpEnabled = await settingsRepo.GetBoolAsync("mcpServerEnabled", defaultValue: false);
+        if (mcpEnabled)
+        {
+            var mcpService = _serviceProvider.GetRequiredService<McpServerService>();
+            _ = Task.Run(async () => await mcpService.StartAsync());
+        }
     }
 
     private static void SetupDittoThemes()
@@ -262,7 +306,7 @@ public partial class App : Application
             {
                 Text = message,
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                FontSize = 14
+                FontSize = 16
             });
 
             var okButton = new Button
@@ -290,7 +334,9 @@ public partial class App : Application
     private void AboutMenuItem_Click(object? sender, EventArgs e)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var version = assembly.GetName().Version?.ToString() ?? "1.0.0";
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                      ?? assembly.GetName().Version?.ToString()
+                      ?? "1.0.0";
         var assemblyTitle = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? "Edge Studio";
         var company = assembly.GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "Ditto";
         var copyright = assembly.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? "Copyright © 2025 Ditto";
@@ -325,7 +371,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = $"Version {version}",
-            FontSize = 14,
+            FontSize = 16,
             Foreground = new SolidColorBrush(Color.Parse("#CCCCCC")),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 10)
@@ -334,7 +380,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = description,
-            FontSize = 13,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#AAAAAA")),
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
@@ -352,7 +398,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = company,
-            FontSize = 13,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#AAAAAA")),
             HorizontalAlignment = HorizontalAlignment.Center
         });
@@ -360,7 +406,7 @@ public partial class App : Application
         content.Children.Add(new TextBlock
         {
             Text = copyright,
-            FontSize = 12,
+            FontSize = 14,
             Foreground = new SolidColorBrush(Color.Parse("#888888")),
             HorizontalAlignment = HorizontalAlignment.Center
         });
@@ -386,5 +432,23 @@ public partial class App : Application
         {
             aboutWindow.Show();
         }
+    }
+
+    /// <summary>
+    /// Handles the Preferences menu item click event (macOS app menu)
+    /// </summary>
+    private async void PreferencesMenuItem_Click(object? sender, EventArgs e)
+    {
+        if (_serviceProvider == null) return;
+
+        var vm = _serviceProvider.GetRequiredService<PreferencesViewModel>();
+        await vm.LoadSettingsAsync();
+
+        var window = new Views.Settings.PreferencesWindow(vm);
+
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            _ = window.ShowDialog(desktop.MainWindow);
+        else
+            window.Show();
     }
 }

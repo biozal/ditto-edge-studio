@@ -1,14 +1,23 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Services;
 using EdgeStudio.ViewModels;
+using EdgeStudio.Views.Help;
 using SukiUI;
 using SukiUI.Controls;
+using SukiUI.Dialogs;
 using SukiUI.Enums;
 using SukiUI.Models;
 using SukiUI.Toasts;
@@ -26,11 +35,20 @@ public partial class MainWindow : SukiWindow,
     /// </summary>
     public ISukiToastManager ToastManager { get; }
 
+    /// <summary>
+    /// Dialog manager for displaying modal dialogs
+    /// </summary>
+    public SukiUI.Dialogs.ISukiDialogManager DialogManager { get; }
+
     public MainWindow()
     {
         // Get the toast manager from the service provider
         ToastManager = App.ServiceProvider?.GetService(typeof(ISukiToastManager)) as ISukiToastManager
             ?? new SukiToastManager();
+
+        // Get the dialog manager from the service provider
+        DialogManager = App.ServiceProvider?.GetService(typeof(SukiUI.Dialogs.ISukiDialogManager)) as SukiUI.Dialogs.ISukiDialogManager
+            ?? new SukiUI.Dialogs.SukiDialogManager();
 
         InitializeComponent();
         ConfigurePlatformSpecificStyles();
@@ -133,6 +151,162 @@ public partial class MainWindow : SukiWindow,
         {
             System.Diagnostics.Debug.WriteLine($"[ERROR] Failed to close database: {ex}");
         }
+    }
+
+    private async void Settings_Click(object? sender, EventArgs e)
+    {
+        var vm = App.ServiceProvider?.GetService(typeof(PreferencesViewModel)) as PreferencesViewModel;
+        if (vm == null) return;
+
+        await vm.LoadSettingsAsync();
+        var window = new Settings.PreferencesWindow(vm);
+        _ = window.ShowDialog(this);
+    }
+
+    private void HelpDocumentation_Click(object? sender, EventArgs e)
+    {
+        var window = new UserGuideWindow();
+        window.Show();
+    }
+
+    private void VisitDittoWebsite_Click(object? sender, EventArgs e)
+    {
+        const string url = "https://www.ditto.com/";
+        try
+        {
+            if (OperatingSystem.IsWindows())
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            else if (OperatingSystem.IsMacOS())
+                Process.Start("open", url);
+            else
+                Process.Start("xdg-open", url);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] Could not open Ditto website: {ex.Message}");
+        }
+    }
+
+    private enum ExistingFolderAction { Replace, ChooseDifferent, Cancel }
+
+    private async void DownloadQuickstarts_Click(object? sender, EventArgs e)
+    {
+        var vm = DataContext as MainWindowViewModel;
+        try
+        {
+            var hasDatabase = vm?.SelectedDatabase != null;
+
+            // If no active database connection, warn the user
+            if (!hasDatabase)
+            {
+                var tcs = new TaskCompletionSource<bool>();
+                var builder = DialogManager.CreateDialog();
+                builder.SetType(NotificationType.Warning);
+                builder.SetTitle("No Database Connected");
+                builder.SetContent(
+                    "No database is currently connected. Quickstart projects will be downloaded but .env files will not be auto-configured with credentials.\n\nYou can manually configure them later.");
+                builder.AddActionButton("Continue Anyway", _ => tcs.TrySetResult(true), dismissOnClick: true, classes: []);
+                builder.AddActionButton("Cancel", _ => tcs.TrySetResult(false), dismissOnClick: true, classes: []);
+                builder.TryShow();
+
+                var shouldContinue = await tcs.Task;
+                if (!shouldContinue) return;
+            }
+
+            // Open folder picker
+            string? chosenDirectory = await PickFolderAsync();
+            if (chosenDirectory == null) return;
+
+            // Check for existing quickstart-main folder
+            var service = new QuickstartDownloadService();
+            var existingFolder = service.ExistingQuickstartFolder(chosenDirectory);
+
+            while (existingFolder != null)
+            {
+                var actionTcs = new TaskCompletionSource<ExistingFolderAction>();
+                var existingBuilder = DialogManager.CreateDialog();
+                existingBuilder.SetType(NotificationType.Warning);
+                existingBuilder.SetTitle("Folder Already Exists");
+                existingBuilder.SetContent(
+                    $"A '{QuickstartDownloadService.ExtractedFolderName}' folder already exists in the selected location.\n\nWhat would you like to do?");
+                existingBuilder.AddActionButton("Replace", _ => actionTcs.TrySetResult(ExistingFolderAction.Replace), dismissOnClick: true, classes: []);
+                existingBuilder.AddActionButton("Choose Different Location", _ => actionTcs.TrySetResult(ExistingFolderAction.ChooseDifferent), dismissOnClick: true, classes: []);
+                existingBuilder.AddActionButton("Cancel", _ => actionTcs.TrySetResult(ExistingFolderAction.Cancel), dismissOnClick: true, classes: []);
+                existingBuilder.TryShow();
+
+                var action = await actionTcs.Task;
+                if (action == ExistingFolderAction.Cancel) return;
+
+                if (action == ExistingFolderAction.Replace)
+                {
+                    service.RemoveExistingFolder(existingFolder);
+                    break;
+                }
+
+                // ChooseDifferent — re-open the folder picker
+                chosenDirectory = await PickFolderAsync();
+                if (chosenDirectory == null) return;
+                existingFolder = service.ExistingQuickstartFolder(chosenDirectory);
+            }
+
+            // Show progress window
+            var progressWindow = new QuickstartProgressWindow();
+            progressWindow.Show(this);
+
+            try
+            {
+                // Download and extract
+                var progress = new Progress<string>(msg =>
+                    progressWindow.UpdateProgress(msg.Contains("Extracting") ? 50 : 10, msg));
+                progressWindow.UpdateProgress(10, "Downloading quickstarts from GitHub...");
+                var quickstartDir = await service.DownloadAndExtractAsync(chosenDirectory, progress);
+
+                // Configure if database is connected
+                bool isConfigured = false;
+                if (hasDatabase && vm?.SelectedDatabase != null)
+                {
+                    progressWindow.UpdateProgress(60, "Configuring .env files...");
+                    var db = vm.SelectedDatabase;
+                    service.ConfigureEnvFiles(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl, db.WebsocketUrl);
+                    progressWindow.UpdateProgress(80, "Configuring edge-server...");
+                    service.ConfigureEdgeServerYaml(quickstartDir, db.DatabaseId, db.AuthToken, db.AuthUrl);
+                    isConfigured = true;
+                }
+
+                // Discover projects
+                progressWindow.UpdateProgress(90, "Discovering projects...");
+                var projects = service.DiscoverProjects(quickstartDir, isConfigured);
+
+                // Done — close progress and open browser window
+                progressWindow.ShowComplete();
+                await Task.Delay(600);
+                progressWindow.Close();
+
+                var browserWindow = new QuickstartBrowserWindow(projects, quickstartDir, isConfigured);
+                browserWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ERROR] Download Quickstarts failed: {ex}");
+                progressWindow.ShowError(ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] Download Quickstarts pre-flight failed: {ex}");
+        }
+    }
+
+    private async Task<string?> PickFolderAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose a folder to download the Ditto Quickstarts into",
+            AllowMultiple = false
+        });
+
+        var folder = folders.FirstOrDefault();
+        return folder?.TryGetLocalPath();
     }
 
     protected override void OnClosed(EventArgs e)

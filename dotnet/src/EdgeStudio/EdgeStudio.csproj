@@ -18,7 +18,8 @@
     <Company>Costoda Coding Monkeys </Company>
     <Description>A powerful database query editor and management tool for Ditto</Description>
     <Version>1.0.0</Version>
-    <Copyright>Copyright © 2025 under MIT License</Copyright>
+    <InformationalVersion>1.0b4</InformationalVersion>
+    <Copyright>Copyright © 2026 under MIT License</Copyright>
 
     <!-- macOS Bundle Configuration -->
     <CFBundleIdentifier>com.ditto.edgestudio</CFBundleIdentifier>
@@ -49,11 +50,11 @@
 
   <ItemGroup>
     <!-- Core Avalonia packages -->
-    <PackageReference Include="Avalonia" Version="11.3.12" />
+    <PackageReference Include="Avalonia" Version="11.3.13" />
     <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.4.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
     <PackageReference Include="AvaloniaEdit.TextMate" Version="11.4.1" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
 
@@ -61,15 +62,16 @@
     <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0" />
 
     <!-- MVVM framework -->
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
     <!-- Ditto SDK -->
-    <PackageReference Include="Ditto" Version="4.14.3" />
+    <PackageReference Include="Ditto" Version="5.0.0-rc.2" />
 
     <!-- Dependency Injection -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
     <PackageReference Include="SukiUI" Version="6.0.3" />
     <PackageReference Include="Avalonia.Svg.Skia" Version="11.3.0" />
 
@@ -78,7 +80,7 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
 
 <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.12">
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.13">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
@@ -95,7 +97,7 @@
       <HelpDocsDest>$(MSBuildProjectDirectory)\Assets\Help\</HelpDocsDest>
     </PropertyGroup>
     <MakeDir Directories="$(HelpDocsDest)" Condition="!Exists('$(HelpDocsDest)')" />
-    <Copy SourceFiles="$(HelpDocsSource)query.md;$(HelpDocsSource)subscription.md;$(HelpDocsSource)logging.md;$(HelpDocsSource)observe.md;$(HelpDocsSource)appmetrics.md;$(HelpDocsSource)querymetrics.md" DestinationFolder="$(HelpDocsDest)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(HelpDocsSource)query.md;$(HelpDocsSource)subscription.md;$(HelpDocsSource)logging.md;$(HelpDocsSource)observe.md;$(HelpDocsSource)appmetrics.md;$(HelpDocsSource)querymetrics.md;$(HelpDocsSource)UserGuide.md" DestinationFolder="$(HelpDocsDest)" SkipUnchangedFiles="true" />
     <Message Text="Help docs synced to $(HelpDocsDest)" Importance="normal" />
   </Target>
 

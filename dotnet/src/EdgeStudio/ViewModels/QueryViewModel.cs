@@ -215,9 +215,24 @@ public partial class QueryViewModel : LoadableViewModelBase
             {
                 await _collectionsRepository.LoadCollectionsAsync();
                 OnPropertyChanged(nameof(HasCollections));
+
+                // Auto-populate empty query with first collection
+                if (Collections.Count > 0
+                    && CurrentQueryDocument != null
+                    && string.IsNullOrEmpty(CurrentQueryDocument.QueryText))
+                {
+                    var firstName = Collections[0].Name;
+                    CurrentQueryDocument.QueryText = $"SELECT * FROM {firstName}";
+                }
             },
             errorMessage: "Failed to load collections",
             showSuccessToast: false);
+    }
+
+    [RelayCommand]
+    public async Task RefreshCollectionsAsync()
+    {
+        await LoadCollectionsAsync();
     }
 
     [RelayCommand]

@@ -1,0 +1,115 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                 xmlns:help="using:EdgeStudio.Views.Help"
+                 mc:Ignorable="d"
+                 d:DesignWidth="700"
+                 d:DesignHeight="500"
+                 x:Class="EdgeStudio.Views.Help.QuickstartBrowserWindow"
+                 Title="Ditto Quickstart Projects"
+                 Width="700"
+                 Height="500"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="True"
+                 BackgroundStyle="Flat">
+
+    <DockPanel Margin="24,20,24,20">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Ditto Quickstart Projects"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,4"/>
+            <TextBlock x:Name="PathText"
+                       FontSize="11"
+                       Opacity="0.6"
+                       TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <!-- Warning Banner (hidden by default) -->
+        <Border x:Name="WarningBanner"
+                DockPanel.Dock="Top"
+                IsVisible="False"
+                CornerRadius="6"
+                Padding="12,10"
+                Margin="0,0,0,12"
+                Background="#3D3000"
+                BorderBrush="#806000"
+                BorderThickness="1">
+            <Grid ColumnDefinitions="Auto,*">
+                <materialIcons:MaterialIcon Kind="AlertOutline"
+                                            Width="18" Height="18"
+                                            Foreground="#FFD700"
+                                            VerticalAlignment="Top"
+                                            Margin="0,1,10,0"/>
+                <TextBlock Grid.Column="1"
+                           TextWrapping="Wrap"
+                           FontSize="13"
+                           Foreground="#FFD700"
+                           Text="These projects were not automatically configured with your database credentials. Open a project and configure it manually."/>
+            </Grid>
+        </Border>
+
+        <!-- Done Button -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button x:Name="DoneButton"
+                    Classes="Flat"
+                    Padding="20,10"
+                    Click="Done_Click">
+                <TextBlock Text="Done" FontWeight="SemiBold"/>
+            </Button>
+        </StackPanel>
+
+        <!-- Project List -->
+        <ListBox x:Name="ProjectList"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="help:QuickstartProjectViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto"
+                          Margin="0,6,0,6">
+
+                        <!-- Status Icon -->
+                        <materialIcons:MaterialIcon Grid.Column="0"
+                                                    Kind="{Binding StatusIcon}"
+                                                    Width="20" Height="20"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,12,0"/>
+
+                        <!-- Name + Path -->
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Spacing="2">
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Path}"
+                                       FontSize="11"
+                                       Opacity="0.6"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+
+                        <!-- Copy Path Button -->
+                        <Button Grid.Column="2"
+                                Tag="{Binding Path}"
+                                Padding="8,6"
+                                VerticalAlignment="Center"
+                                Click="CopyPath_Click"
+                                ToolTip.Tip="Copy path to clipboard">
+                            <materialIcons:MaterialIcon Kind="ContentCopy" Width="16" Height="16"/>
+                        </Button>
+
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+    </DockPanel>
+
+</suki:SukiWindow>

@@ -4,6 +4,7 @@ import SwiftUI
 struct MainStudioView: View {
     @EnvironmentObject var appState: AppState
     @Binding var isMainStudioViewPresented: Bool
+    @Binding var isClosingDatabase: Bool
     @State var viewModel: MainStudioView.ViewModel
     @State private var showingImportView = false
     @State private var showingImportSubscriptionsView = false
@@ -53,9 +54,11 @@ struct MainStudioView: View {
 
     init(
         isMainStudioViewPresented: Binding<Bool>,
+        isClosingDatabase: Binding<Bool>,
         dittoAppConfig: DittoConfigForDatabase
     ) {
         _isMainStudioViewPresented = isMainStudioViewPresented
+        _isClosingDatabase = isClosingDatabase
         _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
@@ -305,7 +308,12 @@ struct MainStudioView: View {
 
     private var closeButtonContent: some View {
         Button {
-            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+            isClosingDatabase = true
+            Task {
+                await viewModel.closeSelectedApp()
+                isClosingDatabase = false
+                isMainStudioViewPresented = false
+            }
         } label: {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         }
@@ -723,7 +731,15 @@ extension MainStudioView {
         }
 
         func closeSelectedApp() async {
-            // First, clean up UI state immediately on main actor
+            let closeStart = CFAbsoluteTimeGetCurrent()
+            Log.info("[Close] Starting database close")
+
+            // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
+            await SystemRepository.shared.invalidateSession()
+            let invalidateElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+            Log.info("[Close] Session invalidated (\(String(format: "%.3f", invalidateElapsed))s)")
+
+            // 2. Clean up UI state immediately on main actor
             editorObservable = nil
             editorSubscription = nil
             selectedEventId = nil
@@ -745,8 +761,14 @@ extension MainStudioView {
             localPeerSDKPlatform = nil
             localPeerSDKVersion = nil
 
-            // Perform heavy cleanup operations on background queue to avoid priority inversion
+            let uiClearElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+            Log.info("[Close] UI state cleared (\(String(format: "%.3f", uiClearElapsed))s)")
+
+            // 3. Perform heavy cleanup operations on background queue
             await performCleanupOperations()
+
+            let totalElapsed = CFAbsoluteTimeGetCurrent() - closeStart
+            Log.info("[Close] Total close time: \(String(format: "%.3f", totalElapsed))s")
         }
 
         /// Merges an incoming snapshot of peers into `syncStatusItems` while
@@ -773,6 +795,8 @@ extension MainStudioView {
         }
 
         private func performCleanupOperations() async {
+            let cleanupStart = CFAbsoluteTimeGetCurrent()
+
             // Capture observables on main actor before moving to background queues
             let observablesToCleanup = observerables
 
@@ -783,10 +807,12 @@ extension MainStudioView {
                     for observable in observablesToCleanup {
                         observable.storeObserver?.cancel()
                     }
+                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+                    Log.info("[Close:Observers] Store observers cancelled (\(String(format: "%.3f", elapsed))s)")
                 }
 
                 group.addTask(priority: .utility) {
-                    // Clear repository caches (secure storage migration)
+                    // Clear repository caches
                     await HistoryRepository.shared.clearCache()
                     await FavoritesRepository.shared.clearCache()
                     await ObservableRepository.shared.clearCache()
@@ -795,13 +821,21 @@ extension MainStudioView {
                     // Stop other repository observers
                     await SystemRepository.shared.stopObserver()
                     await CollectionsRepository.shared.stopObserver()
+
+                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+                    Log.info("[Close:Repos] Caches cleared, observers stopped (\(String(format: "%.3f", elapsed))s)")
                 }
 
                 group.addTask(priority: .utility) {
                     // Close DittoManager selected app
                     await DittoManager.shared.closeDittoSelectedDatabase()
+                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+                    Log.info("[Close:DittoManager] closeDittoSelectedDatabase complete (\(String(format: "%.3f", elapsed))s)")
                 }
             }
+
+            let totalElapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+            Log.info("[Close] All cleanup operations complete (\(String(format: "%.3f", totalElapsed))s)")
         }
 
         func toggleSync() async throws {

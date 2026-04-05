@@ -3,20 +3,245 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:inspector="using:EdgeStudio.Views.StudioView.Inspector"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.StudioView.Details.ObserverDetailView"
              x:DataType="vm:ObserversViewModel"
              x:CompileBindings="True">
-    
-    <Grid>
-        <Border CornerRadius="8"
-                Margin="24"
-                Padding="32">
-            <TextBlock Text="Observer Details View"
-                       FontSize="24"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"/>
-        </Border>
+
+    <Grid RowDefinitions="*,Auto,*">
+
+        <!-- Top Pane: Events List (50%) -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,*,Auto">
+
+            <!-- No Observer Selected -->
+            <Border Grid.RowSpan="2"
+                    IsVisible="{Binding !HasSelectedObserver}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="warning"
+                              FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                              FontSize="48"
+                              Opacity="0.3"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="No Observer Selected"
+                              FontSize="18"
+                              FontWeight="SemiBold"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="Select an observer from the sidebar to view events."
+                              FontSize="14"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- No Events -->
+            <Border Grid.RowSpan="2"
+                    IsVisible="{Binding HasSelectedObserver}"
+                    Background="Transparent">
+                <Border IsVisible="{Binding !HasEvents}">
+                    <StackPanel HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Spacing="8">
+                        <TextBlock Text="notifications_none"
+                                  FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                  FontSize="48"
+                                  Opacity="0.3"
+                                  HorizontalAlignment="Center"/>
+                        <TextBlock Text="No Observer Events"
+                                  FontSize="18"
+                                  FontWeight="SemiBold"
+                                  HorizontalAlignment="Center"/>
+                        <TextBlock Text="Activate an observer to see observable events."
+                                  FontSize="14"
+                                  Opacity="0.7"
+                                  HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- Events Header -->
+            <Border Grid.Row="0"
+                    Padding="12,8"
+                    BorderThickness="0,0,0,1"
+                    IsVisible="{Binding HasEvents}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                              Text="{Binding DetailsTitle}"
+                              FontSize="12"
+                              FontWeight="Normal"
+                              VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1"
+                              FontSize="12"
+                              Opacity="0.7"
+                              VerticalAlignment="Center">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0} events">
+                                <Binding Path="Events.Count"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </Grid>
+            </Border>
+
+            <!-- Events DataGrid -->
+            <DataGrid Grid.Row="1"
+                      ItemsSource="{Binding PagedEvents}"
+                      SelectedItem="{Binding SelectedEvent}"
+                      IsVisible="{Binding HasEvents}"
+                      CanUserReorderColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time"
+                                       Binding="{Binding FormattedEventTime}"
+                                       Width="150"
+                                       MinWidth="100"/>
+                    <DataGridTextColumn Header="Count"
+                                       Binding="{Binding Data.Count}"
+                                       Width="*"
+                                       MinWidth="60"/>
+                    <DataGridTextColumn Header="Inserted"
+                                       Binding="{Binding InsertIndexes.Count}"
+                                       Width="*"
+                                       MinWidth="70"/>
+                    <DataGridTextColumn Header="Updated"
+                                       Binding="{Binding UpdatedIndexes.Count}"
+                                       Width="*"
+                                       MinWidth="70"/>
+                    <DataGridTextColumn Header="Deleted"
+                                       Binding="{Binding DeletedIndexes.Count}"
+                                       Width="*"
+                                       MinWidth="70"/>
+                    <DataGridTextColumn Header="Moves"
+                                       Binding="{Binding MovedIndexes.Count}"
+                                       Width="*"
+                                       MinWidth="60"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Event Pagination -->
+            <Border Grid.Row="2" Padding="8,4" IsVisible="{Binding HasEvents}">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,*">
+                    <Button Grid.Column="1" Content="&lt;" Classes="Flat" Padding="8,2" FontSize="12"
+                            Command="{Binding EventPreviousPageCommand}"/>
+                    <TextBlock Grid.Column="2" FontSize="12" VerticalAlignment="Center" Margin="8,0">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="Page {0} of {1}">
+                                <Binding Path="EventCurrentPage"/>
+                                <Binding Path="EventPageCount"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <Button Grid.Column="3" Content="&gt;" Classes="Flat" Padding="8,2" FontSize="12"
+                            Command="{Binding EventNextPageCommand}"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Divider -->
+        <GridSplitter Grid.Row="1"
+                      Height="4"
+                      HorizontalAlignment="Stretch"
+                      Background="Transparent"/>
+
+        <!-- Bottom Pane: Event Detail (50%) -->
+        <Grid Grid.Row="2">
+
+            <!-- No Event Selected -->
+            <Border IsVisible="{Binding !HasSelectedEvent}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="visibility_off"
+                              FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                              FontSize="48"
+                              Opacity="0.3"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="No Event Selected"
+                              FontSize="16"
+                              FontWeight="SemiBold"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="Select an event from the list above to view its details."
+                              FontSize="14"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Event Detail with Tabs and Filter -->
+            <Grid RowDefinitions="Auto,*"
+                  IsVisible="{Binding HasSelectedEvent}">
+
+                <!-- Header: Filter ComboBox -->
+                <Border Grid.Row="0"
+                        Padding="12,6"
+                        BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                  Text="Event Data"
+                                  FontSize="12"
+                                  FontWeight="Normal"
+                                  VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1"
+                                   Orientation="Horizontal"
+                                   Spacing="8"
+                                   VerticalAlignment="Center">
+                            <TextBlock Text="Filter:"
+                                      FontSize="12"
+                                      Opacity="0.7"
+                                      VerticalAlignment="Center"/>
+                            <ComboBox x:Name="FilterComboBox"
+                                     FontSize="12"
+                                     MinWidth="110"
+                                     Padding="8,4"
+                                     SelectedIndex="0"
+                                     SelectionChanged="FilterComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Items" Tag="items"/>
+                                <ComboBoxItem Content="Inserted" Tag="inserted"/>
+                                <ComboBoxItem Content="Updated" Tag="updated"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- TabControl with JSON and Table tabs (same styling as QueryResultsView) -->
+                <TabControl Grid.Row="1"
+                            Background="{DynamicResource SukiBackground}">
+                    <TabControl.Styles>
+                        <Style Selector="TabItem">
+                            <Setter Property="FontSize" Value="13"/>
+                            <Setter Property="Padding" Value="14,6"/>
+                            <Setter Property="Margin" Value="0,0,2,0"/>
+                            <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </Style>
+                        <Style Selector="TabItem:selected">
+                            <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource DittoAccent}"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                        </Style>
+                    </TabControl.Styles>
+
+                    <TabItem Header="JSON">
+                        <inspector:JsonResultsView DataContext="{Binding JsonResults}"/>
+                    </TabItem>
+                    <TabItem Header="Table">
+                        <inspector:TableResultsView DataContext="{Binding TableResults}"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>
