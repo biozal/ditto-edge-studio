@@ -9,8 +9,7 @@ struct ContentView: View {
     @State private var quickstartService = QuickstartDownloadService()
     @State private var showNoConnectionAlert = false
     @State private var showExistingFolderAlert = false
-    @State private var showDownloadErrorAlert = false
-    @State private var downloadErrorMessage = ""
+    @State private var showProgressSheet = false
     @State private var quickstartDestination: URL?
     @State private var existingFolderURL: URL?
     @State private var continueWithoutConfig = false
@@ -105,10 +104,12 @@ struct ContentView: View {
         } message: {
             Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
         }
-        .alert("Download Error", isPresented: $showDownloadErrorAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(downloadErrorMessage)
+        .sheet(isPresented: $showProgressSheet) {
+            QuickstartProgressWindow(
+                service: quickstartService,
+                onCancel: { showProgressSheet = false }
+            )
+            .interactiveDismissDisabled(quickstartService.isDownloading)
         }
         #endif
     }
@@ -339,10 +340,15 @@ extension ContentView {
     }
 
     func performDownload(to destination: URL, configureEnv: Bool) async {
+        // Reset and show progress
+        await quickstartService.reset()
+        await MainActor.run { showProgressSheet = true }
+
         do {
             let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
 
             if configureEnv, let config = await DittoManager.shared.dittoSelectedAppConfig {
+                await quickstartService.updateStatus("Configuring .env files...")
                 quickstartService.configureEnvFiles(
                     in: extractedDir,
                     databaseId: config.databaseId,
@@ -351,6 +357,7 @@ extension ContentView {
                     websocketUrl: config.websocketUrl
                 )
 
+                await quickstartService.updateStatus("Configuring edge-server...")
                 try? quickstartService.configureEdgeServerYaml(
                     in: extractedDir,
                     databaseId: config.databaseId,
@@ -359,10 +366,16 @@ extension ContentView {
                 )
             }
 
+            await quickstartService.updateStatus("Discovering projects...")
             quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
 
-            // Small delay to let discoverProjects populate on MainActor
-            try? await Task.sleep(for: .milliseconds(100))
+            await quickstartService.setComplete()
+
+            // Brief pause to show "Complete" before transitioning
+            try? await Task.sleep(for: .milliseconds(500))
+
+            // Close progress sheet, open browser
+            await MainActor.run { showProgressSheet = false }
 
             let projects = quickstartService.projects
             WindowController.showQuickstartBrowser(
@@ -371,10 +384,8 @@ extension ContentView {
                 directory: extractedDir
             )
         } catch {
-            await MainActor.run {
-                downloadErrorMessage = error.localizedDescription
-                showDownloadErrorAlert = true
-            }
+            await quickstartService.setError(error.localizedDescription)
+            // Progress sheet stays open showing error — user clicks OK to dismiss
         }
     }
 }
