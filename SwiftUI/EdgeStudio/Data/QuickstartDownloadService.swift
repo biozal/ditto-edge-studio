@@ -50,14 +50,11 @@ final class QuickstartDownloadService {
 
     enum QuickstartError: LocalizedError {
         case extractionFailed(String)
-        case envSampleNotFound(String)
 
         var errorDescription: String? {
             switch self {
             case let .extractionFailed(detail):
                 return "Extraction failed: \(detail)"
-            case let .envSampleNotFound(path):
-                return "Could not find .env.sample at: \(path)"
             }
         }
     }
@@ -79,22 +76,17 @@ final class QuickstartDownloadService {
 
         Log.info("QuickstartDownloadService: Starting download from \(Self.zipURL)")
 
+        await MainActor.run {
+            downloadProgress = 0.1
+        }
+
         // Download zip
-        let (localZipURL, _) = try await URLSession.shared
-            .download(from: Self.zipURL) { [weak self] _, totalBytesWritten, totalBytesExpectedToWrite in
-                guard let self else { return }
-                if totalBytesExpectedToWrite > 0 {
-                    let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) * 0.8
-                    Task { @MainActor in
-                        self.downloadProgress = progress
-                    }
-                }
-            }
+        let (localZipURL, _) = try await URLSession.shared.download(from: Self.zipURL)
 
         Log.info("QuickstartDownloadService: Download complete, extracting to \(destination.path)")
 
         await MainActor.run {
-            downloadProgress = 0.85
+            downloadProgress = 0.5
         }
 
         // Extract zip using /usr/bin/unzip
@@ -139,7 +131,7 @@ final class QuickstartDownloadService {
         token: String,
         authUrl: String,
         websocketUrl: String
-    ) throws {
+    ) {
         // Build env content without leading whitespace on each line
         let envLines = [
             "#!/usr/bin/env bash",
@@ -269,36 +261,5 @@ final class QuickstartDownloadService {
     func removeExistingFolder(at url: URL) throws {
         try FileManager.default.removeItem(at: url)
         Log.info("QuickstartDownloadService: Removed folder at \(url.path)")
-    }
-}
-
-// MARK: - URLSession Download Extension
-
-private extension URLSession {
-    func download(from url: URL, progressHandler: @escaping (Int64, Int64, Int64) -> Void) async throws -> (URL, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
-            let task = downloadTask(with: url) { localURL, response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let localURL, let response else {
-                    continuation.resume(throwing: URLError(.badServerResponse))
-                    return
-                }
-                continuation.resume(returning: (localURL, response))
-            }
-
-            // Observe progress via a periodic check is not straightforward here;
-            // use the delegate-based approach for progress reporting via the observation block
-            let observation = task.progress.observe(\.fractionCompleted) { progress, _ in
-                progressHandler(0, Int64(progress.fractionCompleted * 1_000_000), 1_000_000)
-            }
-
-            task.resume()
-
-            // Keep observation alive until task completes
-            _ = observation
-        }
     }
 }
