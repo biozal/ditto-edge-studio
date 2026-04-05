@@ -20,6 +20,9 @@ final class QuickstartDownloadService {
     var isDownloading = false
     var downloadProgress = 0.0
     var projects: [QuickstartProject] = []
+    var statusMessage = ""
+    var hasError = false
+    var errorMessage = ""
 
     // MARK: - Static Constants
 
@@ -59,6 +62,35 @@ final class QuickstartDownloadService {
         }
     }
 
+    // MARK: - Status Helpers
+
+    @MainActor
+    func updateStatus(_ message: String) {
+        statusMessage = message
+    }
+
+    @MainActor
+    func setError(_ message: String) {
+        hasError = true
+        errorMessage = message
+        statusMessage = "Error"
+    }
+
+    @MainActor
+    func setComplete() {
+        statusMessage = "Complete"
+        downloadProgress = 1.0
+    }
+
+    @MainActor
+    func reset() {
+        isDownloading = false
+        downloadProgress = 0.0
+        statusMessage = ""
+        hasError = false
+        errorMessage = ""
+    }
+
     // MARK: - Download & Extract
 
     /// Downloads the quickstart zip from GitHub, extracts it to the given destination, and returns the extracted folder URL.
@@ -78,6 +110,7 @@ final class QuickstartDownloadService {
 
         await MainActor.run {
             downloadProgress = 0.1
+            statusMessage = "Downloading quickstarts from GitHub..."
         }
 
         // Download zip
@@ -87,6 +120,7 @@ final class QuickstartDownloadService {
 
         await MainActor.run {
             downloadProgress = 0.5
+            statusMessage = "Extracting archive..."
         }
 
         // Extract zip using /usr/bin/unzip (macOS only)
@@ -119,6 +153,7 @@ final class QuickstartDownloadService {
 
         await MainActor.run {
             downloadProgress = 1.0
+            statusMessage = "Download complete"
         }
 
         let extractedPath = destination.appendingPathComponent(Self.extractedFolderName)

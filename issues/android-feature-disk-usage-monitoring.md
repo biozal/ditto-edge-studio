@@ -1,32 +1,59 @@
-# Android: Missing Feature — Disk Usage Monitoring
+# Android Feature: Disk Usage Monitoring — Feature Parity Check
 
-## Platform
-Android
+**Priority:** Low  
+**Complexity:** Low  
+**Status:** Mostly Complete — Minor UI Gaps  
+**Platforms with feature:** SwiftUI, .NET/Avalonia, Android  
 
-## Feature Description
-A dedicated view showing how much disk space the Ditto database is consuming. Users can see total database size and monitor storage growth. Useful for understanding the footprint of their Ditto deployment.
+## Summary
 
-## SwiftUI Implementation Reference
-- `SwiftUI/Edge Debug Helper/Views/Tools/` — Disk Usage tool view
-- `SwiftUI/Edge Debug Helper/Data/Repositories/SystemRepository.swift` — Tracks disk usage metrics from the SDK
+Android already has a `DiskUsageScreen.kt` with storage breakdown by category and per-collection estimates. This issue tracks minor UI/feature gaps compared to SwiftUI and .NET to ensure full parity.
 
-## Current Android Status
-App Metrics view partially covers this — `AppMetricsViewModel` may include storage bytes as part of general metrics. However, there is no dedicated Disk Usage screen or tool. The feature is not surfaced prominently to the user.
+## Current State in Android
 
-## Expected Behavior
-- Accessible from the Tools or Sync section
-- Shows total Ditto database size in human-readable format (KB, MB, GB)
-- Updates when navigating to the view
-- Clear empty state if disk usage data is unavailable
-- Shows the size of each collection in the database - important feature
+`DiskUsageScreen.kt` displays:
+- Total storage card
+- 7 storage categories (Store, Replication, Attachments, Auth, WAL/SHM, Logs, Other) with linear progress bars
+- Per-collection breakdown with doc counts and estimated bytes
+- Manual refresh button
+- Last updated timestamp with relative formatting
+- Loading indicator
 
-## Key Implementation Notes
-- Ditto Android SDK: check for `ditto.diskUsage` or equivalent property
-- If storage bytes are already in `AppMetricsViewModel`, a dedicated screen can present this more prominently
-- Consider placing in the Tools section alongside other system tools
+## Gaps Compared to SwiftUI/.NET
+
+### 1. Auto-Refresh (Minor)
+
+**SwiftUI and .NET:** Auto-refresh every 15 seconds via a background loop.  
+**Android:** Only refreshes on initial load and manual button press.
+
+**Fix:** Add a `LaunchedEffect` with 15-second interval:
+```kotlin
+LaunchedEffect(Unit) {
+    while (isActive) {
+        viewModel.refresh()
+        delay(15_000)
+    }
+}
+```
+
+### 2. Collection Storage Sorting
+
+**SwiftUI:** Collections sorted by size (largest first).  
+**Android:** Verify collections are sorted by `estimatedBytes` descending. If not, add `.sortedByDescending { it.estimatedBytes }`.
+
+### 3. Empty Collection State
+
+**SwiftUI/.NET:** Shows "No collections in this database" message.  
+**Android:** Verify this empty state exists. If missing, add a centered message when collection list is empty.
+
+## Key Reference Files
+
+- Android: `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/metrics/DiskUsageScreen.kt`
+- Android: `android/app/src/main/java/com/costoda/dittoedgestudio/viewmodel/DiskUsageViewModel.kt`
+- SwiftUI: `SwiftUI/EdgeStudio/Data/Repositories/StorageRepository.swift`
 
 ## Acceptance Criteria
-- [ ] Disk Usage is accessible from the app (Tools section or similar)
-- [ ] Shows total database size in human-readable format
-- [ ] Data is accurate and reflects current database size
-- [ ] Refreshes when the view is opened
+
+- [ ] Auto-refresh every 15 seconds while screen is visible
+- [ ] Collections sorted by size (largest first)
+- [ ] Empty state message when no collections exist
