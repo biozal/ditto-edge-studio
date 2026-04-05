@@ -1,3 +1,0 @@
-Go into plan mode.  Need to update gradle and the various packages that this app uses so that it can compile on Android and it works with the latest version of KMP/CMP.  I want to make sure we are support  CMP 1.8.0 and Kotlin 2.1.0 along with the latest version of Material Design for CMP.  
-
-The JVM version should be set to what ever version is recommended for CMP 1.8.0.  Make a plan to update our gradle packages to support this. 
