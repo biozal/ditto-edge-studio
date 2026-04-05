@@ -89,7 +89,8 @@ final class QuickstartDownloadService {
             downloadProgress = 0.5
         }
 
-        // Extract zip using /usr/bin/unzip
+        // Extract zip using /usr/bin/unzip (macOS only)
+        #if os(macOS)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         process.arguments = ["-o", localZipURL.path, "-d", destination.path]
@@ -109,6 +110,9 @@ final class QuickstartDownloadService {
             Log.error("QuickstartDownloadService: Extraction failed with exit code \(exitCode): \(errorMessage)")
             throw QuickstartError.extractionFailed("Exit code \(exitCode): \(errorMessage)")
         }
+        #else
+        throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
+        #endif
 
         // Clean up temp zip
         try? FileManager.default.removeItem(at: localZipURL)
