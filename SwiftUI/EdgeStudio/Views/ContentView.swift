@@ -72,6 +72,45 @@ struct ContentView: View {
                 await viewModel.loadApps(appState: appState)
             }
         }
+        #if os(macOS)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+            startQuickstartDownload()
+        }
+        .alert("No Database Connection", isPresented: $showNoConnectionAlert) {
+            Button("Continue Anyway") {
+                continueWithoutConfig = true
+                openFolderPickerAndDownload(configureEnv: false)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
+        }
+        .alert("Quickstarts Folder Exists", isPresented: $showExistingFolderAlert) {
+            Button("Replace", role: .destructive) {
+                if let existing = existingFolderURL, let dest = quickstartDestination {
+                    try? quickstartService.removeExistingFolder(at: existing)
+                    let hasConfig = DittoManager.shared.dittoSelectedApp != nil
+                        && DittoManager.shared.dittoSelectedAppConfig != nil
+                    Task {
+                        await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
+                    }
+                }
+            }
+            Button("Choose Different Location") {
+                let hasConfig = DittoManager.shared.dittoSelectedApp != nil
+                    && DittoManager.shared.dittoSelectedAppConfig != nil
+                openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
+        }
+        .alert("Download Error", isPresented: $showDownloadErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(downloadErrorMessage)
+        }
+        #endif
     }
 
     private var closingDatabaseView: some View {
@@ -252,43 +291,6 @@ extension ContentView {
                 Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
             }
             .frame(minWidth: 480, minHeight: 360)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            startQuickstartDownload()
-        }
-        .alert("No Database Connection", isPresented: $showNoConnectionAlert) {
-            Button("Continue Anyway") {
-                continueWithoutConfig = true
-                openFolderPickerAndDownload(configureEnv: false)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
-        }
-        .alert("Quickstarts Folder Exists", isPresented: $showExistingFolderAlert) {
-            Button("Replace", role: .destructive) {
-                if let existing = existingFolderURL, let dest = quickstartDestination {
-                    try? quickstartService.removeExistingFolder(at: existing)
-                    let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                        && DittoManager.shared.dittoSelectedAppConfig != nil
-                    Task {
-                        await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
-                    }
-                }
-            }
-            Button("Choose Different Location") {
-                let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                    && DittoManager.shared.dittoSelectedAppConfig != nil
-                openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
-        }
-        .alert("Download Error", isPresented: $showDownloadErrorAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(downloadErrorMessage)
         }
     }
 }
