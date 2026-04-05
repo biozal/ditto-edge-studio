@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 
 @Composable
@@ -51,7 +53,12 @@ fun DiskUsageScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val lastUpdated by viewModel.lastUpdatedText.collectAsState()
 
-    LaunchedEffect(Unit) { viewModel.refresh() }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            viewModel.refresh()
+            delay(15_000)
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Surface(tonalElevation = 2.dp) {

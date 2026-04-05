@@ -42,3 +42,4 @@ dotnet/src/EdgeStudioTests/obj
 # Source of truth is docs/help/*.md — run scripts/sync-help-docs.sh to populate
 android/app/src/main/assets/help/
 dotnet/src/EdgeStudio/Assets/Help/*.md
+.gitnexus
