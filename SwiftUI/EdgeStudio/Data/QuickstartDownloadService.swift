@@ -128,21 +128,16 @@ final class QuickstartDownloadService {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         process.arguments = ["-o", localZipURL.path, "-d", destination.path]
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
 
         try process.run()
         process.waitUntilExit()
 
         let exitCode = process.terminationStatus
         if exitCode != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            Log.error("QuickstartDownloadService: Extraction failed with exit code \(exitCode): \(errorMessage)")
-            throw QuickstartError.extractionFailed("Exit code \(exitCode): \(errorMessage)")
+            Log.error("QuickstartDownloadService: Extraction failed with exit code \(exitCode)")
+            throw QuickstartError.extractionFailed("Unzip failed with exit code \(exitCode)")
         }
         #else
         throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
