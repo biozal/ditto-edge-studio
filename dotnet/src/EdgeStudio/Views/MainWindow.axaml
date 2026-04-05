@@ -75,6 +75,8 @@
                 <NativeMenu>
                     <NativeMenuItem Header="Edge Studio Documentation" Click="HelpDocumentation_Click" />
                     <NativeMenuItem Header="Visit Ditto Website" Click="VisitDittoWebsite_Click" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Download Quickstarts..." Click="DownloadQuickstarts_Click" />
                 </NativeMenu>
             </NativeMenuItem>
         </NativeMenu>
