@@ -72,38 +72,46 @@ public partial class App : Application
 
     private void OnApplicationExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
-        try
+        // Run all cleanup on a background thread with a hard timeout
+        // to prevent the UI thread from hanging on Ditto SDK or MCP server disposal.
+        var cleanupTask = Task.Run(async () =>
         {
-            // Stop MCP server if running
-            var mcpService = _serviceProvider?.GetService<McpServerService>();
-            if (mcpService?.IsRunning == true)
-                mcpService.StopAsync().GetAwaiter().GetResult();
+            try
+            {
+                // Stop MCP server if running
+                var mcpService = _serviceProvider?.GetService<McpServerService>();
+                if (mcpService?.IsRunning == true)
+                    await mcpService.StopAsync();
 
-            // Stop Ditto log capture
-            var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
-            logCapture?.Dispose();
+                // Stop Ditto log capture
+                var logCapture = _serviceProvider?.GetService<DittoLogCaptureService>();
+                logCapture?.Dispose();
 
-            // Dispose logging service
-            var loggingService = _serviceProvider?.GetService<ILoggingService>();
-            (loggingService as IDisposable)?.Dispose();
+                // Dispose logging service
+                var loggingService = _serviceProvider?.GetService<ILoggingService>();
+                (loggingService as IDisposable)?.Dispose();
 
-            // Dispose DittoManager
-            var dittoManager = _serviceProvider?.GetService<IDittoManager>();
-            if (dittoManager is IDisposable disposableDitto)
-                disposableDitto.Dispose();
+                // Close Ditto database using the async path (has its own 10s timeout)
+                var dittoManager = _serviceProvider?.GetService<IDittoManager>();
+                if (dittoManager != null)
+                    await dittoManager.CloseDatabaseAsync();
 
-            // Dispose local database service
-            var localDb = _serviceProvider?.GetService<ILocalDatabaseService>();
-            localDb?.Dispose();
+                // Dispose local database service
+                var localDb = _serviceProvider?.GetService<ILocalDatabaseService>();
+                localDb?.Dispose();
 
-            // Dispose ServiceProvider
-            if (_serviceProvider is IDisposable serviceProviderDisposable)
-                serviceProviderDisposable.Dispose();
-        }
-        catch
-        {
-            // Ignore any errors during cleanup
-        }
+                // Dispose ServiceProvider
+                if (_serviceProvider is IDisposable serviceProviderDisposable)
+                    serviceProviderDisposable.Dispose();
+            }
+            catch
+            {
+                // Ignore any errors during cleanup
+            }
+        });
+
+        // Wait up to 5 seconds for cleanup, then let the process exit anyway
+        cleanupTask.Wait(TimeSpan.FromSeconds(5));
     }
 
     private async Task InitializeApplicationAsync(IClassicDesktopStyleApplicationLifetime desktop)
@@ -326,7 +334,9 @@ public partial class App : Application
     private void AboutMenuItem_Click(object? sender, EventArgs e)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var version = assembly.GetName().Version?.ToString() ?? "1.0.0";
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                      ?? assembly.GetName().Version?.ToString()
+                      ?? "1.0.0";
         var assemblyTitle = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? "Edge Studio";
         var company = assembly.GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "Ditto";
         var copyright = assembly.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? "Copyright © 2025 Ditto";
