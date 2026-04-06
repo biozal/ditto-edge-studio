@@ -116,11 +116,14 @@ public partial class AttachmentViewModel : DisposableViewModelBase
             }
             else
             {
-                // Local fetch returns the attachment ID (not file path) because
-                // the .NET Ditto SDK v5 DittoAttachment doesn't expose a Path property.
-                // For local mode, fall back to HTTP fetch to get usable bytes.
-                // If HTTP is not available, this will throw, which is handled below.
-                data = await _attachmentService.FetchViaHttpAsync(attachment.Id);
+                // Local fetch uses Ditto SDK's DittoAttachment.Data() to get binary content
+                var token = new Dictionary<string, object>
+                {
+                    ["id"] = attachment.Id,
+                    ["len"] = attachment.Length,
+                    ["metadata"] = attachment.Metadata
+                };
+                data = await _attachmentService.FetchAsync(token);
             }
 
             ProgressFraction = 0.75;

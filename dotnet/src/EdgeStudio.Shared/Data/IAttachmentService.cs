@@ -26,7 +26,10 @@ public interface IAttachmentService : IDisposable
         string documentId,
         string fieldName);
 
-    Task<string> FetchAsync(Dictionary<string, object> token);
+    /// <summary>
+    /// Fetches attachment binary data from the local Ditto store.
+    /// </summary>
+    Task<byte[]> FetchAsync(Dictionary<string, object> token);
 
     Task<byte[]> FetchViaHttpAsync(string attachmentId);
 

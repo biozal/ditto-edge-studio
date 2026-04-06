@@ -96,23 +96,24 @@ public class AttachmentService : IAttachmentService
         response.EnsureSuccessStatusCode();
     }
 
-    public Task<string> FetchAsync(Dictionary<string, object> token)
+    public Task<byte[]> FetchAsync(Dictionary<string, object> token)
     {
         var ditto = _dittoManager.DittoSelectedApp
             ?? throw new InvalidOperationException("No Ditto database connected.");
 
-        var tcs = new TaskCompletionSource<string>();
+        var tcs = new TaskCompletionSource<byte[]>();
         var attachmentId = token.GetValueOrDefault("id")?.ToString() ?? Guid.NewGuid().ToString();
 
-        // The Ditto .NET SDK v5 attachment fetch API uses a callback-based pattern.
-        // The fetcher is stored so it stays alive until the fetch completes or is cancelled.
+        // The Ditto .NET SDK attachment fetch uses a callback pattern.
+        // The fetcher must stay alive until the fetch completes or is cancelled.
         var fetcher = ditto.Store.FetchAttachment(token, fetchEvent =>
         {
             switch (fetchEvent)
             {
                 case DittoAttachmentFetchEvent.Completed completed:
                     RemoveFetcher(attachmentId);
-                    tcs.TrySetResult(completed.Attachment.Id);
+                    // DittoAttachment exposes .Data() for binary content
+                    tcs.TrySetResult(completed.Attachment.Data());
                     break;
                 case DittoAttachmentFetchEvent.Deleted:
                     RemoveFetcher(attachmentId);
