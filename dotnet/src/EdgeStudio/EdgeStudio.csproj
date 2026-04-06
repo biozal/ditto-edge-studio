@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\EdgeStudio.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- Configure for Windows and Linux only -->
     <SupportedOSPlatformVersion Condition="$([MSBuild]::IsOSPlatform('windows'))">7.0</SupportedOSPlatformVersion>

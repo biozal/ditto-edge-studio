@@ -14,7 +14,7 @@
         x:Class="EdgeStudio.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:CompileBindings="True"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/EdgeStudio.ico"
         Title="Ditto Edge Studio"
         Width="1200"
         Height="900"
