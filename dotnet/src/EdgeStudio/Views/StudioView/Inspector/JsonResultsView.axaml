@@ -26,6 +26,17 @@
                                 CornerRadius="6"
                                 Padding="4"
                                 Cursor="Hand">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Copy Document"
+                                              Command="{Binding $parent[ItemsControl].((vm:JsonResultsViewModel)DataContext).SelectDocumentCommand}"
+                                              CommandParameter="{Binding}" />
+                                    <Separator />
+                                    <MenuItem Header="Add Attachment..."
+                                              Command="{Binding $parent[ItemsControl].((vm:JsonResultsViewModel)DataContext).AddAttachmentCommand}"
+                                              CommandParameter="{Binding}" />
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <local:JsonDocumentCard DataContext="{Binding}"
                                                     IsHitTestVisible="False"/>
                         </Border>

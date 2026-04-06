@@ -26,6 +26,13 @@
                           FontSize="14"
                           Foreground="{DynamicResource DittoCardText}"
                           DoubleTapped="OnRowDoubleTapped">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Copy Document" x:Name="CopyRowMenuItem" />
+                            <Separator />
+                            <MenuItem Header="Add Attachment..." x:Name="AddAttachmentMenuItem" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Styles>
                         <Style Selector="DataGridColumnHeader">
                             <Setter Property="FontSize" Value="13"/>

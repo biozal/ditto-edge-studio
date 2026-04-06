@@ -34,6 +34,9 @@ namespace EdgeStudio.ViewModels
         /// <summary>Fired when the user double-clicks a document — triggers inspector open + navigate.</summary>
         public event Action<string>? DocumentDoubleClicked;
 
+        /// <summary>Fired when the user requests to add an attachment to a document.</summary>
+        public event Action<string>? AddAttachmentRequested;
+
         partial void OnCurrentPageChanged(int value) => RefreshPage();
         partial void OnPageSizeChanged(int value) { CurrentPage = 1; RefreshPage(); }
 
@@ -75,6 +78,12 @@ namespace EdgeStudio.ViewModels
         {
             DocumentSelected?.Invoke(json);
             DocumentDoubleClicked?.Invoke(json);
+        }
+
+        [RelayCommand]
+        private void AddAttachment(string json)
+        {
+            AddAttachmentRequested?.Invoke(json);
         }
 
         [RelayCommand]
