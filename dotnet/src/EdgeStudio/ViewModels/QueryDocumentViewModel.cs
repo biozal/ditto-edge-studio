@@ -33,6 +33,8 @@ namespace EdgeStudio.ViewModels
         private readonly IQueryService? _queryService;
         private readonly IQueryMetricsService? _queryMetricsService;
         private readonly IAppMetricsService? _appMetricsService;
+        private readonly IAttachmentService? _attachmentService;
+        private string? _lastCollection;
 
         [ObservableProperty]
         private string _selectedQueryMode = "Local";
@@ -89,7 +91,8 @@ namespace EdgeStudio.ViewModels
             IQueryService? queryService = null,
             string queryText = "",
             IQueryMetricsService? queryMetricsService = null,
-            IAppMetricsService? appMetricsService = null)
+            IAppMetricsService? appMetricsService = null,
+            IAttachmentService? attachmentService = null)
         {
             Id = Guid.NewGuid().ToString();
             _baseTitle = title;
@@ -102,6 +105,7 @@ namespace EdgeStudio.ViewModels
             _queryService = queryService;
             _queryMetricsService = queryMetricsService;
             _appMetricsService = appMetricsService;
+            _attachmentService = attachmentService;
 
             if (_jsonResults != null)
             {
@@ -111,6 +115,7 @@ namespace EdgeStudio.ViewModels
                     SelectedDocumentJson = json;
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
+                _jsonResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
             }
             if (_tableResults != null)
             {
@@ -120,6 +125,7 @@ namespace EdgeStudio.ViewModels
                     SelectedDocumentJson = json;
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
+                _tableResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
             }
         }
 
@@ -154,6 +160,7 @@ namespace EdgeStudio.ViewModels
 
             IsExecuting = true;
             SelectedDocumentJson = null;
+            _lastCollection = ParseCollectionName(QueryText);
 
             var stopwatch = Stopwatch.StartNew();
             try
@@ -241,6 +248,20 @@ namespace EdgeStudio.ViewModels
                 AvailableQueryModes.Add("HTTP");
             else if (!available)
                 AvailableQueryModes.Remove("HTTP");
+        }
+
+        private static string? ParseCollectionName(string query)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                query, @"\bFROM\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        private void OnAddAttachmentRequested(string documentJson)
+        {
+            var collection = _lastCollection ?? "unknown";
+            WeakReferenceMessenger.Default.Send(
+                new AddAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
         }
 
         public bool CanClose() => true;

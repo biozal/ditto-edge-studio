@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Platform;
@@ -11,6 +12,7 @@ using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 using EdgeStudio.Views.StudioView;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EdgeStudio.ViewModels
 {
@@ -160,6 +162,7 @@ namespace EdgeStudio.ViewModels
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
             WeakReferenceMessenger.Default.Register<DocumentDoubleClickedMessage>(this, OnDocumentDoubleClicked);
             WeakReferenceMessenger.Default.Register<RefreshCollectionsRequestedMessage>(this, OnRefreshCollectionsRequested);
+            WeakReferenceMessenger.Default.Register<AddAttachmentRequestedMessage>(this, OnAddAttachmentRequested);
         }
 
         private void OnRefreshCollectionsRequested(object recipient, RefreshCollectionsRequestedMessage message)
@@ -403,6 +406,57 @@ namespace EdgeStudio.ViewModels
 
             // Navigate to JSON Viewer tab (index 2 in the query inspector panel)
             SelectedQueryInspectorTabIndex = 2;
+        }
+
+        private async void OnAddAttachmentRequested(object recipient, AddAttachmentRequestedMessage message)
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime { MainWindow: { } mainWindow })
+                return;
+
+            string documentId;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(message.DocumentJson);
+                documentId = doc.RootElement.GetProperty("_id").ToString();
+            }
+            catch
+            {
+                return;
+            }
+
+            var picker = new Views.AttachmentPickerWindow(message.Collection, documentId, message.QueryMode);
+            await picker.ShowDialog(mainWindow);
+
+            if (!picker.Confirmed || string.IsNullOrEmpty(picker.SelectedFilePath) || string.IsNullOrEmpty(picker.SelectedFieldName))
+                return;
+
+            var serviceProvider = App.ServiceProvider;
+            if (serviceProvider == null) return;
+            var attachmentService = serviceProvider.GetRequiredService<IAttachmentService>();
+            var metadata = new Dictionary<string, string>
+            {
+                ["name"] = picker.SelectedFileName ?? "attachment",
+                ["mimeType"] = picker.SelectedMimeType ?? "application/octet-stream"
+            };
+
+            try
+            {
+                WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(true, "Uploading attachment...", 0));
+
+                if (message.QueryMode == "Local")
+                    await attachmentService.CreateAndLinkAsync(picker.SelectedFilePath, metadata, message.Collection, documentId, picker.SelectedFieldName);
+                else
+                    await attachmentService.CreateAndLinkViaHttpAsync(picker.SelectedFilePath, metadata, message.Collection, documentId, picker.SelectedFieldName);
+
+                WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(true, "Attachment linked successfully", 1.0));
+                await Task.Delay(1500);
+                WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(false, "", 0));
+                WeakReferenceMessenger.Default.Send(new AttachmentAddedMessage(documentId, picker.SelectedFieldName, message.Collection));
+            }
+            catch
+            {
+                WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(false, "", 0));
+            }
         }
 
         private void OnNavigationChanged(object recipient, NavigationChangedMessage message)

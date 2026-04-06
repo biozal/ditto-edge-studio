@@ -191,6 +191,7 @@ public partial class App : Application
         services.AddSingleton<IAppMetricsService, AppMetricsService>();
         services.AddSingleton<IQueryService, DittoQueryService>();
         services.AddSingleton<IImportService, ImportService>();
+        services.AddSingleton<IAttachmentService, AttachmentService>();
 
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();
@@ -228,6 +229,7 @@ public partial class App : Application
         services.AddSingleton<HistoryToolViewModel>();
         services.AddSingleton<FavoritesToolViewModel>();
         services.AddSingleton<IndexesToolViewModel>();
+        services.AddSingleton<AttachmentViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();

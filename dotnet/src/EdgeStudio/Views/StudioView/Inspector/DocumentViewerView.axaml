@@ -9,7 +9,7 @@
              x:Class="EdgeStudio.Views.StudioView.Inspector.DocumentViewerView"
              x:DataType="vm:QueryDocumentViewModel">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Header with copy button — only visible when a document is selected -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4"
@@ -57,5 +57,7 @@
             Foreground="{DynamicResource DittoCardText}"
             IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
             Margin="4,0,4,4"/>
+
+        <ContentControl x:Name="AttachmentViewerHost" Grid.Row="2" Margin="0,8,0,0" />
     </Grid>
 </UserControl>
