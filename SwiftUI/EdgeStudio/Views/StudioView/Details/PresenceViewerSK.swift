@@ -384,6 +384,8 @@ extension PresenceViewerSK {
                 rawRemotePeers
             }
 
+            // Sync the filter flag to the scene so it can suppress remote-to-remote edges
+            scene.showDirectConnectedOnly = showDirectConnectedOnly
             scene.updatePresenceGraph(localPeer: localPeer, remotePeers: peersToShow)
         }
 

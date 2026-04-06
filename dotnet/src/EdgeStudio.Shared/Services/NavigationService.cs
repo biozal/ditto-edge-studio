@@ -27,4 +27,9 @@ public class NavigationService : INavigationService
     {
         CurrentNavigationType = navigationType;
     }
+
+    public void SetCurrentType(NavigationItemType navigationType)
+    {
+        _currentNavigationType = navigationType;
+    }
 }

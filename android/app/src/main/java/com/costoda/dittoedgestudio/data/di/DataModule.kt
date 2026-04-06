@@ -71,7 +71,7 @@ val dataModule = module {
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
-    viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
     viewModel { DiskUsageViewModel(androidContext(), get(), get()) }
     viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get(), get()) }

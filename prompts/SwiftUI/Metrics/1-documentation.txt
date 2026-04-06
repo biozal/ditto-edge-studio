@@ -1,7 +1,0 @@
-Go into plan mode.  Use XCode MCP for all code discovery.  Metrics is a new feature in the app that allows developers to see important metrics on the app running and queries.  
-
-When this UI appears - the inspector only draws a export to Prometheus window.  All inspectors should have documentation that describes the screen and how to use it.  The new metrics is missing this.    Create a new document called metrics.md in the Docs folder and put documentation that explains the App metrics, Query metrics, and how the Prometheus Export works.  Add a new Picker on the inspector for on the Metrics window - which is located in MetricsInspectorView.  This picker should have a docs icon like the other inspectors and also a new button for the export to Prometheus.  When the user picks the doc button (which should be default), the metrics.md file should render like it does on other inspectors in the app.  When the user clicks on the export icon the Prometheus export view should appear allowing them to configure it.  
-
-As part of this change the Inspectors code is usually located in the InspectorViews.swift file.  This allows you to see all the code in one file.  When the Inspector code for Metrics was written it was put in a seperate file MetricsInspectorView.swift.  This code should be moved into the InspectorViews.swift and follow the same format and standards we implemented for other inspectors.   
-
-Make a plan to improve this feature and refactor the code.

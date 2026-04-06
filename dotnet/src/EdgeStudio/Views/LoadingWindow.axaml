@@ -27,7 +27,7 @@
             
             <!-- Loading Text -->
             <TextBlock Text="Initializing application..." 
-                       FontSize="14" 
+                       FontSize="16" 
                        Foreground="#A0AEC0"
                        HorizontalAlignment="Center"/>
         </StackPanel>

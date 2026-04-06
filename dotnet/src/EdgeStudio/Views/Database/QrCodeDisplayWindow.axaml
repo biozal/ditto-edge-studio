@@ -20,7 +20,7 @@
 
             <!-- Database Name -->
             <TextBlock x:Name="DatabaseNameText"
-                       FontSize="18"
+                       FontSize="20"
                        FontWeight="Bold"
                        HorizontalAlignment="Center"
                        TextWrapping="Wrap"
@@ -39,7 +39,7 @@
 
             <!-- Instruction -->
             <TextBlock Text="Scan with the iOS or Android Edge Studio app to import this configuration."
-                       FontSize="12"
+                       FontSize="14"
                        Opacity="0.7"
                        TextWrapping="Wrap"
                        HorizontalAlignment="Center"

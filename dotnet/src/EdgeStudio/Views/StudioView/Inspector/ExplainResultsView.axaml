@@ -17,7 +17,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <TextBlock Text="{Binding ExplainText}"
                            FontFamily="Consolas"
-                           FontSize="12"
+                           FontSize="14"
                            Foreground="#d4d4d4"
                            TextWrapping="Wrap"
                            LineHeight="20"/>

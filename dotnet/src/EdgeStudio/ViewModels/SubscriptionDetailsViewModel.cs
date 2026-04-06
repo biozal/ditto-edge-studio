@@ -14,6 +14,9 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     [ObservableProperty]
     private string _detailsTitle = string.Empty;
 
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
     /// <summary>
     /// Peers List tab ViewModel
     /// </summary>
@@ -29,6 +32,16 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     /// </summary>
     public SubscriptionSettingsViewModel Settings { get; private set; }
 
+    /// <summary>
+    /// Last updated text from the currently active tab's ViewModel.
+    /// </summary>
+    public string LastUpdatedText => SelectedTabIndex switch
+    {
+        0 => PeersList.LastUpdatedText,
+        1 => PresenceViewer.LastUpdatedText,
+        _ => "--:--:-- --"
+    };
+
     public SubscriptionDetailsViewModel(
         ISyncService syncService,
         IDittoManager dittoManager,
@@ -39,8 +52,38 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         // Instantiate child ViewModels (not resolved from DI, following QueryViewModel pattern)
         PeersList = new PeersListViewModel(systemRepositoryLazy, networkAdapterService, toastService);
-        PresenceViewer = new PresenceViewerViewModel(toastService);
+        PresenceViewer = new PresenceViewerViewModel(systemRepositoryLazy, toastService);
         Settings = new SubscriptionSettingsViewModel(syncService, dittoManager, toastService);
+
+        PeersList.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PeersListViewModel.LastUpdatedText) && SelectedTabIndex == 0)
+                OnPropertyChanged(nameof(LastUpdatedText));
+        };
+
+        PresenceViewer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PresenceViewerViewModel.LastUpdatedText) && SelectedTabIndex == 1)
+                OnPropertyChanged(nameof(LastUpdatedText));
+        };
+    }
+
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        // Tab 0 = Peers List, Tab 1 = Presence Viewer
+        switch (value)
+        {
+            case 0:
+                PresenceViewer.StopObserving();
+                PeersList.Activate();
+                break;
+            case 1:
+                PeersList.Deactivate();
+                PresenceViewer.StartObserving();
+                break;
+        }
+
+        OnPropertyChanged(nameof(LastUpdatedText));
     }
 
     /// <summary>
@@ -50,8 +93,10 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         base.OnActivated();
 
-        // Activate the PeersList ViewModel to start observing peers
-        PeersList.Activate();
+        if (SelectedTabIndex == 0)
+            PeersList.Activate();
+        else if (SelectedTabIndex == 1)
+            PresenceViewer.StartObserving();
     }
 
     /// <summary>
@@ -61,8 +106,8 @@ public partial class SubscriptionDetailsViewModel : DisposableViewModelBase
     {
         base.OnDeactivated();
 
-        // Deactivate the PeersList ViewModel to stop observing peers
         PeersList.Deactivate();
+        PresenceViewer.StopObserving();
     }
 
     protected override void OnDisposing()

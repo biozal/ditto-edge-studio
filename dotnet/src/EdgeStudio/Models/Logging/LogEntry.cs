@@ -26,7 +26,9 @@ public enum LogComponent
 public enum LogEntrySource
 {
     DittoSDK,
-    Application
+    Application,
+    TransportConditions,
+    ConnectionRequests
 }
 
 public record LogEntry(

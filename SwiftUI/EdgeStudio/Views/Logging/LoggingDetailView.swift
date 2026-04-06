@@ -9,7 +9,6 @@ struct LoggingDetailView: View {
 
     // MARK: - Filter State
 
-    @State private var selectedSource: SourceTab = .dittoSDK
     @State private var selectedLevels: Set<DittoLogLevel> = [.error, .warning, .info, .debug, .verbose]
     @State private var selectedComponent: LogComponent = .all
     @State private var searchText = ""
@@ -23,25 +22,17 @@ struct LoggingDetailView: View {
     @State private var isShowingImportPanel = false
     #endif
 
-    // MARK: - Source tabs
-
-    enum SourceTab: String, CaseIterable {
-        case dittoSDK = "Ditto SDK"
-        case application = "App Logs"
-        case imported = "Imported"
-    }
-
     // MARK: - Display Cap
 
     private let maxDisplayedEntries = 200
 
     /// Source tabs visible in the current platform.
     /// The Imported tab is macOS-only because log file import uses a macOS file picker.
-    private var visibleSourceTabs: [SourceTab] {
+    private var visibleSourceTabs: [LoggingSourceTab] {
         #if os(macOS)
-        return SourceTab.allCases
+        return LoggingSourceTab.allCases
         #else
-        return [.dittoSDK, .application]
+        return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
     }
 
@@ -151,18 +142,18 @@ struct LoggingDetailView: View {
         HStack(spacing: 0) {
             ForEach(visibleSourceTabs, id: \.self) { tab in
                 Button {
-                    selectedSource = tab
+                    capture.selectedSource = tab
                 } label: {
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(selectedSource == tab ? Color.green : Color.secondary.opacity(0.4))
+                            .fill(capture.selectedSource == tab ? Color.green : Color.secondary.opacity(0.4))
                             .frame(width: 7, height: 7)
                         Text(tab.rawValue)
                             .font(.caption)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(selectedSource == tab ? Color.accentColor.opacity(0.12) : Color.clear)
+                    .background(capture.selectedSource == tab ? Color.accentColor.opacity(0.12) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
@@ -210,7 +201,7 @@ struct LoggingDetailView: View {
                 Spacer()
 
                 // Component filter (SDK source only)
-                if selectedSource == .dittoSDK || selectedSource == .imported {
+                if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported {
                     Picker("Component", selection: $selectedComponent) {
                         ForEach(LogComponent.allCases, id: \.self) { comp in
                             Text(comp.rawValue).tag(comp)
@@ -447,7 +438,7 @@ struct LoggingDetailView: View {
 
                         // Clear — icon only, red tint
                         Button {
-                            switch selectedSource {
+                            switch capture.selectedSource {
                             case .dittoSDK:
                                 capture.clearLive()
                                 capture.clearHistorical()
@@ -456,6 +447,10 @@ struct LoggingDetailView: View {
                                 Task { await capture.loadAppLogs() }
                             case .imported:
                                 capture.clearImported()
+                            case .transportConditions:
+                                capture.clearTransportEntries()
+                            case .connectionRequests:
+                                capture.clearConnectionRequestEntries()
                             }
                         } label: {
                             Image(systemName: "trash")
@@ -463,7 +458,7 @@ struct LoggingDetailView: View {
                                 .foregroundStyle(.red)
                         }
                         .buttonStyle(.plain)
-                        .help("Clear logs")
+                        .help("Clear \(capture.selectedSource.rawValue) logs")
 
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -491,13 +486,17 @@ struct LoggingDetailView: View {
     // MARK: - Filtered Entries
 
     private var activeSourceEntries: [LogEntry] {
-        switch selectedSource {
+        switch capture.selectedSource {
         case .dittoSDK:
             return capture.historicalEntries + capture.liveEntries
         case .application:
             return capture.appEntries
         case .imported:
             return capture.importedEntries
+        case .transportConditions:
+            return capture.transportEntries
+        case .connectionRequests:
+            return capture.connectionRequestEntries
         }
     }
 
@@ -508,7 +507,7 @@ struct LoggingDetailView: View {
                 guard LogEntry.isWithinDateRange(entry, start: dateFilterStart, end: dateFilterEnd) else { return false }
             }
             guard selectedLevels.contains(entry.level) else { return false }
-            if selectedSource == .dittoSDK || selectedSource == .imported,
+            if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported,
                selectedComponent != .all,
                entry.component != selectedComponent { return false }
             if !searchLower.isEmpty {

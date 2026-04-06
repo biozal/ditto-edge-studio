@@ -31,7 +31,7 @@
             <TextBlock Grid.Row="0"
                        x:Name="WindowTitle"
                        Text="Add Database Configuration"
-                       FontSize="20"
+                       FontSize="22"
                        FontWeight="Bold"
                        Margin="0,0,0,10"/>
 
@@ -47,7 +47,7 @@
                                                         Foreground="#4A9FF5" VerticalAlignment="Top" Margin="0,2,10,0"/>
                             <TextBlock Grid.Column="1"
                                        Text="This information comes from the Ditto Portal and is required in order to register a Ditto Database."
-                                       TextWrapping="Wrap" Foreground="White" FontSize="13"/>
+                                       TextWrapping="Wrap" Foreground="White" FontSize="14"/>
                         </Grid>
                     </Border>
 
@@ -107,7 +107,7 @@
                                  FontFamily="Consolas"
                                  Watermark="Offline Token"/>
                         <TextBlock Text="Required for sync activation in Small Peers Only mode. Obtain from portal.ditto.live"
-                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                   FontSize="14" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <StackPanel IsVisible="{Binding DatabaseFormModel.IsOfflineMode}" Spacing="4">
@@ -115,7 +115,7 @@
                                  FontFamily="Consolas"
                                  Watermark="Shared Key (optional)"/>
                         <TextBlock Text="Optional secret key for shared key identity encryption. Leave empty if not using Shared Key."
-                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                   FontSize="14" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- Auth URL - Only for Online Mode -->
@@ -139,7 +139,7 @@
                                 FontFamily="Consolas"
                                 Watermark="HTTP API URL (optional)"/>
                         <TextBlock Text="Optional"
-                                  FontSize="12"
+                                  FontSize="14"
                                   Opacity="0.6"
                                   Margin="0,4,0,0"/>
                     </StackPanel>
@@ -151,7 +151,7 @@
                                 FontFamily="Consolas"
                                 Watermark="HTTP API Key (optional)"/>
                         <TextBlock Text="Optional"
-                                  FontSize="12"
+                                  FontSize="14"
                                   Opacity="0.6"
                                   Margin="0,4,0,0"/>
                     </StackPanel>
@@ -164,19 +164,19 @@
                                  ToolTip.Tip="By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production."/>
                         <Border Background="#3D1A1A" CornerRadius="6" Padding="12,10"
                                 IsVisible="{Binding DatabaseFormModel.AllowUntrustedCerts}">
-                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF8080"
+                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#FF8080"
                                        Text="By allowing untrusted certificates, you are bypassing key certificate verification security, which is not recommended in production."/>
                         </Border>
                     </StackPanel>
 
                     <!-- Developer Options -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Developer Options" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Text="SDK Log Level" FontSize="13" Opacity="0.8"/>
+                        <TextBlock Text="Developer Options" FontWeight="SemiBold" FontSize="16"/>
+                        <TextBlock Text="SDK Log Level" FontSize="14" Opacity="0.8"/>
                         <ComboBox ItemsSource="{x:Static sharedModels:DatabaseFormModel.LogLevelOptions}"
                                   SelectedItem="{Binding DatabaseFormModel.LogLevel}"
                                   HorizontalAlignment="Stretch"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.6"
+                        <TextBlock TextWrapping="Wrap" FontSize="14" Opacity="0.6"
                                    Text="Controls DittoLogger.MinimumLogLevel when this database is activated. Applied globally across all Ditto instances."/>
 
                         <!-- Strict Mode -->
@@ -186,7 +186,7 @@
                                  Margin="0,8,0,0"/>
                         <Border Background="#3D2A1A" CornerRadius="6" Padding="12,10"
                                 IsVisible="{Binding DatabaseFormModel.IsStrictModeEnabled}">
-                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FFA060"
+                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#FFA060"
                                        Text="&#x26A0;&#xFE0F; For most users of Ditto SDK 5.0 and later, strict mode should remain disabled. When disabled, nested objects are treated as MAPs by default, enabling field-level merging. Enable only if you require SDK 4.x compatibility or explicitly need REGISTER-typed objects. Mismatched settings across peers may cause nested fields to appear missing."/>
                         </Border>
                     </StackPanel>

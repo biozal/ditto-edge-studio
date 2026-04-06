@@ -38,5 +38,16 @@ namespace EdgeStudio.Shared.Data.Repositories
         /// Called when sync is restarted to resume observer callbacks.
         /// </summary>
         void ReregisterPeerCardObservers();
+
+        /// <summary>
+        /// Registers an observer that provides full presence graph snapshots (all peers, all connections).
+        /// Used by the Presence Viewer for mesh topology visualization.
+        /// </summary>
+        void RegisterPresenceGraphObserver(Action<PresenceGraphSnapshot> onUpdate, Action<string> onError);
+
+        /// <summary>
+        /// Cancels the presence graph observer.
+        /// </summary>
+        void CancelPresenceGraphObserver();
     }
 }

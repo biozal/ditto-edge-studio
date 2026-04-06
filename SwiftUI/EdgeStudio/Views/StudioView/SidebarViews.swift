@@ -268,37 +268,37 @@ extension MainStudioView {
                     }
                 }
             } label: {
-                Button {
-                    expandedCollectionIds.formSymmetricDifference([
-                        collection._id
-                    ])
-                } label: {
-                    HStack {
-                        HStack(spacing: 8) {
-                            Image(systemName: "book.pages")
-                                .foregroundStyle(.secondary)
-                            Text(collection.name)
-                                .font(sidebarItemFont)
-                        }
-                        Spacer()
-                        if let count = collection.documentCount {
-                            Text("\(count)")
-                                .font(.caption.weight(.semibold))
-                                .foregroundColor(
-                                    colorScheme == .dark
-                                        ? .black : Color.dittoYellow
-                                )
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(
-                                    colorScheme == .dark
-                                        ? Color.dittoYellow : Color.black
-                                )
-                                .cornerRadius(10)
-                        }
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "book.pages")
+                            .foregroundStyle(.secondary)
+                        Text(collection.name)
+                            .font(sidebarItemFont)
+                    }
+                    Spacer()
+                    if let count = collection.documentCount {
+                        Text("\(count)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(
+                                colorScheme == .dark
+                                    ? .black : Color.dittoYellow
+                            )
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(
+                                colorScheme == .dark
+                                    ? Color.dittoYellow : Color.black
+                            )
+                            .cornerRadius(10)
                     }
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.selectedSidebarMenuItem =
+                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
+                            ?? viewModel.sidebarMenuItems[0]
+                }
             }
             .contextMenu {
                 Button {

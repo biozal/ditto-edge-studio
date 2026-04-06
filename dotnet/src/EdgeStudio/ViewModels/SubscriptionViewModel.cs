@@ -38,6 +38,11 @@ public partial class SubscriptionViewModel : LoadableViewModelBase
     {
         _subscriptionRepository = subscriptionRepository;
         Items = new ObservableCollection<DittoDatabaseSubscription>();
+        Items.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasItems));
+            OnPropertyChanged(nameof(ShowEmptyState));
+        };
         SubscriptionFormModel = new SubscriptionFormModel();
     }
 

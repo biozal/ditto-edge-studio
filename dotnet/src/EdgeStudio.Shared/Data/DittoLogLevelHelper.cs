@@ -1,4 +1,4 @@
-using DittoSDK;
+using DittoSDK.Logging;
 
 namespace EdgeStudio.Shared.Data;
 

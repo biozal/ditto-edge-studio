@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,92 +36,100 @@ public class AppMetricsService : IAppMetricsService
             return _latencySamples.ToList().AsReadOnly();
     }
 
-    public Task<AppMetricsSnapshot> GetSnapshotAsync(string? persistenceDirectory = null, DittoSDK.Ditto? ditto = null, CancellationToken ct = default)
+    public async Task<AppMetricsSnapshot> GetSnapshotAsync(string? persistenceDirectory = null, DittoSDK.Ditto? ditto = null, CancellationToken ct = default)
     {
-        return Task.Run(async () =>
+        // Gather process and query metrics synchronously (instant)
+        var proc = Process.GetCurrentProcess();
+        proc.Refresh();
+        var residentMemory = proc.WorkingSet64;
+        var virtualMemory = proc.VirtualMemorySize64;
+        var cpuTime = proc.TotalProcessorTime.TotalSeconds;
+        var handleCount = proc.HandleCount;
+        var uptime = DateTimeOffset.UtcNow - _startTime;
+
+        double avgLatency = 0;
+        double? lastLatency = null;
+        int totalCount = _queryCount;
+        List<double> samples;
+        lock (_lock)
         {
-            // Process metrics
-            var proc = Process.GetCurrentProcess();
-            proc.Refresh();
-            var residentMemory = proc.WorkingSet64;
-            var virtualMemory = proc.VirtualMemorySize64;
-            var cpuTime = proc.TotalProcessorTime.TotalSeconds;
-            var handleCount = proc.HandleCount;
-            var uptime = DateTimeOffset.UtcNow - _startTime;
+            samples = _latencySamples.ToList();
+        }
+        if (samples.Count > 0)
+        {
+            avgLatency = samples.Average();
+            lastLatency = samples[^1];
+        }
 
-            // Query metrics
-            double avgLatency = 0;
-            double? lastLatency = null;
-            int totalCount = _queryCount;
-            List<double> samples;
-            lock (_lock)
-            {
-                samples = _latencySamples.ToList();
-            }
-            if (samples.Count > 0)
-            {
-                avgLatency = samples.Average();
-                lastLatency = samples[^1];
-            }
+        // Run storage scan and collection breakdown in parallel on thread pool
+        var storageTask = Task.Run(() => ComputeStorageMetrics(persistenceDirectory, ct), ct);
+        var collectionTask = ditto != null
+            ? ComputeCollectionBreakdownAsync(ditto, ct)
+            : Task.FromResult<IReadOnlyList<CollectionStorageInfo>>(Array.Empty<CollectionStorageInfo>());
 
-            // Storage metrics
-            long storeBytes = 0, replicationBytes = 0, attachmentsBytes = 0,
-                 authBytes = 0, walShmBytes = 0, logsBytes = 0, otherBytes = 0;
+        await Task.WhenAll(storageTask, collectionTask);
 
-            if (!string.IsNullOrEmpty(persistenceDirectory) && Directory.Exists(persistenceDirectory))
+        var storage = storageTask.Result;
+        var collectionBreakdown = collectionTask.Result;
+
+        return new AppMetricsSnapshot(
+            CapturedAt: DateTimeOffset.UtcNow,
+            ResidentMemoryBytes: residentMemory,
+            VirtualMemoryBytes: virtualMemory,
+            CpuTimeSeconds: cpuTime,
+            OpenHandleCount: handleCount,
+            ProcessUptime: uptime,
+            TotalQueryCount: totalCount,
+            AvgQueryLatencyMs: avgLatency,
+            LastQueryLatencyMs: lastLatency,
+            StoreBytes: storage.Store,
+            ReplicationBytes: storage.Replication,
+            AttachmentsBytes: storage.Attachments,
+            AuthBytes: storage.Auth,
+            WalShmBytes: storage.WalShm,
+            LogsBytes: storage.Logs,
+            OtherBytes: storage.Other,
+            CollectionBreakdown: collectionBreakdown
+        );
+    }
+
+    private record StorageMetrics(long Store, long Replication, long Attachments, long Auth, long WalShm, long Logs, long Other);
+
+    private static StorageMetrics ComputeStorageMetrics(string? persistenceDirectory, CancellationToken ct)
+    {
+        long storeBytes = 0, replicationBytes = 0, attachmentsBytes = 0,
+             authBytes = 0, walShmBytes = 0, logsBytes = 0, otherBytes = 0;
+
+        if (string.IsNullOrEmpty(persistenceDirectory) || !Directory.Exists(persistenceDirectory))
+            return new StorageMetrics(0, 0, 0, 0, 0, 0, 0);
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(persistenceDirectory, "*", SearchOption.AllDirectories))
             {
+                ct.ThrowIfCancellationRequested();
                 try
                 {
-                    var allFiles = Directory.GetFiles(persistenceDirectory, "*", SearchOption.AllDirectories);
-                    foreach (var file in allFiles)
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        try
-                        {
-                            var info = new FileInfo(file);
-                            var size = info.Length;
-                            var rel = file.Substring(persistenceDirectory.Length)
-                                         .Replace('\\', '/').TrimStart('/');
+                    var info = new FileInfo(file);
+                    var size = info.Length;
+                    var rel = file.Substring(persistenceDirectory.Length)
+                                 .Replace('\\', '/').TrimStart('/');
 
-                            if (rel.Contains("ditto_store"))             storeBytes += size;
-                            else if (rel.Contains("ditto_replication"))  replicationBytes += size;
-                            else if (rel.Contains("ditto_attachments"))  attachmentsBytes += size;
-                            else if (rel.Contains("ditto_auth"))         authBytes += size;
-                            else if (rel.EndsWith(".wal") || rel.EndsWith(".shm")) walShmBytes += size;
-                            else if (rel.Contains("ditto_logs"))         logsBytes += size;
-                            else                                          otherBytes += size;
-                        }
-                        catch { /* skip inaccessible files */ }
-                    }
+                    if (rel.Contains("ditto_store"))             storeBytes += size;
+                    else if (rel.Contains("ditto_replication"))  replicationBytes += size;
+                    else if (rel.Contains("ditto_attachments"))  attachmentsBytes += size;
+                    else if (rel.Contains("ditto_auth"))         authBytes += size;
+                    else if (rel.EndsWith(".wal") || rel.EndsWith(".shm")) walShmBytes += size;
+                    else if (rel.Contains("ditto_logs"))         logsBytes += size;
+                    else                                          otherBytes += size;
                 }
-                catch (OperationCanceledException) { throw; }
-                catch { /* skip if directory not accessible */ }
+                catch { /* skip inaccessible files */ }
             }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* skip if directory not accessible */ }
 
-            var collectionBreakdown = ditto != null
-                ? await ComputeCollectionBreakdownAsync(ditto, ct)
-                : (IReadOnlyList<CollectionStorageInfo>)Array.Empty<CollectionStorageInfo>();
-
-            return new AppMetricsSnapshot(
-                CapturedAt: DateTimeOffset.UtcNow,
-                ResidentMemoryBytes: residentMemory,
-                VirtualMemoryBytes: virtualMemory,
-                CpuTimeSeconds: cpuTime,
-                OpenHandleCount: handleCount,
-                ProcessUptime: uptime,
-                TotalQueryCount: totalCount,
-                AvgQueryLatencyMs: avgLatency,
-                LastQueryLatencyMs: lastLatency,
-                StoreBytes: storeBytes,
-                ReplicationBytes: replicationBytes,
-                AttachmentsBytes: attachmentsBytes,
-                AuthBytes: authBytes,
-                WalShmBytes: walShmBytes,
-                LogsBytes: logsBytes,
-                OtherBytes: otherBytes,
-                CollectionBreakdown: collectionBreakdown
-            );
-        }, ct);
+        return new StorageMetrics(storeBytes, replicationBytes, attachmentsBytes, authBytes, walShmBytes, logsBytes, otherBytes);
     }
 
     private static async Task<IReadOnlyList<CollectionStorageInfo>> ComputeCollectionBreakdownAsync(
@@ -149,12 +156,10 @@ public class AppMetricsService : IAppMetricsService
             }
             colResult.Dispose();
 
-            var breakdown = new List<CollectionStorageInfo>();
-
-            foreach (var collectionName in collections)
+            // Query all collections in parallel to calculate size
+            var tasks = collections.Select(async collectionName =>
             {
                 ct.ThrowIfCancellationRequested();
-
                 try
                 {
                     var escaped = collectionName.Replace("`", "``");
@@ -166,7 +171,7 @@ public class AppMetricsService : IAppMetricsService
                     {
                         try
                         {
-                            totalBytes += JsonSerializer.SerializeToUtf8Bytes(item.Value).LongLength;
+                            totalBytes += System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(item.Value).LongLength;
                             docCount++;
                         }
                         finally
@@ -176,12 +181,13 @@ public class AppMetricsService : IAppMetricsService
                     }
                     docResult.Dispose();
 
-                    breakdown.Add(new CollectionStorageInfo(collectionName, docCount, totalBytes));
+                    return new CollectionStorageInfo(collectionName, docCount, totalBytes);
                 }
-                catch { /* skip inaccessible collections */ }
-            }
+                catch { return new CollectionStorageInfo(collectionName, 0, 0); }
+            }).ToList();
 
-            breakdown.Sort((a, b) => b.EstimatedBytes.CompareTo(a.EstimatedBytes));
+            var results = await Task.WhenAll(tasks);
+            var breakdown = results.OrderByDescending(c => c.EstimatedBytes).ToList();
             return breakdown.AsReadOnly();
         }
         catch (OperationCanceledException) { throw; }

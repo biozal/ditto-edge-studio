@@ -3,40 +3,168 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
+             xmlns:suki="using:SukiUI.Controls"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.StudioView.Sidebar.ObserverListingView"
              x:DataType="vm:ObserversViewModel"
              x:CompileBindings="True">
-    
+
     <Grid RowDefinitions="Auto,*">
         <!-- Header -->
         <Border Grid.Row="0"
-                Padding="16,12"
+                Height="40"
+                Padding="12,8"
                 BorderThickness="0,0,0,1">
             <TextBlock Text="{Binding ListingTitle}"
-                       FontSize="16"
-                       FontWeight="SemiBold"/>
+                       FontSize="12"
+                       FontWeight="Normal"
+                       VerticalAlignment="Center"/>
         </Border>
-        
-        <!-- List -->
-        <ScrollViewer Grid.Row="1" 
-                      VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Items}"
-                          Margin="8">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Classes="Flat"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Padding="12,8"
-                                Margin="0,2"
-                                Command="{Binding $parent[ItemsControl].DataContext.SelectItemCommand}"
-                                CommandParameter="{Binding}">
-                            <TextBlock Text="{Binding}"/>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Loading Spinner -->
+            <Border IsVisible="{Binding IsLoading}"
+                    Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="16">
+                    <ProgressBar IsIndeterminate="True"
+                                Width="32"
+                                Height="32"/>
+                    <TextBlock Text="Loading observers..."
+                              FontSize="14"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Observer Cards -->
+            <ScrollViewer IsVisible="{Binding HasItems}"
+                         VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Items}"
+                             Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:DittoDatabaseObserver}">
+                            <suki:GlassCard Margin="0,0,0,12">
+                                <StackPanel Spacing="8"
+                                           Margin="12">
+                                    <!-- Header with Name and Status (clickable) -->
+                                    <Button Classes="Flat"
+                                           HorizontalAlignment="Stretch"
+                                           HorizontalContentAlignment="Stretch"
+                                           Padding="0"
+                                           Command="{Binding $parent[ItemsControl].DataContext.SelectObserverCommand}"
+                                           CommandParameter="{Binding}"
+                                           Cursor="Hand">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <TextBlock Text="{Binding Name}"
+                                                          FontSize="16"
+                                                          FontWeight="SemiBold"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Query}"
+                                                          FontSize="12"
+                                                          Opacity="0.7"
+                                                          TextWrapping="Wrap"
+                                                          MaxLines="2"
+                                                          FontFamily="Consolas"/>
+                                            </StackPanel>
+
+                                            <!-- Active indicator -->
+                                            <TextBlock Grid.Column="1"
+                                                      Text="Active"
+                                                      FontSize="12"
+                                                      FontWeight="SemiBold"
+                                                      Foreground="Green"
+                                                      VerticalAlignment="Top"
+                                                      IsVisible="{Binding IsActive}"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <!-- Action Buttons -->
+                                    <StackPanel Orientation="Horizontal"
+                                               HorizontalAlignment="Right"
+                                               Spacing="4">
+                                        <!-- Activate / Deactivate -->
+                                        <Button Classes="Flat"
+                                               Width="28" Height="28" Padding="0"
+                                               ToolTip.Tip="Activate Observer"
+                                               IsVisible="{Binding !IsActive}"
+                                               Command="{Binding $parent[ItemsControl].DataContext.ActivateObserverCommand}"
+                                               CommandParameter="{Binding}">
+                                            <TextBlock Text="play_arrow"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="18"
+                                                      Foreground="Green"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                        </Button>
+
+                                        <Button Classes="Flat"
+                                               Width="28" Height="28" Padding="0"
+                                               ToolTip.Tip="Stop Observer"
+                                               IsVisible="{Binding IsActive}"
+                                               Command="{Binding $parent[ItemsControl].DataContext.DeactivateObserverCommand}"
+                                               CommandParameter="{Binding}">
+                                            <TextBlock Text="stop"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="18"
+                                                      Foreground="Orange"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                        </Button>
+
+                                        <!-- Edit -->
+                                        <Button Classes="Flat"
+                                               Width="28" Height="28" Padding="0"
+                                               ToolTip.Tip="Edit Observer"
+                                               Command="{Binding $parent[ItemsControl].DataContext.EditObserverCommand}"
+                                               CommandParameter="{Binding}">
+                                            <TextBlock Text="edit"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="16"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                        </Button>
+
+                                        <!-- Delete -->
+                                        <Button Width="28" Height="28" Padding="0"
+                                               ToolTip.Tip="Delete Observer"
+                                               Background="{DynamicResource DittoAccent}"
+                                               Command="{Binding $parent[ItemsControl].DataContext.DeleteObserverCommand}"
+                                               CommandParameter="{Binding}">
+                                            <TextBlock Text="delete"
+                                                      FontFamily="avares://EdgeStudio/Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined"
+                                                      FontSize="16"
+                                                      Foreground="{DynamicResource DittoJetBlack}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </suki:GlassCard>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Empty State -->
+            <Border IsVisible="{Binding ShowEmptyState}"
+                   Background="Transparent">
+                <StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="8">
+                    <TextBlock Text="No Observers Found"
+                              FontSize="16"
+                              FontWeight="SemiBold"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="Click the + icon to add a new Observer"
+                              FontSize="14"
+                              Opacity="0.7"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

@@ -1,0 +1,102 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:vm="using:EdgeStudio.ViewModels"
+                 xmlns:suki="using:SukiUI.Controls"
+                 mc:Ignorable="d"
+                 d:DesignWidth="480"
+                 d:DesignHeight="400"
+                 x:Class="EdgeStudio.Views.Database.IndexFormWindow"
+                 x:DataType="vm:IndexesToolViewModel"
+                 x:CompileBindings="True"
+                 Title="Add Index"
+                 Width="480"
+                 Height="420"
+                 MinHeight="420"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Border Padding="30">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       Text="Add Index"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,20"/>
+
+            <!-- Form -->
+            <StackPanel Grid.Row="1" Spacing="18">
+
+                <!-- Error banner -->
+                <Border IsVisible="{Binding HasError}"
+                        CornerRadius="6"
+                        Padding="12,8"
+                        Background="{DynamicResource SukiErrorColor}"
+                        Opacity="0.85">
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               FontSize="14"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <!-- Collection dropdown -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Collection *"
+                               FontSize="14"
+                               FontWeight="SemiBold"/>
+                    <ComboBox ItemsSource="{Binding AvailableCollections}"
+                              SelectedItem="{Binding NewIndexCollection}"
+                              PlaceholderText="Select a collection..."
+                              HorizontalAlignment="Stretch"
+                              Padding="12,8"
+                              FontSize="16"/>
+                    <TextBlock Text="Choose the collection to index."
+                               FontSize="12"
+                               Opacity="0.55"/>
+                </StackPanel>
+
+                <!-- Field name -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Field *"
+                               FontSize="14"
+                               FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding NewIndexField}"
+                             Watermark="e.g. status, userId, createdAt"
+                             FontSize="16"
+                             FontFamily="Consolas"
+                             Padding="12,8"/>
+                    <TextBlock FontSize="12" Opacity="0.55">
+                        <Run Text="Index will be named: "/>
+                        <Run Text="idx_{collection}_{field}" FontFamily="Consolas"/>
+                    </TextBlock>
+                </StackPanel>
+
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="12"
+                        Margin="0,24,0,0">
+
+                <Button Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        Padding="20,8"
+                        Classes="Flat"/>
+
+                <Button Content="Create Index"
+                        Command="{Binding CreateIndexCommand}"
+                        Padding="20,8"
+                        IsEnabled="{Binding !IsLoading}"
+                        Background="{DynamicResource DittoAccent}"
+                        Foreground="{DynamicResource DittoJetBlack}"/>
+
+            </StackPanel>
+
+        </Grid>
+    </Border>
+</suki:SukiWindow>

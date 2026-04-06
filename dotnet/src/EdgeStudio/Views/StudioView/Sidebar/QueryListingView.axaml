@@ -22,7 +22,7 @@
         <!-- Header -->
         <TextBlock Grid.Row="0"
                    Text="Collections"
-                   FontSize="16"
+                   FontSize="18"
                    FontWeight="SemiBold"
                    Margin="12,8"/>
 
@@ -67,7 +67,7 @@
                                     Padding="7,2"
                                     VerticalAlignment="Center">
                                 <TextBlock Text="{Binding DocumentCount}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource DittoJetBlack}"
                                            FontFamily="Monospace"/>
@@ -84,7 +84,7 @@
                                                         Opacity="0.55"
                                                         VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding Name}"
-                                       FontSize="12"
+                                       FontSize="14"
                                        Opacity="0.8"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
@@ -98,7 +98,7 @@
                                                         Opacity="0.4"
                                                         VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding}"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontFamily="Monospace"
                                        Opacity="0.65"
                                        VerticalAlignment="Center"/>
@@ -118,7 +118,7 @@
                                             Opacity="0.3"
                                             HorizontalAlignment="Center"/>
                 <TextBlock Text="No collections found"
-                           FontSize="13"
+                           FontSize="14"
                            Opacity="0.6"
                            HorizontalAlignment="Center"/>
             </StackPanel>
@@ -136,7 +136,7 @@
         <!-- Status bar -->
         <TextBlock Grid.Row="2"
                    Text="{Binding Collections.Count, StringFormat='{}{0} collections'}"
-                   FontSize="11"
+                   FontSize="12"
                    Opacity="0.5"
                    HorizontalAlignment="Center"
                    Margin="0,8,0,12"/>

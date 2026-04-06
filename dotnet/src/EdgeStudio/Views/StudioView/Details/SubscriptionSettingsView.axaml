@@ -23,7 +23,7 @@
                                       Margin="0,1,8,0"/>
                 <TextBlock Grid.Column="1"
                            TextWrapping="Wrap"
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="#FF6D00"
                            Text="Changing transport settings will stop sync, update the configuration, and restart sync. This will disconnect all peers and reconnect only using the enabled transports."/>
             </Grid>
@@ -32,7 +32,7 @@
         <!-- Peer-to-Peer Transports -->
         <StackPanel Spacing="8">
             <TextBlock Text="Peer-to-Peer Transports"
-                       FontSize="13"
+                       FontSize="14"
                        FontWeight="SemiBold"
                        Opacity="0.7"
                        Margin="0,0,0,2"/>
@@ -47,9 +47,9 @@
                             VerticalAlignment="Center"
                             Margin="0,0,10,0"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Bluetooth LE" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="Bluetooth LE" FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="Allow peer-to-peer sync via Bluetooth Low Energy"
-                                   FontSize="11"
+                                   FontSize="12"
                                    Opacity="0.6"/>
                     </StackPanel>
                     <CheckBox Grid.Column="2"
@@ -68,9 +68,9 @@
                             VerticalAlignment="Center"
                             Margin="0,0,10,0"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Local Area Network" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="Local Area Network" FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="Sync with peers on the same local network"
-                                   FontSize="11"
+                                   FontSize="12"
                                    Opacity="0.6"/>
                     </StackPanel>
                     <CheckBox Grid.Column="2"
@@ -92,9 +92,9 @@
                             VerticalAlignment="Center"
                             Margin="0,0,10,0"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="Apple Wireless Direct Link" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="Apple Wireless Direct Link" FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="High-speed sync with Apple devices only"
-                                   FontSize="11"
+                                   FontSize="12"
                                    Opacity="0.6"/>
                     </StackPanel>
                     <CheckBox Grid.Column="2"
@@ -116,9 +116,9 @@
                             VerticalAlignment="Center"
                             Margin="0,0,10,0"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="WiFi Aware" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="WiFi Aware" FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="Peer-to-peer sync via WiFi Aware protocol"
-                                   FontSize="11"
+                                   FontSize="12"
                                    Opacity="0.6"/>
                     </StackPanel>
                     <CheckBox Grid.Column="2"
@@ -131,7 +131,7 @@
         <!-- Cloud Sync -->
         <StackPanel Spacing="8">
             <TextBlock Text="Cloud Sync"
-                       FontSize="13"
+                       FontSize="14"
                        FontWeight="SemiBold"
                        Opacity="0.7"
                        Margin="0,0,0,2"/>
@@ -146,9 +146,9 @@
                             VerticalAlignment="Center"
                             Margin="0,0,10,0"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="WebSocket Sync" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="WebSocket Sync" FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="Allow syncing to Ditto cloud server"
-                                   FontSize="11"
+                                   FontSize="12"
                                    Opacity="0.6"/>
                     </StackPanel>
                     <CheckBox Grid.Column="2"

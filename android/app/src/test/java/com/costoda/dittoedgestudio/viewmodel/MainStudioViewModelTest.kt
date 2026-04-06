@@ -5,11 +5,13 @@ import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
+import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
@@ -49,6 +51,7 @@ class MainStudioViewModelTest {
     private lateinit var subscriptionsRepository: SubscriptionsRepository
     private lateinit var collectionsRepository: CollectionsRepository
     private lateinit var logCaptureService: DittoLogCaptureService
+    private lateinit var observableRepository: ObservableRepository
     private lateinit var mockDitto: Ditto
 
     private val localPeerFlow = MutableStateFlow<LocalPeerInfo?>(null)
@@ -77,6 +80,8 @@ class MainStudioViewModelTest {
         subscriptionsRepository = mockk(relaxed = true)
         collectionsRepository = mockk(relaxed = true)
         logCaptureService = mockk(relaxed = true)
+        observableRepository = mockk()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
         mockDitto = mockk(relaxed = true)
 
         coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
@@ -118,7 +123,7 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService)
+        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository)
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
@@ -227,6 +232,54 @@ class MainStudioViewModelTest {
         subscriptionsRepository = subscriptionsRepository,
         collectionsRepository = collectionsRepository,
         loggingCaptureService = logCaptureService,
+        observableRepository = observableRepository,
         ioDispatcher = testDispatcher,
     )
+
+    @Test
+    fun `hydrate loads observers from repository`() = runTest {
+        val obs = listOf(DittoObservable(id = 1, databaseId = "test-db-id", name = "Obs1", query = "SELECT * FROM c"))
+        coEvery { observableRepository.loadObservables("test-db-id") } returns obs
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(1, vm.observers.value.size)
+        assertEquals("Obs1", vm.observers.value[0].name)
+    }
+
+    @Test
+    fun `addObserver saves to repository and updates state`() = runTest {
+        every { dittoManager.currentInstance() } returns mockDitto
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { observableRepository.saveObservable(any()) } returns 10L
+        coEvery { observableRepository.loadObservables(any()) } returns listOf(
+            DittoObservable(id = 10, databaseId = "test-db-id", name = "New", query = "SELECT * FROM t"),
+        )
+
+        vm.addObserver("New", "SELECT * FROM t")
+        advanceUntilIdle()
+
+        coVerify { observableRepository.saveObservable(any()) }
+        assertEquals(1, vm.observers.value.size)
+    }
+
+    @Test
+    fun `removeObserver deletes from repository and updates state`() = runTest {
+        val obs = DittoObservable(id = 5, databaseId = "test-db-id", name = "Obs", query = "SELECT * FROM c")
+        coEvery { observableRepository.loadObservables(any()) } returns listOf(obs)
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { observableRepository.removeObservable(any()) } returns Unit
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+        vm.removeObserver(obs)
+        advanceUntilIdle()
+
+        coVerify { observableRepository.removeObservable(5) }
+        assertTrue(vm.observers.value.isEmpty())
+    }
 }

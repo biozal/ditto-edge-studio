@@ -2,26 +2,59 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
         xmlns:vm="using:EdgeStudio.ViewModels"
+        xmlns:views="using:EdgeStudio.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:database="using:EdgeStudio.Views.Database"
         xmlns:studioView="using:EdgeStudio.Views.StudioView"
-        mc:Ignorable="d" 
-        d:DesignWidth="1200" 
+        xmlns:material="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        mc:Ignorable="d"
+        d:DesignWidth="1200"
         d:DesignHeight="900"
         x:Class="EdgeStudio.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:CompileBindings="True"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/EdgeStudio.ico"
         Title="Ditto Edge Studio"
         Width="1200"
         Height="900"
         BackgroundStyle="Flat">
 
-    <!-- Toast notification host -->
+    <!-- Toast and dialog notification hosts -->
     <suki:SukiWindow.Hosts>
-        <suki:SukiToastHost />
+        <suki:SukiToastHost Manager="{Binding ToastManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
+        <suki:SukiDialogHost Manager="{Binding DialogManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
     </suki:SukiWindow.Hosts>
+
+    <!-- Title bar icon buttons — visible on Windows/Linux only (macOS uses the native menu bar) -->
+    <suki:SukiWindow.RightWindowTitleBarControls>
+        <Button x:Name="TitleBarSettingsButton"
+                Click="TitleBarSettings_Click"
+                ToolTip.Tip="Settings"
+                Classes="Flat"
+                Padding="6,4"
+                VerticalAlignment="Center"
+                IsVisible="False">
+            <material:MaterialIcon Kind="Cog" Width="18" Height="18"/>
+        </Button>
+        <Button x:Name="TitleBarHelpButton"
+                Click="TitleBarHelp_Click"
+                ToolTip.Tip="Help"
+                Classes="Flat"
+                Padding="6,4"
+                VerticalAlignment="Center"
+                IsVisible="False">
+            <material:MaterialIcon Kind="HelpCircleOutline" Width="18" Height="18"/>
+            <Button.ContextMenu>
+                <ContextMenu x:Name="HelpContextMenu">
+                    <MenuItem x:Name="HelpDocumentationMenuItem" Header="Edge Studio Documentation"/>
+                    <MenuItem x:Name="VisitDittoWebsiteMenuItem" Header="Visit Ditto Website"/>
+                    <Separator/>
+                    <MenuItem x:Name="DownloadQuickstartsMenuItem" Header="Download Quickstarts..."/>
+                </ContextMenu>
+            </Button.ContextMenu>
+        </Button>
+    </suki:SukiWindow.RightWindowTitleBarControls>
 
     <!-- Window-level native menu for macOS (File, Edit, View, Window, Help) -->
     <NativeMenu.Menu>
@@ -46,6 +79,8 @@
                     <NativeMenuItem Header="Paste" Gesture="Meta+V" />
                     <NativeMenuItemSeparator />
                     <NativeMenuItem Header="Select All" Gesture="Meta+A" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Settings…" Click="Settings_Click" />
                 </NativeMenu>
             </NativeMenuItem>
 
@@ -69,8 +104,10 @@
             <!-- Help Menu -->
             <NativeMenuItem Header="Help">
                 <NativeMenu>
-                    <NativeMenuItem Header="Edge Studio Documentation" />
-                    <NativeMenuItem Header="Visit Ditto Website" />
+                    <NativeMenuItem Header="Edge Studio Documentation" Click="HelpDocumentation_Click" />
+                    <NativeMenuItem Header="Visit Ditto Website" Click="VisitDittoWebsite_Click" />
+                    <NativeMenuItemSeparator />
+                    <NativeMenuItem Header="Download Quickstarts..." Click="DownloadQuickstarts_Click" />
                 </NativeMenu>
             </NativeMenuItem>
         </NativeMenu>
@@ -100,7 +137,7 @@
                 
                 <!-- Loading Message -->
                 <TextBlock Text="Initializing Database..."
-                         FontSize="16"
+                         FontSize="18"
                          FontWeight="SemiBold"
                          Foreground="White"
                          HorizontalAlignment="Center"/>
@@ -117,12 +154,12 @@
                              Width="60" Height="60"
                              Classes="circular"/>
                 <TextBlock Text="Closing database resources..."
-                         FontSize="16"
+                         FontSize="18"
                          FontWeight="SemiBold"
                          Foreground="White"
                          HorizontalAlignment="Center"/>
                 <TextBlock Text="This may take a few moments"
-                         FontSize="12"
+                         FontSize="14"
                          Opacity="0.7"
                          Foreground="White"
                          HorizontalAlignment="Center"/>

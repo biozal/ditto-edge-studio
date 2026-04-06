@@ -12,7 +12,7 @@
     <NativeMenu.Menu>
         <NativeMenu>
             <NativeMenuItem Header="About Edge Studio" Click="AboutMenuItem_Click" />
-            <NativeMenuItem Header="Preferences…" Gesture="Meta+," />
+            <NativeMenuItem Header="Preferences…" Gesture="Meta+," Click="PreferencesMenuItem_Click" />
         </NativeMenu>
     </NativeMenu.Menu>
 

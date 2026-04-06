@@ -1,11 +1,17 @@
 import Foundation
 
-struct DittoIndex: Codable, Identifiable {
+struct DittoIndex: Identifiable {
     let _id: String // index name (from system:indexes)
     let collection: String
     let fields: [String]
     var id: String {
         _id
+    }
+
+    init(id: String, collection: String, fields: [String]) {
+        _id = id
+        self.collection = collection
+        self.fields = fields
     }
 }
 

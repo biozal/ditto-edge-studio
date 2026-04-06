@@ -46,11 +46,7 @@
                     <materialIcons:MaterialIcon Kind="DatabaseSearch" Width="20" Height="20"
                                                 Foreground="{Binding $parent[TabItem].Foreground}"/>
                 </TabItem.Header>
-                <inspector:IndexesToolView>
-                    <inspector:IndexesToolView.DataContext>
-                        <vm:IndexesToolViewModel/>
-                    </inspector:IndexesToolView.DataContext>
-                </inspector:IndexesToolView>
+                <inspector:IndexesToolView DataContext="{Binding IndexesToolViewModel}"/>
             </TabItem>
         </TabControl>
 
@@ -107,7 +103,9 @@
                 </TabItem.Header>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
-                    <ContentControl x:Name="QueryHelpContainer" Padding="12"/>
+                    <ContentControl x:Name="QueryHelpContainer"
+                                    Padding="12"
+                                    HorizontalContentAlignment="Stretch"/>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
@@ -116,14 +114,45 @@
         <ScrollViewer IsVisible="{Binding IsLoggingActive}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <ContentControl x:Name="LoggingHelpContainer" Padding="12"/>
+            <ContentControl x:Name="LoggingHelpContainer"
+                            Padding="12"
+                            HorizontalContentAlignment="Stretch"/>
         </ScrollViewer>
 
         <!-- Subscription help panel (only when Subscriptions nav is active) -->
         <ScrollViewer IsVisible="{Binding IsSubscriptionActive}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <ContentControl x:Name="SubscriptionHelpContainer" Padding="12"/>
+            <ContentControl x:Name="SubscriptionHelpContainer"
+                            Padding="12"
+                            HorizontalContentAlignment="Stretch"/>
+        </ScrollViewer>
+
+        <!-- Observer help panel (only when Observers nav is active) -->
+        <ScrollViewer IsVisible="{Binding IsObserversActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="ObserveHelpContainer"
+                            Padding="12"
+                            HorizontalContentAlignment="Stretch"/>
+        </ScrollViewer>
+
+        <!-- App Metrics help panel (only when App Metrics nav is active) -->
+        <ScrollViewer IsVisible="{Binding IsAppMetricsActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="AppMetricsHelpContainer"
+                            Padding="12"
+                            HorizontalContentAlignment="Stretch"/>
+        </ScrollViewer>
+
+        <!-- Query Metrics help panel (only when Query Metrics nav is active) -->
+        <ScrollViewer IsVisible="{Binding IsQueryMetricsActive}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="QueryMetricsHelpContainer"
+                            Padding="12"
+                            HorizontalContentAlignment="Stretch"/>
         </ScrollViewer>
     </Grid>
 </UserControl>

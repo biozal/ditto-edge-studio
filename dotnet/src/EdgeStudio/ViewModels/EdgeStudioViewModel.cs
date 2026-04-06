@@ -10,6 +10,7 @@ using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
+using EdgeStudio.Views.StudioView;
 
 namespace EdgeStudio.ViewModels
 {
@@ -28,11 +29,20 @@ namespace EdgeStudio.ViewModels
         private readonly Lazy<QueryMetricsViewModel> _queryMetricsViewModelLazy;
         private readonly Lazy<HistoryToolViewModel> _historyToolViewModelLazy;
         private readonly Lazy<FavoritesToolViewModel> _favoritesToolViewModelLazy;
+        private readonly Lazy<IndexesToolViewModel> _indexesToolViewModelLazy;
         private readonly Lazy<ISystemRepository> _systemRepositoryLazy;
 
         private DittoDatabaseConfig? _selectedDatabase;
         private object? _currentListingViewModel;
         private object? _currentDetailViewModel;
+
+        /// <summary>
+        /// Tracks which navigation type is currently active (has Activate() called).
+        /// Used by DeactivateCurrentViewModels to deactivate the correct ViewModel.
+        /// This is separate from NavigationService.CurrentNavigationType which can
+        /// get out of sync when UpdateCurrentViews is called directly.
+        /// </summary>
+        private NavigationItemType? _activeNavigationType;
 
         [ObservableProperty]
         private bool _isSyncEnabled = false;
@@ -70,6 +80,24 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private string _queryHelpContent = string.Empty;
 
+        [ObservableProperty]
+        private bool _isObserversActive = false;
+
+        [ObservableProperty]
+        private string _observeHelpContent = string.Empty;
+
+        [ObservableProperty]
+        private bool _isAppMetricsActive = false;
+
+        [ObservableProperty]
+        private string _appMetricsHelpContent = string.Empty;
+
+        [ObservableProperty]
+        private bool _isQueryMetricsActive = false;
+
+        [ObservableProperty]
+        private string _queryMetricsHelpContent = string.Empty;
+
         /// <summary>
         /// Selected tab index for the query inspector panel.
         /// 0=History, 1=Favorites, 2=JSON Viewer, 3=Metrics, 4=Help
@@ -77,11 +105,16 @@ namespace EdgeStudio.ViewModels
         [ObservableProperty]
         private int _selectedQueryInspectorTabIndex = 0;
 
-        public bool IsStandardInspectorVisible => !IsLoggingActive && !IsSubscriptionActive && !IsQueryActive;
+        public bool IsStandardInspectorVisible =>
+            !IsLoggingActive && !IsSubscriptionActive && !IsQueryActive &&
+            !IsObserversActive && !IsAppMetricsActive && !IsQueryMetricsActive;
 
         partial void OnIsLoggingActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
         partial void OnIsSubscriptionActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
         partial void OnIsQueryActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+        partial void OnIsObserversActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+        partial void OnIsAppMetricsActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
+        partial void OnIsQueryMetricsActiveChanged(bool value) => OnPropertyChanged(nameof(IsStandardInspectorVisible));
 
         public string SyncButtonTooltip => IsSyncEnabled ? "Stop Sync" : "Start Sync";
 
@@ -99,6 +132,7 @@ namespace EdgeStudio.ViewModels
             Lazy<QueryMetricsViewModel> queryMetricsViewModelLazy,
             Lazy<HistoryToolViewModel> historyToolViewModelLazy,
             Lazy<FavoritesToolViewModel> favoritesToolViewModelLazy,
+            Lazy<IndexesToolViewModel> indexesToolViewModelLazy,
             Lazy<ISystemRepository> systemRepositoryLazy,
             IToastService? toastService = null)
             : base(toastService)
@@ -118,12 +152,20 @@ namespace EdgeStudio.ViewModels
             _queryMetricsViewModelLazy = queryMetricsViewModelLazy;
             _historyToolViewModelLazy = historyToolViewModelLazy;
             _favoritesToolViewModelLazy = favoritesToolViewModelLazy;
+            _indexesToolViewModelLazy = indexesToolViewModelLazy;
 
             _systemRepositoryLazy.Value.ConnectionsChanged += OnConnectionsChanged;
 
             WeakReferenceMessenger.Default.Register<NavigationChangedMessage>(this, OnNavigationChanged);
             WeakReferenceMessenger.Default.Register<ListingItemSelectedMessage>(this, OnListingItemSelected);
             WeakReferenceMessenger.Default.Register<DocumentDoubleClickedMessage>(this, OnDocumentDoubleClicked);
+            WeakReferenceMessenger.Default.Register<RefreshCollectionsRequestedMessage>(this, OnRefreshCollectionsRequested);
+        }
+
+        private void OnRefreshCollectionsRequested(object recipient, RefreshCollectionsRequestedMessage message)
+        {
+            if (_queryViewModelLazy.IsValueCreated)
+                _ = QueryViewModel.RefreshCollectionsCommand.ExecuteAsync(null);
         }
 
         private void OnConnectionsChanged(object? sender, ConnectionsByTransport connections)
@@ -143,6 +185,7 @@ namespace EdgeStudio.ViewModels
         public QueryMetricsViewModel QueryMetricsViewModel => _queryMetricsViewModelLazy.Value;
         public HistoryToolViewModel HistoryToolViewModel => _historyToolViewModelLazy.Value;
         public FavoritesToolViewModel FavoritesToolViewModel => _favoritesToolViewModelLazy.Value;
+        public IndexesToolViewModel IndexesToolViewModel => _indexesToolViewModelLazy.Value;
 
         public DittoDatabaseConfig? SelectedDatabase
         {
@@ -169,6 +212,11 @@ namespace EdgeStudio.ViewModels
                             {
                                 QueryViewModel.SetDatabaseConfig(_selectedDatabase);
                                 UpdateCurrentViews(NavigationItemType.Subscriptions);
+                                // Sync both the nav bar highlight and the NavigationService state
+                                // so that subsequent NavigateTo() calls see the correct current type
+                                NavigationViewModel.SyncSelectionTo(NavigationItemType.Subscriptions);
+                                _navigationService.SetCurrentType(NavigationItemType.Subscriptions);
+                                _ = IndexesToolViewModel.LoadAsync();
                             });
                         });
                     }
@@ -275,10 +323,24 @@ namespace EdgeStudio.ViewModels
         }
 
         [RelayCommand]
-        private void AddObserver() { }
+        private void AddObserver()
+        {
+            if (_navigationService.CurrentNavigationType != NavigationItemType.Observers)
+                UpdateCurrentViews(NavigationItemType.Observers);
+            ObserversViewModel.AddObserverCommand.Execute(null);
+        }
 
         [RelayCommand]
-        private void AddIndex() { }
+        private void AddIndex()
+        {
+            if (_selectedDatabase == null)
+            {
+                ShowWarning("No database connected", "Index");
+                return;
+            }
+
+            WeakReferenceMessenger.Default.Send(new ShowAddIndexFormMessage());
+        }
 
         [RelayCommand]
         private void ImportSubscriptionsQr() { }
@@ -287,7 +349,51 @@ namespace EdgeStudio.ViewModels
         private void ImportSubscriptionsServer() { }
 
         [RelayCommand]
-        private void ImportJsonData() { }
+        private async Task ImportJsonData()
+        {
+            if (_selectedDatabase == null)
+            {
+                ShowWarning("No database connected", "Import");
+                return;
+            }
+
+            try
+            {
+                var serviceProvider = App.ServiceProvider;
+                if (serviceProvider == null)
+                {
+                    ShowError("Application services not available", "Import");
+                    return;
+                }
+
+                var importService = serviceProvider.GetService(typeof(IImportService)) as IImportService;
+                var collectionsRepo = serviceProvider.GetService(typeof(ICollectionsRepository)) as ICollectionsRepository;
+
+                if (importService == null || collectionsRepo == null)
+                {
+                    ShowError("Import service not available", "Import");
+                    return;
+                }
+
+                var window = new ImportDataWindow(importService, collectionsRepo);
+
+                // Find the parent window to show as dialog
+                if (Avalonia.Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                    && desktop.MainWindow != null)
+                {
+                    await window.ShowDialog(desktop.MainWindow);
+                }
+                else
+                {
+                    window.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError($"Failed to open import dialog: {ex.Message}", "Import");
+            }
+        }
 
         private void OnDocumentDoubleClicked(object recipient, DocumentDoubleClickedMessage message)
         {
@@ -337,15 +443,18 @@ namespace EdgeStudio.ViewModels
                 _ = QueryMetricsViewModel;
                 _ = HistoryToolViewModel;
                 _ = FavoritesToolViewModel;
+                _ = IndexesToolViewModel;
             });
         }
 
         private void UpdateCurrentViews(NavigationItemType navigationType)
         {
             DeactivateCurrentViewModels();
+            _activeNavigationType = navigationType;
 
             if (_selectedDatabase == null)
             {
+                _activeNavigationType = null;
                 CurrentListingViewModel = null;
                 CurrentDetailViewModel = null;
                 return;
@@ -375,11 +484,14 @@ namespace EdgeStudio.ViewModels
                     CurrentListingViewModel = ObserversViewModel;
                     CurrentDetailViewModel = ObserversViewModel;
                     SetStandardNavLayout();
+                    IsObserversActive = true;
+                    EnsureObserveHelpLoaded();
                     ObserversViewModel.Activate();
                     break;
                 case NavigationItemType.Logging:
                     CurrentListingViewModel = null;
                     CurrentDetailViewModel = LoggingViewModel;
+                    ResetInspectorActiveFlags();
                     IsListingPanelVisible = false;
                     CurrentBottomBarContent = LoggingViewModel;
                     IsLoggingActive = true;
@@ -387,15 +499,21 @@ namespace EdgeStudio.ViewModels
                     EnsureLoggingHelpLoaded();
                     break;
                 case NavigationItemType.AppMetrics:
-                    CurrentListingViewModel = AppMetricsViewModel;
+                    CurrentListingViewModel = null;
                     CurrentDetailViewModel = AppMetricsViewModel;
                     SetStandardNavLayout();
+                    IsListingPanelVisible = false;
+                    IsAppMetricsActive = true;
+                    EnsureAppMetricsHelpLoaded();
                     AppMetricsViewModel.Activate();
                     break;
                 case NavigationItemType.QueryMetrics:
-                    CurrentListingViewModel = QueryMetricsViewModel;
+                    CurrentListingViewModel = null;
                     CurrentDetailViewModel = QueryMetricsViewModel;
                     SetStandardNavLayout();
+                    IsListingPanelVisible = false;
+                    IsQueryMetricsActive = true;
+                    EnsureQueryMetricsHelpLoaded();
                     QueryMetricsViewModel.Activate();
                     break;
             }
@@ -405,9 +523,17 @@ namespace EdgeStudio.ViewModels
         {
             IsListingPanelVisible = true;
             CurrentBottomBarContent = ConnectionsByTransport;
+            ResetInspectorActiveFlags();
+        }
+
+        private void ResetInspectorActiveFlags()
+        {
             IsLoggingActive = false;
             IsSubscriptionActive = false;
             IsQueryActive = false;
+            IsObserversActive = false;
+            IsAppMetricsActive = false;
+            IsQueryMetricsActive = false;
         }
 
         private static readonly Uri LoggingHelpUri = new("avares://EdgeStudio/Assets/Help/logging.md");
@@ -461,9 +587,60 @@ namespace EdgeStudio.ViewModels
             }
         }
 
+        private static readonly Uri ObserveHelpUri = new("avares://EdgeStudio/Assets/Help/observe.md");
+
+        private void EnsureObserveHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(ObserveHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(ObserveHelpUri);
+                using var reader = new StreamReader(stream);
+                ObserveHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                ObserveHelpContent = "# Observers\n\nHelp content unavailable.";
+            }
+        }
+
+        private static readonly Uri AppMetricsHelpUri = new("avares://EdgeStudio/Assets/Help/appmetrics.md");
+
+        private void EnsureAppMetricsHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(AppMetricsHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(AppMetricsHelpUri);
+                using var reader = new StreamReader(stream);
+                AppMetricsHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                AppMetricsHelpContent = "# App Metrics\n\nHelp content unavailable.";
+            }
+        }
+
+        private static readonly Uri QueryMetricsHelpUri = new("avares://EdgeStudio/Assets/Help/querymetrics.md");
+
+        private void EnsureQueryMetricsHelpLoaded()
+        {
+            if (!string.IsNullOrEmpty(QueryMetricsHelpContent)) return;
+            try
+            {
+                using var stream = AssetLoader.Open(QueryMetricsHelpUri);
+                using var reader = new StreamReader(stream);
+                QueryMetricsHelpContent = reader.ReadToEnd();
+            }
+            catch
+            {
+                QueryMetricsHelpContent = "# Query Metrics\n\nHelp content unavailable.";
+            }
+        }
+
         private void DeactivateCurrentViewModels()
         {
-            switch (_navigationService.CurrentNavigationType)
+            switch (_activeNavigationType)
             {
                 case NavigationItemType.Subscriptions:
                     if (_subscriptionViewModelLazy.IsValueCreated)

@@ -27,6 +27,9 @@ public partial class InspectorView : UserControl
             UpdateMarkdownContent();
             UpdateSubscriptionMarkdownContent();
             UpdateQueryMarkdownContent();
+            UpdateObserveMarkdownContent();
+            UpdateAppMetricsMarkdownContent();
+            UpdateQueryMetricsMarkdownContent();
         }
     }
 
@@ -38,6 +41,12 @@ public partial class InspectorView : UserControl
             UpdateSubscriptionMarkdownContent();
         else if (e.PropertyName == nameof(EdgeStudioViewModel.QueryHelpContent))
             UpdateQueryMarkdownContent();
+        else if (e.PropertyName == nameof(EdgeStudioViewModel.ObserveHelpContent))
+            UpdateObserveMarkdownContent();
+        else if (e.PropertyName == nameof(EdgeStudioViewModel.AppMetricsHelpContent))
+            UpdateAppMetricsMarkdownContent();
+        else if (e.PropertyName == nameof(EdgeStudioViewModel.QueryMetricsHelpContent))
+            UpdateQueryMetricsMarkdownContent();
     }
 
     private void UpdateMarkdownContent()
@@ -56,5 +65,23 @@ public partial class InspectorView : UserControl
     {
         if (_viewModel != null && !string.IsNullOrEmpty(_viewModel.QueryHelpContent))
             QueryHelpContainer.Content = SimpleMarkdownRenderer.Render(_viewModel.QueryHelpContent);
+    }
+
+    private void UpdateObserveMarkdownContent()
+    {
+        if (_viewModel != null && !string.IsNullOrEmpty(_viewModel.ObserveHelpContent))
+            ObserveHelpContainer.Content = SimpleMarkdownRenderer.Render(_viewModel.ObserveHelpContent);
+    }
+
+    private void UpdateAppMetricsMarkdownContent()
+    {
+        if (_viewModel != null && !string.IsNullOrEmpty(_viewModel.AppMetricsHelpContent))
+            AppMetricsHelpContainer.Content = SimpleMarkdownRenderer.Render(_viewModel.AppMetricsHelpContent);
+    }
+
+    private void UpdateQueryMetricsMarkdownContent()
+    {
+        if (_viewModel != null && !string.IsNullOrEmpty(_viewModel.QueryMetricsHelpContent))
+            QueryMetricsHelpContainer.Content = SimpleMarkdownRenderer.Render(_viewModel.QueryMetricsHelpContent);
     }
 }

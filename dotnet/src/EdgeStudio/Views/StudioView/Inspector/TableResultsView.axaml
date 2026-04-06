@@ -23,7 +23,7 @@
                           CanUserReorderColumns="True"
                           CanUserResizeColumns="True"
                           Background="Transparent"
-                          FontSize="13"
+                          FontSize="14"
                           Foreground="{DynamicResource DittoCardText}"
                           DoubleTapped="OnRowDoubleTapped">
                     <DataGrid.Styles>

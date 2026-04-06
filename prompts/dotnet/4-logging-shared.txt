@@ -1,7 +1,0 @@
-Go into planning mode.  The EdgeStudio project in dotnet has the logging service SerilogLoggingService we use to display logging information.  This is not located in the shared project, which means none of the repositories or services in the shared project can use it.  We need to fix this.
-
-Move the SerilogLoggingService to the shared project so that the console program can also use it.  Then make sure that Ditto Manager and all services and repositories use it instead of  System.Diagnostics.Debug.WriteLine.  
-
-When the Ditto Instance starts it should be using the Logging mode based on what was set in the config.  I'm not sure what's going on, but when I got into the Logging screen it's like Logging is defaulting to verbose.  It shouldn't default to anything - it should be set to what was in the config.  This needs to get resolved.  
-
-Once you have a plan in place to fix this let me know so I can review.  You plan should include testing and building to make sure your changes don't break the app.

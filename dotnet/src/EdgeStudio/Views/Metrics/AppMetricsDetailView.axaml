@@ -19,12 +19,12 @@
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="App Metrics"
-                           FontSize="16"
+                           FontSize="18"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="1"
                            Text="{Binding LastUpdatedText}"
-                           FontSize="11"
+                           FontSize="12"
                            Opacity="0.6"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0"/>
@@ -63,7 +63,7 @@
 
                             <!-- Process Section -->
                             <TextBlock Text="PROCESS"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontWeight="SemiBold"
                                        Opacity="0.5"
                                        Margin="4,0,0,0"/>
@@ -77,7 +77,7 @@
 
                             <!-- Queries Section -->
                             <TextBlock Text="QUERIES"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontWeight="SemiBold"
                                        Opacity="0.5"
                                        Margin="4,8,0,0"/>
@@ -89,7 +89,7 @@
 
                             <!-- Storage Section -->
                             <TextBlock Text="STORAGE"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontWeight="SemiBold"
                                        Opacity="0.5"
                                        Margin="4,8,0,0"/>
@@ -107,7 +107,7 @@
                             <!-- Collection Breakdown Section (only shown when data is available) -->
                             <StackPanel IsVisible="{Binding HasCollectionBreakdown}" Spacing="4">
                                 <TextBlock Text="{Binding CollectionBreakdownHeader}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            FontWeight="SemiBold"
                                            Opacity="0.5"
                                            Margin="4,8,0,0"/>

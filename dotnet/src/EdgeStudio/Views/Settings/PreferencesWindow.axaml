@@ -1,0 +1,97 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:vm="using:EdgeStudio.ViewModels"
+                 xmlns:suki="using:SukiUI.Controls"
+                 mc:Ignorable="d"
+                 d:DesignWidth="460"
+                 d:DesignHeight="320"
+                 x:Class="EdgeStudio.Views.Settings.PreferencesWindow"
+                 x:DataType="vm:PreferencesViewModel"
+                 x:CompileBindings="True"
+                 Title="Edge Studio Settings"
+                 Width="460"
+                 SizeToContent="Height"
+                 MaxHeight="500"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <!-- Settings content -->
+        <StackPanel Grid.Row="0" Margin="24,16,24,8" Spacing="16">
+
+            <!-- MCP Server Section -->
+            <TextBlock Text="MCP Server" FontSize="18" FontWeight="SemiBold" />
+
+            <StackPanel Spacing="10">
+                <!-- Enable row: label on left, toggle on right -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Enable MCP Server"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SukiText}" />
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding IsMcpServerEnabled}"
+                                  OnContent="" OffContent=""
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Status line: green dot + port when running -->
+                <StackPanel Orientation="Horizontal" Spacing="6"
+                            IsVisible="{Binding IsMcpServerEnabled}">
+                    <Ellipse Width="8" Height="8" Fill="#4CAF50" VerticalAlignment="Center" />
+                    <TextBlock x:CompileBindings="False"
+                               Text="{Binding McpServerPort, StringFormat='Running on port {0}'}"
+                               FontSize="13"
+                               Foreground="{DynamicResource SukiLowText}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Port config (shown when enabled) -->
+                <StackPanel Orientation="Horizontal" Spacing="8"
+                            IsVisible="{Binding IsMcpServerEnabled}">
+                    <TextBlock Text="Port:"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SukiText}" />
+                    <NumericUpDown x:CompileBindings="False"
+                                   Value="{Binding McpServerPort, Mode=TwoWay}"
+                                   Minimum="1024"
+                                   Maximum="65535"
+                                   FormatString="0"
+                                   Width="120" />
+                </StackPanel>
+
+                <TextBlock Text="Allows AI agents (Claude Code, Cursor, etc.) to query the active database via MCP. See docs/MCP_SERVER.md for setup."
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{DynamicResource SukiLowText}" />
+            </StackPanel>
+
+        </StackPanel>
+
+        <!-- Footer: status + buttons -->
+        <StackPanel Grid.Row="1" Margin="24,4,24,16" Spacing="8">
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12"
+                       Foreground="{DynamicResource SukiLowText}"
+                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="12">
+                <Button Content="Close"
+                        Classes="Flat"
+                        Click="Close_Click"
+                        MinWidth="80" />
+                <Button Content="Save"
+                        Command="{Binding SaveSettingsCommand}"
+                        MinWidth="80" />
+            </StackPanel>
+        </StackPanel>
+
+    </Grid>
+
+</suki:SukiWindow>

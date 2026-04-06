@@ -21,16 +21,22 @@ import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
+import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.DittoObservable
+import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
+import com.costoda.dittoedgestudio.domain.model.EventFilterMode
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
+import com.ditto.kotlin.DittoDiffer
+import com.ditto.kotlin.DittoStoreObserver
 import com.ditto.kotlin.DittoSyncSubscription
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
@@ -81,6 +88,7 @@ class MainStudioViewModel(
     private val subscriptionsRepository: SubscriptionsRepository,
     val collectionsRepository: CollectionsRepository,
     val loggingCaptureService: DittoLogCaptureService,
+    private val observableRepository: ObservableRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -110,6 +118,24 @@ class MainStudioViewModel(
 
     // In-memory live SDK handles keyed by Room subscription id
     private val activeHandles = mutableMapOf<Long, DittoSyncSubscription>()
+
+    // ── Observer state ──────────────────────────────────────────────
+    private val _observers = MutableStateFlow<List<DittoObservable>>(emptyList())
+    val observers: StateFlow<List<DittoObservable>> = _observers.asStateFlow()
+
+    var editingObserver by mutableStateOf<DittoObservable?>(null)
+
+    private val activeObserverHandles = mutableMapOf<Long, DittoStoreObserver>()
+    private val activeObserverDiffers = mutableMapOf<Long, DittoDiffer>()
+
+    private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
+    val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
+
+    var selectedObserver by mutableStateOf<DittoObservable?>(null)
+    var selectedEvent by mutableStateOf<DittoObserveEvent?>(null)
+    var eventFilterMode by mutableStateOf(EventFilterMode.ALL)
+    var eventPageSize by mutableStateOf(25)
+    var eventCurrentPage by mutableStateOf(0)
 
     var transportBluetoothEnabled by mutableStateOf(true)
     var transportLanEnabled by mutableStateOf(true)
@@ -173,6 +199,8 @@ class MainStudioViewModel(
                     }
                 }
                 _subscriptions.value = saved
+                val savedObservers = observableRepository.loadObservables(database.databaseId)
+                _observers.value = savedObservers
             }.onFailure { e ->
                 hydrateError = e.message
             }
@@ -240,6 +268,123 @@ class MainStudioViewModel(
         }
     }
 
+    // ── Observer CRUD ───────────────────────────────────────────────
+
+    fun addObserver(name: String, query: String) {
+        val db = currentDatabase ?: return
+        viewModelScope.launch(ioDispatcher) {
+            runCatching {
+                val obs = DittoObservable(databaseId = db.databaseId, name = name, query = query)
+                observableRepository.saveObservable(obs)
+                _observers.value = observableRepository.loadObservables(db.databaseId)
+            }.onFailure { e -> hydrateError = e.message }
+            editingObserver = null
+        }
+    }
+
+    fun updateObserver(observer: DittoObservable, name: String, query: String) {
+        val db = currentDatabase ?: return
+        viewModelScope.launch(ioDispatcher) {
+            runCatching {
+                activeObserverHandles.remove(observer.id)?.close()
+                activeObserverDiffers.remove(observer.id)?.close()
+                _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+                val updated = observer.copy(name = name, query = query, isActive = false)
+                observableRepository.updateObservable(updated)
+                _observers.value = observableRepository.loadObservables(db.databaseId)
+                if (selectedObserver?.id == observer.id) selectedObserver = updated
+            }.onFailure { e -> hydrateError = e.message }
+            editingObserver = null
+        }
+    }
+
+    fun removeObserver(observer: DittoObservable) {
+        val db = currentDatabase ?: return
+        viewModelScope.launch(ioDispatcher) {
+            activeObserverHandles.remove(observer.id)?.close()
+            activeObserverDiffers.remove(observer.id)?.close()
+            observableRepository.removeObservable(observer.id)
+            _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+            _observers.value = observableRepository.loadObservables(db.databaseId)
+            if (selectedObserver?.id == observer.id) {
+                selectedObserver = null
+                selectedEvent = null
+            }
+        }
+    }
+
+    // ── Observer lifecycle ───────────────────────────────────────────
+
+    fun activateObserver(observer: DittoObservable) {
+        val ditto = dittoManager.currentInstance() ?: return
+        val db = currentDatabase ?: return
+        if (activeObserverHandles.containsKey(observer.id)) return
+
+        val differ = ditto.createDiffer()
+
+        val handle = ditto.store.registerObserver(observer.query) { queryResult ->
+            val diff = differ.diff(queryResult.items)
+            val docs = queryResult.items.map { it.jsonString() }
+
+            val event = DittoObserveEvent(
+                observeId = observer.id.toString(),
+                data = docs,
+                insertIndexes = diff.insertions.toList(),
+                updatedIndexes = diff.updates.toList(),
+                deletedIndexes = diff.deletions.toList(),
+                movedIndexes = diff.moves.map { it.from to it.to },
+                eventTime = java.time.Instant.now().toString(),
+            )
+
+            _observerEvents.update { it + event }
+        }
+
+        activeObserverHandles[observer.id] = handle
+        activeObserverDiffers[observer.id] = differ
+        viewModelScope.launch(ioDispatcher) {
+            val updated = observer.copy(isActive = true, lastUpdated = System.currentTimeMillis())
+            observableRepository.updateObservable(updated)
+            _observers.value = observableRepository.loadObservables(db.databaseId)
+        }
+    }
+
+    fun deactivateObserver(observer: DittoObservable) {
+        val db = currentDatabase ?: return
+        activeObserverHandles.remove(observer.id)?.close()
+        activeObserverDiffers.remove(observer.id)?.close()
+        _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+
+        viewModelScope.launch(ioDispatcher) {
+            val updated = observer.copy(isActive = false)
+            observableRepository.updateObservable(updated)
+            _observers.value = observableRepository.loadObservables(db.databaseId)
+        }
+
+        if (selectedObserver?.id == observer.id) {
+            selectedEvent = null
+            eventCurrentPage = 0
+        }
+    }
+
+    fun isObserverActive(observer: DittoObservable): Boolean =
+        activeObserverHandles.containsKey(observer.id)
+
+    fun selectObserver(observer: DittoObservable) {
+        selectedObserver = observer
+        selectedEvent = null
+        eventCurrentPage = 0
+        eventFilterMode = EventFilterMode.ALL
+    }
+
+    fun selectEvent(event: DittoObserveEvent) {
+        selectedEvent = event
+    }
+
+    fun selectedObserverEvents(): List<DittoObserveEvent> {
+        val obsId = selectedObserver?.id?.toString() ?: return emptyList()
+        return _observerEvents.value.filter { it.observeId == obsId }
+    }
+
     fun addIndex(collection: String, fieldName: String) {
         viewModelScope.launch(ioDispatcher) {
             runCatching {
@@ -294,6 +439,12 @@ class MainStudioViewModel(
         activeHandles.values.forEach { it.close() }
         activeHandles.clear()
         _subscriptions.value = emptyList()
+        activeObserverHandles.values.forEach { it.close() }
+        activeObserverHandles.clear()
+        activeObserverDiffers.values.forEach { it.close() }
+        activeObserverDiffers.clear()
+        _observers.value = emptyList()
+        _observerEvents.value = emptyList()
         viewModelScope.launch { dittoManager.close() }
     }
 }
