@@ -60,6 +60,20 @@ public partial class MainWindow : SukiWindow,
         // UpdateBackgroundStyle() (called in the ViewModel constructor) will confirm/override
         // once the active theme is known.
         this.BackgroundStyle = SukiBackgroundStyle.Gradient;
+
+        // Show Settings and Help title bar buttons on Windows/Linux.
+        // macOS exposes these via the native system menu bar instead.
+        if (!OperatingSystem.IsMacOS())
+        {
+            TitleBarSettingsButton.IsVisible = true;
+            TitleBarHelpButton.IsVisible = true;
+
+            // Wire context menu items — done in code-behind because the existing handlers
+            // use EventArgs (for NativeMenuItem) while MenuItem.Click needs RoutedEventArgs.
+            HelpDocumentationMenuItem.Click += (s, e) => HelpDocumentation_Click(s, e);
+            VisitDittoWebsiteMenuItem.Click += (s, e) => VisitDittoWebsite_Click(s, e);
+            DownloadQuickstartsMenuItem.Click += (s, e) => DownloadQuickstarts_Click(s, e);
+        }
     }
 
     private void UpdateBackgroundStyle(string? themeName)
@@ -153,7 +167,19 @@ public partial class MainWindow : SukiWindow,
         }
     }
 
+    private async void TitleBarSettings_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await OpenSettingsAsync();
+
+    private void TitleBarHelp_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is Button btn)
+            btn.ContextMenu?.Open(btn);
+    }
+
     private async void Settings_Click(object? sender, EventArgs e)
+        => await OpenSettingsAsync();
+
+    private async Task OpenSettingsAsync()
     {
         var vm = App.ServiceProvider?.GetService(typeof(PreferencesViewModel)) as PreferencesViewModel;
         if (vm == null) return;

@@ -281,10 +281,12 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows a critical error dialog when the application cannot continue
+    /// Shows a critical error dialog when the application cannot continue.
+    /// Blocks until the user clicks OK so the message is readable before shutdown.
     /// </summary>
     private static Task ShowCriticalErrorDialog(string title, string message)
     {
+        var tcs = new TaskCompletionSource<bool>();
         try
         {
             var dialog = new Window
@@ -293,7 +295,8 @@ public partial class App : Application
                 Width = 500,
                 Height = 250,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                CanResize = false
+                CanResize = false,
+                ShowInTaskbar = true
             };
 
             var content = new StackPanel
@@ -319,13 +322,14 @@ public partial class App : Application
             content.Children.Add(okButton);
 
             dialog.Content = content;
+            dialog.Closed += (s, e) => tcs.TrySetResult(true);
             dialog.Show();
-            return Task.CompletedTask;
         }
         catch
         {
-            return Task.CompletedTask;
+            tcs.TrySetResult(true);
         }
+        return tcs.Task;
     }
 
     /// <summary>

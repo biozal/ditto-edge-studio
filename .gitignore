@@ -43,3 +43,4 @@ dotnet/src/EdgeStudioTests/obj
 android/app/src/main/assets/help/
 dotnet/src/EdgeStudio/Assets/Help/*.md
 .gitnexus
+/dotnet/src/.vs
