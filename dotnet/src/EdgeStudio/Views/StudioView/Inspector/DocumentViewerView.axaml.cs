@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using AvaloniaEdit.TextMate;
 using EdgeStudio.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.ComponentModel;
 using TextMateSharp.Grammars;
@@ -17,12 +18,24 @@ namespace EdgeStudio.Views.StudioView.Inspector
         private TextMate.Installation? _textMateInstallation;
         private QueryDocumentViewModel? _currentViewModel;
         private PropertyChangedEventHandler? _propertyChangedHandler;
+        private AttachmentViewModel? _attachmentViewModel;
 
         public DocumentViewerView()
         {
             InitializeComponent();
             SetupSyntaxHighlighting();
+            SetupAttachmentViewer();
             DataContextChanged += OnDataContextChanged;
+        }
+
+        private void SetupAttachmentViewer()
+        {
+            _attachmentViewModel = App.ServiceProvider?.GetService<AttachmentViewModel>();
+            if (_attachmentViewModel != null)
+            {
+                var viewer = new AttachmentViewerView { DataContext = _attachmentViewModel };
+                AttachmentViewerHost.Content = viewer;
+            }
         }
 
         private void SetupSyntaxHighlighting()
@@ -52,12 +65,16 @@ namespace EdgeStudio.Views.StudioView.Inspector
             {
                 // Set initial content
                 UpdateEditorText(_currentViewModel.SelectedDocumentJson);
+                _attachmentViewModel?.DetectAttachments(_currentViewModel.SelectedDocumentJson);
 
                 // Subscribe to future changes
                 _propertyChangedHandler = (s, args) =>
                 {
                     if (args.PropertyName == nameof(QueryDocumentViewModel.SelectedDocumentJson))
+                    {
                         UpdateEditorText(_currentViewModel.SelectedDocumentJson);
+                        _attachmentViewModel?.DetectAttachments(_currentViewModel.SelectedDocumentJson);
+                    }
                 };
                 _currentViewModel.PropertyChanged += _propertyChangedHandler;
             }
