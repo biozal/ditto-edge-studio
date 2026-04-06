@@ -187,6 +187,171 @@ actor AttachmentService {
         }
     }
 
+    // MARK: - HTTP Create & Link
+
+    /// Uploads a file via the HTTP API and links it to a document field.
+    ///
+    /// Step 1: Multipart POST to `/api/v4/attachments/upload`
+    /// Step 2: DQL UPDATE via `/api/v5/store/execute` to link the attachment token.
+    ///
+    /// - Parameters:
+    ///   - fileURL: Security-scoped URL to the source file.
+    ///   - metadata: Key-value metadata stored alongside the attachment.
+    ///   - collection: The target collection name.
+    ///   - documentId: The `_id` of the document to attach to (passed as Any for DQL args).
+    ///   - fieldName: The document field that will hold the attachment token.
+    func createAndLinkViaHttp(
+        fileURL: URL,
+        metadata: [String: String],
+        collection: String,
+        documentId: String,
+        fieldName: String
+    ) async throws {
+        guard let appConfig = await dittoManager.dittoSelectedAppConfig else {
+            throw AttachmentError.noDittoInstance
+        }
+
+        guard fileURL.startAccessingSecurityScopedResource() else {
+            throw AttachmentError.fileNotAccessible
+        }
+        defer { fileURL.stopAccessingSecurityScopedResource() }
+
+        // Validate file size against HTTP limit
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let fileSize = (attributes[.size] as? Int64) ?? 0
+        if fileSize > Self.httpSizeLimit {
+            throw AttachmentError.fileTooLarge(size: fileSize, limit: Self.httpSizeLimit)
+        }
+
+        // Step 1: Upload via multipart
+        let uploadResult = try await httpUpload(fileURL: fileURL, appConfig: appConfig)
+
+        // Step 2: Link via DQL UPDATE over HTTP
+        guard let attachmentId = uploadResult["id"] as? String,
+              let attachmentLen = uploadResult["len"] as? Int else
+        {
+            throw AttachmentError.httpUploadFailed("Invalid upload response — missing id or len")
+        }
+
+        let updateQuery = "UPDATE \(collection) (\(fieldName) ATTACHMENT) SET \(fieldName) = :att WHERE _id = :docId"
+        let attToken: [String: Any] = ["id": attachmentId, "len": attachmentLen, "metadata": metadata]
+        let requestBody: [String: Any] = [
+            "statement": updateQuery,
+            "args": ["att": attToken, "docId": documentId]
+        ]
+
+        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
+        guard let url = URL(string: urlString) else {
+            throw AttachmentError.httpUploadFailed("Invalid URL: \(urlString)")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(appConfig.httpApiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let session: URLSession = if appConfig.allowUntrustedCerts {
+            await dittoManager.getCachedUntrustedSession()
+        } else {
+            URLSession.shared
+        }
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200 ... 299).contains(httpResponse.statusCode) else
+        {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw AttachmentError.httpUploadFailed("Server returned HTTP \(statusCode)")
+        }
+
+        Log.info("[Attachment] HTTP: Created and linked attachment to \(collection)/\(documentId).\(fieldName)")
+    }
+
+    // MARK: - HTTP Upload (private)
+
+    private func httpUpload(fileURL: URL, appConfig: DittoConfigForDatabase) async throws -> [String: Any] {
+        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/attachments/upload"
+        guard let url = URL(string: urlString) else {
+            throw AttachmentError.httpUploadFailed("Invalid upload URL: \(urlString)")
+        }
+
+        let boundary = UUID().uuidString
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(appConfig.httpApiKey)", forHTTPHeaderField: "Authorization")
+
+        let fileData = try Data(contentsOf: fileURL)
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n"
+                .data(using: .utf8)!
+        )
+        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let session: URLSession = if appConfig.allowUntrustedCerts {
+            await dittoManager.getCachedUntrustedSession()
+        } else {
+            URLSession.shared
+        }
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200 ... 299).contains(httpResponse.statusCode) else
+        {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw AttachmentError.httpUploadFailed("Upload returned HTTP \(statusCode): \(errorBody)")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AttachmentError.httpUploadFailed("Invalid upload response format")
+        }
+
+        return json
+    }
+
+    // MARK: - HTTP Fetch
+
+    /// Downloads an attachment by its ID via the HTTP API.
+    ///
+    /// - Parameter attachmentId: The attachment identifier returned by the upload endpoint.
+    /// - Returns: The raw file data.
+    func fetchViaHttp(attachmentId: String) async throws -> Data {
+        guard let appConfig = await dittoManager.dittoSelectedAppConfig else {
+            throw AttachmentError.noDittoInstance
+        }
+
+        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/attachments/\(attachmentId)"
+        guard let url = URL(string: urlString) else {
+            throw AttachmentError.httpDownloadFailed("Invalid download URL: \(urlString)")
+        }
+
+        var request = URLRequest(url: url)
+        request.addValue("Bearer \(appConfig.httpApiKey)", forHTTPHeaderField: "Authorization")
+
+        let session: URLSession = if appConfig.allowUntrustedCerts {
+            await dittoManager.getCachedUntrustedSession()
+        } else {
+            URLSession.shared
+        }
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200 ... 299).contains(httpResponse.statusCode) else
+        {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw AttachmentError.httpDownloadFailed("Download returned HTTP \(statusCode)")
+        }
+
+        return data
+    }
+
     // MARK: - Cancellation
 
     /// Cancels a specific in-progress fetch by its identifier.

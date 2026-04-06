@@ -1142,13 +1142,23 @@ extension MainStudioView {
             attachmentProgress.fractionCompleted = 0.0
 
             do {
-                try await AttachmentService.shared.createAndLink(
-                    fileURL: fileURL,
-                    metadata: metadata,
-                    collection: collection,
-                    documentId: docIdString,
-                    fieldName: fieldName
-                )
+                if selectedExecuteMode == "Local" {
+                    try await AttachmentService.shared.createAndLink(
+                        fileURL: fileURL,
+                        metadata: metadata,
+                        collection: collection,
+                        documentId: docIdString,
+                        fieldName: fieldName
+                    )
+                } else {
+                    try await AttachmentService.shared.createAndLinkViaHttp(
+                        fileURL: fileURL,
+                        metadata: metadata,
+                        collection: collection,
+                        documentId: docIdString,
+                        fieldName: fieldName
+                    )
+                }
                 attachmentProgress.fractionCompleted = 1.0
                 attachmentProgress.message = "Attachment linked successfully"
                 try? await Task.sleep(for: .seconds(1.5))
@@ -1186,7 +1196,11 @@ extension MainStudioView {
             attachmentProgress.message = "Downloading attachment..."
 
             do {
-                let fileData = try await AttachmentService.shared.fetch(token: token, id: attachment.id)
+                let fileData: Data = if selectedExecuteMode == "Local" {
+                    try await AttachmentService.shared.fetch(token: token, id: attachment.id)
+                } else {
+                    try await AttachmentService.shared.fetchViaHttp(attachmentId: attachment.id)
+                }
                 attachmentProgress.isActive = false
 
                 if attachment.isImage {
