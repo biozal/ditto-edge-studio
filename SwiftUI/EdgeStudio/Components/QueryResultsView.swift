@@ -16,6 +16,7 @@ enum ResultViewTab: String, CaseIterable {
 struct QueryResultsView: View {
     @Binding var jsonResults: [String]
     var onJsonSelected: ((String) -> Void)?
+    var onAddAttachment: ((String) -> Void)?
 
     @State private var selectedTab: ResultViewTab = .raw
     @Binding var currentPage: Int
@@ -46,12 +47,14 @@ struct QueryResultsView: View {
         jsonResults: Binding<[String]>,
         currentPage: Binding<Int>,
         pageSize: Binding<Int>,
-        onJsonSelected: ((String) -> Void)? = nil
+        onJsonSelected: ((String) -> Void)? = nil,
+        onAddAttachment: ((String) -> Void)? = nil
     ) {
         _jsonResults = jsonResults
         _currentPage = currentPage
         _pageSize = pageSize
         self.onJsonSelected = onJsonSelected
+        self.onAddAttachment = onAddAttachment
     }
 
     var body: some View {
@@ -93,7 +96,8 @@ struct QueryResultsView: View {
                         externalPageSize: $pageSize,
                         showPaginationControls: false,
                         showExportButton: false,
-                        onJsonSelected: onJsonSelected
+                        onJsonSelected: onJsonSelected,
+                        onAddAttachment: onAddAttachment
                     )
                 case .table:
                     ResultTableViewer(
@@ -116,7 +120,8 @@ struct QueryResultsView: View {
                 externalPageSize: $pageSize,
                 showPaginationControls: false,
                 showExportButton: false,
-                onJsonSelected: onJsonSelected
+                onJsonSelected: onJsonSelected,
+                onAddAttachment: onAddAttachment
             )
             .tabItem { Label("Raw", systemImage: "doc.plaintext") }
             .tag(ResultViewTab.raw)

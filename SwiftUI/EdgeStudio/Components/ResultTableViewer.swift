@@ -13,6 +13,9 @@ struct ResultTableViewer: View {
     /// Callback for JSON selection (opens in inspector)
     var onJsonSelected: ((String) -> Void)?
 
+    /// Callback for adding an attachment to a document
+    var onAddAttachment: ((String) -> Void)?
+
     private let defaultColumnWidth: CGFloat = 200
 
     private var pagedItems: [String] {
@@ -116,6 +119,19 @@ struct ResultTableViewer: View {
                             .onTapGesture(count: 2) {
                                 copyRowToClipboard(row)
                             }
+                            .contextMenu {
+                                Button {
+                                    copyRowToClipboard(row)
+                                } label: {
+                                    Label("Copy Document", systemImage: "doc.on.doc")
+                                }
+                                Divider()
+                                Button {
+                                    onAddAttachment?(row.originalJson)
+                                } label: {
+                                    Label("Add Attachment...", systemImage: "paperclip")
+                                }
+                            }
                         }
                     } header: {
                         // Sticky header with resizable columns
@@ -195,6 +211,19 @@ struct ResultTableViewer: View {
                         .background(row.rowIndex % 2 == 0 ? Color(UIColor.systemBackground) : Color(UIColor.secondarySystemBackground).opacity(0.3))
                         .onTapGesture(count: 2) {
                             copyRowToClipboard(row)
+                        }
+                        .contextMenu {
+                            Button {
+                                copyRowToClipboard(row)
+                            } label: {
+                                Label("Copy Document", systemImage: "doc.on.doc")
+                            }
+                            Divider()
+                            Button {
+                                onAddAttachment?(row.originalJson)
+                            } label: {
+                                Label("Add Attachment...", systemImage: "paperclip")
+                            }
                         }
                     }
                 } header: {
