@@ -1,0 +1,48 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:suki="using:SukiUI.Controls"
+                 mc:Ignorable="d"
+                 d:DesignWidth="450"
+                 d:DesignHeight="340"
+                 x:Class="EdgeStudio.Views.AttachmentPickerWindow"
+                 Title="Add Attachment"
+                 Width="450" Height="340"
+                 WindowStartupLocation="CenterOwner"
+                 CanResize="False"
+                 BackgroundStyle="Flat">
+
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="Target Document" FontWeight="Bold" />
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Collection: " Foreground="Gray" />
+            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="CollectionText" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Document ID: " Foreground="Gray" />
+            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DocumentIdText" TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <Separator />
+
+        <TextBlock Text="Attachment Field Name (required)" />
+        <TextBox x:Name="FieldNameInput" Watermark="e.g. photo, document, recording" />
+
+        <DockPanel>
+            <Button DockPanel.Dock="Left" Content="Choose File..." x:Name="ChooseFileButton" />
+            <TextBlock x:Name="FileInfoText" Text="No file selected"
+                       VerticalAlignment="Center" Margin="12,0,0,0"
+                       Foreground="Gray" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+
+        <TextBlock x:Name="SizeWarningText" Foreground="Orange" IsVisible="False"
+                   TextWrapping="Wrap" FontSize="12" />
+
+        <Separator />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" x:Name="CancelButton" />
+            <Button Content="Attach" x:Name="AttachButton" IsEnabled="False"
+                    Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</suki:SukiWindow>
