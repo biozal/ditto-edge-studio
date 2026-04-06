@@ -88,17 +88,21 @@ struct ContentView: View {
             Button("Replace", role: .destructive) {
                 if let existing = existingFolderURL, let dest = quickstartDestination {
                     try? quickstartService.removeExistingFolder(at: existing)
-                    let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                        && DittoManager.shared.dittoSelectedAppConfig != nil
                     Task {
+                        let hasApp = await DittoManager.shared.dittoSelectedApp != nil
+                        let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
+                        let hasConfig = hasApp && hasAppConfig
                         await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
                     }
                 }
             }
             Button("Choose Different Location") {
-                let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                    && DittoManager.shared.dittoSelectedAppConfig != nil
-                openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
+                Task {
+                    let hasApp = await DittoManager.shared.dittoSelectedApp != nil
+                    let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
+                    let hasConfig = hasApp && hasAppConfig
+                    openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -300,15 +304,18 @@ extension ContentView {
 
 extension ContentView {
     func startQuickstartDownload() {
-        let hasConnection = DittoManager.shared.dittoSelectedApp != nil
-            && DittoManager.shared.dittoSelectedAppConfig != nil
-
         continueWithoutConfig = false
 
-        if !hasConnection {
-            showNoConnectionAlert = true
-        } else {
-            openFolderPickerAndDownload(configureEnv: true)
+        Task {
+            let hasApp = await DittoManager.shared.dittoSelectedApp != nil
+            let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
+            let hasConnection = hasApp && hasAppConfig
+
+            if !hasConnection {
+                showNoConnectionAlert = true
+            } else {
+                openFolderPickerAndDownload(configureEnv: true)
+            }
         }
     }
 
@@ -341,14 +348,14 @@ extension ContentView {
 
     func performDownload(to destination: URL, configureEnv: Bool) async {
         // Reset and show progress
-        await quickstartService.reset()
-        await MainActor.run { showProgressSheet = true }
+        quickstartService.reset()
+        showProgressSheet = true
 
         do {
             let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
 
             if configureEnv, let config = await DittoManager.shared.dittoSelectedAppConfig {
-                await quickstartService.updateStatus("Configuring .env files...")
+                quickstartService.updateStatus("Configuring .env files...")
                 quickstartService.configureEnvFiles(
                     in: extractedDir,
                     databaseId: config.databaseId,
@@ -357,7 +364,7 @@ extension ContentView {
                     websocketUrl: config.websocketUrl
                 )
 
-                await quickstartService.updateStatus("Configuring edge-server...")
+                quickstartService.updateStatus("Configuring edge-server...")
                 try? quickstartService.configureEdgeServerYaml(
                     in: extractedDir,
                     databaseId: config.databaseId,
@@ -366,16 +373,16 @@ extension ContentView {
                 )
             }
 
-            await quickstartService.updateStatus("Discovering projects...")
+            quickstartService.updateStatus("Discovering projects...")
             quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
 
-            await quickstartService.setComplete()
+            quickstartService.setComplete()
 
             // Brief pause to show "Complete" before transitioning
             try? await Task.sleep(for: .milliseconds(500))
 
             // Close progress sheet, open browser
-            await MainActor.run { showProgressSheet = false }
+            showProgressSheet = false
 
             let projects = quickstartService.projects
             WindowController.showQuickstartBrowser(
@@ -384,7 +391,7 @@ extension ContentView {
                 directory: extractedDir
             )
         } catch {
-            await quickstartService.setError(error.localizedDescription)
+            quickstartService.setError(error.localizedDescription)
             // Progress sheet stays open showing error — user clicks OK to dismiss
         }
     }
