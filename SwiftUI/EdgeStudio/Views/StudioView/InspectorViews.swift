@@ -445,6 +445,18 @@ extension MainStudioView {
             if let json = viewModel.selectedJsonForInspector {
                 JsonSyntaxView(jsonString: json)
                     .id(json) // Force recreation when JSON changes
+
+                AttachmentViewerSection(
+                    attachments: viewModel.detectedAttachments,
+                    loadedImages: viewModel.attachmentLoadedImages,
+                    loadingIds: viewModel.attachmentLoadingIds,
+                    errorMessages: viewModel.attachmentErrors,
+                    onFetchAttachment: { attachment in
+                        Task {
+                            await viewModel.fetchAttachmentForViewing(attachment, appState: appState)
+                        }
+                    }
+                )
             } else {
                 // Empty state: centered message
                 VStack(spacing: 12) {

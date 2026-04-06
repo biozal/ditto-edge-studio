@@ -246,6 +246,26 @@ struct MainStudioView: View {
                 .frame(minWidth: 480, minHeight: 360)
                 #endif
             }
+            .sheet(isPresented: $viewModel.showAttachmentPicker) {
+                if let json = viewModel.attachmentTargetJson,
+                   let docId = viewModel.parseDocumentId(from: json)
+                {
+                    AttachmentPickerSheet(
+                        documentId: String(describing: docId),
+                        collection: viewModel.attachmentTargetCollection ?? "unknown",
+                        executeMode: viewModel.selectedExecuteMode
+                    ) { fileURL, fieldName, metadata in
+                        Task {
+                            await viewModel.executeAddAttachment(
+                                fileURL: fileURL,
+                                fieldName: fieldName,
+                                metadata: metadata,
+                                appState: appState
+                            )
+                        }
+                    }
+                }
+            }
         #if os(macOS)
             .toolbar {
                 syncCloseToolbarGroup() // Sync + Close grouped

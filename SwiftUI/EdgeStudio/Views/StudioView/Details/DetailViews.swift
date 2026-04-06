@@ -239,9 +239,20 @@ extension MainStudioView {
                         onJsonSelected: { json in
                             viewModel.showJsonInInspector(json)
                             showInspector = true
+                        },
+                        onAddAttachment: { json in
+                            viewModel.requestAddAttachment(documentJson: json)
                         }
                     )
                     .frame(height: geometry.size.height * 0.5)
+                    .overlay(alignment: .bottom) {
+                        AttachmentProgressOverlay(
+                            isActive: viewModel.attachmentProgress.isActive,
+                            message: viewModel.attachmentProgress.message,
+                            fractionCompleted: viewModel.attachmentProgress.fractionCompleted
+                        )
+                        .padding(.bottom, 8)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
