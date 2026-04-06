@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -8,8 +9,10 @@ using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace EdgeStudio.ViewModels
@@ -46,7 +49,15 @@ namespace EdgeStudio.ViewModels
         private int _resultCount = 0;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasAttachments))]
         private string? _selectedDocumentJson;
+
+        // Attachment state — kept on this ViewModel so bindings work in DocumentViewerView
+        public ObservableCollection<AttachmentInfo> DetectedAttachments { get; } = new();
+        public bool HasAttachments => DetectedAttachments.Count > 0;
+
+        [ObservableProperty]
+        private bool _isLoadingAttachment;
 
         public ObservableCollection<string> AvailableQueryModes { get; } = new() { "Local" };
 
@@ -262,6 +273,63 @@ namespace EdgeStudio.ViewModels
             var collection = _lastCollection ?? "unknown";
             WeakReferenceMessenger.Default.Send(
                 new AddAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
+        }
+
+        /// <summary>Called automatically when SelectedDocumentJson changes via [NotifyPropertyChangedFor].</summary>
+        partial void OnSelectedDocumentJsonChanged(string? value)
+        {
+            DetectedAttachments.Clear();
+            if (!string.IsNullOrEmpty(value))
+            {
+                foreach (var token in AttachmentInfo.DetectTokens(value))
+                    DetectedAttachments.Add(token);
+            }
+            OnPropertyChanged(nameof(HasAttachments));
+        }
+
+        [RelayCommand]
+        private async Task OpenAttachment(AttachmentInfo? attachment)
+        {
+            if (attachment == null || _attachmentService == null) return;
+
+            IsLoadingAttachment = true;
+            try
+            {
+                byte[] data;
+                if (string.Equals(SelectedQueryMode, "HTTP", StringComparison.OrdinalIgnoreCase))
+                {
+                    data = await _attachmentService.FetchViaHttpAsync(attachment.Id);
+                }
+                else
+                {
+                    var token = new Dictionary<string, object>
+                    {
+                        ["id"] = attachment.Id,
+                        ["len"] = attachment.Length,
+                        ["metadata"] = attachment.Metadata
+                    };
+                    data = await _attachmentService.FetchAsync(token);
+                }
+
+                // Save to temp and open with default OS app
+                var fileName = attachment.FileName ?? $"attachment_{attachment.Id[..8]}";
+                var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+                await File.WriteAllBytesAsync(tempPath, data);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = tempPath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Attachment] Fetch failed: {ex.Message}");
+            }
+            finally
+            {
+                IsLoadingAttachment = false;
+            }
         }
 
         public bool CanClose() => true;
