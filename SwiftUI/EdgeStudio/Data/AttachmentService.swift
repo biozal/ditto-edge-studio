@@ -109,7 +109,7 @@ actor AttachmentService {
         )
 
         // Link the attachment to the document using DQL UPDATE with ATTACHMENT type hint
-        let query = "UPDATE \(collection) (\(fieldName) ATTACHMENT) SET \(fieldName) = :att WHERE _id = :docId"
+        let query = "UPDATE \(collection) SET \(fieldName) = :att WHERE _id = :docId"
         let arguments: [String: Any] = ["att": attachment, "docId": documentId]
         try await ditto.store.execute(query: query, arguments: arguments)
 
@@ -229,7 +229,7 @@ actor AttachmentService {
             throw AttachmentError.httpUploadFailed("Invalid upload response — missing id or len")
         }
 
-        let updateQuery = "UPDATE \(collection) (\(fieldName) ATTACHMENT) SET \(fieldName) = :att WHERE _id = :docId"
+        let updateQuery = "UPDATE \(collection) SET \(fieldName) = :att WHERE _id = :docId"
         let attToken: [String: Any] = ["id": attachmentId, "len": attachmentLen, "metadata": metadata]
         let requestBody: [String: Any] = [
             "statement": updateQuery,

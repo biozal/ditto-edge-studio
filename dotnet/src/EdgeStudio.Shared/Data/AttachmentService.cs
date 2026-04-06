@@ -42,7 +42,7 @@ public class AttachmentService : IAttachmentService
 
         using var attachment = await ditto.Store.NewAttachmentAsync(filePath, metadata);
 
-        var query = $"UPDATE {collection} ({fieldName} ATTACHMENT) SET {fieldName} = :att WHERE _id = :docId";
+        var query = $"UPDATE {collection} SET {fieldName} = :att WHERE _id = :docId";
         var args = new Dictionary<string, object>
         {
             ["att"] = attachment,
@@ -72,7 +72,7 @@ public class AttachmentService : IAttachmentService
         var attachmentId = uploadResult.GetProperty("id").GetString() ?? "";
         var attachmentLen = uploadResult.GetProperty("len").GetInt64();
 
-        var updateQuery = $"UPDATE {collection} ({fieldName} ATTACHMENT) SET {fieldName} = :att WHERE _id = :docId";
+        var updateQuery = $"UPDATE {collection} SET {fieldName} = :att WHERE _id = :docId";
         var requestBody = new
         {
             statement = updateQuery,
