@@ -1,5 +1,10 @@
 import DittoSwift
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 struct MainStudioView: View {
     @EnvironmentObject var appState: AppState
@@ -473,6 +478,19 @@ extension MainStudioView {
         /// JSON Inspector State
         var selectedJsonForInspector: String?
 
+        // MARK: - Attachment State
+
+        var attachmentProgress = AttachmentProgress()
+        var showAttachmentPicker = false
+        var attachmentTargetJson: String?
+        var attachmentTargetCollection: String?
+
+        // Attachment viewer state (inspector)
+        var detectedAttachments: [AttachmentInfo] = []
+        var attachmentLoadedImages: [String: Data] = [:]
+        var attachmentLoadingIds: Set<String> = []
+        var attachmentErrors: [String: String] = [:]
+
         init(_ dittoAppConfig: DittoConfigForDatabase) {
             selectedApp = dittoAppConfig
             let subscriptionItem = MenuItem(
@@ -682,6 +700,7 @@ extension MainStudioView {
         /// Shows JSON in the inspector panel
         func showJsonInInspector(_ json: String) {
             selectedJsonForInspector = json
+            detectAttachmentsInSelectedJson()
             if let jsonTab = queryInspectorMenuItems.first(where: { $0.name == "JSON" }) {
                 selectedQueryInspectorMenuItem = jsonTab
             }
@@ -1042,6 +1061,135 @@ extension MainStudioView {
         func showSubscriptionEditor(_ subscription: DittoSubscription) {
             editorSubscription = subscription
             actionSheetMode = .subscription
+        }
+
+        // MARK: - Attachment Parsers
+
+        func parseCollectionName(from query: String) -> String? {
+            let pattern = #"(?i)\bFROM\s+(\w+)"#
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)),
+                  let range = Range(match.range(at: 1), in: query) else
+            {
+                return nil
+            }
+            return String(query[range])
+        }
+
+        func parseDocumentId(from jsonString: String) -> Any? {
+            guard let data = jsonString.data(using: .utf8),
+                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else
+            {
+                return nil
+            }
+            return dict["_id"]
+        }
+
+        // MARK: - Attachment Actions
+
+        func requestAddAttachment(documentJson: String) {
+            attachmentTargetJson = documentJson
+            attachmentTargetCollection = parseCollectionName(from: selectedQuery)
+            showAttachmentPicker = true
+        }
+
+        func executeAddAttachment(
+            fileURL: URL,
+            fieldName: String,
+            metadata: [String: String],
+            appState: AppState
+        ) async {
+            guard let json = attachmentTargetJson,
+                  let docId = parseDocumentId(from: json) else
+            {
+                appState.setError(AttachmentError.noDocumentId)
+                return
+            }
+            guard let collection = attachmentTargetCollection else {
+                appState.setError(AttachmentError.collectionNotFound)
+                return
+            }
+
+            // Convert document ID to String for the AttachmentService API
+            let docIdString: String = if let str = docId as? String {
+                str
+            } else {
+                "\(docId)"
+            }
+
+            attachmentProgress.isActive = true
+            attachmentProgress.message = "Uploading attachment..."
+            attachmentProgress.fractionCompleted = 0.0
+
+            do {
+                try await AttachmentService.shared.createAndLink(
+                    fileURL: fileURL,
+                    metadata: metadata,
+                    collection: collection,
+                    documentId: docIdString,
+                    fieldName: fieldName
+                )
+                attachmentProgress.fractionCompleted = 1.0
+                attachmentProgress.message = "Attachment linked successfully"
+                try? await Task.sleep(for: .seconds(1.5))
+                attachmentProgress.isActive = false
+            } catch {
+                attachmentProgress.isActive = false
+                appState.setError(error)
+            }
+        }
+
+        // MARK: - Attachment Detection & Viewing
+
+        func detectAttachmentsInSelectedJson() {
+            guard let json = selectedJsonForInspector else {
+                detectedAttachments = []
+                return
+            }
+            detectedAttachments = AttachmentInfo.detectTokens(in: json)
+            attachmentLoadedImages.removeAll()
+            attachmentLoadingIds.removeAll()
+            attachmentErrors.removeAll()
+        }
+
+        func fetchAttachmentForViewing(_ attachment: AttachmentInfo, appState: AppState) async {
+            guard let json = selectedJsonForInspector,
+                  let data = json.data(using: .utf8),
+                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let token = dict[attachment.fieldName] as? [String: Any] else
+            {
+                return
+            }
+
+            attachmentLoadingIds.insert(attachment.id)
+            attachmentProgress.isActive = true
+            attachmentProgress.message = "Downloading attachment..."
+
+            do {
+                let fileData = try await AttachmentService.shared.fetch(token: token, id: attachment.id)
+                attachmentProgress.isActive = false
+
+                if attachment.isImage {
+                    attachmentLoadedImages[attachment.id] = fileData
+                } else {
+                    // Save to temp and open in OS default app
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let fileName = attachment.fileName ?? "attachment"
+                    let tempURL = tempDir.appendingPathComponent(fileName)
+                    try fileData.write(to: tempURL)
+                    #if os(macOS)
+                    NSWorkspace.shared.open(tempURL)
+                    #else
+                    await UIApplication.shared.open(tempURL)
+                    #endif
+                }
+                attachmentLoadingIds.remove(attachment.id)
+            } catch {
+                attachmentProgress.isActive = false
+                attachmentLoadingIds.remove(attachment.id)
+                attachmentErrors[attachment.id] = error.localizedDescription
+                appState.setError(error)
+            }
         }
     }
 }
