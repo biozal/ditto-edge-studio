@@ -453,9 +453,10 @@ namespace EdgeStudio.ViewModels
                 WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(false, "", 0));
                 WeakReferenceMessenger.Default.Send(new AttachmentAddedMessage(documentId, picker.SelectedFieldName, message.Collection));
             }
-            catch
+            catch (Exception ex)
             {
                 WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(false, "", 0));
+                ShowError($"Failed to attach file: {ex.Message}");
             }
         }
 

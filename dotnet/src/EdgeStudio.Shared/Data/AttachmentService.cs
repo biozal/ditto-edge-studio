@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DittoSDK;
 using DittoSDK.Store;
@@ -17,6 +18,7 @@ public class AttachmentService : IAttachmentService
     private readonly IDittoManager _dittoManager;
     private readonly Dictionary<string, IDisposable> _activeFetchers = new();
     private readonly object _fetcherLock = new();
+    private static readonly Regex SafeIdentifier = new(@"^[a-zA-Z_][a-zA-Z0-9_]*$", RegexOptions.Compiled);
 
     public AttachmentService(IDittoManager dittoManager)
     {
@@ -30,6 +32,11 @@ public class AttachmentService : IAttachmentService
         string documentId,
         string fieldName)
     {
+        if (!SafeIdentifier.IsMatch(collection))
+            throw new ArgumentException($"Invalid collection name: {collection}");
+        if (!SafeIdentifier.IsMatch(fieldName))
+            throw new ArgumentException($"Invalid field name: {fieldName}");
+
         var ditto = _dittoManager.DittoSelectedApp
             ?? throw new InvalidOperationException("No Ditto database connected.");
 
@@ -52,6 +59,11 @@ public class AttachmentService : IAttachmentService
         string documentId,
         string fieldName)
     {
+        if (!SafeIdentifier.IsMatch(collection))
+            throw new ArgumentException($"Invalid collection name: {collection}");
+        if (!SafeIdentifier.IsMatch(fieldName))
+            throw new ArgumentException($"Invalid field name: {fieldName}");
+
         var config = _dittoManager.SelectedDatabaseConfig
             ?? throw new InvalidOperationException("No database config available.");
 

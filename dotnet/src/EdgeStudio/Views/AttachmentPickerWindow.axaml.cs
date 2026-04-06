@@ -100,11 +100,14 @@ public partial class AttachmentPickerWindow : SukiWindow
     {
         var hasFile = !string.IsNullOrEmpty(SelectedFilePath);
         var hasFieldName = !string.IsNullOrWhiteSpace(FieldNameInput.Text);
+        // Only HTTP mode has a hard limit (20MB). Local mode 10MB is a soft limit (warn only).
         var isOverHardLimit = _queryMode.Equals("http", StringComparison.OrdinalIgnoreCase)
-            ? _selectedFileSize > HttpSizeLimit
-            : _selectedFileSize > LocalSizeLimit;
+            && _selectedFileSize > HttpSizeLimit;
+        // Validate field name: only letters, numbers, underscores
+        var isValidFieldName = hasFieldName && System.Text.RegularExpressions.Regex.IsMatch(
+            FieldNameInput.Text!.Trim(), @"^[a-zA-Z_][a-zA-Z0-9_]*$");
 
-        AttachButton.IsEnabled = hasFile && hasFieldName && !isOverHardLimit;
+        AttachButton.IsEnabled = hasFile && isValidFieldName && !isOverHardLimit;
     }
 
     private void UpdateSizeWarning()
