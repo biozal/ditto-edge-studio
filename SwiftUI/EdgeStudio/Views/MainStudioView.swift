@@ -1214,7 +1214,15 @@ extension MainStudioView {
                     #if os(macOS)
                     NSWorkspace.shared.open(tempURL)
                     #else
-                    await UIApplication.shared.open(tempURL)
+                    // UIApplication.shared.open() doesn't work with local file URLs on iOS.
+                    // Use UIActivityViewController as a share sheet to let the user open/save the file.
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = windowScene.windows.first?.rootViewController
+                    {
+                        let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
+                        activityVC.popoverPresentationController?.sourceView = rootVC.view
+                        rootVC.present(activityVC, animated: true)
+                    }
                     #endif
                 }
                 attachmentLoadingIds.remove(attachment.id)

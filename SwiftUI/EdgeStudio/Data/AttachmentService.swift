@@ -99,12 +99,8 @@ actor AttachmentService {
         }
         defer { fileURL.stopAccessingSecurityScopedResource() }
 
-        // Validate file size
-        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let fileSize = (attributes[.size] as? Int64) ?? 0
-        if fileSize > Self.localSizeLimit {
-            throw AttachmentError.fileTooLarge(size: fileSize, limit: Self.localSizeLimit)
-        }
+        // Note: File size soft limit (10MB) is enforced in the UI picker sheet.
+        // The service does not enforce a hard limit for local SDK uploads.
 
         // Create the attachment in the Ditto store
         let attachment = try await ditto.store.newAttachment(

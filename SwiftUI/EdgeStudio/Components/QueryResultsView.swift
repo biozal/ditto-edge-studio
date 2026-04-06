@@ -104,7 +104,8 @@ struct QueryResultsView: View {
                         resultText: $jsonResults,
                         currentPage: $currentPage,
                         pageSize: $pageSize,
-                        onJsonSelected: onJsonSelected
+                        onJsonSelected: onJsonSelected,
+                        onAddAttachment: onAddAttachment
                     )
                 }
             }
@@ -130,7 +131,8 @@ struct QueryResultsView: View {
                 resultText: $jsonResults,
                 currentPage: $currentPage,
                 pageSize: $pageSize,
-                onJsonSelected: onJsonSelected
+                onJsonSelected: onJsonSelected,
+                onAddAttachment: onAddAttachment
             )
             .tabItem { Label("Table", systemImage: "tablecells") }
             .tag(ResultViewTab.table)

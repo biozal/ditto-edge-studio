@@ -42,10 +42,18 @@ struct AttachmentPickerSheet: View {
         selectedFileSize > localSoftLimit && selectedFileSize <= httpHardLimit
     }
 
+    private var trimmedFieldName: String {
+        fieldName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Field name must be a valid DQL identifier (letters, numbers, underscores only)
+    private var isValidFieldName: Bool {
+        let name = trimmedFieldName
+        return !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+    }
+
     private var canAttach: Bool {
-        selectedFileURL != nil
-            && !fieldName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !isOverHardLimit
+        selectedFileURL != nil && isValidFieldName && !isOverHardLimit
     }
 
     var body: some View {
@@ -70,6 +78,12 @@ struct AttachmentPickerSheet: View {
 
             TextField("Field name (required)", text: $fieldName)
                 .textFieldStyle(.roundedBorder)
+
+            if !trimmedFieldName.isEmpty && !isValidFieldName {
+                Text("Field name must contain only letters, numbers, and underscores")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
             HStack {
                 Button("Choose File...") {
@@ -191,7 +205,7 @@ struct AttachmentPickerSheet: View {
         metadata["name"] = selectedFileName
         metadata["mimeType"] = selectedMimeType
 
-        onConfirm(fileURL, fieldName.trimmingCharacters(in: .whitespacesAndNewlines), metadata)
+        onConfirm(fileURL, trimmedFieldName, metadata)
         dismiss()
     }
 
