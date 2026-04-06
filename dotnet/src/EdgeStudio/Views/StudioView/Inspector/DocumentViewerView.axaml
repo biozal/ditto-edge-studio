@@ -9,55 +9,60 @@
              x:Class="EdgeStudio.Views.StudioView.Inspector.DocumentViewerView"
              x:DataType="vm:QueryDocumentViewModel">
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel>
 
-        <!-- Header with copy button — only visible when a document is selected -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4"
-              IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-            <TextBlock Text="Document" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
-            <Button Grid.Column="1"
-                    Command="{Binding CopyDocumentCommand}"
-                    ToolTip.Tip="Copy JSON"
-                    Padding="6,4">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" VerticalAlignment="Center"/>
-                    <TextBlock Text="Copy" FontSize="12" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-        </Grid>
+            <!-- Header with copy button — only visible when a document is selected -->
+            <Grid ColumnDefinitions="*,Auto" Margin="12,8,12,4"
+                  IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="Document" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Command="{Binding CopyDocumentCommand}"
+                        ToolTip.Tip="Copy JSON"
+                        Padding="6,4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" VerticalAlignment="Center"/>
+                        <TextBlock Text="Copy" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
 
-        <!-- Empty state -->
-        <StackPanel Grid.Row="1"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center"
-                    Spacing="8"
-                    IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNullOrEmpty}}">
-            <materialIcons:MaterialIcon Kind="CodeJson" Width="32" Height="32" Opacity="0.3"/>
-            <TextBlock Text="Select a document to view it here"
-                       FontSize="14"
-                       Opacity="0.5"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center"
-                       TextWrapping="Wrap"
-                       MaxWidth="200"/>
+            <!-- Empty state -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Spacing="8"
+                        IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                <materialIcons:MaterialIcon Kind="CodeJson" Width="32" Height="32" Opacity="0.3"/>
+                <TextBlock Text="Select a document to view it here"
+                           FontSize="14"
+                           Opacity="0.5"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="200"/>
+            </StackPanel>
+
+            <!-- JSON content — AvaloniaEdit with JSON syntax highlighting.
+                 MaxHeight constrains the editor so the attachment viewer is visible below. -->
+            <avaloniaEdit:TextEditor
+                x:Name="JsonViewer"
+                IsReadOnly="True"
+                FontFamily="Cascadia Code, Consolas, monospace"
+                FontSize="16"
+                ShowLineNumbers="False"
+                WordWrap="False"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Auto"
+                MaxHeight="350"
+                Background="{DynamicResource SukiBackground}"
+                Foreground="{DynamicResource DittoCardText}"
+                IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                Margin="4,0,4,4"/>
+
+            <!-- Attachment viewer — shown when document has attachment tokens -->
+            <ContentControl x:Name="AttachmentViewerHost" Margin="4,8,4,0" />
+
         </StackPanel>
-
-        <!-- JSON content — AvaloniaEdit with JSON syntax highlighting -->
-        <avaloniaEdit:TextEditor
-            Grid.Row="1"
-            x:Name="JsonViewer"
-            IsReadOnly="True"
-            FontFamily="Cascadia Code, Consolas, monospace"
-            FontSize="16"
-            ShowLineNumbers="False"
-            WordWrap="False"
-            HorizontalScrollBarVisibility="Auto"
-            VerticalScrollBarVisibility="Auto"
-            Background="{DynamicResource SukiBackground}"
-            Foreground="{DynamicResource DittoCardText}"
-            IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-            Margin="4,0,4,4"/>
-
-        <ContentControl x:Name="AttachmentViewerHost" Grid.Row="2" Margin="0,8,0,0" />
-    </Grid>
+    </ScrollViewer>
 </UserControl>
