@@ -1,5 +1,36 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:EdgeStudio.UI.Controls">
-    <!-- DialogItem styles - placeholder for Task 5 -->
+
+    <Style Selector="controls|DialogItem">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{DynamicResource StudioCardBackground}"
+                        CornerRadius="12"
+                        BoxShadow="{DynamicResource StudioPopupShadow}"
+                        MaxWidth="450"
+                        MinWidth="300"
+                        Padding="24">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="{TemplateBinding Title}"
+                                   FontWeight="Bold"
+                                   FontSize="16" />
+                        <TextBlock Text="{TemplateBinding Message}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource StudioLowText}"
+                                   FontSize="14" />
+                        <ItemsControl Name="ButtonHost"
+                                      HorizontalAlignment="Right">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
 </Styles>

@@ -1,5 +1,28 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:EdgeStudio.UI.Controls">
-    <!-- DialogHost styles - placeholder for Task 5 -->
+
+    <Style Selector="controls|DialogHost">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Panel IsVisible="{Binding Manager.IsOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                    <!-- Backdrop -->
+                    <Border Background="#40000000" />
+
+                    <!-- Dialog content centered -->
+                    <ContentPresenter Content="{Binding Manager.CurrentDialog, RelativeSource={RelativeSource TemplatedParent}}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                        <ContentPresenter.ContentTemplate>
+                            <DataTemplate>
+                                <controls:DialogItem Title="{Binding Title}"
+                                                     Message="{Binding Message}" />
+                            </DataTemplate>
+                        </ContentPresenter.ContentTemplate>
+                    </ContentPresenter>
+                </Panel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
 </Styles>
