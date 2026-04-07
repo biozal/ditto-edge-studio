@@ -28,6 +28,9 @@ namespace EdgeStudio.ViewModels
         private readonly ILogCaptureService _logCaptureService;
         private readonly IDialogService _dialogService;
 
+        public EdgeStudio.UI.Services.ToastManager ToastManager { get; }
+        public EdgeStudio.UI.Services.DialogManager DialogManager { get; }
+
         public MainWindowViewModel(
             IDittoManager dittoManager,
             IDatabaseRepository databaseRepository,
@@ -39,9 +42,13 @@ namespace EdgeStudio.ViewModels
             IQrCodeService qrCodeService,
             ILogCaptureService logCaptureService,
             IDialogService dialogService,
+            EdgeStudio.UI.Services.ToastManager toastManager,
+            EdgeStudio.UI.Services.DialogManager dialogManager,
             IToastService? toastService = null)
             : base(toastService)
         {
+            ToastManager = toastManager ?? throw new ArgumentNullException(nameof(toastManager));
+            DialogManager = dialogManager ?? throw new ArgumentNullException(nameof(dialogManager));
             _databaseRepository = databaseRepository ?? throw new ArgumentNullException(nameof(databaseRepository));
             _dittoManager = dittoManager ?? throw new ArgumentNullException(nameof(dittoManager));
             _systemRepository = systemRepository ?? throw new ArgumentNullException(nameof(systemRepository));

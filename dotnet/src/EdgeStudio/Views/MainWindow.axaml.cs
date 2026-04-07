@@ -7,7 +7,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Controls.Notifications;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Messaging;
@@ -15,72 +14,18 @@ using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Services;
 using EdgeStudio.ViewModels;
 using EdgeStudio.Views.Help;
-using SukiUI;
-using SukiUI.Controls;
-using SukiUI.Dialogs;
-using SukiUI.Enums;
-using SukiUI.Models;
-using SukiUI.Toasts;
 
 namespace EdgeStudio.Views;
 
-public partial class MainWindow : SukiWindow,
+public partial class MainWindow : Window,
     IRecipient<CloseDatabaseRequestedMessage>
 {
     private MainWindowViewModel? _viewModel;
     private EdgeStudioViewModel? _edgeStudioViewModel;
 
-    /// <summary>
-    /// Toast manager for displaying notifications
-    /// </summary>
-    public ISukiToastManager ToastManager { get; }
-
-    /// <summary>
-    /// Dialog manager for displaying modal dialogs
-    /// </summary>
-    public SukiUI.Dialogs.ISukiDialogManager DialogManager { get; }
-
     public MainWindow()
     {
-        // Get the toast manager from the service provider
-        ToastManager = App.ServiceProvider?.GetService(typeof(ISukiToastManager)) as ISukiToastManager
-            ?? new SukiToastManager();
-
-        // Get the dialog manager from the service provider
-        DialogManager = App.ServiceProvider?.GetService(typeof(SukiUI.Dialogs.ISukiDialogManager)) as SukiUI.Dialogs.ISukiDialogManager
-            ?? new SukiUI.Dialogs.SukiDialogManager();
-
         InitializeComponent();
-        ConfigurePlatformSpecificStyles();
-    }
-
-    private void ConfigurePlatformSpecificStyles()
-    {
-        // Default to Gradient to match the initial DittoYellow theme.
-        // UpdateBackgroundStyle() (called in the ViewModel constructor) will confirm/override
-        // once the active theme is known.
-        this.BackgroundStyle = SukiBackgroundStyle.Gradient;
-
-        // Show Settings and Help title bar buttons on Windows/Linux.
-        // macOS exposes these via the native system menu bar instead.
-        if (!OperatingSystem.IsMacOS())
-        {
-            TitleBarSettingsButton.IsVisible = true;
-            TitleBarHelpButton.IsVisible = true;
-
-            // Wire context menu items — done in code-behind because the existing handlers
-            // use EventArgs (for NativeMenuItem) while MenuItem.Click needs RoutedEventArgs.
-            HelpDocumentationMenuItem.Click += (s, e) => HelpDocumentation_Click(s, e);
-            VisitDittoWebsiteMenuItem.Click += (s, e) => VisitDittoWebsite_Click(s, e);
-            DownloadQuickstartsMenuItem.Click += (s, e) => DownloadQuickstarts_Click(s, e);
-        }
-    }
-
-    private void UpdateBackgroundStyle(string? themeName)
-    {
-        BackgroundStyle = themeName == "DittoYellow"
-            ? SukiBackgroundStyle.Gradient
-            : SukiBackgroundStyle.Flat;
     }
 
     public MainWindow(MainWindowViewModel viewModel, EdgeStudioViewModel edgeStudioViewModel) : this()
@@ -102,11 +47,6 @@ public partial class MainWindow : SukiWindow,
 
         // Subscribe to close database message
         WeakReferenceMessenger.Default.Register<CloseDatabaseRequestedMessage>(this);
-
-        // Sync BackgroundStyle with the active Ditto color theme
-        var sukiTheme = SukiTheme.GetInstance();
-        sukiTheme.OnColorThemeChanged = theme => UpdateBackgroundStyle(theme.DisplayName);
-        UpdateBackgroundStyle(sukiTheme.ActiveColorTheme?.DisplayName);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -167,15 +107,6 @@ public partial class MainWindow : SukiWindow,
         }
     }
 
-    private async void TitleBarSettings_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => await OpenSettingsAsync();
-
-    private void TitleBarHelp_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is Button btn)
-            btn.ContextMenu?.Open(btn);
-    }
-
     private async void Settings_Click(object? sender, EventArgs e)
         => await OpenSettingsAsync();
 
@@ -213,8 +144,6 @@ public partial class MainWindow : SukiWindow,
         }
     }
 
-    private enum ExistingFolderAction { Replace, ChooseDifferent, Cancel }
-
     private async void DownloadQuickstarts_Click(object? sender, EventArgs e)
     {
         var vm = DataContext as MainWindowViewModel;
@@ -225,18 +154,17 @@ public partial class MainWindow : SukiWindow,
             // If no active database connection, warn the user
             if (!hasDatabase)
             {
-                var tcs = new TaskCompletionSource<bool>();
-                var builder = DialogManager.CreateDialog();
-                builder.SetType(NotificationType.Warning);
-                builder.SetTitle("No Database Connected");
-                builder.SetContent(
-                    "No database is currently connected. Quickstart projects will be downloaded but .env files will not be auto-configured with credentials.\n\nYou can manually configure them later.");
-                builder.AddActionButton("Continue Anyway", _ => tcs.TrySetResult(true), dismissOnClick: true, classes: []);
-                builder.AddActionButton("Cancel", _ => tcs.TrySetResult(false), dismissOnClick: true, classes: []);
-                builder.TryShow();
-
-                var shouldContinue = await tcs.Task;
-                if (!shouldContinue) return;
+                var dialogManager = App.ServiceProvider?.GetService(typeof(EdgeStudio.UI.Services.DialogManager))
+                    as EdgeStudio.UI.Services.DialogManager;
+                if (dialogManager != null)
+                {
+                    var shouldContinue = await dialogManager.ShowConfirmationAsync(
+                        "No Database Connected",
+                        "No database is currently connected. Quickstart projects will be downloaded but .env files will not be auto-configured with credentials.\n\nYou can manually configure them later.",
+                        "Continue Anyway",
+                        "Cancel");
+                    if (!shouldContinue) return;
+                }
             }
 
             // Open folder picker
@@ -249,30 +177,35 @@ public partial class MainWindow : SukiWindow,
 
             while (existingFolder != null)
             {
-                var actionTcs = new TaskCompletionSource<ExistingFolderAction>();
-                var existingBuilder = DialogManager.CreateDialog();
-                existingBuilder.SetType(NotificationType.Warning);
-                existingBuilder.SetTitle("Folder Already Exists");
-                existingBuilder.SetContent(
-                    $"A '{QuickstartDownloadService.ExtractedFolderName}' folder already exists in the selected location.\n\nWhat would you like to do?");
-                existingBuilder.AddActionButton("Replace", _ => actionTcs.TrySetResult(ExistingFolderAction.Replace), dismissOnClick: true, classes: []);
-                existingBuilder.AddActionButton("Choose Different Location", _ => actionTcs.TrySetResult(ExistingFolderAction.ChooseDifferent), dismissOnClick: true, classes: []);
-                existingBuilder.AddActionButton("Cancel", _ => actionTcs.TrySetResult(ExistingFolderAction.Cancel), dismissOnClick: true, classes: []);
-                existingBuilder.TryShow();
-
-                var action = await actionTcs.Task;
-                if (action == ExistingFolderAction.Cancel) return;
-
-                if (action == ExistingFolderAction.Replace)
+                var dialogManager = App.ServiceProvider?.GetService(typeof(EdgeStudio.UI.Services.DialogManager))
+                    as EdgeStudio.UI.Services.DialogManager;
+                if (dialogManager != null)
                 {
+                    var shouldReplace = await dialogManager.ShowConfirmationAsync(
+                        "Folder Already Exists",
+                        $"A '{QuickstartDownloadService.ExtractedFolderName}' folder already exists in the selected location.\n\nWould you like to replace it?",
+                        "Replace",
+                        "Choose Different Location");
+
+                    if (shouldReplace)
+                    {
+                        service.RemoveExistingFolder(existingFolder);
+                        break;
+                    }
+                    else
+                    {
+                        chosenDirectory = await PickFolderAsync();
+                        if (chosenDirectory == null) return;
+                        existingFolder = service.ExistingQuickstartFolder(chosenDirectory);
+                        continue;
+                    }
+                }
+                else
+                {
+                    // No dialog manager available — default to replacing
                     service.RemoveExistingFolder(existingFolder);
                     break;
                 }
-
-                // ChooseDifferent — re-open the folder picker
-                chosenDirectory = await PickFolderAsync();
-                if (chosenDirectory == null) return;
-                existingFolder = service.ExistingQuickstartFolder(chosenDirectory);
             }
 
             // Show progress window

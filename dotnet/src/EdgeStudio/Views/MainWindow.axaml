@@ -1,13 +1,12 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
         xmlns:vm="using:EdgeStudio.ViewModels"
-        xmlns:views="using:EdgeStudio.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:database="using:EdgeStudio.Views.Database"
         xmlns:studioView="using:EdgeStudio.Views.StudioView"
         xmlns:material="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:studio="using:EdgeStudio.UI.Controls"
         mc:Ignorable="d"
         d:DesignWidth="1200"
         d:DesignHeight="900"
@@ -17,44 +16,7 @@
         Icon="/Assets/EdgeStudio.ico"
         Title="Ditto Edge Studio"
         Width="1200"
-        Height="900"
-        BackgroundStyle="Flat">
-
-    <!-- Toast and dialog notification hosts -->
-    <suki:SukiWindow.Hosts>
-        <suki:SukiToastHost Manager="{Binding ToastManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
-        <suki:SukiDialogHost Manager="{Binding DialogManager, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"/>
-    </suki:SukiWindow.Hosts>
-
-    <!-- Title bar icon buttons — visible on Windows/Linux only (macOS uses the native menu bar) -->
-    <suki:SukiWindow.RightWindowTitleBarControls>
-        <Button x:Name="TitleBarSettingsButton"
-                Click="TitleBarSettings_Click"
-                ToolTip.Tip="Settings"
-                Classes="Flat"
-                Padding="6,4"
-                VerticalAlignment="Center"
-                IsVisible="False">
-            <material:MaterialIcon Kind="Cog" Width="18" Height="18"/>
-        </Button>
-        <Button x:Name="TitleBarHelpButton"
-                Click="TitleBarHelp_Click"
-                ToolTip.Tip="Help"
-                Classes="Flat"
-                Padding="6,4"
-                VerticalAlignment="Center"
-                IsVisible="False">
-            <material:MaterialIcon Kind="HelpCircleOutline" Width="18" Height="18"/>
-            <Button.ContextMenu>
-                <ContextMenu x:Name="HelpContextMenu">
-                    <MenuItem x:Name="HelpDocumentationMenuItem" Header="Edge Studio Documentation"/>
-                    <MenuItem x:Name="VisitDittoWebsiteMenuItem" Header="Visit Ditto Website"/>
-                    <Separator/>
-                    <MenuItem x:Name="DownloadQuickstartsMenuItem" Header="Download Quickstarts..."/>
-                </ContextMenu>
-            </Button.ContextMenu>
-        </Button>
-    </suki:SukiWindow.RightWindowTitleBarControls>
+        Height="900">
 
     <!-- Window-level native menu for macOS (File, Edit, View, Window, Help) -->
     <NativeMenu.Menu>
@@ -165,5 +127,9 @@
                          HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
+
+        <!-- Toast and dialog overlay hosts -->
+        <studio:ToastHost Manager="{Binding ToastManager}" />
+        <studio:DialogHost Manager="{Binding DialogManager}" />
     </Grid>
-</suki:SukiWindow>
+</Window>
