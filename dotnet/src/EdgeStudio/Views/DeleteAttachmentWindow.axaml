@@ -1,8 +1,7 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                 xmlns:suki="using:SukiUI.Controls"
                  xmlns:views="using:EdgeStudio.Views"
                  mc:Ignorable="d"
                  d:DesignWidth="420"
@@ -11,8 +10,7 @@
                  Title="Delete Attachment Fields"
                  Width="420" Height="400"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="False"
-                 BackgroundStyle="Flat">
+                 CanResize="False">
 
     <StackPanel Margin="20" Spacing="12">
         <TextBlock Text="Select Fields to Delete" FontWeight="Bold" FontSize="16" />
@@ -64,4 +62,4 @@
             <Panel />
         </DockPanel>
     </StackPanel>
-</suki:SukiWindow>
+</Window>

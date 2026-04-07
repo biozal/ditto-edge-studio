@@ -1,8 +1,7 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                 xmlns:suki="using:SukiUI.Controls"
                  mc:Ignorable="d"
                  d:DesignWidth="450"
                  d:DesignHeight="340"
@@ -10,8 +9,7 @@
                  Title="Add Attachment"
                  Width="450" Height="340"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="False"
-                 BackgroundStyle="Flat">
+                 CanResize="False">
 
     <StackPanel Margin="20" Spacing="12">
         <TextBlock Text="Target Document" FontWeight="Bold" />
@@ -45,4 +43,4 @@
                     Classes="accent" />
         </StackPanel>
     </StackPanel>
-</suki:SukiWindow>
+</Window>

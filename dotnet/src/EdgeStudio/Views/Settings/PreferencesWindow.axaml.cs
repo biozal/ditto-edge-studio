@@ -1,10 +1,9 @@
 using Avalonia.Interactivity;
 using EdgeStudio.ViewModels;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Settings;
 
-public partial class PreferencesWindow : SukiWindow
+public partial class PreferencesWindow : Window
 {
     // Required by Avalonia AXAML compiler
     public PreferencesWindow()

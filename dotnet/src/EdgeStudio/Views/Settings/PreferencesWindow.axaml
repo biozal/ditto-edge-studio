@@ -1,9 +1,8 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:vm="using:EdgeStudio.ViewModels"
-                 xmlns:suki="using:SukiUI.Controls"
                  mc:Ignorable="d"
                  d:DesignWidth="460"
                  d:DesignHeight="320"
@@ -15,8 +14,7 @@
                  SizeToContent="Height"
                  MaxHeight="500"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="False"
-                 BackgroundStyle="Flat">
+                 CanResize="False">
 
     <Grid RowDefinitions="*,Auto">
 
@@ -94,4 +92,4 @@
 
     </Grid>
 
-</suki:SukiWindow>
+</Window>

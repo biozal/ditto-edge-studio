@@ -1,10 +1,9 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:vm="using:EdgeStudio.ViewModels"
                  xmlns:sharedModels="using:EdgeStudio.Shared.Models"
-                 xmlns:suki="using:SukiUI.Controls"
                  xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
                  mc:Ignorable="d"
                  d:DesignWidth="640"
@@ -16,8 +15,7 @@
                  Width="640"
                  Height="750"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="False"
-                 BackgroundStyle="Flat">
+                 CanResize="False">
 
     <Border Padding="30">
         <Grid>
@@ -224,4 +222,4 @@
             </StackPanel>
         </Grid>
     </Border>
-</suki:SukiWindow>
+</Window>

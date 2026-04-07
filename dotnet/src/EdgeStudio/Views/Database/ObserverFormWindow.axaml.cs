@@ -3,11 +3,10 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.ViewModels;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class ObserverFormWindow : SukiWindow, IRecipient<HideObserverFormMessage>
+    public partial class ObserverFormWindow : Window, IRecipient<HideObserverFormMessage>
     {
         private ObserversViewModel? _viewModel;
 

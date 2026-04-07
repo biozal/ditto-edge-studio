@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using EdgeStudio.Shared.Models;
-using SukiUI.Controls;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -9,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 namespace EdgeStudio.Views;
 
-public partial class DeleteAttachmentWindow : SukiWindow
+public partial class DeleteAttachmentWindow : Window
 {
     public bool Confirmed { get; private set; }
     public List<AttachmentInfo> SelectedAttachments { get; private set; } = new();

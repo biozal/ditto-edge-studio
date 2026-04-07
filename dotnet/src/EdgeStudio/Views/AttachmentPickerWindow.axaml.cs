@@ -3,11 +3,10 @@ using System.IO;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views;
 
-public partial class AttachmentPickerWindow : SukiWindow
+public partial class AttachmentPickerWindow : Window
 {
     private const long LocalSizeLimit = 10 * 1024 * 1024;  // 10MB
     private const long HttpSizeLimit = 20 * 1024 * 1024;   // 20MB

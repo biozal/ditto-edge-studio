@@ -2,11 +2,10 @@ using System;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class IndexFormWindow : SukiWindow, IRecipient<HideIndexFormMessage>
+    public partial class IndexFormWindow : Window, IRecipient<HideIndexFormMessage>
     {
         public IndexFormWindow()
         {

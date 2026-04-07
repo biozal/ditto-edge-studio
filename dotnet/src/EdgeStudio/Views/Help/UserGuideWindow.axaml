@@ -1,8 +1,7 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                 xmlns:suki="using:SukiUI.Controls"
                  mc:Ignorable="d"
                  d:DesignWidth="750"
                  d:DesignHeight="600"
@@ -11,11 +10,10 @@
                  Width="750"
                  Height="700"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="True"
-                 BackgroundStyle="Flat">
+                 CanResize="True">
 
     <ScrollViewer Padding="24,16,24,24">
         <ContentPresenter x:Name="MarkdownContainer" />
     </ScrollViewer>
 
-</suki:SukiWindow>
+</Window>

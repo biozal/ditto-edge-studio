@@ -1,9 +1,8 @@
 using Avalonia.Interactivity;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Help;
 
-public partial class QuickstartProgressWindow : SukiWindow
+public partial class QuickstartProgressWindow : Window
 {
     public QuickstartProgressWindow()
     {

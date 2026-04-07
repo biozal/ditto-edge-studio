@@ -1,8 +1,7 @@
-<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-                 xmlns:suki="using:SukiUI.Controls"
                  xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
                  xmlns:help="using:EdgeStudio.Views.Help"
                  mc:Ignorable="d"
@@ -13,8 +12,7 @@
                  Width="700"
                  Height="500"
                  WindowStartupLocation="CenterOwner"
-                 CanResize="True"
-                 BackgroundStyle="Flat">
+                 CanResize="True">
 
     <DockPanel Margin="24,20,24,20">
 
@@ -112,4 +110,4 @@
 
     </DockPanel>
 
-</suki:SukiWindow>
+</Window>
