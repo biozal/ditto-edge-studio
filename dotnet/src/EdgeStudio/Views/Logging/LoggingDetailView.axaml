@@ -13,7 +13,7 @@
 
     <UserControl.Resources>
 
-        <!-- ── Source tab: plain button, no SukiUI chrome ── -->
+        <!-- ── Source tab: plain button, plain style ── -->
         <ControlTheme x:Key="SourceTabTheme" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -37,7 +37,7 @@
             </Style>
         </ControlTheme>
 
-        <!-- ── Level chip: bare toggle, no SukiUI chrome ── -->
+        <!-- ── Level chip: bare toggle, plain style ── -->
         <ControlTheme x:Key="LevelChipTheme" TargetType="ToggleButton">
             <Setter Property="Padding" Value="7,3"/>
             <Setter Property="CornerRadius" Value="5"/>

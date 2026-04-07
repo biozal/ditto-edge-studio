@@ -60,7 +60,7 @@
     <PackageReference Include="AvaloniaEdit.TextMate" Version="11.4.1" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
 
-    <!-- SukiUI Theme and Controls -->
+    <!-- Icons -->
     <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0" />
 
     <!-- MVVM framework -->
