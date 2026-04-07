@@ -1,0 +1,20 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:EdgeStudio.UI.Controls">
+
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://EdgeStudio.UI/Themes/DittoBrushes.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <!-- GlassCard default styles are included from the control's theme -->
+    <StyleInclude Source="avares://EdgeStudio.UI/Controls/GlassCard.axaml" />
+    <StyleInclude Source="avares://EdgeStudio.UI/Controls/ToastItem.axaml" />
+    <StyleInclude Source="avares://EdgeStudio.UI/Controls/ToastHost.axaml" />
+    <StyleInclude Source="avares://EdgeStudio.UI/Controls/DialogHost.axaml" />
+    <StyleInclude Source="avares://EdgeStudio.UI/Controls/DialogItem.axaml" />
+
+</Styles>
