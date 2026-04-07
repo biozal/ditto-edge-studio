@@ -242,6 +242,9 @@ extension MainStudioView {
                         },
                         onAddAttachment: { json in
                             viewModel.requestAddAttachment(documentJson: json)
+                        },
+                        onDeleteAttachment: { json in
+                            viewModel.requestDeleteAttachment(documentJson: json)
                         }
                     )
                     .frame(height: geometry.size.height * 0.5)

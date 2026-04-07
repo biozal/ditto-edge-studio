@@ -266,6 +266,25 @@ struct MainStudioView: View {
                     }
                 }
             }
+            .sheet(isPresented: $viewModel.showDeleteAttachmentPicker) {
+                if let json = viewModel.deleteAttachmentTargetJson,
+                   let docId = viewModel.parseDocumentId(from: json)
+                {
+                    let attachments = AttachmentInfo.detectTokens(in: json)
+                    DeleteAttachmentSheet(
+                        documentId: String(describing: docId),
+                        collection: viewModel.deleteAttachmentTargetCollection ?? "unknown",
+                        attachments: attachments
+                    ) { selected in
+                        Task {
+                            await viewModel.executeDeleteAttachment(
+                                selectedAttachments: selected,
+                                appState: appState
+                            )
+                        }
+                    }
+                }
+            }
         #if os(macOS)
             .toolbar {
                 syncCloseToolbarGroup() // Sync + Close grouped
@@ -504,6 +523,9 @@ extension MainStudioView {
         var showAttachmentPicker = false
         var attachmentTargetJson: String?
         var attachmentTargetCollection: String?
+        var showDeleteAttachmentPicker = false
+        var deleteAttachmentTargetJson: String?
+        var deleteAttachmentTargetCollection: String?
 
         // Attachment viewer state (inspector)
         var detectedAttachments: [AttachmentInfo] = []
@@ -1111,6 +1133,51 @@ extension MainStudioView {
             attachmentTargetJson = documentJson
             attachmentTargetCollection = parseCollectionName(from: selectedQuery)
             showAttachmentPicker = true
+        }
+
+        func requestDeleteAttachment(documentJson: String) {
+            deleteAttachmentTargetJson = documentJson
+            deleteAttachmentTargetCollection = parseCollectionName(from: selectedQuery)
+            showDeleteAttachmentPicker = true
+        }
+
+        func executeDeleteAttachment(
+            selectedAttachments: [AttachmentInfo],
+            appState: AppState
+        ) async {
+            guard let json = deleteAttachmentTargetJson,
+                  let docId = parseDocumentId(from: json) else
+            {
+                appState.setError(AttachmentError.noDocumentId)
+                return
+            }
+            guard let collection = deleteAttachmentTargetCollection else {
+                appState.setError(AttachmentError.collectionNotFound)
+                return
+            }
+
+            let docIdString: String = if let str = docId as? String {
+                str
+            } else {
+                "\(docId)"
+            }
+
+            let identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+            do {
+                for att in selectedAttachments {
+                    guard att.fieldName.wholeMatch(of: identifierPattern) != nil,
+                          collection.wholeMatch(of: identifierPattern) != nil else
+                    {
+                        throw AttachmentError.invalidFieldName
+                    }
+                    let query = "UPDATE \(collection) SET \(att.fieldName) = null WHERE _id = '\(docIdString)'"
+                    _ = try await QueryService.shared.executeSelectedAppQuery(query: query)
+                }
+                Log.info("Deleted \(selectedAttachments.count) attachment field(s) from document \(docIdString)")
+            } catch {
+                appState.setError(error)
+            }
         }
 
         func executeAddAttachment(
