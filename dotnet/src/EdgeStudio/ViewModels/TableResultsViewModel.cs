@@ -36,6 +36,8 @@ namespace EdgeStudio.ViewModels
 
         public event Action<string>? AddAttachmentRequested;
 
+        public event Action<string>? DeleteAttachmentRequested;
+
         partial void OnCurrentPageChanged(int value) => RefreshPage();
 
         partial void OnPageSizeChanged(int value)
@@ -102,6 +104,11 @@ namespace EdgeStudio.ViewModels
         public void RequestAddAttachment(TableRow row)
         {
             AddAttachmentRequested?.Invoke(row.OriginalJson);
+        }
+
+        public void RequestDeleteAttachment(TableRow row)
+        {
+            DeleteAttachmentRequested?.Invoke(row.OriginalJson);
         }
     }
 

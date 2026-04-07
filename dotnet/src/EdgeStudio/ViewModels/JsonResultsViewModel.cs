@@ -37,6 +37,9 @@ namespace EdgeStudio.ViewModels
         /// <summary>Fired when the user requests to add an attachment to a document.</summary>
         public event Action<string>? AddAttachmentRequested;
 
+        /// <summary>Fired when the user requests to delete attachment field(s) from a document.</summary>
+        public event Action<string>? DeleteAttachmentRequested;
+
         partial void OnCurrentPageChanged(int value) => RefreshPage();
         partial void OnPageSizeChanged(int value) { CurrentPage = 1; RefreshPage(); }
 
@@ -84,6 +87,12 @@ namespace EdgeStudio.ViewModels
         private void AddAttachment(string json)
         {
             AddAttachmentRequested?.Invoke(json);
+        }
+
+        [RelayCommand]
+        private void DeleteAttachment(string json)
+        {
+            DeleteAttachmentRequested?.Invoke(json);
         }
 
         [RelayCommand]
