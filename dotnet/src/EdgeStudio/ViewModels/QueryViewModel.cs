@@ -185,7 +185,7 @@ public partial class QueryViewModel : LoadableViewModelBase
 
     private QueryDocumentViewModel CreateQueryDocument(string title, string queryText = "")
     {
-        var doc = new QueryDocumentViewModel(title, JsonResults, TableResults, ExplainResults, _queryService, queryText, _queryMetricsService, _appMetricsService, _attachmentService);
+        var doc = new QueryDocumentViewModel(title, JsonResults, TableResults, ExplainResults, _queryService, queryText, _queryMetricsService, _appMetricsService, _attachmentService, ToastService);
         doc.SetHttpAvailable(_httpAvailable);
         return doc;
     }

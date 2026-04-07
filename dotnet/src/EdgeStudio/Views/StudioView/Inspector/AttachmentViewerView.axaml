@@ -19,30 +19,30 @@
                 <DataTemplate x:DataType="models:AttachmentInfo">
                     <Border Padding="10" Margin="4,4" CornerRadius="6"
                             Background="{DynamicResource SukiBackground}">
-                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                            <!-- Field name -->
-                            <TextBlock Grid.Row="0" Grid.Column="0"
-                                       Text="{Binding FieldName}"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="0,0,12,0" />
-
-                            <!-- Open button — wired in code-behind via Click handler -->
-                            <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding FieldName}"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock FontSize="11" Foreground="Gray"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,2,0,0">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0} · {1} · {2}">
+                                            <Binding Path="FileName" />
+                                            <Binding Path="FormattedSize" />
+                                            <Binding Path="MimeType" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1"
                                     Content="Open"
                                     Click="OnOpenAttachmentClick"
                                     Tag="{Binding}"
                                     VerticalAlignment="Center"
+                                    Margin="8,0,0,0"
                                     Padding="12,6" />
-
-                            <!-- Metadata row -->
-                            <StackPanel Grid.Row="1" Grid.Column="0"
-                                        Orientation="Horizontal" Spacing="8"
-                                        Margin="0,2,12,0">
-                                <TextBlock Text="{Binding FileName}" FontSize="11" Foreground="Gray" />
-                                <TextBlock Text="{Binding FormattedSize}" FontSize="11" Foreground="Gray" />
-                                <TextBlock Text="{Binding MimeType}" FontSize="11" Foreground="DimGray" />
-                            </StackPanel>
                         </Grid>
                     </Border>
                 </DataTemplate>

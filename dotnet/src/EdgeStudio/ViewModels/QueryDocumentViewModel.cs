@@ -8,11 +8,13 @@ using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EdgeStudio.ViewModels
@@ -37,6 +39,7 @@ namespace EdgeStudio.ViewModels
         private readonly IQueryMetricsService? _queryMetricsService;
         private readonly IAppMetricsService? _appMetricsService;
         private readonly IAttachmentService? _attachmentService;
+        private readonly IToastService? _toastService;
         private string? _lastCollection;
 
         [ObservableProperty]
@@ -103,7 +106,8 @@ namespace EdgeStudio.ViewModels
             string queryText = "",
             IQueryMetricsService? queryMetricsService = null,
             IAppMetricsService? appMetricsService = null,
-            IAttachmentService? attachmentService = null)
+            IAttachmentService? attachmentService = null,
+            IToastService? toastService = null)
         {
             Id = Guid.NewGuid().ToString();
             _baseTitle = title;
@@ -117,6 +121,7 @@ namespace EdgeStudio.ViewModels
             _queryMetricsService = queryMetricsService;
             _appMetricsService = appMetricsService;
             _attachmentService = attachmentService;
+            _toastService = toastService;
 
             if (_jsonResults != null)
             {
@@ -306,7 +311,7 @@ namespace EdgeStudio.ViewModels
                     {
                         ["id"] = attachment.Id,
                         ["len"] = attachment.Length,
-                        ["metadata"] = attachment.Metadata
+                        ["metadata"] = attachment.Metadata.ToDictionary(kv => kv.Key, kv => (object)kv.Value)
                     };
                     data = await _attachmentService.FetchAsync(token);
                 }
@@ -324,7 +329,7 @@ namespace EdgeStudio.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Attachment] Fetch failed: {ex.Message}");
+                _toastService?.ShowError($"Failed to open attachment: {ex.Message}", "Attachment Error");
             }
             finally
             {

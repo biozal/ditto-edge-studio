@@ -1,5 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using AvaloniaEdit.TextMate;
+using EdgeStudio.Shared.Models;
 using EdgeStudio.ViewModels;
 using System;
 using System.ComponentModel;
@@ -71,6 +73,15 @@ namespace EdgeStudio.Views.StudioView.Inspector
         private void UpdateEditorText(string? json)
         {
             JsonViewer.Document.Text = string.IsNullOrEmpty(json) ? string.Empty : json;
+        }
+
+        private void OnOpenAttachmentClick(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: AttachmentInfo attachment }
+                && DataContext is QueryDocumentViewModel vm)
+            {
+                vm.OpenAttachmentCommand.Execute(attachment);
+            }
         }
     }
 }

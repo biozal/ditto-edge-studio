@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
+             xmlns:models="using:EdgeStudio.Shared.Models"
              xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="500"
@@ -69,31 +70,29 @@
 
                 <ItemsControl ItemsSource="{Binding DetectedAttachments}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="models:AttachmentInfo">
                             <Border Padding="10" Margin="4,2" CornerRadius="6"
                                     Background="{DynamicResource SukiBackground}">
-                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="{Binding FieldName}"
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding FieldName}"
                                                FontWeight="SemiBold"
-                                               TextTrimming="CharacterEllipsis"
-                                               Margin="0,0,12,0" />
-
-                                    <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
-                                            Content="Open"
-                                            Command="{Binding $parent[ItemsControl].DataContext.OpenAttachmentCommand}"
-                                            CommandParameter="{Binding}"
-                                            VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock FontSize="11" Foreground="Gray"
+                                               TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0} · {1} · {2}">
+                                                <Binding Path="FileName" />
+                                                <Binding Path="FormattedSize" />
+                                                <Binding Path="MimeType" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                    <Button Content="Open"
+                                            Click="OnOpenAttachmentClick"
+                                            Tag="{Binding}"
+                                            HorizontalAlignment="Right"
                                             Padding="12,6" />
-
-                                    <StackPanel Grid.Row="1" Grid.Column="0"
-                                                Orientation="Horizontal" Spacing="8"
-                                                Margin="0,2,12,0">
-                                        <TextBlock Text="{Binding FileName}" FontSize="11" Foreground="Gray" />
-                                        <TextBlock Text="{Binding FormattedSize}" FontSize="11" Foreground="Gray" />
-                                        <TextBlock Text="{Binding MimeType}" FontSize="11" Foreground="DimGray" />
-                                    </StackPanel>
-                                </Grid>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
