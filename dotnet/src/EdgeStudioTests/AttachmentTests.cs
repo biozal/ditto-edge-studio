@@ -1,5 +1,7 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 using EdgeStudio.Shared.Data;
+using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.ViewModels;
 using FluentAssertions;
@@ -578,6 +580,69 @@ public class QueryDocumentViewModelAttachmentTests
         """;
         sut.DetectedAttachments.Should().HaveCount(1);
         sut.DetectedAttachments[0].Id.Should().Be("att2");
+    }
+}
+
+#endregion
+
+#region Delete Attachment Flow Tests
+
+public class DeleteAttachmentFlowTests
+{
+    [Fact]
+    public void DeleteAttachmentRequestedMessage_CreatesWithCorrectProperties()
+    {
+        var msg = new DeleteAttachmentRequestedMessage(
+            DocumentJson: """{"_id":"doc1","photo":{"id":"a","len":1,"metadata":{}}}""",
+            Collection: "tasks",
+            QueryMode: "Local");
+
+        msg.DocumentJson.Should().Contain("doc1");
+        msg.Collection.Should().Be("tasks");
+        msg.QueryMode.Should().Be("Local");
+    }
+
+    [Fact]
+    public void JsonResultsViewModel_DeleteAttachmentCommand_FiresEvent()
+    {
+        var vm = new JsonResultsViewModel();
+        string? receivedJson = null;
+        vm.DeleteAttachmentRequested += json => receivedJson = json;
+
+        vm.DeleteAttachmentCommand.Execute("""{"_id":"1"}""");
+
+        receivedJson.Should().Be("""{"_id":"1"}""");
+    }
+
+    [Fact]
+    public void DetectTokens_UsedForDeleteDialog_FindsAttachmentFields()
+    {
+        var json = """
+        {
+            "_id": "doc1",
+            "name": "test",
+            "photo": { "id": "att1", "len": 2048, "metadata": { "name": "pic.png", "mimeType": "image/png" } },
+            "resume": { "id": "att2", "len": 51200, "metadata": { "name": "resume.pdf", "mimeType": "application/pdf" } }
+        }
+        """;
+
+        var tokens = AttachmentInfo.DetectTokens(json);
+
+        tokens.Should().HaveCount(2);
+        tokens.Select(t => t.FieldName).Should().Contain("photo").And.Contain("resume");
+    }
+
+    [Theory]
+    [InlineData("photo", true)]
+    [InlineData("my_field", true)]
+    [InlineData("_private", true)]
+    [InlineData("drop;--", false)]
+    [InlineData("field name", false)]
+    [InlineData("123start", false)]
+    public void SafeIdentifier_ValidatesFieldNames(string name, bool expected)
+    {
+        var regex = new System.Text.RegularExpressions.Regex(@"^[a-zA-Z_][a-zA-Z0-9_]*$");
+        regex.IsMatch(name).Should().Be(expected);
     }
 }
 
