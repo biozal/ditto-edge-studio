@@ -45,6 +45,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EdgeStudio\EdgeStudio.csproj" />
     <ProjectReference Include="..\EdgeStudio.Shared\EdgeStudio.Shared.csproj" />
+    <ProjectReference Include="..\EdgeStudio.UI\EdgeStudio.UI.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,40 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:EdgeStudio.UI.Controls">
+
+    <Style Selector="controls|GlassCard">
+        <Setter Property="Background" Value="{DynamicResource StudioCardBackground}" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border CornerRadius="{TemplateBinding CornerRadius}"
+                        Background="{TemplateBinding Background}"
+                        BoxShadow="{DynamicResource StudioCardShadow}"
+                        ClipToBounds="True">
+                    <!-- Top highlight border for glass depth cue -->
+                    <Border BorderBrush="{DynamicResource StudioGlassHighlight}"
+                            BorderThickness="0,1,0,0"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- Hover state for interactive cards -->
+    <Style Selector="controls|GlassCard:pointerover">
+        <Setter Property="Background" Value="{DynamicResource StudioCardHover}" />
+    </Style>
+
+    <!-- Pressed state for interactive cards -->
+    <Style Selector="controls|GlassCard:pressed">
+        <Setter Property="RenderTransform">
+            <ScaleTransform ScaleX="0.98" ScaleY="0.98" />
+        </Setter>
+    </Style>
+
+</Styles>
