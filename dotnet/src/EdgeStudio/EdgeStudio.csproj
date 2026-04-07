@@ -73,7 +73,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
-    <PackageReference Include="SukiUI" Version="6.0.3" />
     <PackageReference Include="Avalonia.Svg.Skia" Version="11.3.0" />
 
     <!-- Logging -->
@@ -89,6 +88,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../EdgeStudio.Shared/EdgeStudio.Shared.csproj" />
+    <ProjectReference Include="..\EdgeStudio.UI\EdgeStudio.UI.csproj" />
   </ItemGroup>
 
   <!-- Sync help docs from the central docs/help/ directory at the repo root -->
