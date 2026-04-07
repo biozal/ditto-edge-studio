@@ -40,7 +40,7 @@
 
                 <!-- Error -->
                 <Border IsVisible="{Binding HasError}"
-                        Background="{DynamicResource SukiErrorColor}"
+                        Background="{DynamicResource DittoDanger}"
                         CornerRadius="6" Padding="8,6" Margin="4,4">
                     <TextBlock Text="{Binding ErrorMessage}"
                                FontSize="12" TextWrapping="Wrap" Opacity="0.9"/>
@@ -51,11 +51,11 @@
                                 CornerRadius="8" Padding="12" Margin="4,4">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <materialIcons:MaterialIcon Kind="DatabaseSearch"
-                                                    Foreground="{DynamicResource SukiPrimaryColor}"
+                                                    Foreground="{DynamicResource DittoAccent}"
                                                     Width="16" Height="16"
                                                     VerticalAlignment="Center"/>
                         <TextBlock Text="No collections found"
-                                   Foreground="{DynamicResource SukiLowText}"
+                                   Foreground="{DynamicResource StudioLowText}"
                                    FontStyle="Italic" FontSize="14"
                                    VerticalAlignment="Center"/>
                     </StackPanel>

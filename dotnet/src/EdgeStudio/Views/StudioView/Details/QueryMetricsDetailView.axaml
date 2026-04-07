@@ -87,7 +87,7 @@
         <!-- Splitter -->
         <GridSplitter Grid.Column="1"
                       Width="1"
-                      Background="{DynamicResource SukiLightBorderBrush}"
+                      Background="{DynamicResource StudioGlassHighlight}"
                       ResizeDirection="Columns"/>
 
         <!-- Right: detail panel -->

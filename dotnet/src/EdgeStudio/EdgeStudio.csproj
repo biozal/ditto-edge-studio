@@ -53,6 +53,7 @@
     <!-- Core Avalonia packages -->
     <PackageReference Include="Avalonia" Version="11.3.13" />
     <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.4.1" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />

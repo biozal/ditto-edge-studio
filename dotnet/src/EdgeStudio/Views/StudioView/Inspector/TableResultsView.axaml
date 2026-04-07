@@ -11,7 +11,7 @@
 
     <Grid Margin="4">
         <!-- Table Content -->
-        <Border Background="{DynamicResource SukiBackground}"
+        <Border Background="{DynamicResource DittoCardSurface}"
                 CornerRadius="8"
                 Padding="8">
             <Grid>

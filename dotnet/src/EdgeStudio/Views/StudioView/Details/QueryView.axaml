@@ -13,7 +13,7 @@
     <UserControl.Styles>
         <!-- Tab Control Styling -->
         <Style Selector="TabControl">
-            <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+            <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
             <Setter Property="Padding" Value="0"/>
         </Style>
 
@@ -29,7 +29,7 @@
 
         <!-- Tab Item Styling - Active/Selected tab: Ditto Yellow bottom underline -->
         <Style Selector="TabItem:selected">
-            <Setter Property="Background" Value="{DynamicResource SukiBackground}"/>
+            <Setter Property="Background" Value="{DynamicResource DittoCardSurface}"/>
             <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource DittoAccent}"/>
             <Setter Property="BorderThickness" Value="0,0,0,2"/>

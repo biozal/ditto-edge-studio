@@ -33,7 +33,7 @@
                 <Border IsVisible="{Binding HasError}"
                         CornerRadius="6"
                         Padding="12,8"
-                        Background="{DynamicResource SukiErrorColor}"
+                        Background="{DynamicResource DittoDanger}"
                         Opacity="0.85">
                     <TextBlock Text="{Binding ErrorMessage}"
                                FontSize="14"

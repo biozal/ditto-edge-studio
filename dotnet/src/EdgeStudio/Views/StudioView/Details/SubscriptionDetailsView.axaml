@@ -4,7 +4,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:details="using:EdgeStudio.Views.StudioView.Details"
-             xmlns:suki="using:SukiUI.Controls"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.StudioView.Details.SubscriptionDetailsView"

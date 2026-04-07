@@ -18,7 +18,7 @@
                         <Border Padding="8,6"
                                 Margin="0,2"
                                 CornerRadius="6"
-                                Background="{DynamicResource SukiBackground}"
+                                Background="{DynamicResource DittoCardSurface}"
                                 Cursor="Hand"
                                 DoubleTapped="OnItemDoubleTapped">
                             <Border.ContextMenu>

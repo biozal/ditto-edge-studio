@@ -56,7 +56,7 @@
                 HorizontalScrollBarVisibility="Auto"
                 VerticalScrollBarVisibility="Auto"
                 MaxHeight="350"
-                Background="{DynamicResource SukiBackground}"
+                Background="{DynamicResource DittoCardSurface}"
                 Foreground="{DynamicResource DittoCardText}"
                 IsVisible="{Binding SelectedDocumentJson, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                 Margin="4,0,4,4"/>
@@ -72,7 +72,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="models:AttachmentInfo">
                             <Border Padding="10" Margin="4,2" CornerRadius="6"
-                                    Background="{DynamicResource SukiBackground}">
+                                    Background="{DynamicResource DittoCardSurface}">
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="{Binding FieldName}"
                                                FontWeight="SemiBold"

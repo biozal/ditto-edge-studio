@@ -18,7 +18,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:AttachmentInfo">
                     <Border Padding="10" Margin="4,4" CornerRadius="6"
-                            Background="{DynamicResource SukiBackground}">
+                            Background="{DynamicResource DittoCardSurface}">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding FieldName}"

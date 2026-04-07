@@ -29,7 +29,7 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="Enable MCP Server"
                                VerticalAlignment="Center"
-                               Foreground="{DynamicResource SukiText}" />
+                               Foreground="{DynamicResource DittoCardText}" />
                     <ToggleSwitch Grid.Column="1"
                                   IsChecked="{Binding IsMcpServerEnabled}"
                                   OnContent="" OffContent=""
@@ -43,7 +43,7 @@
                     <TextBlock x:CompileBindings="False"
                                Text="{Binding McpServerPort, StringFormat='Running on port {0}'}"
                                FontSize="13"
-                               Foreground="{DynamicResource SukiLowText}"
+                               Foreground="{DynamicResource StudioLowText}"
                                VerticalAlignment="Center" />
                 </StackPanel>
 
@@ -52,7 +52,7 @@
                             IsVisible="{Binding IsMcpServerEnabled}">
                     <TextBlock Text="Port:"
                                VerticalAlignment="Center"
-                               Foreground="{DynamicResource SukiText}" />
+                               Foreground="{DynamicResource DittoCardText}" />
                     <NumericUpDown x:CompileBindings="False"
                                    Value="{Binding McpServerPort, Mode=TwoWay}"
                                    Minimum="1024"
@@ -64,7 +64,7 @@
                 <TextBlock Text="Allows AI agents (Claude Code, Cursor, etc.) to query the active database via MCP. See docs/MCP_SERVER.md for setup."
                            TextWrapping="Wrap"
                            FontSize="12"
-                           Foreground="{DynamicResource SukiLowText}" />
+                           Foreground="{DynamicResource StudioLowText}" />
             </StackPanel>
 
         </StackPanel>
@@ -74,7 +74,7 @@
 
             <TextBlock Text="{Binding StatusMessage}"
                        FontSize="12"
-                       Foreground="{DynamicResource SukiLowText}"
+                       Foreground="{DynamicResource StudioLowText}"
                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
             <StackPanel Orientation="Horizontal"

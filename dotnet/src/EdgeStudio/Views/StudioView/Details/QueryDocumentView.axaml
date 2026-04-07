@@ -16,7 +16,7 @@
                       Height="4"
                       MinHeight="4"
                       HorizontalAlignment="Stretch"
-                      Background="{DynamicResource SukiLowBrush}"
+                      Background="{DynamicResource DittoCardSurface}"
                       ResizeDirection="Rows"/>
 
         <details:QueryResultsView Grid.Row="2"/>

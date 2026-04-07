@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 
 namespace EdgeStudio.Views.Help;

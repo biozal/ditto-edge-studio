@@ -36,7 +36,7 @@
                                           CommandParameter="{Binding}" />
                             </ContextMenu>
                         </Button.ContextMenu>
-                        <Border Background="{DynamicResource SukiBackground}"
+                        <Border Background="{DynamicResource DittoCardSurface}"
                                 CornerRadius="6"
                                 Padding="4"
                                 Cursor="Hand">

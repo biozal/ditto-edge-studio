@@ -11,7 +11,7 @@
     <!-- Use non-compiled bindings so hex-string→Brush conversion works for level colors -->
     <Border Padding="12,6,12,6"
             BorderThickness="0,0,0,1"
-            BorderBrush="{DynamicResource SukiLightBorderBrush}">
+            BorderBrush="{DynamicResource StudioGlassHighlight}">
         <StackPanel Spacing="3">
 
             <!-- Row 1: timestamp + level badge + component pill -->
@@ -40,7 +40,7 @@
                 </Border>
 
                 <!-- Component pill — hidden for Other/All components -->
-                <Border Background="{DynamicResource SukiLightBorderBrush}"
+                <Border Background="{DynamicResource StudioGlassHighlight}"
                         CornerRadius="4"
                         Padding="5,2"
                         VerticalAlignment="Center"
