@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:models="using:EdgeStudio.Shared.Models"
-             xmlns:suki="using:SukiUI.Controls"
+             xmlns:studio="using:EdgeStudio.UI.Controls"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="600"
              x:Class="EdgeStudio.Views.StudioView.Sidebar.SubscriptionListingView"
              x:DataType="vm:SubscriptionViewModel"
@@ -46,7 +46,7 @@
                              Margin="8">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:DittoDatabaseSubscription}">
-                            <suki:GlassCard Margin="0,0,0,12">
+                            <studio:GlassCard Margin="0,0,0,12">
                                 <StackPanel Spacing="12"
                                            Margin="12">
                                     <!-- Header with Name and Actions -->
@@ -96,7 +96,7 @@
                                               TextWrapping="Wrap"
                                               FontFamily="Consolas"/>
                                 </StackPanel>
-                            </suki:GlassCard>
+                            </studio:GlassCard>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

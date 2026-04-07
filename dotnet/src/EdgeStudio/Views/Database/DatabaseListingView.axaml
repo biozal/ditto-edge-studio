@@ -3,7 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
-             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:studio="using:EdgeStudio.UI.Controls"
              xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
@@ -109,9 +109,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <suki:GlassCard IsInteractive="True" Margin="0"
+                            <studio:GlassCard IsInteractive="True" Margin="0"
                                             Cursor="Hand" Tapped="DatabaseCard_Tapped">
-                                <suki:GlassCard.ContextMenu>
+                                <studio:GlassCard.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Edit"
                                                   Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).EditDatabaseCommand}"
@@ -123,7 +123,7 @@
                                                   Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).DeleteDatabaseCommand}"
                                                   CommandParameter="{Binding}" />
                                     </ContextMenu>
-                                </suki:GlassCard.ContextMenu>
+                                </studio:GlassCard.ContextMenu>
                                 <Grid ColumnDefinitions="Auto,*" Margin="4">
                                     <materialIcons:MaterialIcon Kind="Database"
                                                                Width="22" Height="22"
@@ -137,7 +137,7 @@
                                                    FontSize="12" Opacity="0.5" />
                                     </StackPanel>
                                 </Grid>
-                            </suki:GlassCard>
+                            </studio:GlassCard>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

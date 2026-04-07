@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:EdgeStudio.ViewModels"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
-             xmlns:suki="https://github.com/kikipoulet/SukiUI"
+             xmlns:studio="using:EdgeStudio.UI.Controls"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="300"
              x:Class="EdgeStudio.Views.StudioView.Inspector.TableResultsView"
              x:DataType="vm:TableResultsViewModel">
@@ -48,23 +48,23 @@
                 </DataGrid>
 
                 <!-- Empty state overlay when no data -->
-                <suki:GlassCard CornerRadius="8"
+                <studio:GlassCard CornerRadius="8"
                                Padding="20"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                IsVisible="{Binding !TableData.Count}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <materialIcons:MaterialIcon Kind="TableOff"
-                                                   Foreground="{DynamicResource SukiLowText}"
+                                                   Foreground="{DynamicResource StudioLowText}"
                                                    Width="20"
                                                    Height="20"
                                                    VerticalAlignment="Center"/>
                         <TextBlock Text="No results to display"
-                                   Foreground="{DynamicResource SukiLowText}"
+                                   Foreground="{DynamicResource StudioLowText}"
                                    VerticalAlignment="Center"
                                    FontStyle="Italic"/>
                     </StackPanel>
-                </suki:GlassCard>
+                </studio:GlassCard>
             </Grid>
         </Border>
     </Grid>
