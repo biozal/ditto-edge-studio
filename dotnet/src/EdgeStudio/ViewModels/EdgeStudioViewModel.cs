@@ -163,6 +163,7 @@ namespace EdgeStudio.ViewModels
             WeakReferenceMessenger.Default.Register<DocumentDoubleClickedMessage>(this, OnDocumentDoubleClicked);
             WeakReferenceMessenger.Default.Register<RefreshCollectionsRequestedMessage>(this, OnRefreshCollectionsRequested);
             WeakReferenceMessenger.Default.Register<AddAttachmentRequestedMessage>(this, OnAddAttachmentRequested);
+            WeakReferenceMessenger.Default.Register<DeleteAttachmentRequestedMessage>(this, OnDeleteAttachmentRequested);
         }
 
         private void OnRefreshCollectionsRequested(object recipient, RefreshCollectionsRequestedMessage message)
@@ -457,6 +458,55 @@ namespace EdgeStudio.ViewModels
             {
                 WeakReferenceMessenger.Default.Send(new AttachmentProgressMessage(false, "", 0));
                 ShowError($"Failed to attach file: {ex.Message}");
+            }
+        }
+
+        private async void OnDeleteAttachmentRequested(object recipient, DeleteAttachmentRequestedMessage message)
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime { MainWindow: { } mainWindow })
+                return;
+
+            string documentId;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(message.DocumentJson);
+                documentId = doc.RootElement.GetProperty("_id").ToString();
+            }
+            catch
+            {
+                return;
+            }
+
+            var attachments = AttachmentInfo.DetectTokens(message.DocumentJson);
+            if (attachments.Count == 0) return;
+
+            var dialog = new Views.DeleteAttachmentWindow(message.Collection, documentId, attachments);
+            await dialog.ShowDialog(mainWindow);
+
+            if (!dialog.Confirmed || dialog.SelectedAttachments.Count == 0)
+                return;
+
+            var serviceProvider = App.ServiceProvider;
+            if (serviceProvider == null) return;
+            var queryService = serviceProvider.GetRequiredService<IQueryService>();
+            var safeIdentifier = new System.Text.RegularExpressions.Regex(@"^[a-zA-Z_][a-zA-Z0-9_]*$");
+
+            try
+            {
+                foreach (var att in dialog.SelectedAttachments)
+                {
+                    if (!safeIdentifier.IsMatch(att.FieldName) || !safeIdentifier.IsMatch(message.Collection))
+                        throw new System.InvalidOperationException($"Invalid identifier: {att.FieldName}");
+
+                    var dql = $"UPDATE {message.Collection} SET {att.FieldName} = null WHERE _id = '{documentId}'";
+                    await queryService.ExecuteLocalAsync(dql);
+                }
+
+                ShowSuccess($"Deleted {dialog.SelectedAttachments.Count} attachment field(s)");
+            }
+            catch (System.Exception ex)
+            {
+                ShowError($"Failed to delete attachment field(s): {ex.Message}");
             }
         }
 
