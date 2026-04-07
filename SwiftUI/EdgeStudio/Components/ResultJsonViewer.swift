@@ -21,6 +21,9 @@ struct ResultJsonViewer: View {
     /// Callback for adding an attachment to a document
     var onAddAttachment: ((String) -> Void)?
 
+    /// Callback for deleting attachment field(s) from a document
+    var onDeleteAttachment: ((String) -> Void)?
+
     /// Use external or internal state
     private var currentPage: Binding<Int> {
         externalCurrentPage ?? $internalCurrentPage
@@ -53,7 +56,8 @@ struct ResultJsonViewer: View {
         showPaginationControls: Bool = true,
         showExportButton: Bool = true,
         onJsonSelected: ((String) -> Void)? = nil,
-        onAddAttachment: ((String) -> Void)? = nil
+        onAddAttachment: ((String) -> Void)? = nil,
+        onDeleteAttachment: ((String) -> Void)? = nil
     ) {
         _resultText = resultText
         self.externalCurrentPage = externalCurrentPage
@@ -62,6 +66,7 @@ struct ResultJsonViewer: View {
         self.showExportButton = showExportButton
         self.onJsonSelected = onJsonSelected
         self.onAddAttachment = onAddAttachment
+        self.onDeleteAttachment = onDeleteAttachment
     }
 
     /// Convenience initializer for static arrays
@@ -82,7 +87,7 @@ struct ResultJsonViewer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ResultsList(items: pagedItems, onJsonSelected: onJsonSelected, onAddAttachment: onAddAttachment)
+            ResultsList(items: pagedItems, onJsonSelected: onJsonSelected, onAddAttachment: onAddAttachment, onDeleteAttachment: onDeleteAttachment)
             Spacer()
 
             if showPaginationControls || showExportButton {
@@ -165,13 +170,19 @@ struct ResultsList: View {
     let items: [String]
     var onJsonSelected: ((String) -> Void)?
     var onAddAttachment: ((String) -> Void)?
+    var onDeleteAttachment: ((String) -> Void)?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 ForEach(items.indices, id: \.self) { index in
-                    ResultItem(jsonString: items[index], onJsonSelected: onJsonSelected, onAddAttachment: onAddAttachment)
-                        .padding(.horizontal)
+                    ResultItem(
+                        jsonString: items[index],
+                        onJsonSelected: onJsonSelected,
+                        onAddAttachment: onAddAttachment,
+                        onDeleteAttachment: onDeleteAttachment
+                    )
+                    .padding(.horizontal)
                 }
             }
             .padding(.vertical)
@@ -183,6 +194,7 @@ struct ResultItem: View {
     let jsonString: String
     var onJsonSelected: ((String) -> Void)?
     var onAddAttachment: ((String) -> Void)?
+    var onDeleteAttachment: ((String) -> Void)?
     @State private var isCopied = false
 
     var body: some View {
@@ -221,6 +233,13 @@ struct ResultItem: View {
             } label: {
                 Label("Add Attachment...", systemImage: "paperclip")
             }
+            let attachments = AttachmentInfo.detectTokens(in: jsonString)
+            Button {
+                onDeleteAttachment?(jsonString)
+            } label: {
+                Label("Delete Attachment...", systemImage: "trash")
+            }
+            .disabled(attachments.isEmpty)
         }
         .background(RoundedRectangle(cornerRadius: 4)
             .fill(Color.primary.opacity(0.05))

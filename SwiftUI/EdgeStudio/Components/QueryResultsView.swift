@@ -17,6 +17,7 @@ struct QueryResultsView: View {
     @Binding var jsonResults: [String]
     var onJsonSelected: ((String) -> Void)?
     var onAddAttachment: ((String) -> Void)?
+    var onDeleteAttachment: ((String) -> Void)?
 
     @State private var selectedTab: ResultViewTab = .raw
     @Binding var currentPage: Int
@@ -48,13 +49,15 @@ struct QueryResultsView: View {
         currentPage: Binding<Int>,
         pageSize: Binding<Int>,
         onJsonSelected: ((String) -> Void)? = nil,
-        onAddAttachment: ((String) -> Void)? = nil
+        onAddAttachment: ((String) -> Void)? = nil,
+        onDeleteAttachment: ((String) -> Void)? = nil
     ) {
         _jsonResults = jsonResults
         _currentPage = currentPage
         _pageSize = pageSize
         self.onJsonSelected = onJsonSelected
         self.onAddAttachment = onAddAttachment
+        self.onDeleteAttachment = onDeleteAttachment
     }
 
     var body: some View {
@@ -97,7 +100,8 @@ struct QueryResultsView: View {
                         showPaginationControls: false,
                         showExportButton: false,
                         onJsonSelected: onJsonSelected,
-                        onAddAttachment: onAddAttachment
+                        onAddAttachment: onAddAttachment,
+                        onDeleteAttachment: onDeleteAttachment
                     )
                 case .table:
                     ResultTableViewer(
@@ -105,7 +109,8 @@ struct QueryResultsView: View {
                         currentPage: $currentPage,
                         pageSize: $pageSize,
                         onJsonSelected: onJsonSelected,
-                        onAddAttachment: onAddAttachment
+                        onAddAttachment: onAddAttachment,
+                        onDeleteAttachment: onDeleteAttachment
                     )
                 }
             }
@@ -122,7 +127,8 @@ struct QueryResultsView: View {
                 showPaginationControls: false,
                 showExportButton: false,
                 onJsonSelected: onJsonSelected,
-                onAddAttachment: onAddAttachment
+                onAddAttachment: onAddAttachment,
+                onDeleteAttachment: onDeleteAttachment
             )
             .tabItem { Label("Raw", systemImage: "doc.plaintext") }
             .tag(ResultViewTab.raw)
@@ -132,7 +138,8 @@ struct QueryResultsView: View {
                 currentPage: $currentPage,
                 pageSize: $pageSize,
                 onJsonSelected: onJsonSelected,
-                onAddAttachment: onAddAttachment
+                onAddAttachment: onAddAttachment,
+                onDeleteAttachment: onDeleteAttachment
             )
             .tabItem { Label("Table", systemImage: "tablecells") }
             .tag(ResultViewTab.table)

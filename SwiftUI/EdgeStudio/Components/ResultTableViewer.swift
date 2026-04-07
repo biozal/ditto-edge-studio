@@ -16,6 +16,9 @@ struct ResultTableViewer: View {
     /// Callback for adding an attachment to a document
     var onAddAttachment: ((String) -> Void)?
 
+    /// Callback for deleting attachment field(s) from a document
+    var onDeleteAttachment: ((String) -> Void)?
+
     private let defaultColumnWidth: CGFloat = 200
 
     private var pagedItems: [String] {
@@ -131,6 +134,13 @@ struct ResultTableViewer: View {
                                 } label: {
                                     Label("Add Attachment...", systemImage: "paperclip")
                                 }
+                                let attachments = AttachmentInfo.detectTokens(in: row.originalJson)
+                                Button {
+                                    onDeleteAttachment?(row.originalJson)
+                                } label: {
+                                    Label("Delete Attachment...", systemImage: "trash")
+                                }
+                                .disabled(attachments.isEmpty)
                             }
                         }
                     } header: {
@@ -224,6 +234,13 @@ struct ResultTableViewer: View {
                             } label: {
                                 Label("Add Attachment...", systemImage: "paperclip")
                             }
+                            let attachments = AttachmentInfo.detectTokens(in: row.originalJson)
+                            Button {
+                                onDeleteAttachment?(row.originalJson)
+                            } label: {
+                                Label("Delete Attachment...", systemImage: "trash")
+                            }
+                            .disabled(attachments.isEmpty)
                         }
                     }
                 } header: {
