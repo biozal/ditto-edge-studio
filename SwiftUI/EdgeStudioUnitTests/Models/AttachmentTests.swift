@@ -391,4 +391,62 @@ struct AttachmentTests {
             #expect(isValidFieldName("   ") == false)
         }
     }
+
+    // MARK: - Delete Attachment Flow Tests
+
+    @Suite("Delete Attachment Flow")
+    struct DeleteAttachmentFlowTests {
+
+        @Test("detectTokens finds attachment fields for delete dialog", .tags(.model, .fast))
+        func detectTokensForDeleteDialog() {
+            // ARRANGE
+            let json = """
+            {
+                "_id": "doc1",
+                "name": "test",
+                "photo": { "id": "att1", "len": 2048, "metadata": { "name": "pic.png", "mimeType": "image/png" } },
+                "resume": { "id": "att2", "len": 51200, "metadata": { "name": "resume.pdf", "mimeType": "application/pdf" } }
+            }
+            """
+
+            // ACT
+            let tokens = AttachmentInfo.detectTokens(in: json)
+
+            // ASSERT
+            #expect(tokens.count == 2)
+            let fieldNames = tokens.map(\.fieldName)
+            #expect(fieldNames.contains("photo"))
+            #expect(fieldNames.contains("resume"))
+        }
+
+        @Test("detectTokens returns empty for document with no attachments", .tags(.model, .fast))
+        func detectTokensNoAttachments() {
+            // ARRANGE
+            let json = """{"_id": "doc1", "name": "test", "age": 30}"""
+
+            // ACT
+            let tokens = AttachmentInfo.detectTokens(in: json)
+
+            // ASSERT
+            #expect(tokens.isEmpty)
+        }
+
+        @Test("Field name validation rejects unsafe identifiers", .tags(.model, .fast))
+        func fieldNameValidation() {
+            // Pattern for safe field identifiers: start with letter or underscore, followed by letters/numbers/underscores
+            let pattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+            // ARRANGE & ACT & ASSERT - Safe names
+            #expect("photo".wholeMatch(of: pattern) != nil)
+            #expect("my_field".wholeMatch(of: pattern) != nil)
+            #expect("_private".wholeMatch(of: pattern) != nil)
+            #expect("field123".wholeMatch(of: pattern) != nil)
+
+            // ARRANGE & ACT & ASSERT - Unsafe names
+            #expect("drop;--".wholeMatch(of: pattern) == nil)
+            #expect("field name".wholeMatch(of: pattern) == nil)
+            #expect("123start".wholeMatch(of: pattern) == nil)
+            #expect("field-name".wholeMatch(of: pattern) == nil)
+        }
+    }
 }
