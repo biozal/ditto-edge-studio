@@ -12,6 +12,11 @@ public record AddAttachmentRequestedMessage(string DocumentJson, string Collecti
 public record AttachmentAddedMessage(string DocumentId, string FieldName, string Collection);
 
 /// <summary>
+/// Sent when the user requests to delete attachment field(s) from a document.
+/// </summary>
+public record DeleteAttachmentRequestedMessage(string DocumentJson, string Collection, string QueryMode);
+
+/// <summary>
 /// Sent to update the attachment progress indicator.
 /// </summary>
 public record AttachmentProgressMessage(bool IsActive, string Message, double FractionCompleted);
