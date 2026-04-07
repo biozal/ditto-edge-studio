@@ -12,6 +12,7 @@ enum AttachmentError: LocalizedError {
     case fetchFailed(String)
     case httpUploadFailed(String)
     case httpDownloadFailed(String)
+    case invalidFieldName
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ enum AttachmentError: LocalizedError {
             return "HTTP attachment upload failed: \(message)"
         case let .httpDownloadFailed(message):
             return "HTTP attachment download failed: \(message)"
+        case .invalidFieldName:
+            return "Invalid field name — must be a valid identifier"
         }
     }
 }
