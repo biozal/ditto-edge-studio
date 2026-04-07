@@ -132,6 +132,7 @@ namespace EdgeStudio.ViewModels
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
                 _jsonResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
+                _jsonResults.DeleteAttachmentRequested += json => OnDeleteAttachmentRequested(json);
             }
             if (_tableResults != null)
             {
@@ -142,6 +143,7 @@ namespace EdgeStudio.ViewModels
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
                 _tableResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
+                _tableResults.DeleteAttachmentRequested += json => OnDeleteAttachmentRequested(json);
             }
         }
 
@@ -278,6 +280,13 @@ namespace EdgeStudio.ViewModels
             var collection = _lastCollection ?? "unknown";
             WeakReferenceMessenger.Default.Send(
                 new AddAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
+        }
+
+        private void OnDeleteAttachmentRequested(string documentJson)
+        {
+            var collection = _lastCollection ?? "unknown";
+            WeakReferenceMessenger.Default.Send(
+                new DeleteAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
         }
 
         /// <summary>Called automatically when SelectedDocumentJson changes via [NotifyPropertyChangedFor].</summary>
