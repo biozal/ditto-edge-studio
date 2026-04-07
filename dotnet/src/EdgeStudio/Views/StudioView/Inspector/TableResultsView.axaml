@@ -31,6 +31,7 @@
                             <MenuItem Header="Copy Document" x:Name="CopyRowMenuItem" />
                             <Separator />
                             <MenuItem Header="Add Attachment..." x:Name="AddAttachmentMenuItem" />
+                            <MenuItem Header="Delete Attachment..." x:Name="DeleteAttachmentMenuItem" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Styles>

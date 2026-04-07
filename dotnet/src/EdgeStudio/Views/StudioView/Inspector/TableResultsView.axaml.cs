@@ -44,6 +44,12 @@ namespace EdgeStudio.Views.StudioView.Inspector
                     if (_viewModel != null && ResultsGrid.SelectedItem is TableRow row)
                         _viewModel.RequestAddAttachment(row);
                 };
+
+                DeleteAttachmentMenuItem.Click += (_, _) =>
+                {
+                    if (_viewModel != null && ResultsGrid.SelectedItem is TableRow row)
+                        _viewModel.RequestDeleteAttachment(row);
+                };
             }
         }
 
