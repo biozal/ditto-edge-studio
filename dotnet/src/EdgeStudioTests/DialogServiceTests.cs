@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 using EdgeStudio.UI.Services;
 using FluentAssertions;
 
@@ -5,7 +6,7 @@ namespace EdgeStudioTests;
 
 public class DialogServiceTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void ShowError_ShouldSetCurrentDialogAndIsOpen()
     {
         var dialogManager = new DialogManager();
@@ -16,7 +17,7 @@ public class DialogServiceTests
         dialogManager.IsOpen.Should().BeTrue();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ShowError_ShouldHaveOkButton()
     {
         var dialogManager = new DialogManager();

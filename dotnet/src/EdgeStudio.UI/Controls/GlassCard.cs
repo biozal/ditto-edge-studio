@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Media;
 
 namespace EdgeStudio.UI.Controls;
 
@@ -12,6 +13,12 @@ public class GlassCard : ContentControl
 
     public static readonly new StyledProperty<CornerRadius> CornerRadiusProperty =
         AvaloniaProperty.Register<GlassCard, CornerRadius>(nameof(CornerRadius), defaultValue: new CornerRadius(8));
+
+    static GlassCard()
+    {
+        // Ensure hit testing works even if no Background resource resolves
+        BackgroundProperty.OverrideDefaultValue<GlassCard>(Brushes.Transparent);
+    }
 
     public bool IsInteractive
     {
