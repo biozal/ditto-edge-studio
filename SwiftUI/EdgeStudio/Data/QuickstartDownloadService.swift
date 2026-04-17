@@ -139,9 +139,6 @@ final class QuickstartDownloadService {
             Log.error("QuickstartDownloadService: Extraction failed with exit code \(exitCode)")
             throw QuickstartError.extractionFailed("Unzip failed with exit code \(exitCode)")
         }
-        #else
-        throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
-        #endif
 
         // Clean up temp zip
         try? FileManager.default.removeItem(at: localZipURL)
@@ -154,6 +151,9 @@ final class QuickstartDownloadService {
         let extractedPath = destination.appendingPathComponent(Self.extractedFolderName)
         Log.info("QuickstartDownloadService: Extracted to \(extractedPath.path)")
         return extractedPath
+        #else
+        throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
+        #endif
     }
 
     // MARK: - Configure .env Files

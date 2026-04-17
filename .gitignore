@@ -44,3 +44,6 @@ android/app/src/main/assets/help/
 dotnet/src/EdgeStudio/Assets/Help/*.md
 .gitnexus
 /dotnet/src/.vs
+dotnet/src/EdgeStudio.UI/bin
+dotnet/src/EdgeStudio.UI/obj
+docs/superpowers

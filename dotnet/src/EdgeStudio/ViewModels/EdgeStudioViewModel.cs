@@ -502,7 +502,7 @@ namespace EdgeStudio.ViewModels
                     await queryService.ExecuteLocalAsync(dql);
                 }
 
-                ShowSuccess($"Deleted {dialog.SelectedAttachments.Count} attachment field(s)");
+                ShowSuccess($"Deleted {dialog.SelectedAttachments.Count} attachment field(s) — re-run query to see changes");
             }
             catch (System.Exception ex)
             {

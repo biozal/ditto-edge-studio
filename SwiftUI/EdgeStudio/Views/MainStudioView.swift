@@ -1164,8 +1164,12 @@ extension MainStudioView {
 
             let identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
+            attachmentProgress.isActive = true
+            attachmentProgress.message = "Deleting attachment field(s)..."
+            attachmentProgress.fractionCompleted = 0.0
+
             do {
-                for att in selectedAttachments {
+                for (index, att) in selectedAttachments.enumerated() {
                     guard att.fieldName.wholeMatch(of: identifierPattern) != nil,
                           collection.wholeMatch(of: identifierPattern) != nil else
                     {
@@ -1173,9 +1177,14 @@ extension MainStudioView {
                     }
                     let query = "UPDATE \(collection) SET \(att.fieldName) = null WHERE _id = '\(docIdString)'"
                     _ = try await QueryService.shared.executeSelectedAppQuery(query: query)
+                    attachmentProgress.fractionCompleted = Double(index + 1) / Double(selectedAttachments.count)
                 }
+                attachmentProgress.message = "Deleted \(selectedAttachments.count) field(s) — re-run query to see changes"
+                try? await Task.sleep(for: .seconds(2.5))
+                attachmentProgress.isActive = false
                 Log.info("Deleted \(selectedAttachments.count) attachment field(s) from document \(docIdString)")
             } catch {
+                attachmentProgress.isActive = false
                 appState.setError(error)
             }
         }

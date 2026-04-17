@@ -1,7 +1,7 @@
 [versions]
 agp = "8.12.0"
 kotlin = "2.1.20"
-ditto = "5.0.0-preview.5"
+ditto = "5.0.0-rc.2"
 ksp = "2.1.20-1.0.32"
 mlkitBarcode = "17.3.0"
 camerax = "1.4.2"
