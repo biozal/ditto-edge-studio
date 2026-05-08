@@ -16,9 +16,13 @@ actor SystemRepository {
     private var pendingStatusItems: [SyncStatusInfo]?
     private var sessionId = 0
 
-    // Store the callback inside the actor
-    private var onSyncStatusUpdate: (([SyncStatusInfo], @escaping () -> Void) -> Void)?
-    private var onConnectionsUpdate: ((ConnectionsByTransport) -> Void)?
+    // Store the callback inside the actor. Both callbacks are @MainActor so
+    // call sites get a compile-time guarantee that mutations to @Observable
+    // view-model state happen on the main thread. The completion handler is
+    // @Sendable because it must cross from the @MainActor caller back to this
+    // actor's executor.
+    private var onSyncStatusUpdate: (@MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void)?
+    private var onConnectionsUpdate: (@MainActor (ConnectionsByTransport) -> Void)?
 
     private init() {}
 
@@ -403,7 +407,7 @@ actor SystemRepository {
         // Mark as processing and send to UI
         isProcessingUpdate = true
 
-        callback(statusItems) { [weak self] in
+        await callback(statusItems) { [weak self] in
             Task {
                 guard let self else { return }
 
@@ -441,7 +445,7 @@ actor SystemRepository {
     /// Function to set the callback from outside the actor.
     /// Drains any pending update that queued up before the callback was registered
     /// (e.g. when the presence observer fires before the new session's callback is set).
-    func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo], @escaping () -> Void) -> Void) {
+    func setOnSyncStatusUpdate(_ callback: @escaping @MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void) {
         onSyncStatusUpdate = callback
 
         // If a pending update arrived while the callback was nil, process it now.
@@ -544,7 +548,7 @@ actor SystemRepository {
         }
     }
 
-    func setOnConnectionsUpdate(_ callback: @escaping (ConnectionsByTransport) -> Void) {
+    func setOnConnectionsUpdate(_ callback: @escaping @MainActor (ConnectionsByTransport) -> Void) {
         onConnectionsUpdate = callback
     }
 

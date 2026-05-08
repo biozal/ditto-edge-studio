@@ -28,8 +28,10 @@ actor DatabaseRepository {
     /// In-memory cache for fast access
     private var cachedConfigs: [DittoConfigForDatabase] = []
 
-    /// Callback for UI updates
-    private var onDittoDatabaseConfigUpdate: (([DittoConfigForDatabase]) -> Void)?
+    /// Callback for UI updates. @MainActor-isolated so call sites get a
+    /// compile-time guarantee they're on the main thread; matches the pattern
+    /// used by HistoryRepository, FavoritesRepository, ObservableRepository.
+    private var onDittoDatabaseConfigUpdate: (@MainActor ([DittoConfigForDatabase]) -> Void)?
 
     private init() {}
 
@@ -102,7 +104,7 @@ actor DatabaseRepository {
             cachedConfigs.append(appConfig)
 
             // 3. Notify UI
-            notifyConfigUpdate()
+            await notifyConfigUpdate()
 
             Log.info("Added database configuration: \(appConfig.name)")
         } catch {
@@ -145,7 +147,7 @@ actor DatabaseRepository {
             }
 
             // 3. Notify UI
-            notifyConfigUpdate()
+            await notifyConfigUpdate()
 
             Log.info("Updated database configuration: \(appConfig.name)")
         } catch {
@@ -188,7 +190,7 @@ actor DatabaseRepository {
             cachedConfigs.removeAll { $0._id == appConfig._id }
 
             // 5. Notify UI
-            notifyConfigUpdate()
+            await notifyConfigUpdate()
 
             Log.info("Deleted database configuration: \(appConfig.name)")
         } catch {
@@ -204,14 +206,14 @@ actor DatabaseRepository {
         self.appState = appState
     }
 
-    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping ([DittoConfigForDatabase]) -> Void) {
+    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping @MainActor ([DittoConfigForDatabase]) -> Void) {
         onDittoDatabaseConfigUpdate = callback
     }
 
     // MARK: - Private Helpers
 
-    private func notifyConfigUpdate() {
+    private func notifyConfigUpdate() async {
         // Notify UI of changes
-        onDittoDatabaseConfigUpdate?(cachedConfigs)
+        await onDittoDatabaseConfigUpdate?(cachedConfigs)
     }
 }

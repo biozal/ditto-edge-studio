@@ -14,9 +14,8 @@ actor CollectionsRepository {
 
     private init() {}
 
-    deinit {
-        collectionsObserver?.cancel()
-    }
+    // No deinit: this is a singleton actor (`static let shared`), so it never
+    // deallocates — observer cleanup happens via stopObserver() at session close.
 
     func hydrateCollections() async throws -> [DittoCollection] {
         guard let ditto = await dittoManager.dittoSelectedApp,
@@ -243,14 +242,12 @@ actor CollectionsRepository {
     }
 
     func stopObserver() {
-        // Use Task to ensure observer cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performObserverCleanup()
-        }
-    }
-
-    private func performObserverCleanup() {
+        // Synchronous: callers reach this through `await` because we're inside
+        // an actor. The previous `Task.detached` opened a race where the new
+        // session's observer could be cancelled by the previous session's
+        // cleanup task. Actor isolation already serialises access — no
+        // priority inversion here because callers are already off the main
+        // thread by the time they `await` into the actor.
         collectionsObserver?.cancel()
         collectionsObserver = nil
     }

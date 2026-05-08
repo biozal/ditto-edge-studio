@@ -620,8 +620,8 @@ extension MainStudioView {
             Task {
                 isLoading = true
 
-                await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { newSubscriptions in
-                    self.subscriptions = newSubscriptions
+                await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
+                    self?.subscriptions = newSubscriptions
                 }
                 // Wrap individually so a failure here does not prevent history/favorites from loading
                 do {
@@ -630,8 +630,8 @@ extension MainStudioView {
                     Log.error("Failed to load subscriptions: \(error.localizedDescription)")
                 }
 
-                await CollectionsRepository.shared.setOnCollectionsUpdate { newCollections in
-                    self.collections = newCollections
+                await CollectionsRepository.shared.setOnCollectionsUpdate { [weak self] newCollections in
+                    self?.collections = newCollections
                 }
                 do {
                     collections = try await CollectionsRepository.shared.hydrateCollections()
@@ -1050,12 +1050,16 @@ extension MainStudioView {
             // used for calculating the diffs
             let dittoDiffer = DittoDiffer()
 
-            // Deserialize arguments from JSON string
+            // Deserialize arguments from JSON string. The observer callback runs
+            // on an SDK-determined thread (non-MainActor). Build the event from
+            // the results synchronously, then hop to the MainActor to mutate
+            // @Observable view-model state.
+            let observableId = observable.id
             let observer = try ditto.store.registerObserver(
                 query: observable.query
             ) { [weak self] results in
                 // required to show the end user when the event fired
-                var event = DittoObserveEvent.new(observeId: observable.id)
+                var event = DittoObserveEvent.new(observeId: observableId)
 
                 let diff = dittoDiffer.diff(results.items)
 
@@ -1072,12 +1076,12 @@ extension MainStudioView {
                     return String(data: data, encoding: .utf8)
                 }
 
-                self?.observableEvents.append(event)
-
-                // if this is the selected observable, add it to the selectedEvents array too
-                if let selectedObservableId = self?.selectedObservable?.id {
-                    if event.observeId == selectedObservableId {
-                        self?.selectedObservableEvents.append(event)
+                let capturedEvent = event
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    observableEvents.append(capturedEvent)
+                    if capturedEvent.observeId == selectedObservable?.id {
+                        selectedObservableEvents.append(capturedEvent)
                     }
                 }
             }

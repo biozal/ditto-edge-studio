@@ -128,14 +128,18 @@ actor DittoManager {
             guard let ditto = dittoInstance else {
                 throw AppError.error(message: "Failed to create Ditto instance")
             }
+            // Capture only the values needed by the closure to avoid retaining
+            // the DittoManager actor through the SDK-held expirationHandler.
+            let capturedAppState = appState
+            let capturedToken = databaseConfig.token
             ditto.auth?.expirationHandler = { dittoAuth, secondsRemaining in
                 dittoAuth.auth?.login(
-                    token: databaseConfig.token,
+                    token: capturedToken,
                     provider: .development
                 ) { _, error in
                     if let error {
-                        Task {
-                            await self.appState?.setError(error)
+                        Task { @MainActor in
+                            capturedAppState?.setError(error)
                         }
                     } else {
                         Log.info("[Auth] Authentication successful \(secondsRemaining)")

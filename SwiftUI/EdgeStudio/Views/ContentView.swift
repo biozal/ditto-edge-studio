@@ -589,11 +589,10 @@ extension ContentView {
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
 
-                // 3. Set up callback for future updates
+                // 3. Set up callback for future updates. The callback type is
+                //    @MainActor, so we can assign directly without an inner Task.
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
-                    Task { @MainActor [weak self] in
-                        self?.dittoApps = configs
-                    }
+                    self?.dittoApps = configs
                 }
 
                 // 4. Set appState in other repositories
