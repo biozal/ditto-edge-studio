@@ -302,6 +302,8 @@ struct MainStudioView: View {
             }
         #endif
             // Sync sidebar items on first render (picks up the UserDefaults value after registerDefaults)
+            // and kick off the initial repository load. The load runs as a tracked
+            // `loadTask` on the ViewModel so `closeSelectedApp` / `deinit` can cancel it.
             .task {
                 viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(
                     metricsEnabled: metricsEnabled
@@ -310,6 +312,7 @@ struct MainStudioView: View {
                 viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(
                     metricsEnabled: metricsEnabled
                 )
+                viewModel.startLoad()
             }
             // React to metrics setting changes (macOS Settings window or iOS Settings app)
             .onChange(of: metricsEnabled) { _, enabled in
@@ -496,6 +499,11 @@ extension MainStudioView {
         private var observedEventFlushTask: Task<Void, Never>?
         private static let observedEventFlushInterval: Duration = .milliseconds(100)
 
+        /// Tracks the structured-concurrency task that loads initial data. Stored so
+        /// `closeSelectedApp` and `deinit` can cancel it if the user closes the database
+        /// before load completes (e.g. tap-and-immediately-back).
+        private var loadTask: Task<Void, Never>?
+
         // query editor view
         var selectedQuery: String
         var executeModes: [String]
@@ -597,132 +605,180 @@ extension MainStudioView {
                 MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
             ]
             selectedMetricsInspectorMenuItem = metricsDocsItem
+        }
 
-            // Setup SystemRepository callback
-            Task {
-                await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
-                    Task { @MainActor in
-                        self?.mergeStatusItems(statusItems)
+        isolated deinit {
+            // Cancel the load task if the ViewModel is being deallocated mid-load
+            // (e.g. user closed the database before initial hydration completed and
+            // closeSelectedApp didn't run for some reason). `isolated deinit` keeps
+            // this on the MainActor so we can read the actor-isolated `loadTask`.
+            loadTask?.cancel()
+            Log.debug("MainStudioView.ViewModel deinit")
+        }
 
-                        // CRITICAL: Signal completion AFTER UI update dispatches
-                        Task {
-                            // 50ms delay allows SwiftUI LazyVGrid rendering to complete
-                            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-                            completion()
-                        }
+        /// Starts the initial data load. Idempotent — calling repeatedly cancels any
+        /// in-flight load and starts a fresh one. Called from the view's `.task` modifier.
+        func startLoad() {
+            loadTask?.cancel()
+            loadTask = Task { [weak self] in
+                await self?.performLoad()
+            }
+        }
+
+        /// Loads all repository state for the selected database in parallel and finishes
+        /// post-load setup (presence observer registration, local peer info fetch).
+        ///
+        /// Called once per ViewModel lifetime via `startLoad()`. Honors cooperative
+        /// cancellation at every awaited boundary so a fast close-during-load tears
+        /// down cleanly without racing the cleanup path.
+        private func performLoad() async {
+            isLoading = true
+            defer { isLoading = false }
+
+            let databaseId = selectedApp.databaseId
+
+            // 1. Register all repository update callbacks. These are quick, in-memory
+            //    callback installations on the various actors — sequential `await`
+            //    is fine and keeps the call-order obvious. Each closure uses
+            //    `[weak self]` so a stale ViewModel doesn't keep itself alive.
+            await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
+                Task { @MainActor [weak self] in
+                    self?.mergeStatusItems(statusItems)
+
+                    // CRITICAL: signal completion AFTER UI update dispatches.
+                    // 50ms delay allows SwiftUI LazyVGrid rendering to complete.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(50))
+                        completion()
                     }
                 }
             }
-
-            // Setup connections callback
-            Task {
-                await SystemRepository.shared.setOnConnectionsUpdate { [weak self] connections in
-                    Task { @MainActor in
-                        self?.connectionsByTransport = connections
-                    }
+            await SystemRepository.shared.setOnConnectionsUpdate { [weak self] connections in
+                Task { @MainActor [weak self] in
+                    self?.connectionsByTransport = connections
                 }
             }
-
-            // Setup ObservableRepository callback
-            Task {
-                await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
-                    Task { @MainActor in
-                        self?.observerables = observables
-                    }
+            await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
+                Task { @MainActor [weak self] in
+                    self?.observerables = observables
                 }
             }
+            // Per-domain ordering: register callback BEFORE the corresponding load so
+            // currentDatabaseId is set before any user-triggered save can fire.
+            await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
+                self?.subscriptions = newSubscriptions
+            }
+            await CollectionsRepository.shared.setOnCollectionsUpdate { [weak self] newCollections in
+                self?.collections = newCollections
+            }
+            await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
+                self?.history = history
+            }
+            await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
+                self?.favorites = favorites
+            }
 
-            Task {
-                isLoading = true
+            guard !Task.isCancelled else { return }
 
-                await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
-                    self?.subscriptions = newSubscriptions
-                }
-                // Wrap individually so a failure here does not prevent history/favorites from loading
+            // 2. Run the five independent repository loads concurrently. Each safely
+            //    swallows its own error so one failure can't starve the others —
+            //    matches the original sequential behavior, just in parallel.
+            async let loadedSubscriptions: [DittoSubscription] = {
                 do {
-                    subscriptions = try await SubscriptionsRepository.shared.loadSubscriptions(for: selectedApp.databaseId)
+                    return try await SubscriptionsRepository.shared.loadSubscriptions(for: databaseId)
                 } catch {
                     Log.error("Failed to load subscriptions: \(error.localizedDescription)")
+                    return []
                 }
-
-                await CollectionsRepository.shared.setOnCollectionsUpdate { [weak self] newCollections in
-                    self?.collections = newCollections
-                }
+            }()
+            async let loadedCollections: [DittoCollection] = {
                 do {
-                    collections = try await CollectionsRepository.shared.hydrateCollections()
+                    return try await CollectionsRepository.shared.hydrateCollections()
                 } catch {
                     Log.error("Failed to load collections: \(error.localizedDescription)")
+                    return []
                 }
-
-                // Register the history callback BEFORE calling loadHistory so currentDatabaseId
-                // is guaranteed to be set before any user-triggered saveQueryHistory can fire.
-                // Use direct assignment — the closure is already @MainActor, no inner Task needed.
-                await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
-                    self?.history = history
-                }
+            }()
+            async let loadedHistory: [DittoQueryHistory] = {
                 do {
-                    history = try await HistoryRepository.shared.loadHistory(for: selectedApp.databaseId)
+                    return try await HistoryRepository.shared.loadHistory(for: databaseId)
                 } catch {
                     Log.error("Failed to load history: \(error.localizedDescription)")
+                    return []
                 }
-
-                // Same pattern for favorites: register callback before loading.
-                await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
-                    self?.favorites = favorites
-                }
+            }()
+            async let loadedFavorites: [DittoQueryHistory] = {
                 do {
-                    favorites = try await FavoritesRepository.shared.loadFavorites(for: selectedApp.databaseId)
+                    return try await FavoritesRepository.shared.loadFavorites(for: databaseId)
                 } catch {
                     Log.error("Failed to load favorites: \(error.localizedDescription)")
+                    return []
                 }
-
-                // Load observer metadata (without live observers - those must be re-registered)
+            }()
+            async let loadedObservers: [DittoObservable] = {
                 do {
-                    observerables = try await ObservableRepository.shared.loadObservers(for: selectedApp.databaseId)
+                    return try await ObservableRepository.shared.loadObservers(for: databaseId)
                 } catch {
-                    assertionFailure("Failed to load observers: \(error)")
+                    Log.error("Failed to load observers: \(error.localizedDescription)")
+                    return []
                 }
+            }()
 
-                if collections.isEmpty {
-                    selectedQuery = subscriptions.first?.query ?? ""
-                } else {
-                    selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
-                }
+            let (subs, cols, hist, favs, obsv) = await (
+                loadedSubscriptions,
+                loadedCollections,
+                loadedHistory,
+                loadedFavorites,
+                loadedObservers
+            )
 
-                // Start observing connections via presence graph (drives bottom status bar)
-                do {
-                    try await SystemRepository.shared.registerConnectionsPresenceObserver()
-                } catch {
-                    // Not a programming error — can happen if the database was closed before
-                    // this async Task completed (e.g. user switched databases quickly).
-                    Log.error("Failed to register connections presence observer: \(error.localizedDescription)")
-                }
+            guard !Task.isCancelled else { return }
 
-                // Note: sync-status observer is registered by syncTabsDetailView().onAppear
-                // (which fires before this Task reaches here). No eager registration needed —
-                // it caused double-registration and backpressure pipeline deadlocks.
+            subscriptions = subs
+            collections = cols
+            history = hist
+            favorites = favs
+            observerables = obsv
 
-                // Fetch local peer info directly (bypassing QueryService so this startup
-                // query is invisible to Query Metrics).
-                do {
-                    let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
-                    if let ditto = await DittoManager.shared.dittoSelectedApp {
-                        let results = try await ditto.store.execute(query: query)
-                        if let firstItem = results.items.first {
-                            let json = firstItem.value.compactMapValues { $0 }
-                            firstItem.dematerialize()
-                            localPeerDeviceName = "Edge Studio"
-                            localPeerSDKLanguage = json["ditto_sdk_language"] as? String
-                            localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
-                            localPeerSDKVersion = json["ditto_sdk_version"] as? String
-                        }
+            if collections.isEmpty {
+                selectedQuery = subscriptions.first?.query ?? ""
+            } else {
+                selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
+            }
+
+            // 3. Start observing connections via presence graph (drives bottom status bar)
+            do {
+                try await SystemRepository.shared.registerConnectionsPresenceObserver()
+            } catch {
+                // Not a programming error — can happen if the database was closed before
+                // this async Task completed (e.g. user switched databases quickly).
+                Log.error("Failed to register connections presence observer: \(error.localizedDescription)")
+            }
+
+            // Note: sync-status observer is registered by syncTabsDetailView().onAppear
+            // (which fires before this point). No eager registration needed here —
+            // it caused double-registration and backpressure pipeline deadlocks.
+
+            guard !Task.isCancelled else { return }
+
+            // 4. Fetch local peer info directly (bypassing QueryService so this startup
+            //    query is invisible to Query Metrics).
+            do {
+                let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
+                if let ditto = await DittoManager.shared.dittoSelectedApp {
+                    let results = try await ditto.store.execute(query: query)
+                    if let firstItem = results.items.first {
+                        let json = firstItem.value.compactMapValues { $0 }
+                        firstItem.dematerialize()
+                        localPeerDeviceName = "Edge Studio"
+                        localPeerSDKLanguage = json["ditto_sdk_language"] as? String
+                        localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
+                        localPeerSDKVersion = json["ditto_sdk_version"] as? String
                     }
-                } catch {
-                    // Fail silently - not critical to app functionality
-                    Log.error("Failed to fetch local peer info: \(error.localizedDescription)")
                 }
-
-                isLoading = false
+            } catch {
+                // Fail silently - not critical to app functionality
+                Log.error("Failed to fetch local peer info: \(error.localizedDescription)")
             }
         }
 
@@ -809,6 +865,11 @@ extension MainStudioView {
         func closeSelectedApp() async {
             let closeStart = CFAbsoluteTimeGetCurrent()
             Log.info("[Close] Starting database close")
+
+            // 0. Cancel any in-flight initial load so its callback registrations
+            //    don't race with the cleanup pass below.
+            loadTask?.cancel()
+            loadTask = nil
 
             // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
             await SystemRepository.shared.invalidateSession()

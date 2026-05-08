@@ -72,6 +72,7 @@ final class DittoLogCaptureService: DittoDelegate {
                 if flushTask == nil {
                     flushTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
                         self?.flushPendingEntries()
                     }
                 }
@@ -238,6 +239,7 @@ final class DittoLogCaptureService: DittoDelegate {
             if transportFlushTask == nil {
                 transportFlushTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
                     self?.flushTransportEntries()
                 }
             }
@@ -285,6 +287,7 @@ final class DittoLogCaptureService: DittoDelegate {
                 if connectionRequestFlushTask == nil {
                     connectionRequestFlushTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
                         self?.flushConnectionRequestEntries()
                     }
                 }

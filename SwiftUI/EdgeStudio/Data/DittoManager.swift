@@ -9,6 +9,10 @@ actor DittoManager {
     /// The persistence directory of the currently active database, used for log file access.
     private(set) var activePersistenceDirectory: URL?
 
+    /// Cached URLSession that accepts untrusted certificates. Lazily created on first use.
+    /// Actor isolation serializes access — no external lock needed.
+    private var cachedUntrustedSession: URLSession?
+
     private init() {}
 
     static var shared = DittoManager()
@@ -293,15 +297,9 @@ actor DittoManager {
 // MARK: - URL Session
 
 extension DittoManager {
-    // Cached URLSession for untrusted certificates
-    private static var cachedUntrustedSession: URLSession?
-    private static let untrustedSessionLock = NSLock()
-
     func getCachedUntrustedSession() -> URLSession {
-        Self.untrustedSessionLock.lock()
-        defer { Self.untrustedSessionLock.unlock() }
-
-        if let cachedSession = Self.cachedUntrustedSession {
+        // Actor isolation already serializes access — no lock needed.
+        if let cachedSession = cachedUntrustedSession {
             return cachedSession
         }
 
@@ -312,7 +310,7 @@ extension DittoManager {
             delegate: delegate,
             delegateQueue: nil
         )
-        Self.cachedUntrustedSession = session
+        cachedUntrustedSession = session
         return session
     }
 }
