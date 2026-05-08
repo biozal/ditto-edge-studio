@@ -277,9 +277,9 @@ struct MainStudioView: View {
             .padding(.top, 12)
             .padding(.bottom, 16) // Add padding for status bar height
             .navigationSplitViewColumnWidth(
-                min: isIPadRegular ? 250 : 200,
-                ideal: isIPadRegular ? 300 : 250,
-                max: isIPadRegular ? 380 : 300
+                min: 200,
+                ideal: 260,
+                max: 320
             )
         } detail: {
             Group {
@@ -292,10 +292,19 @@ struct MainStudioView: View {
                     observeDetailView()
                 case .appMetrics:
                     AppMetricsDetailView()
+                    #if os(iOS)
+                        .toolbar { passiveDetailToolbar() }
+                    #endif
                 case .queryMetrics:
                     QueryMetricsDetailView()
+                    #if os(iOS)
+                        .toolbar { passiveDetailToolbar() }
+                    #endif
                 case .logging:
                     LoggingDetailView()
+                    #if os(iOS)
+                        .toolbar { passiveDetailToolbar() }
+                    #endif
                 }
             }
             .id(viewModel.selectedSidebarDestination)
@@ -311,7 +320,7 @@ struct MainStudioView: View {
                 inspectorView()
                     .presentationDragIndicator(.visible)
                     .presentationDetents([.medium, .large])
-                    .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
+                    .inspectorColumnWidth(min: 220, ideal: 320, max: 500)
             }
             .sheet(item: $activeSheet) { sheet in
                 sheetContent(for: sheet)
@@ -435,6 +444,21 @@ struct MainStudioView: View {
     }
 
     #if os(iOS)
+    /// iOS-only toolbar bundle used by passive detail views (App Metrics,
+    /// Query Metrics, Logging) that have no domain-specific toolbar of their
+    /// own. NavigationSplitView's parent toolbar items don't surface in the
+    /// detail column on iPad regular size class, so each passive detail view
+    /// declares its own.
+    @ToolbarContentBuilder
+    func passiveDetailToolbar() -> some ToolbarContent {
+        if horizontalSizeClass == .compact {
+            sidebarToggleButton()
+        }
+        syncToolbarButton()
+        closeToolbarButton()
+        inspectorToggleButton()
+    }
+
     func sidebarToggleButton() -> some ToolbarContent {
         ToolbarItem(placement: .navigationBarLeading) {
             Button {

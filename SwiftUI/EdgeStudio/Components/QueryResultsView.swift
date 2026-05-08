@@ -61,32 +61,15 @@ struct QueryResultsView: View {
     }
 
     var body: some View {
-        Group {
-            if horizontalSizeClass == .compact {
-                compactLayout
-            } else {
-                tabLayout
-            }
-        }
-        .onChange(of: pageSize) { _, _ in
-            currentPage = max(1, min(currentPage, pageCount))
-        }
-        .onChange(of: jsonResults) { _, _ in
-            currentPage = 1
-            if !pageSizes.contains(pageSize) {
-                pageSize = pageSizes.first ?? 25
-            }
-        }
-    }
-
-    private var compactLayout: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
+            Picker("Result View", selection: $selectedTab) {
                 ForEach(ResultViewTab.allCases, id: \.self) { tab in
                     Label(tab.rawValue, systemImage: tab.icon).tag(tab)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.segmented)
+            .controlSize(horizontalSizeClass == .compact ? .regular : .large)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
 
@@ -116,37 +99,18 @@ struct QueryResultsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    private var tabLayout: some View {
-        TabView(selection: $selectedTab) {
-            ResultJsonViewer(
-                resultText: $jsonResults,
-                externalCurrentPage: $currentPage,
-                externalPageSize: $pageSize,
-                showPaginationControls: false,
-                showExportButton: false,
-                onJsonSelected: onJsonSelected,
-                onAddAttachment: onAddAttachment,
-                onDeleteAttachment: onDeleteAttachment
-            )
-            .tabItem { Label("Raw", systemImage: "doc.plaintext") }
-            .tag(ResultViewTab.raw)
-
-            ResultTableViewer(
-                resultText: $jsonResults,
-                currentPage: $currentPage,
-                pageSize: $pageSize,
-                onJsonSelected: onJsonSelected,
-                onAddAttachment: onAddAttachment,
-                onDeleteAttachment: onDeleteAttachment
-            )
-            .tabItem { Label("Table", systemImage: "tablecells") }
-            .tag(ResultViewTab.table)
-        }
         #if os(macOS)
         .background(.regularMaterial)
         #endif
+        .onChange(of: pageSize) { _, _ in
+            currentPage = max(1, min(currentPage, pageCount))
+        }
+        .onChange(of: jsonResults) { _, _ in
+            currentPage = 1
+            if !pageSizes.contains(pageSize) {
+                pageSize = pageSizes.first ?? 25
+            }
+        }
     }
 }
 

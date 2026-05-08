@@ -29,19 +29,28 @@ extension MainStudioView {
             // by `metricsEnabled`, so a single ForEach covers both cases.
             Section {
                 ForEach(availableDestinations) { destination in
+                    let isSelected = viewModel.selectedSidebarDestination == destination
                     Button {
                         viewModel.selectedSidebarDestination = destination
                     } label: {
-                        Label(destination.displayName, systemImage: destination.systemIcon)
+                        Label {
+                            Text(destination.displayName)
+                                .foregroundStyle(isSelected ? Color.black : .primary)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                        } icon: {
+                            Image(systemName: destination.systemIcon)
+                                .foregroundStyle(isSelected ? Color.black : .secondary)
+                        }
                         #if os(iOS)
-                            .font(.subheadline)
+                        .font(.subheadline)
                         #endif
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(
-                        viewModel.selectedSidebarDestination == destination
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(isSelected ? Color.dittoYellow : Color.clear)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
                     )
                 }
             }

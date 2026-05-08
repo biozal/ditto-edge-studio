@@ -25,6 +25,9 @@ struct ContentView: View {
         Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
+                #if os(macOS)
+                .frame(minWidth: 1400, minHeight: 820)
+                #endif
             } else if viewModel.isMainStudioViewPresented,
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
@@ -40,38 +43,18 @@ struct ContentView: View {
                     dittoAppConfig: selectedApp
                 )
                 .environment(appState)
+                #if os(macOS)
+                    .frame(minWidth: 1400, minHeight: 820)
+                #endif
             } else {
                 #if os(iOS)
                 iPadPickerView
                 #else
                 macOSPickerView
+                    .frame(minWidth: 800, minHeight: 540)
                 #endif
             }
         }
-        #if os(macOS)
-        .frame(
-            minWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 1400 : 800,
-            maxWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 800,
-            minHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 820 : 540,
-            maxHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 540
-        )
-        .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
-            guard let window = NSApplication.shared.windows.first(where: { $0.isMainWindow }) else { return }
-            if isPresented {
-                window.styleMask.insert(.resizable)
-                window.minSize = NSSize(width: 1400, height: 820)
-                window.maxSize = NSSize(width: 10000, height: 10000)
-                window.standardWindowButton(.zoomButton)?.isHidden = false
-            } else {
-                window.setContentSize(NSSize(width: 800, height: 540))
-                window.minSize = NSSize(width: 800, height: 540)
-                window.maxSize = NSSize(width: 800, height: 540)
-                window.styleMask.remove(.resizable)
-                window.standardWindowButton(.zoomButton)?.isHidden = true
-                window.center()
-            }
-        }
-        #endif
         .onAppear {
             Task {
                 await viewModel.loadApps(appState: appState)
@@ -270,16 +253,6 @@ extension ContentView {
             .padding(.bottom, 100)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            WindowAccessor { window in
-                window.setContentSize(NSSize(width: 800, height: 540))
-                window.minSize = NSSize(width: 800, height: 540)
-                window.maxSize = NSSize(width: 800, height: 540)
-                window.styleMask.remove(.resizable)
-                window.standardWindowButton(.zoomButton)?.isHidden = true
-                window.center()
-            }
-        )
         .sheet(
             isPresented: Binding(
                 get: { viewModel.isPresented },
@@ -299,8 +272,7 @@ extension ContentView {
                     idealWidth: 1000,
                     maxWidth: 1920,
                     minHeight: 700,
-                    idealHeight: 800,
-                    maxHeight: 860
+                    idealHeight: 800
                 )
                 .environment(appState)
                 .presentationDetents([.medium, .large])
