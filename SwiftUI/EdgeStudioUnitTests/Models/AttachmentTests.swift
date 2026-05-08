@@ -422,7 +422,7 @@ struct AttachmentTests {
         @Test("detectTokens returns empty for document with no attachments", .tags(.model, .fast))
         func detectTokensNoAttachments() {
             // ARRANGE
-            let json = """{"_id": "doc1", "name": "test", "age": 30}"""
+            let json = #"{"_id": "doc1", "name": "test", "age": 30}"#
 
             // ACT
             let tokens = AttachmentInfo.detectTokens(in: json)
