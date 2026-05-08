@@ -448,6 +448,8 @@ extension ContentView {
                 if viewModel.isLoading {
                     ProgressView("Loading...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let initError = viewModel.sqlCipherInitError {
+                    sqlCipherInitErrorView(initError)
                 } else if viewModel.dittoApps.isEmpty {
                     VStack(spacing: 20) {
                         FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
@@ -469,6 +471,23 @@ extension ContentView {
                         ) {
                             ForEach(viewModel.dittoApps, id: \._id) { app in
                                 DatabaseCard(dittoApp: app, onEdit: { viewModel.showAppEditor(app) })
+                                    .overlay {
+                                        if viewModel.openingDatabaseId == app._id {
+                                            ZStack {
+                                                Color.black.opacity(0.35)
+                                                ProgressView()
+                                                    .controlSize(.large)
+                                                    .tint(.white)
+                                            }
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .accessibilityIdentifier("DatabaseOpeningSpinner")
+                                        }
+                                    }
+                                    .opacity(
+                                        (viewModel.openingDatabaseId != nil &&
+                                            viewModel.openingDatabaseId != app._id) ? 0.5 : 1.0
+                                    )
+                                    .allowsHitTesting(viewModel.openingDatabaseId == nil)
                                     .onTapGesture {
                                         Task { await viewModel.showMainStudio(app, appState: appState) }
                                     }
@@ -533,6 +552,35 @@ extension ContentView {
             }
         }
     }
+
+    /// Distinct error/retry state for SQLCipher initialization failures.
+    /// Used in place of the indefinite spinner from before C3.
+    func sqlCipherInitErrorView(_ error: Error) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+            Text("Database Storage Unavailable")
+                .font(.title2)
+                .foregroundColor(.primary)
+            Text(error.localizedDescription)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetrySQLCipherInitButton")
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 #endif
 
@@ -565,6 +613,16 @@ extension ContentView {
         var isClosingDatabase = false
         var selectedDittoConfigForDatabase: DittoConfigForDatabase?
 
+        /// `_id` of the database whose hydration is currently in flight, if any.
+        /// Drives the per-card spinner overlay and disables further taps in the picker
+        /// so users get visible feedback during the (sometimes multi-second) open.
+        var openingDatabaseId: String?
+
+        /// Set when the SQLCipher initialization fails. Drives the distinct
+        /// "storage error + Retry" picker state so users aren't left staring at
+        /// an indefinite spinner. Cleared on every `loadApps` invocation.
+        var sqlCipherInitError: Error?
+
         init() {
             // Repository callback will be set up when loadApps is called
         }
@@ -580,6 +638,22 @@ extension ContentView {
 
         func loadApps(appState: AppState) async {
             isLoading = true
+            sqlCipherInitError = nil
+
+            // C3: Gate every downstream repository call on SQLCipher being ready.
+            // `initialize()` is idempotent — it short-circuits when already complete,
+            // so we don't race AppState's eager warm-up Task. If init fails we bail
+            // here and the picker view renders the dedicated retry state instead of
+            // an indefinite spinner.
+            do {
+                try await SQLCipherService.shared.initialize()
+            } catch {
+                Log.error("SQLCipher initialization failed: \(error.localizedDescription)")
+                sqlCipherInitError = error
+                isLoading = false
+                return
+            }
+
             do {
                 // 1. Set appState in DittoManager
                 await DittoManager.shared.setAppState(appState)
@@ -647,6 +721,12 @@ extension ContentView {
         func showMainStudio(_ dittoApp: DittoConfigForDatabase, appState: AppState)
             async
         {
+            // Guard against double-taps while another open is already in flight.
+            guard openingDatabaseId == nil else { return }
+
+            openingDatabaseId = dittoApp._id
+            defer { openingDatabaseId = nil }
+
             do {
                 selectedDittoConfigForDatabase = dittoApp
                 let didSetupDitto = try await DittoManager.shared
@@ -655,8 +735,18 @@ extension ContentView {
                     )
                 if didSetupDitto {
                     isMainStudioViewPresented = true
+                } else {
+                    // C2: hydration returned `false` without throwing — the silent
+                    // abort would otherwise leave the user staring at the picker
+                    // with no feedback. Surface a real error so the alert fires.
+                    selectedDittoConfigForDatabase = nil
+                    appState.setError(AppError.error(
+                        message: "Failed to initialize database '\(dittoApp.name)'. " +
+                            "Please verify the configuration and try again."
+                    ))
                 }
             } catch {
+                selectedDittoConfigForDatabase = nil
                 appState.setError(error)
             }
         }

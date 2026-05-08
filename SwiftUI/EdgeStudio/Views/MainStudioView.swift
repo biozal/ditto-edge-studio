@@ -71,7 +71,7 @@ struct MainStudioView: View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading) {
                 #if os(iOS)
-                if UIDevice.current.userInterfaceIdiom == .phone {
+                if horizontalSizeClass == .compact {
                     HStack {
                         Spacer()
                         Button {
@@ -289,6 +289,16 @@ struct MainStudioView: View {
             .toolbar {
                 syncCloseToolbarGroup() // Sync + Close grouped
                 inspectorToggleButton() // Inspector visually separate
+            }
+        #else
+            .toolbar {
+                // Compact-only: NavigationSplitView in regular size class already
+                // exposes a system column toggle; avoid duplicating it.
+                if horizontalSizeClass == .compact {
+                    sidebarToggleButton() // Leading: open sidebar on iPhone / iPad Slide Over
+                }
+                syncToolbarButton() // Trailing: sync on/off
+                closeToolbarButton() // Trailing: back to database picker
             }
         #endif
             // Sync sidebar items on first render (picks up the UserDefaults value after registerDefaults)

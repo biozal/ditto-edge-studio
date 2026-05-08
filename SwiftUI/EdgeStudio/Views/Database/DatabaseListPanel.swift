@@ -15,6 +15,8 @@ struct DatabaseListPanel: View {
                         .font(.caption)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let initError = viewModel.sqlCipherInitError {
+                sqlCipherInitErrorView(initError)
             } else if viewModel.dittoApps.isEmpty {
                 VStack(spacing: 12) {
                     FontAwesomeText(icon: DataIcon.databaseThin, size: 40, color: .secondary)
@@ -38,6 +40,19 @@ struct DatabaseListPanel: View {
                                     ? Color.accentColor.opacity(0.15)
                                     : Color.clear
                             )
+                            .overlay(alignment: .trailing) {
+                                if viewModel.openingDatabaseId == dittoApp._id {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .padding(.trailing, 12)
+                                        .accessibilityIdentifier("DatabaseOpeningSpinner")
+                                }
+                            }
+                            .opacity(
+                                (viewModel.openingDatabaseId != nil &&
+                                    viewModel.openingDatabaseId != dittoApp._id) ? 0.5 : 1.0
+                            )
+                            .allowsHitTesting(viewModel.openingDatabaseId == nil)
                             .onTapGesture {
                                 Task { await viewModel.showMainStudio(dittoApp, appState: appState) }
                             }
@@ -61,6 +76,33 @@ struct DatabaseListPanel: View {
                 .accessibilityIdentifier("DatabaseList")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Distinct error/retry state for SQLCipher initialization failures.
+    private func sqlCipherInitErrorView(_ error: Error) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.orange)
+            Text("Database Storage Unavailable")
+                .foregroundColor(.primary)
+            Text(error.localizedDescription)
+                .foregroundColor(Color.Ditto.papyrusWhite)
+                .font(.caption)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetrySQLCipherInitButton")
+        }
+        .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
