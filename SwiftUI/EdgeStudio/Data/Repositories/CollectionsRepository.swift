@@ -252,3 +252,7 @@ actor CollectionsRepository {
         collectionsObserver = nil
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension CollectionsRepository: CollectionsRepositoryProtocol {}

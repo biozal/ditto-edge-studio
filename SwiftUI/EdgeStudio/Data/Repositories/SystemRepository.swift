@@ -680,3 +680,7 @@ actor SystemRepository {
         pendingStatusItems = nil
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension SystemRepository: SystemRepositoryProtocol {}

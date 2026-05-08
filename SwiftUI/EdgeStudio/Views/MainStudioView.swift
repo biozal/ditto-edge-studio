@@ -513,6 +513,31 @@ extension MainStudioView {
     @Observable
     @MainActor
     class ViewModel {
+        // MARK: - Injected Dependencies
+
+        //
+        // Repository / service references are stored as their protocol type so
+        // unit tests can swap in mock implementations. Defaults wire to the
+        // existing singletons so production call sites keep compiling without
+        // change. See `Data/Protocols.swift` for the protocol definitions.
+
+        @ObservationIgnored
+        private let dittoManager: any DittoManagerProtocol
+        @ObservationIgnored
+        private let queryService: any QueryServiceProtocol
+        @ObservationIgnored
+        private let subscriptionsRepository: any SubscriptionsRepositoryProtocol
+        @ObservationIgnored
+        private let systemRepository: any SystemRepositoryProtocol
+        @ObservationIgnored
+        private let historyRepository: any HistoryRepositoryProtocol
+        @ObservationIgnored
+        private let favoritesRepository: any FavoritesRepositoryProtocol
+        @ObservationIgnored
+        private let observableRepository: any ObservableRepositoryProtocol
+        @ObservationIgnored
+        private let collectionsRepository: any CollectionsRepositoryProtocol
+
         var selectedApp: DittoConfigForDatabase
 
         // Editor staging state — populated by the View before presenting the
@@ -626,7 +651,26 @@ extension MainStudioView {
         var attachmentLoadingIds: Set<String> = []
         var attachmentErrors: [String: String] = [:]
 
-        init(_ dittoAppConfig: DittoConfigForDatabase) {
+        init(
+            _ dittoAppConfig: DittoConfigForDatabase,
+            dittoManager: any DittoManagerProtocol = DittoManager.shared,
+            queryService: any QueryServiceProtocol = QueryService.shared,
+            subscriptionsRepository: any SubscriptionsRepositoryProtocol = SubscriptionsRepository.shared,
+            systemRepository: any SystemRepositoryProtocol = SystemRepository.shared,
+            historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
+            favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
+            observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
+            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
+        ) {
+            self.dittoManager = dittoManager
+            self.queryService = queryService
+            self.subscriptionsRepository = subscriptionsRepository
+            self.systemRepository = systemRepository
+            self.historyRepository = historyRepository
+            self.favoritesRepository = favoritesRepository
+            self.observableRepository = observableRepository
+            self.collectionsRepository = collectionsRepository
+
             selectedApp = dittoAppConfig
 
             // Restore the last-viewed sidebar destination from UserDefaults. If the
@@ -711,7 +755,7 @@ extension MainStudioView {
             //    callback installations on the various actors — sequential `await`
             //    is fine and keeps the call-order obvious. Each closure uses
             //    `[weak self]` so a stale ViewModel doesn't keep itself alive.
-            await SystemRepository.shared.setOnSyncStatusUpdate { [weak self] statusItems, completion in
+            await systemRepository.setOnSyncStatusUpdate { [weak self] statusItems, completion in
                 Task { @MainActor [weak self] in
                     self?.mergeStatusItems(statusItems)
 
@@ -723,28 +767,28 @@ extension MainStudioView {
                     }
                 }
             }
-            await SystemRepository.shared.setOnConnectionsUpdate { [weak self] connections in
+            await systemRepository.setOnConnectionsUpdate { [weak self] connections in
                 Task { @MainActor [weak self] in
                     self?.connectionsByTransport = connections
                 }
             }
-            await ObservableRepository.shared.setOnObservablesUpdate { [weak self] observables in
+            await observableRepository.setOnObservablesUpdate { [weak self] observables in
                 Task { @MainActor [weak self] in
                     self?.observerables = observables
                 }
             }
             // Per-domain ordering: register callback BEFORE the corresponding load so
             // currentDatabaseId is set before any user-triggered save can fire.
-            await SubscriptionsRepository.shared.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
+            await subscriptionsRepository.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
                 self?.subscriptions = newSubscriptions
             }
-            await CollectionsRepository.shared.setOnCollectionsUpdate { [weak self] newCollections in
+            await collectionsRepository.setOnCollectionsUpdate { [weak self] newCollections in
                 self?.collections = newCollections
             }
-            await HistoryRepository.shared.setOnHistoryUpdate { [weak self] history in
+            await historyRepository.setOnHistoryUpdate { [weak self] history in
                 self?.history = history
             }
-            await FavoritesRepository.shared.setOnFavoritesUpdate { [weak self] favorites in
+            await favoritesRepository.setOnFavoritesUpdate { [weak self] favorites in
                 self?.favorites = favorites
             }
 
@@ -755,7 +799,7 @@ extension MainStudioView {
             //    matches the original sequential behavior, just in parallel.
             async let loadedSubscriptions: [DittoSubscription] = {
                 do {
-                    return try await SubscriptionsRepository.shared.loadSubscriptions(for: databaseId)
+                    return try await subscriptionsRepository.loadSubscriptions(for: databaseId)
                 } catch {
                     Log.error("Failed to load subscriptions: \(error.localizedDescription)")
                     return []
@@ -763,7 +807,7 @@ extension MainStudioView {
             }()
             async let loadedCollections: [DittoCollection] = {
                 do {
-                    return try await CollectionsRepository.shared.hydrateCollections()
+                    return try await collectionsRepository.hydrateCollections()
                 } catch {
                     Log.error("Failed to load collections: \(error.localizedDescription)")
                     return []
@@ -771,7 +815,7 @@ extension MainStudioView {
             }()
             async let loadedHistory: [DittoQueryHistory] = {
                 do {
-                    return try await HistoryRepository.shared.loadHistory(for: databaseId)
+                    return try await historyRepository.loadHistory(for: databaseId)
                 } catch {
                     Log.error("Failed to load history: \(error.localizedDescription)")
                     return []
@@ -779,7 +823,7 @@ extension MainStudioView {
             }()
             async let loadedFavorites: [DittoQueryHistory] = {
                 do {
-                    return try await FavoritesRepository.shared.loadFavorites(for: databaseId)
+                    return try await favoritesRepository.loadFavorites(for: databaseId)
                 } catch {
                     Log.error("Failed to load favorites: \(error.localizedDescription)")
                     return []
@@ -787,7 +831,7 @@ extension MainStudioView {
             }()
             async let loadedObservers: [DittoObservable] = {
                 do {
-                    return try await ObservableRepository.shared.loadObservers(for: databaseId)
+                    return try await observableRepository.loadObservers(for: databaseId)
                 } catch {
                     Log.error("Failed to load observers: \(error.localizedDescription)")
                     return []
@@ -818,7 +862,7 @@ extension MainStudioView {
 
             // 3. Start observing connections via presence graph (drives bottom status bar)
             do {
-                try await SystemRepository.shared.registerConnectionsPresenceObserver()
+                try await systemRepository.registerConnectionsPresenceObserver()
             } catch {
                 // Not a programming error — can happen if the database was closed before
                 // this async Task completed (e.g. user switched databases quickly).
@@ -835,7 +879,7 @@ extension MainStudioView {
             //    query is invisible to Query Metrics).
             do {
                 let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
-                if let ditto = await DittoManager.shared.dittoSelectedApp {
+                if let ditto = await dittoManager.dittoSelectedApp {
                     let results = try await ditto.store.execute(query: query)
                     if let firstItem = results.items.first {
                         let json = firstItem.value.compactMapValues { $0 }
@@ -900,7 +944,7 @@ extension MainStudioView {
                     createdDate: Date().ISO8601Format()
                 )
                 do {
-                    try await HistoryRepository.shared.saveQueryHistory(queryHistory)
+                    try await historyRepository.saveQueryHistory(queryHistory)
                 } catch {
                     appState.setError(error)
                 }
@@ -915,7 +959,7 @@ extension MainStudioView {
             defer { isRefreshingCollections = false }
 
             do {
-                collections = try await CollectionsRepository.shared.refreshCollections()
+                collections = try await collectionsRepository.refreshCollections()
             } catch {
                 // Error will be set in repository via appState
                 Log.error("Failed to refresh collection counts: \(error.localizedDescription)")
@@ -932,7 +976,7 @@ extension MainStudioView {
             loadTask = nil
 
             // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
-            await SystemRepository.shared.invalidateSession()
+            await systemRepository.invalidateSession()
             let invalidateElapsed = CFAbsoluteTimeGetCurrent() - closeStart
             Log.info("[Close] Session invalidated (\(String(format: "%.3f", invalidateElapsed))s)")
 
@@ -998,6 +1042,16 @@ extension MainStudioView {
             // Capture observables on main actor before moving to background queues
             let observablesToCleanup = observerables
 
+            // Capture injected repositories so the detached child tasks can use the
+            // (potentially mocked) instances rather than the global singletons.
+            let historyRepository = historyRepository
+            let favoritesRepository = favoritesRepository
+            let observableRepository = observableRepository
+            let subscriptionsRepository = subscriptionsRepository
+            let systemRepository = systemRepository
+            let collectionsRepository = collectionsRepository
+            let dittoManager = dittoManager
+
             // Use TaskGroup to run cleanup operations concurrently on background queues
             await withTaskGroup(of: Void.self) { group in
                 group.addTask(priority: .utility) {
@@ -1011,14 +1065,14 @@ extension MainStudioView {
 
                 group.addTask(priority: .utility) {
                     // Clear repository caches
-                    await HistoryRepository.shared.clearCache()
-                    await FavoritesRepository.shared.clearCache()
-                    await ObservableRepository.shared.clearCache()
-                    await SubscriptionsRepository.shared.clearCache()
+                    await historyRepository.clearCache()
+                    await favoritesRepository.clearCache()
+                    await observableRepository.clearCache()
+                    await subscriptionsRepository.clearCache()
 
                     // Stop other repository observers
-                    await SystemRepository.shared.stopObserver()
-                    await CollectionsRepository.shared.stopObserver()
+                    await systemRepository.stopObserver()
+                    await collectionsRepository.stopObserver()
 
                     let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
                     Log.info("[Close:Repos] Caches cleared, observers stopped (\(String(format: "%.3f", elapsed))s)")
@@ -1026,7 +1080,7 @@ extension MainStudioView {
 
                 group.addTask(priority: .utility) {
                     // Close DittoManager selected app
-                    await DittoManager.shared.closeDittoSelectedDatabase()
+                    await dittoManager.closeDittoSelectedDatabase()
                     let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
                     Log.info("[Close:DittoManager] closeDittoSelectedDatabase complete (\(String(format: "%.3f", elapsed))s)")
                 }
@@ -1039,7 +1093,7 @@ extension MainStudioView {
         func toggleSync() async throws {
             if isSyncEnabled {
                 // Disable sync
-                await DittoManager.shared.selectedDatabaseStopSync()
+                await dittoManager.selectedDatabaseStopSync()
 
                 // Reset connection counts
                 connectionsByTransport = .empty
@@ -1048,7 +1102,7 @@ extension MainStudioView {
                 isSyncEnabled = false
             } else {
                 // Enable sync
-                try await DittoManager.shared.selectedDatabaseStartSync()
+                try await dittoManager.selectedDatabaseStartSync()
                 isSyncEnabled = true
             }
         }
@@ -1058,7 +1112,7 @@ extension MainStudioView {
                 storeObserver.cancel()
             }
 
-            try await ObservableRepository.shared.removeDittoObservable(observable)
+            try await observableRepository.removeDittoObservable(observable)
 
             // remove events for the observable
             eventStore.remove(observerId: observable.id)
@@ -1073,17 +1127,17 @@ extension MainStudioView {
         }
 
         func deleteSubscription(_ subscription: DittoSubscription) async throws {
-            try await SubscriptionsRepository.shared.removeDittoSubscription(subscription)
+            try await subscriptionsRepository.removeDittoSubscription(subscription)
         }
 
         func executeQuery(appState: AppState) async {
             isQueryExecuting = true
             do {
                 if selectedExecuteMode == "Local" {
-                    jsonResults = try await QueryService.shared
+                    jsonResults = try await queryService
                         .executeSelectedAppQuery(query: selectedQuery)
                 } else {
-                    jsonResults = try await QueryService.shared
+                    jsonResults = try await queryService
                         .executeSelectedAppQueryHttp(query: selectedQuery)
                 }
                 // Add query to history
@@ -1107,9 +1161,9 @@ extension MainStudioView {
             if var subscription = editorSubscription {
                 subscription.name = name
                 subscription.query = query
-                Task {
+                Task { [subscriptionsRepository] in
                     do {
-                        try await SubscriptionsRepository.shared.saveDittoSubscription(subscription)
+                        try await subscriptionsRepository.saveDittoSubscription(subscription)
                     } catch {
                         appState.setError(error)
                     }
@@ -1126,9 +1180,9 @@ extension MainStudioView {
             if var observer = editorObservable {
                 observer.name = name
                 observer.query = query
-                Task {
+                Task { [observableRepository] in
                     do {
-                        try await ObservableRepository.shared.saveDittoObservable(observer)
+                        try await observableRepository.saveDittoObservable(observer)
                     } catch {
                         appState.setError(error)
                     }
@@ -1148,7 +1202,7 @@ extension MainStudioView {
                 sub.name = item.name
                 sub.query = item.query
                 do {
-                    try await SubscriptionsRepository.shared.saveDittoSubscription(sub)
+                    try await subscriptionsRepository.saveDittoSubscription(sub)
                 } catch {
                     appState.setError(error)
                 }
@@ -1158,7 +1212,7 @@ extension MainStudioView {
             // before the sheet dismissal re-render fires. The cross-actor callback
             // (onSubscriptionsUpdate) races with the dismiss re-render; reading the
             // cache here on @MainActor eliminates that race.
-            subscriptions = await SubscriptionsRepository.shared.getCachedSubscriptions()
+            subscriptions = await subscriptionsRepository.getCachedSubscriptions()
         }
 
         /// Enqueues a freshly emitted observer event onto the pending buffer
@@ -1193,7 +1247,7 @@ extension MainStudioView {
             guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
                 throw InvalidStoreState(message: "Could not find observable")
             }
-            guard let ditto = await DittoManager.shared.dittoSelectedApp else {
+            guard let ditto = await dittoManager.dittoSelectedApp else {
                 throw InvalidStateError(message: "Could not get ditto reference from manager")
             }
             if observerables[index].storeObserver != nil {
@@ -1336,7 +1390,7 @@ extension MainStudioView {
                         throw AttachmentError.invalidFieldName
                     }
                     let query = "UPDATE \(collection) SET \(att.fieldName) = null WHERE _id = '\(docIdString)'"
-                    _ = try await QueryService.shared.executeSelectedAppQuery(query: query)
+                    _ = try await queryService.executeSelectedAppQuery(query: query)
                     attachmentProgress.fractionCompleted = Double(index + 1) / Double(selectedAttachments.count)
                 }
                 attachmentProgress.message = "Deleted \(selectedAttachments.count) field(s) — re-run query to see changes"

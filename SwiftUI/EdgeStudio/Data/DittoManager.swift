@@ -397,6 +397,10 @@ extension DittoManager {
     }
 }
 
+// MARK: - Protocol Conformance
+
+extension DittoManager: DittoManagerProtocol {}
+
 // MARK: - Log Level Management
 
 extension DittoManager {

@@ -175,3 +175,7 @@ actor HistoryRepository {
         await onHistoryUpdate?(cachedHistory)
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension HistoryRepository: HistoryRepositoryProtocol {}

@@ -149,3 +149,7 @@ actor FavoritesRepository {
         await onFavoritesUpdate?(cachedFavorites)
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension FavoritesRepository: FavoritesRepositoryProtocol {}

@@ -208,3 +208,7 @@ actor QueryService {
         return peerInfos
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension QueryService: QueryServiceProtocol {}

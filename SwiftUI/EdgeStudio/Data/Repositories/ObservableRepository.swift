@@ -178,3 +178,7 @@ actor ObservableRepository {
         await onObservablesUpdate?(cachedObservables)
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension ObservableRepository: ObservableRepositoryProtocol {}

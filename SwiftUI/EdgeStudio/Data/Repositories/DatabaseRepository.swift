@@ -217,3 +217,7 @@ actor DatabaseRepository {
         await onDittoDatabaseConfigUpdate?(cachedConfigs)
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension DatabaseRepository: DatabaseRepositoryProtocol {}

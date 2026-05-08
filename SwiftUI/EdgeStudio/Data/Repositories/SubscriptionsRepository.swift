@@ -206,3 +206,7 @@ actor SubscriptionsRepository {
         await onSubscriptionsUpdate?([])
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension SubscriptionsRepository: SubscriptionsRepositoryProtocol {}

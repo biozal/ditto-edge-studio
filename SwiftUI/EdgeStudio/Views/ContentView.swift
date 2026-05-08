@@ -630,7 +630,28 @@ extension ContentView {
     @Observable
     @MainActor
     class ViewModel {
-        private let databaseRepository = DatabaseRepository.shared
+        // MARK: - Injected Dependencies
+
+        //
+        // Stored as protocol types so unit tests can swap mocks. Defaults wire
+        // to the production singletons. See `Data/Protocols.swift`.
+
+        @ObservationIgnored
+        private let dittoManager: any DittoManagerProtocol
+        @ObservationIgnored
+        private let databaseRepository: any DatabaseRepositoryProtocol
+        @ObservationIgnored
+        private let subscriptionsRepository: any SubscriptionsRepositoryProtocol
+        @ObservationIgnored
+        private let systemRepository: any SystemRepositoryProtocol
+        @ObservationIgnored
+        private let historyRepository: any HistoryRepositoryProtocol
+        @ObservationIgnored
+        private let favoritesRepository: any FavoritesRepositoryProtocol
+        @ObservationIgnored
+        private let observableRepository: any ObservableRepositoryProtocol
+        @ObservationIgnored
+        private let collectionsRepository: any CollectionsRepositoryProtocol
 
         var dittoApps: [DittoConfigForDatabase] = []
         var isLoading = false
@@ -669,7 +690,24 @@ extension ContentView {
         /// configuration list. Cleared on every `loadApps` invocation.
         var loadAppsError: Error?
 
-        init() {
+        init(
+            dittoManager: any DittoManagerProtocol = DittoManager.shared,
+            databaseRepository: any DatabaseRepositoryProtocol = DatabaseRepository.shared,
+            subscriptionsRepository: any SubscriptionsRepositoryProtocol = SubscriptionsRepository.shared,
+            systemRepository: any SystemRepositoryProtocol = SystemRepository.shared,
+            historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
+            favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
+            observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
+            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
+        ) {
+            self.dittoManager = dittoManager
+            self.databaseRepository = databaseRepository
+            self.subscriptionsRepository = subscriptionsRepository
+            self.systemRepository = systemRepository
+            self.historyRepository = historyRepository
+            self.favoritesRepository = favoritesRepository
+            self.observableRepository = observableRepository
+            self.collectionsRepository = collectionsRepository
             // Repository callback will be set up when loadApps is called
         }
 
@@ -703,7 +741,7 @@ extension ContentView {
 
             do {
                 // 1. Set appState in DittoManager
-                await DittoManager.shared.setAppState(appState)
+                await dittoManager.setAppState(appState)
 
                 // 2. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
@@ -717,12 +755,12 @@ extension ContentView {
                 }
 
                 // 4. Set appState in other repositories
-                await SystemRepository.shared.setAppState(appState)
-                await ObservableRepository.shared.setAppState(appState)
-                await FavoritesRepository.shared.setAppState(appState)
-                await HistoryRepository.shared.setAppState(appState)
-                await CollectionsRepository.shared.setAppState(appState)
-                await SubscriptionsRepository.shared.setAppState(appState)
+                await systemRepository.setAppState(appState)
+                await observableRepository.setAppState(appState)
+                await favoritesRepository.setAppState(appState)
+                await historyRepository.setAppState(appState)
+                await collectionsRepository.setAppState(appState)
+                await subscriptionsRepository.setAppState(appState)
             } catch {
                 Log.error("loadApps failed: \(error.localizedDescription)")
                 loadAppsError = error
@@ -737,7 +775,7 @@ extension ContentView {
         }
 
         func showQRCode(_ config: DittoConfigForDatabase) async {
-            let favorites = await (try? FavoritesRepository.shared.loadFavorites(for: config.databaseId)) ?? []
+            let favorites = await (try? favoritesRepository.loadFavorites(for: config.databaseId)) ?? []
             qrCodeFavorites = favorites.map { FavoriteQueryItem(q: $0.query) }
             qrCodeConfig = config
             isShowingQRCode = true
@@ -751,14 +789,14 @@ extension ContentView {
             do {
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
-                    _ = try? await FavoritesRepository.shared.loadFavorites(for: config.databaseId)
+                    _ = try? await favoritesRepository.loadFavorites(for: config.databaseId)
                     for item in favorites {
                         let fav = DittoQueryHistory(
                             id: UUID().uuidString,
                             query: item.q,
                             createdDate: Date().ISO8601Format()
                         )
-                        try? await FavoritesRepository.shared.saveFavorite(fav)
+                        try? await favoritesRepository.saveFavorite(fav)
                     }
                 }
             } catch {
@@ -778,7 +816,7 @@ extension ContentView {
 
             do {
                 selectedDittoConfigForDatabase = dittoApp
-                let didSetupDitto = try await DittoManager.shared
+                let didSetupDitto = try await dittoManager
                     .hydrateDittoSelectedDatabase(
                         dittoApp
                     )
