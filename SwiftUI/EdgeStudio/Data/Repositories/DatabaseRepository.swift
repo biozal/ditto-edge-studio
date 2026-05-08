@@ -107,7 +107,7 @@ actor DatabaseRepository {
             Log.info("Added database configuration: \(appConfig.name)")
         } catch {
             Log.error("Failed to add database configuration: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -150,7 +150,7 @@ actor DatabaseRepository {
             Log.info("Updated database configuration: \(appConfig.name)")
         } catch {
             Log.error("Failed to update database configuration: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -193,7 +193,7 @@ actor DatabaseRepository {
             Log.info("Deleted database configuration: \(appConfig.name)")
         } catch {
             Log.error("Failed to delete database configuration: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

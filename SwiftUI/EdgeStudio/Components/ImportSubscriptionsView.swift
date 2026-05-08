@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 struct ImportSubscriptionsView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
 

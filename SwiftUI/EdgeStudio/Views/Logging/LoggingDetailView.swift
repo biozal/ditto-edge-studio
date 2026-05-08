@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// The main logging detail view, accessible from the Logging sidebar item.
 struct LoggingDetailView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var capture = DittoLogCaptureService.shared
 
     // MARK: - Filter State

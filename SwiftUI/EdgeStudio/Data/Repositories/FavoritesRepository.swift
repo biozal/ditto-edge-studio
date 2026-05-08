@@ -95,7 +95,7 @@ actor FavoritesRepository {
             Log.debug("Saved favorite query: \(favorite.query.prefix(50))...")
         } catch {
             Log.error("Failed to save favorite: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -121,7 +121,7 @@ actor FavoritesRepository {
             Log.debug("Deleted favorite: \(id)")
         } catch {
             Log.error("Failed to delete favorite: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

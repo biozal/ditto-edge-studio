@@ -69,7 +69,7 @@ swiftformat --verbose --dryrun .
 
 ### Tasks
 1. Confirm current branch is clean: `git status`
-2. Create working branch: `git checkout -b pre-v1-shipping-fixes`
+2. Working branch is `release-1.0b5` (all v1 fix work commits here, no separate feature branch)
 3. Run baseline builds on both platforms (commands above) → confirm green
 4. Run full test suite → record pass count and any pre-existing failures
 5. Take screenshots of the macOS picker, MainStudioView (Subscriptions/Query/Observer/Logging), and iPad split-view layouts at full and 50% Split View → save in `screens/baseline-2026-05-07/`

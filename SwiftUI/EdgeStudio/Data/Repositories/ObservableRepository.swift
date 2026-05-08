@@ -116,7 +116,7 @@ actor ObservableRepository {
             Log.debug("Saved observable: \(observable.name)")
         } catch {
             Log.error("Failed to save observable: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -145,7 +145,7 @@ actor ObservableRepository {
             Log.debug("Removed observable: \(observable.name)")
         } catch {
             Log.error("Failed to remove observable: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

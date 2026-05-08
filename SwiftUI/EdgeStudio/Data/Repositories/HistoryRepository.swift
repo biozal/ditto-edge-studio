@@ -96,7 +96,7 @@ actor HistoryRepository {
             Log.debug("Saved query history: \(history.query.prefix(50))...")
         } catch {
             Log.error("Failed to save query history: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -122,7 +122,7 @@ actor HistoryRepository {
             Log.debug("Deleted query history: \(id)")
         } catch {
             Log.error("Failed to delete query history: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -147,7 +147,7 @@ actor HistoryRepository {
             Log.info("Cleared all query history for database: \(databaseId)")
         } catch {
             Log.error("Failed to clear query history: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

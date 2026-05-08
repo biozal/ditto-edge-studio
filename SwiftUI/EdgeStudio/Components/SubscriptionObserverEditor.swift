@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SubscriptionObserverEditor: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
 
     @State var title: String
     @State var name: String
@@ -84,5 +84,5 @@ struct SubscriptionObserverEditor: View {
         onSave: onSave,
         onCancel: onCancel
     )
-    .environmentObject(AppState())
+    .environment(AppState())
 }

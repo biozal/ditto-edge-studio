@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 // iOS-only: macOS uses DatabaseListPanel instead

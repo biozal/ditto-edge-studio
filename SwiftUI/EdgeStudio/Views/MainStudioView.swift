@@ -7,7 +7,7 @@ import UIKit
 #endif
 
 struct MainStudioView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @Binding var isMainStudioViewPresented: Bool
     @Binding var isClosingDatabase: Bool
     @State var viewModel: MainStudioView.ViewModel
@@ -199,7 +199,7 @@ struct MainStudioView: View {
                         query: subscription.query,
                         onSave: viewModel.formSaveSubscription,
                         onCancel: viewModel.formCancel
-                    ).environmentObject(appState)
+                    ).environment(appState)
                 } else if let observer = viewModel.editorObservable {
                     SubscriptionObserverEditor(
                         title: observer.name.isEmpty
@@ -209,7 +209,7 @@ struct MainStudioView: View {
                         query: observer.query,
                         onSave: viewModel.formSaveObserver,
                         onCancel: viewModel.formCancel
-                    ).environmentObject(appState)
+                    ).environment(appState)
                 } else if viewModel.actionSheetMode == .addIndex {
                     AddIndexView(
                         collections: viewModel.collections,
@@ -218,12 +218,12 @@ struct MainStudioView: View {
                             viewModel.actionSheetMode = .none
                             Task { await viewModel.refreshCollectionCounts() }
                         }
-                    ).environmentObject(appState)
+                    ).environment(appState)
                 }
             }
             .sheet(isPresented: $showingImportView) {
                 ImportDataView(isPresented: $showingImportView)
-                    .environmentObject(appState)
+                    .environment(appState)
             }
             .sheet(isPresented: $showingImportSubscriptionsView) {
                 ImportSubscriptionsView(
@@ -231,7 +231,7 @@ struct MainStudioView: View {
                     existingSubscriptions: viewModel.subscriptions,
                     selectedAppId: viewModel.selectedApp._id
                 )
-                .environmentObject(appState)
+                .environment(appState)
             }
             .sheet(isPresented: $showingSubscriptionQRDisplay) {
                 SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {

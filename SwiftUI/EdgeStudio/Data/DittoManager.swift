@@ -206,7 +206,7 @@ actor DittoManager {
             }
             isSuccess = true
         } catch {
-            appState?.setError(error)
+            await appState?.setError(error)
             isSuccess = false
         }
         return isSuccess
@@ -225,7 +225,7 @@ actor DittoManager {
                 }.value
             }
         } catch {
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

@@ -1,8 +1,7 @@
-import Combine
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
     #if os(macOS)
@@ -33,7 +32,7 @@ struct ContentView: View {
                     ),
                     dittoAppConfig: selectedApp
                 )
-                .environmentObject(appState)
+                .environment(appState)
             } else {
                 #if os(iOS)
                 iPadPickerView
@@ -275,7 +274,7 @@ extension ContentView {
                     idealHeight: 800,
                     maxHeight: 860
                 )
-                .environmentObject(appState)
+                .environment(appState)
                 .presentationDetents([.medium, .large])
             }
         }
@@ -418,7 +417,7 @@ extension ContentView {
                         ),
                         dittoAppConfig: dittoAppConfig
                     )
-                    .environmentObject(appState)
+                    .environment(appState)
                     .presentationDetents([.large])
                 }
             }
@@ -543,7 +542,6 @@ extension ContentView {
     @Observable
     @MainActor
     class ViewModel {
-        @ObservationIgnored private var cancellables = Set<AnyCancellable>()
         private let databaseRepository = DatabaseRepository.shared
 
         var dittoApps: [DittoConfigForDatabase] = []

@@ -40,7 +40,7 @@ actor CollectionsRepository {
                     return decodedItem
                 } catch {
                     item.dematerialize()
-                    appState.setError(error)
+                    Task { @MainActor in appState.setError(error) }
                     return nil
                 }
             }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
@@ -75,7 +75,7 @@ actor CollectionsRepository {
                             return decodedItem
                         } catch {
                             item.dematerialize()
-                            appState.setError(error)
+                            Task { @MainActor in appState.setError(error) }
                             return nil
                         }
                     }.filter { !$0.name.hasPrefix("__") } // Filter out system collections
@@ -103,7 +103,7 @@ actor CollectionsRepository {
 
             return collections.sorted { $0.name < $1.name }
         } catch {
-            self.appState?.setError(error)
+            await self.appState?.setError(error)
             throw error
         }
     }
@@ -192,7 +192,7 @@ actor CollectionsRepository {
                 return decodedItem
             } catch {
                 item.dematerialize()
-                appState.setError(error)
+                Task { @MainActor in appState.setError(error) }
                 return nil
             }
         }.filter { !$0.name.hasPrefix("__") } // Filter out system collections

@@ -1,17 +1,16 @@
 import Foundation
+import Observation
 
 enum AppError: Error {
     case error(message: String)
 }
 
-class AppState: ObservableObject {
-    @Published var appConfig: DittoConfigForDatabase
-    @Published var error: Error?
+@Observable
+@MainActor
+final class AppState {
+    var error: Error?
 
     init() {
-        // Initialize with empty config - database configs now loaded from secure storage
-        appConfig = DittoConfigForDatabase.new()
-
         // Initialize SQLCipher on app startup
         Task {
             do {
@@ -25,8 +24,6 @@ class AppState: ObservableObject {
     }
 
     func setError(_ error: Error?) {
-        DispatchQueue.main.async {
-            self.error = error
-        }
+        self.error = error
     }
 }

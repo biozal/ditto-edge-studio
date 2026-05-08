@@ -5,7 +5,7 @@ struct AddIndexView: View {
     let onCancel: () -> Void
     let onCreated: () -> Void
 
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var selectedCollection = ""
     @State private var fieldName = ""
     @State private var isCreating = false

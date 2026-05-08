@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DatabaseEditorView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
 
@@ -354,7 +354,7 @@ extension DatabaseEditorView {
                     try await DittoManager.shared.changeDittoLogLevel(logLevel, for: appConfig)
                 }
             } catch {
-                appState.setError(error)
+                await appState.setError(error)
             }
         }
     }

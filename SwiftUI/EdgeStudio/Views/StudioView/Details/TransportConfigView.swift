@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TransportConfigView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ViewModel
 
     init() {
@@ -303,7 +303,7 @@ extension TransportConfigView {
                 originalCloudSyncEnabled = isCloudSyncEnabled
             } catch {
                 currentStep = .error(error.localizedDescription)
-                appState.setError(error)
+                await appState.setError(error)
             }
         }
     }

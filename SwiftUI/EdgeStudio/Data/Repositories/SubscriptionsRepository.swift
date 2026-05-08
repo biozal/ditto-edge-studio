@@ -119,7 +119,7 @@ actor SubscriptionsRepository {
             Log.debug("Saved subscription: \(subscription.name)")
         } catch {
             Log.error("Failed to save subscription: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -148,7 +148,7 @@ actor SubscriptionsRepository {
             Log.debug("Removed subscription: \(subscription.name)")
         } catch {
             Log.error("Failed to remove subscription: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }

@@ -33,7 +33,7 @@ class WindowController {
 @main
 // swiftlint:disable:next type_name
 struct Ditto_Edge_StudioApp: App {
-    @StateObject private var appState = AppState()
+    @State private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
@@ -85,7 +85,7 @@ struct Ditto_Edge_StudioApp: App {
                         Text(appState.error?.localizedDescription ?? "Unknown Error")
                     }
                 }
-                .environmentObject(appState)
+                .environment(appState)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
                     openWindow(id: "font-debug-window")
                 }
