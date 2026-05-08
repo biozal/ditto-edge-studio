@@ -3,10 +3,22 @@ import SwiftUI
 struct DatabaseEditorView: View {
     @Environment(AppState.self) private var appState
     @Binding var isPresented: Bool
+    /// Optional binding so the host (`ContentView`) can disable interactive
+    /// dismiss while the form has uncommitted changes. When `nil`, the editor
+    /// still surfaces its own confirmation dialog on Cancel.
+    @Binding var hasUnsavedChanges: Bool
     @State private var viewModel: ViewModel
+    /// Drives the "Discard changes?" confirmation when the user taps Cancel
+    /// with an unsaved form. Cleared on every dismissal path.
+    @State private var showDiscardConfirmation = false
 
-    init(isPresented: Binding<Bool>, dittoAppConfig: DittoConfigForDatabase) {
+    init(
+        isPresented: Binding<Bool>,
+        hasUnsavedChanges: Binding<Bool> = .constant(false),
+        dittoAppConfig: DittoConfigForDatabase
+    ) {
         _isPresented = isPresented
+        _hasUnsavedChanges = hasUnsavedChanges
         _viewModel = State(initialValue: ViewModel(dittoAppConfig))
     }
 
@@ -93,7 +105,7 @@ struct DatabaseEditorView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
-                            isPresented = false
+                            attemptCancel()
                         } label: {
                             Label("Cancel", systemImage: "xmark")
                         }
@@ -112,6 +124,41 @@ struct DatabaseEditorView: View {
                         .accessibilityIdentifier("SaveButton")
                     }
                 }
+        }
+        .onAppear {
+            // Sync the host's binding with whatever the view model currently
+            // reports — covers the rare case where `@State` survives across a
+            // sheet re-presentation with an updated config.
+            hasUnsavedChanges = viewModel.hasUnsavedChanges
+        }
+        .onChange(of: viewModel.hasUnsavedChanges) { _, newValue in
+            hasUnsavedChanges = newValue
+        }
+        .confirmationDialog(
+            "Discard changes?",
+            isPresented: $showDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Changes", role: .destructive) {
+                hasUnsavedChanges = false
+                isPresented = false
+            }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("Your edits to this database configuration will be lost.")
+        }
+    }
+
+    /// Routes the Cancel button: confirms the discard intent when the form has
+    /// unsaved edits, otherwise dismisses immediately. Used for the explicit
+    /// Cancel toolbar action on both platforms; iOS swipe-to-dismiss is gated
+    /// separately by `.interactiveDismissDisabled` on the hosting sheet.
+    private func attemptCancel() {
+        if viewModel.hasUnsavedChanges {
+            showDiscardConfirmation = true
+        } else {
+            hasUnsavedChanges = false
+            isPresented = false
         }
     }
 
@@ -271,6 +318,24 @@ struct DatabaseEditorView: View {
 }
 
 extension DatabaseEditorView {
+    /// Immutable snapshot of every editable field at the time the editor
+    /// opened. Used by `hasUnsavedChanges` to detect dirty state without
+    /// observing every field individually.
+    fileprivate struct OriginalSnapshot: Equatable {
+        let name: String
+        let databaseId: String
+        let token: String
+        let authUrl: String
+        let websocketUrl: String
+        let httpApiUrl: String
+        let httpApiKey: String
+        let mode: AuthMode
+        let allowUntrustedCerts: Bool
+        let secretKey: String
+        let logLevel: String
+        let isStrictModeEnabled: Bool
+    }
+
     @Observable
     class ViewModel {
         let _id: String
@@ -294,6 +359,8 @@ extension DatabaseEditorView {
         var isCloudSyncEnabled = true
 
         let isNewItem: Bool
+        @ObservationIgnored
+        private let original: OriginalSnapshot
         private let databaseRepository = DatabaseRepository.shared
 
         init(_ appConfig: DittoConfigForDatabase) {
@@ -315,11 +382,45 @@ extension DatabaseEditorView {
             isAwdlEnabled = appConfig.isAwdlEnabled
             isCloudSyncEnabled = appConfig.isCloudSyncEnabled
 
+            original = OriginalSnapshot(
+                name: appConfig.name,
+                databaseId: appConfig.databaseId,
+                token: appConfig.token,
+                authUrl: appConfig.authUrl,
+                websocketUrl: appConfig.websocketUrl,
+                httpApiUrl: appConfig.httpApiUrl,
+                httpApiKey: appConfig.httpApiKey,
+                mode: appConfig.mode,
+                allowUntrustedCerts: appConfig.allowUntrustedCerts,
+                secretKey: appConfig.secretKey,
+                logLevel: appConfig.logLevel,
+                isStrictModeEnabled: appConfig.isStrictModeEnabled
+            )
+
             if appConfig.databaseId == "" {
                 isNewItem = true
             } else {
                 isNewItem = false
             }
+        }
+
+        /// True when any editable field has diverged from the value the editor
+        /// opened with. Drives the discard-changes confirmation dialog and the
+        /// host's interactive-dismiss gate. Resets implicitly after a save
+        /// because the parent dismisses the sheet.
+        var hasUnsavedChanges: Bool {
+            name != original.name
+                || databaseId != original.databaseId
+                || token != original.token
+                || authUrl != original.authUrl
+                || websocketUrl != original.websocketUrl
+                || httpApiUrl != original.httpApiUrl
+                || httpApiKey != original.httpApiKey
+                || mode != original.mode
+                || allowUntrustedCerts != original.allowUntrustedCerts
+                || secretKey != original.secretKey
+                || logLevel != original.logLevel
+                || isStrictModeEnabled != original.isStrictModeEnabled
         }
 
         func save(appState: AppState) async {

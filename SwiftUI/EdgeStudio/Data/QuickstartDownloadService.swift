@@ -71,6 +71,11 @@ final class QuickstartDownloadService {
 
     @MainActor
     func setError(_ message: String) {
+        // Flip `isDownloading` off before surfacing the error so the progress
+        // sheet's dismiss gate (`.interactiveDismissDisabled(...)`) re-enables
+        // immediately and the OK button's enable state is in sync with the
+        // visible error UI.
+        isDownloading = false
         hasError = true
         errorMessage = message
         statusMessage = "Error"

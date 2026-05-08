@@ -283,33 +283,41 @@ struct MainStudioView: View {
             )
         } detail: {
             Group {
-                switch viewModel.selectedSidebarDestination {
-                case .subscriptions:
-                    syncTabsDetailView()
-                case .query:
-                    queryDetailView()
-                case .observers:
-                    observeDetailView()
-                case .appMetrics:
-                    AppMetricsDetailView()
-                    #if os(iOS)
-                        .toolbar { passiveDetailToolbar() }
-                    #endif
-                case .queryMetrics:
-                    QueryMetricsDetailView()
-                    #if os(iOS)
-                        .toolbar { passiveDetailToolbar() }
-                    #endif
-                case .logging:
-                    LoggingDetailView()
-                    #if os(iOS)
-                        .toolbar { passiveDetailToolbar() }
-                    #endif
+                if viewModel.isLoading {
+                    ProgressView("Loading…")
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("MainStudioLoadingIndicator")
+                } else {
+                    switch viewModel.selectedSidebarDestination {
+                    case .subscriptions:
+                        syncTabsDetailView()
+                    case .query:
+                        queryDetailView()
+                    case .observers:
+                        observeDetailView()
+                    case .appMetrics:
+                        AppMetricsDetailView()
+                        #if os(iOS)
+                            .toolbar { passiveDetailToolbar() }
+                        #endif
+                    case .queryMetrics:
+                        QueryMetricsDetailView()
+                        #if os(iOS)
+                            .toolbar { passiveDetailToolbar() }
+                        #endif
+                    case .logging:
+                        LoggingDetailView()
+                        #if os(iOS)
+                            .toolbar { passiveDetailToolbar() }
+                        #endif
+                    }
                 }
             }
-            .id(viewModel.selectedSidebarDestination)
+            .id(viewModel.isLoading ? "loading" : viewModel.selectedSidebarDestination.rawValue)
             .transition(.blurReplace)
             .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarDestination)
+            .animation(.smooth(duration: 0.35), value: viewModel.isLoading)
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
@@ -1476,9 +1484,25 @@ extension MainStudioView {
         activeSheet = .editSubscription
     }
 
+    /// Stages a brand-new subscription and presents the editor sheet. Mirrors the
+    /// `+` FAB menu's "Add Subscription" action so the empty-state CTA can hand
+    /// off to the same editor flow.
+    func presentNewSubscriptionEditor() {
+        viewModel.editorSubscription = DittoSubscription.new()
+        activeSheet = .editSubscription
+    }
+
     /// Stages the editor for an existing observable and presents the editor sheet.
     func presentObservableEditor(_ observable: DittoObservable) {
         viewModel.stageObservableEditor(observable)
+        activeSheet = .editObserver
+    }
+
+    /// Stages a brand-new observable and presents the editor sheet. Mirrors the
+    /// `+` FAB menu's "Add Observer" action so the empty-state CTA can hand off
+    /// to the same editor flow.
+    func presentNewObserverEditor() {
+        viewModel.editorObservable = DittoObservable.new()
         activeSheet = .editObserver
     }
 

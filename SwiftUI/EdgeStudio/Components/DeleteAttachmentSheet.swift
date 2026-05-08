@@ -8,6 +8,11 @@ struct DeleteAttachmentSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selections: [String: Bool] = [:]
+    @State private var showDeleteConfirmation = false
+
+    private var selectedAttachments: [AttachmentInfo] {
+        attachments.filter { selections[$0.fieldName] == true }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -50,9 +55,7 @@ struct DeleteAttachmentSheet: View {
                     dismiss()
                 }
                 Button("Delete", role: .destructive) {
-                    let selected = attachments.filter { selections[$0.fieldName] == true }
-                    onConfirm(selected)
-                    dismiss()
+                    showDeleteConfirmation = true
                 }
                 .disabled(!selections.values.contains(true))
             }
@@ -62,6 +65,25 @@ struct DeleteAttachmentSheet: View {
         .onAppear {
             for att in attachments {
                 selections[att.fieldName] = false
+            }
+        }
+        .confirmationDialog(
+            "Delete Attachment?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                let selected = selectedAttachments
+                onConfirm(selected)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let count = selectedAttachments.count
+            if count == 1 {
+                Text("This will permanently remove the \"\(selectedAttachments[0].fieldName)\" field from this document. This cannot be undone.")
+            } else {
+                Text("This will permanently remove \(count) attachment fields from this document. This cannot be undone.")
             }
         }
     }

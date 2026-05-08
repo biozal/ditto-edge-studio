@@ -66,10 +66,23 @@ extension MainStudioView {
                     }
                     .listRowBackground(Color.clear)
                 } else if viewModel.subscriptions.isEmpty {
-                    Text("No Subscriptions")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                    ContentUnavailableView {
+                        Label("No Subscriptions", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                    } description: {
+                        Text("Subscriptions sync data from the server in real time.")
+                    } actions: {
+                        Button {
+                            presentNewSubscriptionEditor()
+                        } label: {
+                            Label("Add Subscription", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.dittoYellow)
+                        .foregroundStyle(Color.black)
+                        .accessibilityIdentifier("EmptySubscriptionsAddButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     subscriptionTreeRows()
                 }
@@ -95,10 +108,23 @@ extension MainStudioView {
             // ── Collections Content Section ──────────────────────────────
             Section {
                 if viewModel.collections.isEmpty {
-                    Text("No Collections")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                    ContentUnavailableView {
+                        Label("No Collections", systemImage: "tray")
+                    } description: {
+                        Text("Collections appear once data is synced or imported into this database.")
+                    } actions: {
+                        Button {
+                            viewModel.selectedSidebarDestination = .query
+                        } label: {
+                            Label("Run a Query", systemImage: "macpro.gen2")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.dittoYellow)
+                        .foregroundStyle(Color.black)
+                        .accessibilityIdentifier("EmptyCollectionsQueryButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     collectionTreeRows()
                 }
@@ -128,10 +154,23 @@ extension MainStudioView {
             // ── Observers Content Section ────────────────────────────────
             Section {
                 if viewModel.observerables.isEmpty {
-                    Text("No Observers")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                    ContentUnavailableView {
+                        Label("No Observers", systemImage: "eye")
+                    } description: {
+                        Text("Observers stream real-time changes for a saved query.")
+                    } actions: {
+                        Button {
+                            presentNewObserverEditor()
+                        } label: {
+                            Label("Add Observer", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.dittoYellow)
+                        .foregroundStyle(Color.black)
+                        .accessibilityIdentifier("EmptyObserversAddButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     observerTreeRows()
                 }

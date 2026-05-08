@@ -420,9 +420,10 @@ struct FontDebugWindow: View {
                     Spacer()
 
                     Button {
-                        #if os(macOS)
-                        NSApplication.shared.keyWindow?.close()
-                        #endif
+                        // Use the SwiftUI dismiss environment so we always
+                        // close *this* window, even if focus has shifted to
+                        // another window since the user opened the Font Debug.
+                        dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 20))

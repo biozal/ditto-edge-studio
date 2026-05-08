@@ -17,6 +17,8 @@ struct DatabaseListPanel: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let initError = viewModel.sqlCipherInitError {
                 sqlCipherInitErrorView(initError)
+            } else if let loadError = viewModel.loadAppsError {
+                loadAppsErrorView(loadError)
             } else if viewModel.dittoApps.isEmpty {
                 VStack(spacing: 12) {
                     FontAwesomeText(icon: DataIcon.databaseThin, size: 40, color: .secondary)
@@ -101,6 +103,34 @@ struct DatabaseListPanel: View {
             .buttonStyle(.borderedProminent)
             .tint(.dittoYellow)
             .accessibilityIdentifier("RetrySQLCipherInitButton")
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Distinct error/retry state for failures inside `loadApps` so users can
+    /// tell a load failure apart from a genuinely empty configuration list.
+    private func loadAppsErrorView(_ error: Error) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.orange)
+            Text("Couldn't Load Databases")
+                .foregroundColor(.primary)
+            Text(error.localizedDescription)
+                .foregroundColor(Color.Ditto.papyrusWhite)
+                .font(.caption)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetryLoadAppsButton")
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

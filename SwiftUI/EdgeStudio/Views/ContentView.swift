@@ -11,6 +11,11 @@ struct ContentView: View {
     /// database or hydration fails.
     @SceneStorage("selectedDatabaseId") private var storedDatabaseId: String?
 
+    /// Tracks unsaved edits in the active `DatabaseEditorView` sheet so we can
+    /// disable interactive dismiss (iOS swipe-down) until the user resolves
+    /// them. Reset whenever the editor sheet opens or closes.
+    @State private var databaseEditorHasUnsavedChanges = false
+
     #if os(macOS)
     @State private var quickstartService = QuickstartDownloadService()
     @State private var showNoConnectionAlert = false
@@ -123,7 +128,9 @@ struct ContentView: View {
                 service: quickstartService,
                 onCancel: { showProgressSheet = false }
             )
-            .interactiveDismissDisabled(quickstartService.isDownloading)
+            // Lock the sheet during an in-flight download, but allow dismissal
+            // when an error has been surfaced so the user can recover.
+            .interactiveDismissDisabled(quickstartService.isDownloading && !quickstartService.hasError)
         }
         #endif
     }
@@ -257,27 +264,31 @@ extension ContentView {
             isPresented: Binding(
                 get: { viewModel.isPresented },
                 set: { viewModel.isPresented = $0 }
-            )
-        ) {
-            if let dittoAppConfig = viewModel.dittoAppToEdit {
-                DatabaseEditorView(
-                    isPresented: Binding(
-                        get: { viewModel.isPresented },
-                        set: { viewModel.isPresented = $0 }
-                    ),
-                    dittoAppConfig: dittoAppConfig
-                )
-                .frame(
-                    minWidth: 600,
-                    idealWidth: 1000,
-                    maxWidth: 1920,
-                    minHeight: 700,
-                    idealHeight: 800
-                )
-                .environment(appState)
-                .presentationDetents([.medium, .large])
+            ),
+            onDismiss: { databaseEditorHasUnsavedChanges = false },
+            content: {
+                if let dittoAppConfig = viewModel.dittoAppToEdit {
+                    DatabaseEditorView(
+                        isPresented: Binding(
+                            get: { viewModel.isPresented },
+                            set: { viewModel.isPresented = $0 }
+                        ),
+                        hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
+                        dittoAppConfig: dittoAppConfig
+                    )
+                    .frame(
+                        minWidth: 600,
+                        idealWidth: 1000,
+                        maxWidth: 1920,
+                        minHeight: 700,
+                        idealHeight: 800
+                    )
+                    .environment(appState)
+                    .presentationDetents([.medium, .large])
+                    .interactiveDismissDisabled(databaseEditorHasUnsavedChanges)
+                }
             }
-        }
+        )
         .sheet(isPresented: Binding(
             get: { viewModel.isShowingQRCode },
             set: { viewModel.isShowingQRCode = $0 }
@@ -407,20 +418,24 @@ extension ContentView {
                 isPresented: Binding(
                     get: { viewModel.isPresented },
                     set: { viewModel.isPresented = $0 }
-                )
-            ) {
-                if let dittoAppConfig = viewModel.dittoAppToEdit {
-                    DatabaseEditorView(
-                        isPresented: Binding(
-                            get: { viewModel.isPresented },
-                            set: { viewModel.isPresented = $0 }
-                        ),
-                        dittoAppConfig: dittoAppConfig
-                    )
-                    .environment(appState)
-                    .presentationDetents([.large])
+                ),
+                onDismiss: { databaseEditorHasUnsavedChanges = false },
+                content: {
+                    if let dittoAppConfig = viewModel.dittoAppToEdit {
+                        DatabaseEditorView(
+                            isPresented: Binding(
+                                get: { viewModel.isPresented },
+                                set: { viewModel.isPresented = $0 }
+                            ),
+                            hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
+                            dittoAppConfig: dittoAppConfig
+                        )
+                        .environment(appState)
+                        .presentationDetents([.large])
+                        .interactiveDismissDisabled(databaseEditorHasUnsavedChanges)
+                    }
                 }
-            }
+            )
             .sheet(isPresented: Binding(
                 get: { viewModel.isShowingQRCode },
                 set: { viewModel.isShowingQRCode = $0 }
@@ -450,6 +465,8 @@ extension ContentView {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let initError = viewModel.sqlCipherInitError {
                     sqlCipherInitErrorView(initError)
+                } else if let loadError = viewModel.loadAppsError {
+                    loadAppsErrorView(loadError)
                 } else if viewModel.dittoApps.isEmpty {
                     VStack(spacing: 20) {
                         FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
@@ -581,6 +598,29 @@ extension ContentView {
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    /// Distinct error/retry state for failures inside `loadApps` so users can
+    /// tell a load failure apart from a genuinely empty configuration list.
+    func loadAppsErrorView(_ error: Error) -> some View {
+        ContentUnavailableView {
+            Label("Couldn't Load Databases", systemImage: "exclamationmark.triangle.fill")
+        } description: {
+            Text(error.localizedDescription)
+        } actions: {
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetryLoadAppsButton")
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 #endif
 
@@ -623,6 +663,12 @@ extension ContentView {
         /// an indefinite spinner. Cleared on every `loadApps` invocation.
         var sqlCipherInitError: Error?
 
+        /// Set when `loadApps` fails reading from the database repository.
+        /// Drives a separate "Couldn't Load Databases + Retry" picker state so
+        /// users can distinguish a load failure from a genuinely empty
+        /// configuration list. Cleared on every `loadApps` invocation.
+        var loadAppsError: Error?
+
         init() {
             // Repository callback will be set up when loadApps is called
         }
@@ -639,6 +685,7 @@ extension ContentView {
         func loadApps(appState: AppState) async {
             isLoading = true
             sqlCipherInitError = nil
+            loadAppsError = nil
 
             // C3: Gate every downstream repository call on SQLCipher being ready.
             // `initialize()` is idempotent — it short-circuits when already complete,
@@ -677,6 +724,8 @@ extension ContentView {
                 await CollectionsRepository.shared.setAppState(appState)
                 await SubscriptionsRepository.shared.setAppState(appState)
             } catch {
+                Log.error("loadApps failed: \(error.localizedDescription)")
+                loadAppsError = error
                 appState.setError(error)
             }
             isLoading = false
