@@ -175,9 +175,9 @@ struct ResultsList: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(items.indices, id: \.self) { index in
+                ForEach(Array(items.enumerated()), id: \.offset) { _, jsonString in
                     ResultItem(
-                        jsonString: items[index],
+                        jsonString: jsonString,
                         onJsonSelected: onJsonSelected,
                         onAddAttachment: onAddAttachment,
                         onDeleteAttachment: onDeleteAttachment
@@ -196,6 +196,8 @@ struct ResultItem: View {
     var onAddAttachment: ((String) -> Void)?
     var onDeleteAttachment: ((String) -> Void)?
     @State private var isCopied = false
+    @State private var attachments: [AttachmentInfo] = []
+    @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 4) {
@@ -233,7 +235,6 @@ struct ResultItem: View {
             } label: {
                 Label("Add Attachment...", systemImage: "paperclip")
             }
-            let attachments = AttachmentInfo.detectTokens(in: jsonString)
             Button {
                 onDeleteAttachment?(jsonString)
             } label: {
@@ -245,6 +246,17 @@ struct ResultItem: View {
             .fill(Color.primary.opacity(0.05))
             .opacity(isCopied ? 1.0 : 0.0))
         .animation(.easeInOut(duration: 0.3), value: isCopied)
+        .task(id: jsonString) {
+            let detected = await Task.detached(priority: .utility) {
+                AttachmentInfo.detectTokens(in: jsonString)
+            }.value
+            guard !Task.isCancelled else { return }
+            attachments = detected
+        }
+        .onDisappear {
+            resetTask?.cancel()
+            resetTask = nil
+        }
     }
 
     private func copyToClipboard() {
@@ -260,8 +272,12 @@ struct ResultItem: View {
             isCopied = true
         }
 
-        // Reset after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        // Reset after delay — cancel any prior pending reset so a fresh copy
+        // doesn't get cleared early by a stale timer.
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled else { return }
             withAnimation {
                 isCopied = false
             }

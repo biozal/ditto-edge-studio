@@ -44,6 +44,10 @@ struct LoggingDetailView: View {
 
     @State private var activeLogLevel = "info"
 
+    // MARK: - Filtered Entry Cache (debounced)
+
+    @State private var cachedFilteredEntries: [LogEntry] = []
+
     var body: some View {
         VStack(spacing: 0) {
             toolbarRow
@@ -79,6 +83,13 @@ struct LoggingDetailView: View {
                 await capture.loadHistoricalLogs(from: dir)
             }
             await capture.loadAppLogs()
+        }
+        .task(id: currentFilterInputs) {
+            // Debounce filter recompute by 150ms — coalesces fast keystrokes
+            // and bursty live-log appends into one filter pass.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            cachedFilteredEntries = computeFilteredEntries()
         }
         .onDisappear {
             capture.stopLiveCapture()
@@ -341,7 +352,7 @@ struct LoggingDetailView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-            } else if filteredEntries.isEmpty {
+            } else if cachedFilteredEntries.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
                     Image(systemName: "doc.plaintext")
@@ -360,7 +371,7 @@ struct LoggingDetailView: View {
                 .padding()
             } else {
                 List {
-                    ForEach(filteredEntries) { entry in
+                    ForEach(cachedFilteredEntries) { entry in
                         LogEntryRowView(entry: entry)
                     }
                 }
@@ -398,8 +409,8 @@ struct LoggingDetailView: View {
             } else {
                 GlassEffectContainer {
                     HStack(spacing: 12) {
-                        let displayed = filteredEntries.count
-                        let total = activeSourceEntries.count
+                        let displayed = cachedFilteredEntries.count
+                        let total = activeSourceEntryCount
                         let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
                         let footerLabel: String = {
                             if isFiltered {
@@ -500,7 +511,51 @@ struct LoggingDetailView: View {
         }
     }
 
-    private var filteredEntries: [LogEntry] {
+    /// O(1) per-source entry count — avoids the array concat that
+    /// `activeSourceEntries` does for `.dittoSDK`. Used in the footer label
+    /// and as a cheap filter-input invalidator.
+    private var activeSourceEntryCount: Int {
+        switch capture.selectedSource {
+        case .dittoSDK:
+            return capture.historicalEntries.count + capture.liveEntries.count
+        case .application:
+            return capture.appEntries.count
+        case .imported:
+            return capture.importedEntries.count
+        case .transportConditions:
+            return capture.transportEntries.count
+        case .connectionRequests:
+            return capture.connectionRequestEntries.count
+        }
+    }
+
+    /// All inputs that affect the filtered output. When this changes,
+    /// `.task(id:)` cancels any in-flight debounce and schedules a fresh one.
+    private struct FilterInputs: Equatable {
+        let selectedSource: LoggingSourceTab
+        let entryCount: Int
+        let levels: Set<DittoLogLevel>
+        let component: LogComponent
+        let searchText: String
+        let dateEnabled: Bool
+        let dateStart: Date
+        let dateEnd: Date
+    }
+
+    private var currentFilterInputs: FilterInputs {
+        FilterInputs(
+            selectedSource: capture.selectedSource,
+            entryCount: activeSourceEntryCount,
+            levels: selectedLevels,
+            component: selectedComponent,
+            searchText: searchText,
+            dateEnabled: isDateFilterEnabled,
+            dateStart: dateFilterStart,
+            dateEnd: dateFilterEnd
+        )
+    }
+
+    private func computeFilteredEntries() -> [LogEntry] {
         let searchLower = searchText.isEmpty ? "" : searchText.lowercased()
         let filtered = activeSourceEntries.filter { entry in
             if isDateFilterEnabled {

@@ -62,7 +62,8 @@ actor TableResultsParser {
             return TableResultRow(
                 rowIndex: index,
                 originalJson: string,
-                cells: cells
+                cells: cells,
+                hasAttachments: false
             )
         }
 
@@ -86,12 +87,15 @@ actor TableResultsParser {
                 if let jsonObject = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
                     allKeys.formUnion(jsonObject.keys)
 
-                    // Create row
+                    // Create row — pre-compute hasAttachments here so contextMenu
+                    // bodies don't re-parse JSON on every render.
                     let cells = parseCells(from: jsonObject)
+                    let hasAttachments = !AttachmentInfo.detectTokens(in: jsonString).isEmpty
                     let row = TableResultRow(
                         rowIndex: index,
                         originalJson: jsonString,
-                        cells: cells
+                        cells: cells,
+                        hasAttachments: hasAttachments
                     )
                     rows.append(row)
                 }

@@ -9,6 +9,7 @@ struct ResultTableViewer: View {
     @State private var isLoading = false
     @State private var selectedRowId: UUID?
     @State private var copiedRowId: UUID?
+    @State private var copyResetTask: Task<Void, Never>?
 
     /// Callback for JSON selection (opens in inspector)
     var onJsonSelected: ((String) -> Void)?
@@ -78,100 +79,96 @@ struct ResultTableViewer: View {
 
     #if os(macOS)
     private func macOSTableView(data: TableResultsData) -> some View {
-        GeometryReader { geometry in
-            ScrollView([.horizontal, .vertical]) {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    Section {
-                        // Data rows
-                        ForEach(data.rows) { row in
-                            HStack(spacing: 0) {
-                                // Row number
-                                Text("\(row.rowIndex + 1)")
-                                    .font(.system(.body, design: .monospaced))
-                                    .frame(width: 50, alignment: .center)
-                                    .padding(.vertical, 8)
-                                    .background(copiedRowId == row.id ? Color.green.opacity(0.2) : Color.clear)
-
-                                // Data cells
-                                ForEach(data.columns, id: \.self) { columnName in
-                                    Divider()
-
-                                    if let cellValue = row.cells[columnName] {
-                                        Text(cellValue.displayValue)
-                                            .font(.system(.body, design: .monospaced))
-                                            .lineLimit(3)
-                                            .truncationMode(.tail)
-                                            .textSelection(.enabled)
-                                            .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 8)
-                                    } else {
-                                        Text("")
-                                            .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 8)
-                                    }
-                                }
-
-                                Divider()
-                            }
-                            .frame(minWidth: geometry.size.width)
-                            .background(row.rowIndex % 2 == 0
-                                ? Color(NSColor.textBackgroundColor)
-                                : Color(NSColor.controlBackgroundColor).opacity(0.3))
-                            .onTapGesture(count: 2) {
-                                copyRowToClipboard(row)
-                            }
-                            .contextMenu {
-                                Button {
-                                    copyRowToClipboard(row)
-                                } label: {
-                                    Label("Copy Document", systemImage: "doc.on.doc")
-                                }
-                                Divider()
-                                Button {
-                                    onAddAttachment?(row.originalJson)
-                                } label: {
-                                    Label("Add Attachment...", systemImage: "paperclip")
-                                }
-                                let attachments = AttachmentInfo.detectTokens(in: row.originalJson)
-                                Button {
-                                    onDeleteAttachment?(row.originalJson)
-                                } label: {
-                                    Label("Delete Attachment...", systemImage: "trash")
-                                }
-                                .disabled(attachments.isEmpty)
-                            }
-                        }
-                    } header: {
-                        // Sticky header with resizable columns
+        ScrollView([.horizontal, .vertical]) {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    // Data rows
+                    ForEach(data.rows) { row in
                         HStack(spacing: 0) {
-                            // Row number header
-                            Text("#")
-                                .font(.system(.headline, design: .monospaced))
+                            // Row number
+                            Text("\(row.rowIndex + 1)")
+                                .font(.system(.body, design: .monospaced))
                                 .frame(width: 50, alignment: .center)
                                 .padding(.vertical, 8)
-                                .background(Color(NSColor.windowBackgroundColor))
+                                .background(copiedRowId == row.id ? Color.green.opacity(0.2) : Color.clear)
 
-                            // Column headers
+                            // Data cells
                             ForEach(data.columns, id: \.self) { columnName in
                                 Divider()
 
-                                Text(columnName)
-                                    .font(.system(.headline, design: .monospaced))
-                                    .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 8)
-                                    .background(Color(NSColor.windowBackgroundColor))
+                                if let cellValue = row.cells[columnName] {
+                                    Text(cellValue.displayValue)
+                                        .font(.system(.body, design: .monospaced))
+                                        .lineLimit(3)
+                                        .truncationMode(.tail)
+                                        .textSelection(.enabled)
+                                        .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 8)
+                                } else {
+                                    Text("")
+                                        .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 8)
+                                }
                             }
 
                             Divider()
                         }
-                        .frame(minWidth: geometry.size.width)
-                        .background(Color(NSColor.windowBackgroundColor))
+                        .frame(maxWidth: .infinity)
+                        .background(row.rowIndex % 2 == 0
+                            ? Color(NSColor.textBackgroundColor)
+                            : Color(NSColor.controlBackgroundColor).opacity(0.3))
+                        .onTapGesture(count: 2) {
+                            copyRowToClipboard(row)
+                        }
+                        .contextMenu {
+                            Button {
+                                copyRowToClipboard(row)
+                            } label: {
+                                Label("Copy Document", systemImage: "doc.on.doc")
+                            }
+                            Divider()
+                            Button {
+                                onAddAttachment?(row.originalJson)
+                            } label: {
+                                Label("Add Attachment...", systemImage: "paperclip")
+                            }
+                            Button {
+                                onDeleteAttachment?(row.originalJson)
+                            } label: {
+                                Label("Delete Attachment...", systemImage: "trash")
+                            }
+                            .disabled(!row.hasAttachments)
+                        }
                     }
+                } header: {
+                    // Sticky header with resizable columns
+                    HStack(spacing: 0) {
+                        // Row number header
+                        Text("#")
+                            .font(.system(.headline, design: .monospaced))
+                            .frame(width: 50, alignment: .center)
+                            .padding(.vertical, 8)
+                            .background(Color(NSColor.windowBackgroundColor))
+
+                        // Column headers
+                        ForEach(data.columns, id: \.self) { columnName in
+                            Divider()
+
+                            Text(columnName)
+                                .font(.system(.headline, design: .monospaced))
+                                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.windowBackgroundColor))
+                        }
+
+                        Divider()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Color(NSColor.windowBackgroundColor))
                 }
-                .frame(minHeight: geometry.size.height, alignment: .top)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -234,13 +231,12 @@ struct ResultTableViewer: View {
                             } label: {
                                 Label("Add Attachment...", systemImage: "paperclip")
                             }
-                            let attachments = AttachmentInfo.detectTokens(in: row.originalJson)
                             Button {
                                 onDeleteAttachment?(row.originalJson)
                             } label: {
                                 Label("Delete Attachment...", systemImage: "trash")
                             }
-                            .disabled(attachments.isEmpty)
+                            .disabled(!row.hasAttachments)
                         }
                     }
                 } header: {
@@ -304,13 +300,14 @@ struct ResultTableViewer: View {
             copiedRowId = row.id
         }
 
-        // Reset after delay
-        Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
-            await MainActor.run {
-                withAnimation {
-                    copiedRowId = nil
-                }
+        // Reset after delay — cancel any prior pending reset so a fresh copy
+        // doesn't get cleared early by a stale timer.
+        copyResetTask?.cancel()
+        copyResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                copiedRowId = nil
             }
         }
     }
