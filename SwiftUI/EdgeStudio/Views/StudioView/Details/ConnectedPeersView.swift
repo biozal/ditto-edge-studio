@@ -14,8 +14,8 @@ struct ConnectedPeersView: View {
     @State private var copiedText: String?
 
     var body: some View {
-        let hasLocalPeer = viewModel.localPeerDeviceName != nil
-        let isEmpty = viewModel.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty
+        let hasLocalPeer = viewModel.syncVM.localPeerDeviceName != nil
+        let isEmpty = viewModel.syncVM.syncStatusItems.isEmpty && !hasLocalPeer && networkInterfaces.isEmpty
 
         VStack(alignment: .leading) {
             if isEmpty {
@@ -34,7 +34,7 @@ struct ConnectedPeersView: View {
                             columns: [GridItem(.adaptive(minimum: 260, maximum: 520))],
                             spacing: 16
                         ) {
-                            ForEach(viewModel.syncStatusItems) { statusInfo in
+                            ForEach(viewModel.syncVM.syncStatusItems) { statusInfo in
                                 syncStatusCard(for: statusInfo)
                                     .transition(.asymmetric(
                                         insertion: .scale(scale: 0.88).combined(with: .opacity),
@@ -43,10 +43,10 @@ struct ConnectedPeersView: View {
                             }
 
                             // Local Peer Info Card (included in same grid)
-                            if let deviceName = viewModel.localPeerDeviceName,
-                               let sdkLanguage = viewModel.localPeerSDKLanguage,
-                               let sdkPlatform = viewModel.localPeerSDKPlatform,
-                               let sdkVersion = viewModel.localPeerSDKVersion
+                            if let deviceName = viewModel.syncVM.localPeerDeviceName,
+                               let sdkLanguage = viewModel.syncVM.localPeerSDKLanguage,
+                               let sdkPlatform = viewModel.syncVM.localPeerSDKPlatform,
+                               let sdkVersion = viewModel.syncVM.localPeerSDKVersion
                             {
                                 LocalPeerInfoCard(
                                     deviceName: deviceName,
@@ -56,7 +56,7 @@ struct ConnectedPeersView: View {
                                 )
                             }
                         }
-                        .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncStatusItems)
+                        .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncVM.syncStatusItems)
                         .padding()
 
                         // Network interface cards — shown below peer cards with a divider
@@ -100,7 +100,7 @@ struct ConnectedPeersView: View {
                 .transition(.blurReplace)
             }
         }
-        .animation(.smooth(duration: 0.45), value: viewModel.syncStatusItems.isEmpty)
+        .animation(.smooth(duration: 0.45), value: viewModel.syncVM.syncStatusItems.isEmpty)
         .padding(.bottom, 28)
         .task {
             await loadNetworkDiagnostics()

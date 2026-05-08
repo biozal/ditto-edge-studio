@@ -65,7 +65,7 @@ extension MainStudioView {
                             .foregroundStyle(.secondary)
                     }
                     .listRowBackground(Color.clear)
-                } else if viewModel.subscriptions.isEmpty {
+                } else if viewModel.subObsVM.subscriptions.isEmpty {
                     ContentUnavailableView {
                         Label("No Subscriptions", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
                     } description: {
@@ -101,7 +101,7 @@ extension MainStudioView {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .disabled(viewModel.subscriptions.isEmpty)
+                    .disabled(viewModel.subObsVM.subscriptions.isEmpty)
                 }
             }
 
@@ -153,7 +153,7 @@ extension MainStudioView {
 
             // ── Observers Content Section ────────────────────────────────
             Section {
-                if viewModel.observerables.isEmpty {
+                if viewModel.subObsVM.observerables.isEmpty {
                     ContentUnavailableView {
                         Label("No Observers", systemImage: "eye")
                     } description: {
@@ -192,7 +192,7 @@ extension MainStudioView {
     // MARK: - Subscription Tree
 
     private func subscriptionTreeRows() -> some View {
-        ForEach(viewModel.subscriptions) { sub in
+        ForEach(viewModel.subObsVM.subscriptions) { sub in
             DisclosureGroup(isExpanded: expandedSubscriptionBinding(for: sub)) {
                 HStack(spacing: 6) {
                     Image(systemName: "note.text")
@@ -227,7 +227,7 @@ extension MainStudioView {
                 Divider()
                 Button("Delete", role: .destructive) {
                     Task {
-                        do { try await viewModel.deleteSubscription(sub) } catch
+                        do { try await viewModel.subObsVM.deleteSubscription(sub) } catch
                         { appState.setError(error) }
                     }
                 }
@@ -289,13 +289,13 @@ extension MainStudioView {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.queryVM.selectedQuery = "SELECT * FROM \(collection.name)"
                     viewModel.selectedSidebarDestination = .query
                 }
             }
             .contextMenu {
                 Button {
-                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.queryVM.selectedQuery = "SELECT * FROM \(collection.name)"
                     viewModel.selectedSidebarDestination = .query
                 } label: {
                     Label("SELECT * FROM \(collection.name)", systemImage: "arrow.right.doc.on.clipboard")
@@ -307,7 +307,7 @@ extension MainStudioView {
     // MARK: - Observer Tree
 
     private func observerTreeRows() -> some View {
-        ForEach(viewModel.observerables) { observer in
+        ForEach(viewModel.subObsVM.observerables) { observer in
             DisclosureGroup(isExpanded: expandedObserverBinding(for: observer)) {
                 HStack(spacing: 6) {
                     Image(systemName: "note.text")
@@ -321,7 +321,7 @@ extension MainStudioView {
             } label: {
                 Button {
                     expandedObserverIds.formSymmetricDifference([observer.id])
-                    viewModel.selectedObservable = observer
+                    viewModel.subObsVM.selectedObservable = observer
                     viewModel.selectedSidebarDestination = .observers
                 } label: {
                     HStack(spacing: 8) {
@@ -345,8 +345,8 @@ extension MainStudioView {
                     Button {
                         Task {
                             do {
-                                try await viewModel.registerStoreObserver(observer)
-                                viewModel.selectedObservable = observer
+                                try await viewModel.subObsVM.registerStoreObserver(observer)
+                                viewModel.subObsVM.selectedObservable = observer
                                 viewModel.selectedSidebarDestination = .observers
                             } catch { appState.setError(error) }
                         }
@@ -358,7 +358,7 @@ extension MainStudioView {
                     Button {
                         Task {
                             do {
-                                try await viewModel.removeStoreObserver(
+                                try await viewModel.subObsVM.removeStoreObserver(
                                     observer
                                 )
                             } catch { appState.setError(error) }
@@ -371,7 +371,7 @@ extension MainStudioView {
                 Button {
                     Task {
                         do {
-                            try await viewModel.deleteObservable(observer)
+                            try await viewModel.subObsVM.deleteObservable(observer)
                         } catch { appState.setError(error) }
                     }
                 } label: {
@@ -385,8 +385,8 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await viewModel.registerStoreObserver(observer)
-                                    viewModel.selectedObservable = observer
+                                    try await viewModel.subObsVM.registerStoreObserver(observer)
+                                    viewModel.subObsVM.selectedObservable = observer
                                     viewModel.selectedSidebarDestination = .observers
                                 } catch { appState.setError(error) }
                             }
@@ -397,7 +397,7 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await viewModel.removeStoreObserver(
+                                    try await viewModel.subObsVM.removeStoreObserver(
                                         observer
                                     )
                                 } catch { appState.setError(error) }
@@ -411,7 +411,7 @@ extension MainStudioView {
                     Button(role: .destructive) {
                         Task {
                             do {
-                                try await viewModel.deleteObservable(observer)
+                                try await viewModel.subObsVM.deleteObservable(observer)
                             } catch { appState.setError(error) }
                         }
                     } label: {

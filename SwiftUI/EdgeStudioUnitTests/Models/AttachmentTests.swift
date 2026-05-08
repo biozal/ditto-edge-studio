@@ -9,14 +9,12 @@ import Testing
 /// - Field name validation logic
 @Suite("Attachment Tests")
 struct AttachmentTests {
-
     // MARK: - AttachmentInfo.detectTokens
 
     @Suite("detectTokens")
     struct DetectTokensTests {
-
-        @Test("Valid JSON with attachment token returns correct AttachmentInfo", .tags(.model, .fast))
-        func validAttachmentToken() {
+        @Test(.tags(.model, .fast))
+        func `Valid JSON with attachment token returns correct AttachmentInfo`() {
             // ARRANGE
             let json = """
             {"_id": "123", "photo": {"id": "abc", "len": 1024, "metadata": {"name": "test.png", "mimeType": "image/png"}}}
@@ -35,8 +33,8 @@ struct AttachmentTests {
             #expect(tokens[0].mimeType == "image/png")
         }
 
-        @Test("JSON with no attachment tokens returns empty array", .tags(.model, .fast))
-        func noAttachmentTokens() {
+        @Test(.tags(.model, .fast))
+        func `JSON with no attachment tokens returns empty array`() {
             // ARRANGE
             let json = """
             {"_id": "123", "name": "Alice", "age": 30}
@@ -49,8 +47,8 @@ struct AttachmentTests {
             #expect(tokens.isEmpty)
         }
 
-        @Test("JSON with multiple attachment fields returns all of them", .tags(.model, .fast))
-        func multipleAttachmentTokens() {
+        @Test(.tags(.model, .fast))
+        func `JSON with multiple attachment fields returns all of them`() {
             // ARRANGE
             let json = """
             {
@@ -70,8 +68,8 @@ struct AttachmentTests {
             #expect(fieldNames.contains("thumbnail"))
         }
 
-        @Test("Invalid JSON returns empty array", .tags(.model, .fast))
-        func invalidJson() {
+        @Test(.tags(.model, .fast))
+        func `Invalid JSON returns empty array`() {
             // ARRANGE
             let json = "not valid json at all"
 
@@ -82,8 +80,8 @@ struct AttachmentTests {
             #expect(tokens.isEmpty)
         }
 
-        @Test("Nested object missing metadata key is not detected", .tags(.model, .fast))
-        func missingMetadataKey() {
+        @Test(.tags(.model, .fast))
+        func `Nested object missing metadata key is not detected`() {
             // ARRANGE — has "id" and "len" but no "metadata"
             let json = """
             {"_id": "123", "photo": {"id": "abc", "len": 1024, "description": "no metadata here"}}
@@ -101,9 +99,8 @@ struct AttachmentTests {
 
     @Suite("AttachmentInfo Properties")
     struct AttachmentInfoPropertiesTests {
-
-        @Test("isImage returns true for image MIME types", .tags(.model, .fast))
-        func isImageTrue() {
+        @Test(.tags(.model, .fast))
+        func `isImage returns true for image MIME types`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -113,8 +110,8 @@ struct AttachmentTests {
             #expect(info.isImage == true)
         }
 
-        @Test("isImage returns false for non-image MIME types", .tags(.model, .fast))
-        func isImageFalse() {
+        @Test(.tags(.model, .fast))
+        func `isImage returns false for non-image MIME types`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "doc",
@@ -124,8 +121,8 @@ struct AttachmentTests {
             #expect(info.isImage == false)
         }
 
-        @Test("isImage returns false when no MIME type present", .tags(.model, .fast))
-        func isImageNoMimeType() {
+        @Test(.tags(.model, .fast))
+        func `isImage returns false when no MIME type present`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "blob",
@@ -135,8 +132,8 @@ struct AttachmentTests {
             #expect(info.isImage == false)
         }
 
-        @Test("formattedSize returns human-readable string", .tags(.model, .fast))
-        func formattedSize() {
+        @Test(.tags(.model, .fast))
+        func `formattedSize returns human-readable string`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "file",
@@ -148,8 +145,8 @@ struct AttachmentTests {
             #expect(formatted.contains("MB") || formatted.contains("million"))
         }
 
-        @Test("fileName extracts from metadata 'name' key", .tags(.model, .fast))
-        func fileNameFromName() {
+        @Test(.tags(.model, .fast))
+        func `fileName extracts from metadata 'name' key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -159,8 +156,8 @@ struct AttachmentTests {
             #expect(info.fileName == "vacation.jpg")
         }
 
-        @Test("fileName extracts from metadata 'fileName' key", .tags(.model, .fast))
-        func fileNameFromFileName() {
+        @Test(.tags(.model, .fast))
+        func `fileName extracts from metadata 'fileName' key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -170,8 +167,8 @@ struct AttachmentTests {
             #expect(info.fileName == "report.pdf")
         }
 
-        @Test("fileName returns nil when no matching key", .tags(.model, .fast))
-        func fileNameMissing() {
+        @Test(.tags(.model, .fast))
+        func `fileName returns nil when no matching key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -181,8 +178,8 @@ struct AttachmentTests {
             #expect(info.fileName == nil)
         }
 
-        @Test("mimeType extracts from metadata 'mimeType' key", .tags(.model, .fast))
-        func mimeTypeFromMimeType() {
+        @Test(.tags(.model, .fast))
+        func `mimeType extracts from metadata 'mimeType' key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -192,8 +189,8 @@ struct AttachmentTests {
             #expect(info.mimeType == "image/jpeg")
         }
 
-        @Test("mimeType extracts from metadata 'type' key", .tags(.model, .fast))
-        func mimeTypeFromType() {
+        @Test(.tags(.model, .fast))
+        func `mimeType extracts from metadata 'type' key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -203,8 +200,8 @@ struct AttachmentTests {
             #expect(info.mimeType == "application/pdf")
         }
 
-        @Test("mimeType returns nil when no matching key", .tags(.model, .fast))
-        func mimeTypeMissing() {
+        @Test(.tags(.model, .fast))
+        func `mimeType returns nil when no matching key`() {
             let info = AttachmentInfo(
                 id: "hash1",
                 fieldName: "photo",
@@ -219,58 +216,49 @@ struct AttachmentTests {
 
     @Suite("parseCollectionName")
     struct ParseCollectionNameTests {
-
-        /// Helper to create a ViewModel for testing parser methods
+        /// Helper to create an AttachmentViewModel for testing parser methods.
+        /// Phase 10b: parsers moved from `MainStudioView.ViewModel` to
+        /// `AttachmentViewModel`, so the returned type changed accordingly.
         @MainActor
-        private static func makeViewModel() -> MainStudioView.ViewModel {
-            let config = DittoConfigForDatabase(
-                UUID().uuidString,
-                name: "Test",
-                databaseId: "db-test",
-                token: "",
-                authUrl: "",
-                websocketUrl: "",
-                httpApiUrl: "",
-                httpApiKey: ""
-            )
-            return MainStudioView.ViewModel(config)
+        private static func makeViewModel() -> AttachmentViewModel {
+            AttachmentViewModel()
         }
 
-        @Test("Simple SELECT FROM query", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func simpleSelectFrom() {
+        func `Simple SELECT FROM query`() {
             let vm = Self.makeViewModel()
             let result = vm.parseCollectionName(from: "SELECT * FROM cars")
             #expect(result == "cars")
         }
 
-        @Test("Case insensitive FROM", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func caseInsensitiveFrom() {
+        func `Case insensitive FROM`() {
             let vm = Self.makeViewModel()
             let result = vm.parseCollectionName(from: "select * from Cars")
             #expect(result == "Cars")
         }
 
-        @Test("Complex query with WHERE clause", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func complexQueryWithWhere() {
+        func `Complex query with WHERE clause`() {
             let vm = Self.makeViewModel()
             let result = vm.parseCollectionName(from: "SELECT * FROM users WHERE age > 21")
             #expect(result == "users")
         }
 
-        @Test("No FROM clause returns nil", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func noFromClause() {
+        func `No FROM clause returns nil`() {
             let vm = Self.makeViewModel()
             let result = vm.parseCollectionName(from: "INSERT INTO cars")
             #expect(result == nil)
         }
 
-        @Test("Multiple FROM returns first match", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func multipleFromReturnsFirst() {
+        func `Multiple FROM returns first match`() {
             let vm = Self.makeViewModel()
             let result = vm.parseCollectionName(from: "SELECT * FROM orders WHERE id IN (SELECT id FROM items)")
             #expect(result == "orders")
@@ -281,25 +269,14 @@ struct AttachmentTests {
 
     @Suite("parseDocumentId")
     struct ParseDocumentIdTests {
-
         @MainActor
-        private static func makeViewModel() -> MainStudioView.ViewModel {
-            let config = DittoConfigForDatabase(
-                UUID().uuidString,
-                name: "Test",
-                databaseId: "db-test",
-                token: "",
-                authUrl: "",
-                websocketUrl: "",
-                httpApiUrl: "",
-                httpApiKey: ""
-            )
-            return MainStudioView.ViewModel(config)
+        private static func makeViewModel() -> AttachmentViewModel {
+            AttachmentViewModel()
         }
 
-        @Test("String ID extracts correctly", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func stringId() {
+        func `String ID extracts correctly`() {
             let vm = Self.makeViewModel()
             let json = """
             {"_id": "abc123", "name": "test"}
@@ -308,9 +285,9 @@ struct AttachmentTests {
             #expect(result as? String == "abc123")
         }
 
-        @Test("Numeric ID extracts correctly", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func numericId() {
+        func `Numeric ID extracts correctly`() {
             let vm = Self.makeViewModel()
             let json = """
             {"_id": 42, "name": "test"}
@@ -319,9 +296,9 @@ struct AttachmentTests {
             #expect(result as? Int == 42)
         }
 
-        @Test("Missing _id returns nil", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func missingId() {
+        func `Missing _id returns nil`() {
             let vm = Self.makeViewModel()
             let json = """
             {"name": "test"}
@@ -330,9 +307,9 @@ struct AttachmentTests {
             #expect(result == nil)
         }
 
-        @Test("Invalid JSON returns nil", .tags(.model, .fast))
+        @Test(.tags(.model, .fast))
         @MainActor
-        func invalidJson() {
+        func `Invalid JSON returns nil`() {
             let vm = Self.makeViewModel()
             let result = vm.parseDocumentId(from: "not json")
             #expect(result == nil)
@@ -343,7 +320,6 @@ struct AttachmentTests {
 
     @Suite("Field Name Validation")
     struct FieldNameValidationTests {
-
         /// Replicates the isValidFieldName logic from AttachmentPickerSheet:
         /// trimmed, non-empty, only letters/numbers/underscores
         private func isValidFieldName(_ input: String) -> Bool {
@@ -351,43 +327,43 @@ struct AttachmentTests {
             return !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
         }
 
-        @Test("Simple alphabetic field name is valid", .tags(.model, .fast))
-        func simpleAlphabetic() {
+        @Test(.tags(.model, .fast))
+        func `Simple alphabetic field name is valid`() {
             #expect(isValidFieldName("photo") == true)
         }
 
-        @Test("Field name with underscores is valid", .tags(.model, .fast))
-        func withUnderscores() {
+        @Test(.tags(.model, .fast))
+        func `Field name with underscores is valid`() {
             #expect(isValidFieldName("my_attachment") == true)
         }
 
-        @Test("Field name with numbers is valid", .tags(.model, .fast))
-        func withNumbers() {
+        @Test(.tags(.model, .fast))
+        func `Field name with numbers is valid`() {
             #expect(isValidFieldName("field123") == true)
         }
 
-        @Test("Empty string is invalid", .tags(.model, .fast))
-        func emptyString() {
+        @Test(.tags(.model, .fast))
+        func `Empty string is invalid`() {
             #expect(isValidFieldName("") == false)
         }
 
-        @Test("Field name with spaces is invalid", .tags(.model, .fast))
-        func withSpaces() {
+        @Test(.tags(.model, .fast))
+        func `Field name with spaces is invalid`() {
             #expect(isValidFieldName("has spaces") == false)
         }
 
-        @Test("Field name with dashes is invalid", .tags(.model, .fast))
-        func withDashes() {
+        @Test(.tags(.model, .fast))
+        func `Field name with dashes is invalid`() {
             #expect(isValidFieldName("has-dashes") == false)
         }
 
-        @Test("Field name with SQL injection chars is invalid", .tags(.model, .fast))
-        func withInjectionChars() {
+        @Test(.tags(.model, .fast))
+        func `Field name with SQL injection chars is invalid`() {
             #expect(isValidFieldName("drop;--") == false)
         }
 
-        @Test("Whitespace-only string is invalid", .tags(.model, .fast))
-        func whitespaceOnly() {
+        @Test(.tags(.model, .fast))
+        func `Whitespace-only string is invalid`() {
             #expect(isValidFieldName("   ") == false)
         }
     }
@@ -396,9 +372,8 @@ struct AttachmentTests {
 
     @Suite("Delete Attachment Flow")
     struct DeleteAttachmentFlowTests {
-
-        @Test("detectTokens finds attachment fields for delete dialog", .tags(.model, .fast))
-        func detectTokensForDeleteDialog() {
+        @Test(.tags(.model, .fast))
+        func `detectTokens finds attachment fields for delete dialog`() {
             // ARRANGE
             let json = """
             {
@@ -419,8 +394,8 @@ struct AttachmentTests {
             #expect(fieldNames.contains("resume"))
         }
 
-        @Test("detectTokens returns empty for document with no attachments", .tags(.model, .fast))
-        func detectTokensNoAttachments() {
+        @Test(.tags(.model, .fast))
+        func `detectTokens returns empty for document with no attachments`() {
             // ARRANGE
             let json = #"{"_id": "doc1", "name": "test", "age": 30}"#
 
@@ -431,8 +406,8 @@ struct AttachmentTests {
             #expect(tokens.isEmpty)
         }
 
-        @Test("Field name validation rejects unsafe identifiers", .tags(.model, .fast))
-        func fieldNameValidation() {
+        @Test(.tags(.model, .fast))
+        func `Field name validation rejects unsafe identifiers`() {
             // Pattern for safe field identifiers: start with letter or underscore, followed by letters/numbers/underscores
             let pattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 

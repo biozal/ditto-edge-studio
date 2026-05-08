@@ -61,7 +61,7 @@ struct MainStudioView: View {
     func sheetContent(for sheet: ActiveSheet) -> some View {
         switch sheet {
         case .editSubscription:
-            if let subscription = viewModel.editorSubscription {
+            if let subscription = viewModel.subObsVM.editorSubscription {
                 SubscriptionObserverEditor(
                     title: subscription.name.isEmpty
                         ? "New Query Argument"
@@ -69,17 +69,17 @@ struct MainStudioView: View {
                     name: subscription.name,
                     query: subscription.query,
                     onSave: { name, query, appState in
-                        viewModel.formSaveSubscription(name: name, query: query, appState: appState)
+                        viewModel.subObsVM.formSaveSubscription(name: name, query: query, appState: appState)
                         activeSheet = nil
                     },
                     onCancel: {
-                        viewModel.formCancel()
+                        viewModel.subObsVM.formCancel()
                         activeSheet = nil
                     }
                 ).environment(appState)
             }
         case .editObserver:
-            if let observer = viewModel.editorObservable {
+            if let observer = viewModel.subObsVM.editorObservable {
                 SubscriptionObserverEditor(
                     title: observer.name.isEmpty
                         ? "New Observer"
@@ -87,11 +87,11 @@ struct MainStudioView: View {
                     name: observer.name,
                     query: observer.query,
                     onSave: { name, query, appState in
-                        viewModel.formSaveObserver(name: name, query: query, appState: appState)
+                        viewModel.subObsVM.formSaveObserver(name: name, query: query, appState: appState)
                         activeSheet = nil
                     },
                     onCancel: {
-                        viewModel.formCancel()
+                        viewModel.subObsVM.formCancel()
                         activeSheet = nil
                     }
                 ).environment(appState)
@@ -111,52 +111,53 @@ struct MainStudioView: View {
         case .importSubscriptions:
             ImportSubscriptionsView(
                 isPresented: importSubscriptionsBinding,
-                existingSubscriptions: viewModel.subscriptions,
+                existingSubscriptions: viewModel.subObsVM.subscriptions,
                 selectedAppId: viewModel.selectedApp._id
             )
             .environment(appState)
         case .subscriptionQRDisplay:
-            SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {
+            SubscriptionQRDisplayView(subscriptions: viewModel.subObsVM.subscriptions.map {
                 SubscriptionQRItem(name: $0.name, query: $0.query, args: nil)
             })
         case .subscriptionQRScanner:
             SubscriptionQRScannerView { items, onProgress in
-                await viewModel.importSubscriptionsFromQR(items, appState: appState, onProgress: onProgress)
+                await viewModel.subObsVM.importSubscriptionsFromQR(items, appState: appState, onProgress: onProgress)
             }
             #if os(macOS)
             .frame(minWidth: 480, minHeight: 360)
             #endif
         case .attachmentPicker:
-            if let json = viewModel.attachmentTargetJson,
-               let docId = viewModel.parseDocumentId(from: json)
+            if let json = viewModel.attachmentVM.attachmentTargetJson,
+               let docId = viewModel.attachmentVM.parseDocumentId(from: json)
             {
                 AttachmentPickerSheet(
                     documentId: String(describing: docId),
-                    collection: viewModel.attachmentTargetCollection ?? "unknown",
-                    executeMode: viewModel.selectedExecuteMode
+                    collection: viewModel.attachmentVM.attachmentTargetCollection ?? "unknown",
+                    executeMode: viewModel.queryVM.selectedExecuteMode
                 ) { fileURL, fieldName, metadata in
                     Task {
-                        await viewModel.executeAddAttachment(
+                        await viewModel.attachmentVM.executeAddAttachment(
                             fileURL: fileURL,
                             fieldName: fieldName,
                             metadata: metadata,
+                            executeMode: viewModel.queryVM.selectedExecuteMode,
                             appState: appState
                         )
                     }
                 }
             }
         case .deleteAttachmentPicker:
-            if let json = viewModel.deleteAttachmentTargetJson,
-               let docId = viewModel.parseDocumentId(from: json)
+            if let json = viewModel.attachmentVM.deleteAttachmentTargetJson,
+               let docId = viewModel.attachmentVM.parseDocumentId(from: json)
             {
                 let attachments = AttachmentInfo.detectTokens(in: json)
                 DeleteAttachmentSheet(
                     documentId: String(describing: docId),
-                    collection: viewModel.deleteAttachmentTargetCollection ?? "unknown",
+                    collection: viewModel.attachmentVM.deleteAttachmentTargetCollection ?? "unknown",
                     attachments: attachments
                 ) { selected in
                     Task {
-                        await viewModel.executeDeleteAttachment(
+                        await viewModel.attachmentVM.executeDeleteAttachment(
                             selectedAttachments: selected,
                             appState: appState
                         )
@@ -223,11 +224,11 @@ struct MainStudioView: View {
                             "Add Subscription",
                             systemImage: "arrow.trianglehead.2.clockwise"
                         ) {
-                            viewModel.editorSubscription = DittoSubscription.new()
+                            viewModel.subObsVM.stageNewSubscription()
                             activeSheet = .editSubscription
                         }
                         Button("Add Observer", systemImage: "eye") {
-                            viewModel.editorObservable = DittoObservable.new()
+                            viewModel.subObsVM.stageNewObservable()
                             activeSheet = .editObserver
                         }
                         Button("Add Index", systemImage: "plus.magnifyingglass") {
@@ -353,28 +354,28 @@ struct MainStudioView: View {
             // and kick off the initial repository load. The load runs as a tracked
             // `loadTask` on the ViewModel so `closeSelectedApp` / `deinit` can cancel it.
             .task {
-                viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(
+                viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(
                     metricsEnabled: metricsEnabled
                 )
                 viewModel.startLoad()
             }
             // React to metrics setting changes (macOS Settings window or iOS Settings app)
             .onChange(of: metricsEnabled) { _, enabled in
-                viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
+                viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
                 if !enabled {
                     // Auto-navigate away from metrics sidebar destinations
                     if viewModel.selectedSidebarDestination.isMetricsDestination {
                         viewModel.selectedSidebarDestination = .subscriptions
                     }
                     // Auto-navigate away from Metrics inspector tab
-                    if viewModel.selectedQueryInspectorMenuItem.name == "Metrics" {
-                        viewModel.selectedQueryInspectorMenuItem = viewModel.queryInspectorMenuItems[0]
+                    if viewModel.queryVM.selectedQueryInspectorMenuItem.name == "Metrics" {
+                        viewModel.queryVM.selectedQueryInspectorMenuItem = viewModel.queryVM.queryInspectorMenuItems[0]
                     }
                 }
             }
             // Refresh metrics record whenever query results change
-            .onChange(of: viewModel.jsonResults) { _, _ in
-                Task { await viewModel.refreshLastQueryMetrics() }
+            .onChange(of: viewModel.queryVM.jsonResults) { _, _ in
+                Task { await viewModel.queryVM.refreshLastQueryMetrics() }
             }
         #if os(iOS)
             .onChange(of: viewModel.selectedSidebarDestination) { _, _ in
@@ -392,15 +393,15 @@ struct MainStudioView: View {
     private var syncButtonContent: some View {
         Button {
             Task {
-                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
             }
         } label: {
             Image(systemName: "arrow.2.circlepath")
-                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
         }
         .buttonStyle(.glass)
         .clipShape(Circle())
-        .help(viewModel.isSyncEnabled ? "Disable Sync" : "Enable Sync")
+        .help(viewModel.syncVM.isSyncEnabled ? "Disable Sync" : "Enable Sync")
         .accessibilityIdentifier("SyncButton")
     }
 
@@ -480,7 +481,7 @@ struct MainStudioView: View {
     #endif
 
     func executeQuery() async {
-        await viewModel.executeQuery(appState: appState)
+        await viewModel.queryVM.executeQuery(appState: appState)
     }
 
     func expandedBinding(for collection: DittoCollection) -> Binding<Bool> {
@@ -507,1025 +508,6 @@ struct MainStudioView: View {
     }
 }
 
-// MARK: ViewModel
-
-extension MainStudioView {
-    @Observable
-    @MainActor
-    class ViewModel {
-        // MARK: - Injected Dependencies
-
-        //
-        // Repository / service references are stored as their protocol type so
-        // unit tests can swap in mock implementations. Defaults wire to the
-        // existing singletons so production call sites keep compiling without
-        // change. See `Data/Protocols.swift` for the protocol definitions.
-
-        @ObservationIgnored
-        private let dittoManager: any DittoManagerProtocol
-        @ObservationIgnored
-        private let queryService: any QueryServiceProtocol
-        @ObservationIgnored
-        private let subscriptionsRepository: any SubscriptionsRepositoryProtocol
-        @ObservationIgnored
-        private let systemRepository: any SystemRepositoryProtocol
-        @ObservationIgnored
-        private let historyRepository: any HistoryRepositoryProtocol
-        @ObservationIgnored
-        private let favoritesRepository: any FavoritesRepositoryProtocol
-        @ObservationIgnored
-        private let observableRepository: any ObservableRepositoryProtocol
-        @ObservationIgnored
-        private let collectionsRepository: any CollectionsRepositoryProtocol
-
-        var selectedApp: DittoConfigForDatabase
-
-        // Editor staging state — populated by the View before presenting the
-        // edit-subscription / edit-observer sheet via `activeSheet`. The sheet's
-        // routing enum (`ActiveSheet`) replaces the old `ActionSheetMode`.
-        var editorSubscription: DittoSubscription?
-        var editorObservable: DittoObservable?
-
-        var selectedObservable: DittoObservable?
-        var selectedEventId: String?
-
-        // Sync status properties
-        var syncStatusItems: [SyncStatusInfo] = []
-        var isSyncEnabled = true // Track sync status here
-        var connectionsByTransport: ConnectionsByTransport = .empty
-
-        // Local peer info
-        var localPeerDeviceName: String?
-        var localPeerSDKLanguage: String?
-        var localPeerSDKPlatform: String?
-        var localPeerSDKVersion: String?
-
-        // Note: PeerFilter enum removed in favor of presence-first architecture
-        // syncStatusItems now always contains only connected peers (filtered at source)
-
-        var isLoading = false
-        var isQueryExecuting = false
-        var isRefreshingCollections = false
-
-        var eventMode = "items"
-        var subscriptions: [DittoSubscription] = []
-        var history: [DittoQueryHistory] = []
-        var favorites: [DittoQueryHistory] = []
-        var collections: [DittoCollection] = []
-        var observerables: [DittoObservable] = []
-        var eventStore = ObservableEventStore()
-
-        // Coalesces high-frequency observer callbacks into a single batched
-        // SwiftUI update every ~100ms to prevent invalidation storms.
-        private var pendingObservedEvents: [DittoObserveEvent] = []
-        private var observedEventFlushTask: Task<Void, Never>?
-        private static let observedEventFlushInterval: Duration = .milliseconds(100)
-
-        /// Tracks the structured-concurrency task that loads initial data. Stored so
-        /// `closeSelectedApp` and `deinit` can cancel it if the user closes the database
-        /// before load completes (e.g. tap-and-immediately-back).
-        private var loadTask: Task<Void, Never>?
-
-        // query editor view
-        var selectedQuery: String
-        var executeModes: [String]
-        var selectedExecuteMode: String
-
-        /// results view
-        var jsonResults: [String]
-
-        /// UserDefaults key for the persisted sidebar destination. Mirrors the
-        /// `@AppStorage` key the View uses for `selectedSyncTab`.
-        @ObservationIgnored
-        private static let sidebarDestinationKey = "selectedSidebarDestination"
-
-        /// Currently selected sidebar destination. Persisted to UserDefaults so the
-        /// last-viewed sidebar tab restores on relaunch (matches `@AppStorage`
-        /// semantics without requiring a View-level property wrapper).
-        var selectedSidebarDestination: SidebarDestination = .subscriptions {
-            didSet {
-                UserDefaults.standard.set(
-                    selectedSidebarDestination.rawValue,
-                    forKey: Self.sidebarDestinationKey
-                )
-            }
-        }
-
-        // Inspector Toolbar (used only when Collections tab is active)
-        var selectedQueryInspectorMenuItem: MenuItem
-        var queryInspectorMenuItems: [MenuItem] = []
-
-        /// Metrics Inspector – last executed query record
-        var lastQueryMetricsRecord: QueryExplainRecord?
-
-        // Observer Inspector toolbar
-        var selectedObserveInspectorMenuItem: MenuItem
-        var observeInspectorMenuItems: [MenuItem] = []
-
-        // Metrics Inspector toolbar
-        var metricsInspectorMenuItems: [MenuItem] = []
-        var selectedMetricsInspectorMenuItem: MenuItem
-
-        // Metrics Inspector – Prometheus export form state (ephemeral UI, owned by ViewModel)
-        var metricsPrometheusURLText = ""
-        var metricsPrometheusIntervalText = "60"
-        var metricsPrometheusStatusMessage = ""
-        var metricsPrometheusIsConfigured = false
-
-        /// JSON Inspector State
-        var selectedJsonForInspector: String?
-
-        // MARK: - Attachment State
-
-        var attachmentProgress = AttachmentProgress()
-        // Attachment staging state — populated by the View before presenting the
-        // attachment / delete-attachment sheet via `activeSheet`.
-        var attachmentTargetJson: String?
-        var attachmentTargetCollection: String?
-        var deleteAttachmentTargetJson: String?
-        var deleteAttachmentTargetCollection: String?
-
-        // Attachment viewer state (inspector)
-        var detectedAttachments: [AttachmentInfo] = []
-        var attachmentLoadedImages: [String: Data] = [:]
-        var attachmentLoadingIds: Set<String> = []
-        var attachmentErrors: [String: String] = [:]
-
-        init(
-            _ dittoAppConfig: DittoConfigForDatabase,
-            dittoManager: any DittoManagerProtocol = DittoManager.shared,
-            queryService: any QueryServiceProtocol = QueryService.shared,
-            subscriptionsRepository: any SubscriptionsRepositoryProtocol = SubscriptionsRepository.shared,
-            systemRepository: any SystemRepositoryProtocol = SystemRepository.shared,
-            historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
-            favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
-            observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
-            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
-        ) {
-            self.dittoManager = dittoManager
-            self.queryService = queryService
-            self.subscriptionsRepository = subscriptionsRepository
-            self.systemRepository = systemRepository
-            self.historyRepository = historyRepository
-            self.favoritesRepository = favoritesRepository
-            self.observableRepository = observableRepository
-            self.collectionsRepository = collectionsRepository
-
-            selectedApp = dittoAppConfig
-
-            // Restore the last-viewed sidebar destination from UserDefaults. If the
-            // stored value is unrecognized (e.g. an obsolete enum case after an
-            // upgrade) we fall back to `.subscriptions`. The View also gates metrics
-            // destinations on `metricsEnabled` so a stale persisted metrics tab can't
-            // strand the user on a hidden destination.
-            let storedDestination = UserDefaults.standard
-                .string(forKey: Self.sidebarDestinationKey)
-                .flatMap(SidebarDestination.init(rawValue:))
-            selectedSidebarDestination = storedDestination ?? .subscriptions
-
-            // query section
-            selectedQuery = ""
-            selectedExecuteMode = "Local"
-            if dittoAppConfig.httpApiUrl == ""
-                || dittoAppConfig.httpApiKey == ""
-            {
-                executeModes = ["Local"]
-            } else {
-                executeModes = ["Local", "HTTP"]
-            }
-
-            // query results section
-            jsonResults = []
-
-            // Inspector toolbar (used only when Collections tab is active)
-            let builtQueryInspectorItems = Self.buildQueryInspectorItems(
-                metricsEnabled: UserDefaults.standard.bool(forKey: "metricsEnabled")
-            )
-            queryInspectorMenuItems = builtQueryInspectorItems
-            selectedQueryInspectorMenuItem = builtQueryInspectorItems[0] // History
-
-            // Observer Inspector toolbar
-            let jsonObserveItem = MenuItem(id: 9, name: "JSON", systemIcon: "text.document.fill")
-            observeInspectorMenuItems = [
-                jsonObserveItem,
-                MenuItem(id: 10, name: "Help", systemIcon: "questionmark")
-            ]
-            selectedObserveInspectorMenuItem = jsonObserveItem
-
-            // Metrics Inspector toolbar
-            let metricsDocsItem = MenuItem(id: 11, name: "Docs", systemIcon: "book.closed")
-            metricsInspectorMenuItems = [
-                metricsDocsItem,
-                MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
-            ]
-            selectedMetricsInspectorMenuItem = metricsDocsItem
-        }
-
-        isolated deinit {
-            // Cancel the load task if the ViewModel is being deallocated mid-load
-            // (e.g. user closed the database before initial hydration completed and
-            // closeSelectedApp didn't run for some reason). `isolated deinit` keeps
-            // this on the MainActor so we can read the actor-isolated `loadTask`.
-            loadTask?.cancel()
-            Log.debug("MainStudioView.ViewModel deinit")
-        }
-
-        /// Starts the initial data load. Idempotent — calling repeatedly cancels any
-        /// in-flight load and starts a fresh one. Called from the view's `.task` modifier.
-        func startLoad() {
-            loadTask?.cancel()
-            loadTask = Task { [weak self] in
-                await self?.performLoad()
-            }
-        }
-
-        /// Loads all repository state for the selected database in parallel and finishes
-        /// post-load setup (presence observer registration, local peer info fetch).
-        ///
-        /// Called once per ViewModel lifetime via `startLoad()`. Honors cooperative
-        /// cancellation at every awaited boundary so a fast close-during-load tears
-        /// down cleanly without racing the cleanup path.
-        private func performLoad() async {
-            isLoading = true
-            defer { isLoading = false }
-
-            let databaseId = selectedApp.databaseId
-
-            // 1. Register all repository update callbacks. These are quick, in-memory
-            //    callback installations on the various actors — sequential `await`
-            //    is fine and keeps the call-order obvious. Each closure uses
-            //    `[weak self]` so a stale ViewModel doesn't keep itself alive.
-            await systemRepository.setOnSyncStatusUpdate { [weak self] statusItems, completion in
-                Task { @MainActor [weak self] in
-                    self?.mergeStatusItems(statusItems)
-
-                    // CRITICAL: signal completion AFTER UI update dispatches.
-                    // 50ms delay allows SwiftUI LazyVGrid rendering to complete.
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(50))
-                        completion()
-                    }
-                }
-            }
-            await systemRepository.setOnConnectionsUpdate { [weak self] connections in
-                Task { @MainActor [weak self] in
-                    self?.connectionsByTransport = connections
-                }
-            }
-            await observableRepository.setOnObservablesUpdate { [weak self] observables in
-                Task { @MainActor [weak self] in
-                    self?.observerables = observables
-                }
-            }
-            // Per-domain ordering: register callback BEFORE the corresponding load so
-            // currentDatabaseId is set before any user-triggered save can fire.
-            await subscriptionsRepository.setOnSubscriptionsUpdate { [weak self] newSubscriptions in
-                self?.subscriptions = newSubscriptions
-            }
-            await collectionsRepository.setOnCollectionsUpdate { [weak self] newCollections in
-                self?.collections = newCollections
-            }
-            await historyRepository.setOnHistoryUpdate { [weak self] history in
-                self?.history = history
-            }
-            await favoritesRepository.setOnFavoritesUpdate { [weak self] favorites in
-                self?.favorites = favorites
-            }
-
-            guard !Task.isCancelled else { return }
-
-            // 2. Run the five independent repository loads concurrently. Each safely
-            //    swallows its own error so one failure can't starve the others —
-            //    matches the original sequential behavior, just in parallel.
-            async let loadedSubscriptions: [DittoSubscription] = {
-                do {
-                    return try await subscriptionsRepository.loadSubscriptions(for: databaseId)
-                } catch {
-                    Log.error("Failed to load subscriptions: \(error.localizedDescription)")
-                    return []
-                }
-            }()
-            async let loadedCollections: [DittoCollection] = {
-                do {
-                    return try await collectionsRepository.hydrateCollections()
-                } catch {
-                    Log.error("Failed to load collections: \(error.localizedDescription)")
-                    return []
-                }
-            }()
-            async let loadedHistory: [DittoQueryHistory] = {
-                do {
-                    return try await historyRepository.loadHistory(for: databaseId)
-                } catch {
-                    Log.error("Failed to load history: \(error.localizedDescription)")
-                    return []
-                }
-            }()
-            async let loadedFavorites: [DittoQueryHistory] = {
-                do {
-                    return try await favoritesRepository.loadFavorites(for: databaseId)
-                } catch {
-                    Log.error("Failed to load favorites: \(error.localizedDescription)")
-                    return []
-                }
-            }()
-            async let loadedObservers: [DittoObservable] = {
-                do {
-                    return try await observableRepository.loadObservers(for: databaseId)
-                } catch {
-                    Log.error("Failed to load observers: \(error.localizedDescription)")
-                    return []
-                }
-            }()
-
-            let (subs, cols, hist, favs, obsv) = await (
-                loadedSubscriptions,
-                loadedCollections,
-                loadedHistory,
-                loadedFavorites,
-                loadedObservers
-            )
-
-            guard !Task.isCancelled else { return }
-
-            subscriptions = subs
-            collections = cols
-            history = hist
-            favorites = favs
-            observerables = obsv
-
-            if collections.isEmpty {
-                selectedQuery = subscriptions.first?.query ?? ""
-            } else {
-                selectedQuery = "SELECT * FROM \(collections.first?.name ?? "")"
-            }
-
-            // 3. Start observing connections via presence graph (drives bottom status bar)
-            do {
-                try await systemRepository.registerConnectionsPresenceObserver()
-            } catch {
-                // Not a programming error — can happen if the database was closed before
-                // this async Task completed (e.g. user switched databases quickly).
-                Log.error("Failed to register connections presence observer: \(error.localizedDescription)")
-            }
-
-            // Note: sync-status observer is registered by syncTabsDetailView().onAppear
-            // (which fires before this point). No eager registration needed here —
-            // it caused double-registration and backpressure pipeline deadlocks.
-
-            guard !Task.isCancelled else { return }
-
-            // 4. Fetch local peer info directly (bypassing QueryService so this startup
-            //    query is invisible to Query Metrics).
-            do {
-                let query = "SELECT ditto_sdk_language, ditto_sdk_platform, ditto_sdk_version FROM __small_peer_info"
-                if let ditto = await dittoManager.dittoSelectedApp {
-                    let results = try await ditto.store.execute(query: query)
-                    if let firstItem = results.items.first {
-                        let json = firstItem.value.compactMapValues { $0 }
-                        firstItem.dematerialize()
-                        localPeerDeviceName = "Edge Studio"
-                        localPeerSDKLanguage = json["ditto_sdk_language"] as? String
-                        localPeerSDKPlatform = json["ditto_sdk_platform"] as? String
-                        localPeerSDKVersion = json["ditto_sdk_version"] as? String
-                    }
-                }
-            } catch {
-                // Fail silently - not critical to app functionality
-                Log.error("Failed to fetch local peer info: \(error.localizedDescription)")
-            }
-        }
-
-        /// Builds the query inspector tab items, conditionally including the Metrics tab.
-        static func buildQueryInspectorItems(metricsEnabled: Bool) -> [MenuItem] {
-            var items = [
-                MenuItem(id: 5, name: "History", systemIcon: "clock"),
-                MenuItem(id: 6, name: "Favorites", systemIcon: "bookmark"),
-                MenuItem(id: 7, name: "JSON", systemIcon: "text.document.fill")
-            ]
-            if metricsEnabled {
-                items.append(MenuItem(id: 13, name: "Metrics", systemIcon: "text.magnifyingglass"))
-            }
-            items.append(MenuItem(id: 8, name: "Help", systemIcon: "questionmark"))
-            return items
-        }
-
-        func refreshLastQueryMetrics() async {
-            lastQueryMetricsRecord = await QueryMetricsRepository.shared.allRecords().first
-        }
-
-        /// Shows JSON in the inspector panel
-        func showJsonInInspector(_ json: String) {
-            selectedJsonForInspector = json
-            detectAttachmentsInSelectedJson()
-            if let jsonTab = queryInspectorMenuItems.first(where: { $0.name == "JSON" }) {
-                selectedQueryInspectorMenuItem = jsonTab
-            }
-        }
-
-        /// Shows JSON in the observe inspector panel
-        func showJsonInObserveInspector(_ json: String) {
-            selectedJsonForInspector = json
-            if let jsonTab = observeInspectorMenuItems.first(where: { $0.name == "JSON" }) {
-                selectedObserveInspectorMenuItem = jsonTab
-            }
-        }
-
-        var selectedEventObject: DittoObserveEvent? {
-            guard let selectedId = selectedEventId else { return nil }
-            return eventStore.event(id: selectedId)
-        }
-
-        func addQueryToHistory(appState: AppState) async {
-            if !selectedQuery.isEmpty && !selectedQuery.isEmpty {
-                let queryHistory = DittoQueryHistory(
-                    id: UUID().uuidString,
-                    query: selectedQuery,
-                    createdDate: Date().ISO8601Format()
-                )
-                do {
-                    try await historyRepository.saveQueryHistory(queryHistory)
-                } catch {
-                    appState.setError(error)
-                }
-            }
-        }
-
-        @MainActor
-        func refreshCollectionCounts() async {
-            guard !isRefreshingCollections else { return } // Prevent concurrent refreshes
-
-            isRefreshingCollections = true
-            defer { isRefreshingCollections = false }
-
-            do {
-                collections = try await collectionsRepository.refreshCollections()
-            } catch {
-                // Error will be set in repository via appState
-                Log.error("Failed to refresh collection counts: \(error.localizedDescription)")
-            }
-        }
-
-        func closeSelectedApp() async {
-            let closeStart = CFAbsoluteTimeGetCurrent()
-            Log.info("[Close] Starting database close")
-
-            // 0. Cancel any in-flight initial load so its callback registrations
-            //    don't race with the cleanup pass below.
-            loadTask?.cancel()
-            loadTask = nil
-
-            // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
-            await systemRepository.invalidateSession()
-            let invalidateElapsed = CFAbsoluteTimeGetCurrent() - closeStart
-            Log.info("[Close] Session invalidated (\(String(format: "%.3f", invalidateElapsed))s)")
-
-            // 2. Clean up UI state immediately on main actor
-            editorObservable = nil
-            editorSubscription = nil
-            selectedEventId = nil
-            selectedObservable = nil
-
-            subscriptions = []
-            collections = []
-            history = []
-            favorites = []
-            observerables = []
-            cancelObservedEventFlush()
-            eventStore.removeAll()
-            syncStatusItems = []
-            connectionsByTransport = .empty
-            isSyncEnabled = false
-
-            // Clear peer info
-            localPeerDeviceName = nil
-            localPeerSDKLanguage = nil
-            localPeerSDKPlatform = nil
-            localPeerSDKVersion = nil
-
-            let uiClearElapsed = CFAbsoluteTimeGetCurrent() - closeStart
-            Log.info("[Close] UI state cleared (\(String(format: "%.3f", uiClearElapsed))s)")
-
-            // 3. Perform heavy cleanup operations on background queue
-            await performCleanupOperations()
-
-            let totalElapsed = CFAbsoluteTimeGetCurrent() - closeStart
-            Log.info("[Close] Total close time: \(String(format: "%.3f", totalElapsed))s")
-        }
-
-        /// Merges an incoming snapshot of peers into `syncStatusItems` while
-        /// preserving each card's current grid position.
-        ///
-        /// - Existing peers have their data updated in-place (no reorder).
-        /// - Peers absent from `newItems` are removed.
-        /// - Peers new to `newItems` are appended to the end.
-        @MainActor
-        private func mergeStatusItems(_ newItems: [SyncStatusInfo]) {
-            let newById = Dictionary(uniqueKeysWithValues: newItems.map { ($0.id, $0) })
-
-            // Keep existing peers in order, updating their data; drop peers that left.
-            var merged = syncStatusItems.compactMap { existing in
-                newById[existing.id]
-            }
-
-            // Append peers that weren't in the previous list.
-            let existingIds = Set(syncStatusItems.map(\.id))
-            let brandNewPeers = newItems.filter { !existingIds.contains($0.id) }
-            merged.append(contentsOf: brandNewPeers)
-
-            syncStatusItems = merged
-        }
-
-        private func performCleanupOperations() async {
-            let cleanupStart = CFAbsoluteTimeGetCurrent()
-
-            // Capture observables on main actor before moving to background queues
-            let observablesToCleanup = observerables
-
-            // Capture injected repositories so the detached child tasks can use the
-            // (potentially mocked) instances rather than the global singletons.
-            let historyRepository = historyRepository
-            let favoritesRepository = favoritesRepository
-            let observableRepository = observableRepository
-            let subscriptionsRepository = subscriptionsRepository
-            let systemRepository = systemRepository
-            let collectionsRepository = collectionsRepository
-            let dittoManager = dittoManager
-
-            // Use TaskGroup to run cleanup operations concurrently on background queues
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask(priority: .utility) {
-                    // Cancel observable store observers
-                    for observable in observablesToCleanup {
-                        observable.storeObserver?.cancel()
-                    }
-                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-                    Log.info("[Close:Observers] Store observers cancelled (\(String(format: "%.3f", elapsed))s)")
-                }
-
-                group.addTask(priority: .utility) {
-                    // Clear repository caches
-                    await historyRepository.clearCache()
-                    await favoritesRepository.clearCache()
-                    await observableRepository.clearCache()
-                    await subscriptionsRepository.clearCache()
-
-                    // Stop other repository observers
-                    await systemRepository.stopObserver()
-                    await collectionsRepository.stopObserver()
-
-                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-                    Log.info("[Close:Repos] Caches cleared, observers stopped (\(String(format: "%.3f", elapsed))s)")
-                }
-
-                group.addTask(priority: .utility) {
-                    // Close DittoManager selected app
-                    await dittoManager.closeDittoSelectedDatabase()
-                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-                    Log.info("[Close:DittoManager] closeDittoSelectedDatabase complete (\(String(format: "%.3f", elapsed))s)")
-                }
-            }
-
-            let totalElapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-            Log.info("[Close] All cleanup operations complete (\(String(format: "%.3f", totalElapsed))s)")
-        }
-
-        func toggleSync() async throws {
-            if isSyncEnabled {
-                // Disable sync
-                await dittoManager.selectedDatabaseStopSync()
-
-                // Reset connection counts
-                connectionsByTransport = .empty
-                syncStatusItems = []
-
-                isSyncEnabled = false
-            } else {
-                // Enable sync
-                try await dittoManager.selectedDatabaseStartSync()
-                isSyncEnabled = true
-            }
-        }
-
-        func deleteObservable(_ observable: DittoObservable) async throws {
-            if let storeObserver = observable.storeObserver {
-                storeObserver.cancel()
-            }
-
-            try await observableRepository.removeDittoObservable(observable)
-
-            // remove events for the observable
-            eventStore.remove(observerId: observable.id)
-            pendingObservedEvents.removeAll { $0.observeId == observable.id }
-
-            if selectedObservable?.id == observable.id {
-                selectedObservable = nil
-            }
-            if selectedEventObject?.observeId == observable.id {
-                selectedEventId = nil
-            }
-        }
-
-        func deleteSubscription(_ subscription: DittoSubscription) async throws {
-            try await subscriptionsRepository.removeDittoSubscription(subscription)
-        }
-
-        func executeQuery(appState: AppState) async {
-            isQueryExecuting = true
-            do {
-                if selectedExecuteMode == "Local" {
-                    jsonResults = try await queryService
-                        .executeSelectedAppQuery(query: selectedQuery)
-                } else {
-                    jsonResults = try await queryService
-                        .executeSelectedAppQueryHttp(query: selectedQuery)
-                }
-                // Add query to history
-                await addQueryToHistory(appState: appState)
-            } catch {
-                appState.setError(error)
-            }
-            isQueryExecuting = false
-        }
-
-        func formCancel() {
-            editorSubscription = nil
-            editorObservable = nil
-        }
-
-        func formSaveSubscription(
-            name: String,
-            query: String,
-            appState: AppState
-        ) {
-            if var subscription = editorSubscription {
-                subscription.name = name
-                subscription.query = query
-                Task { [subscriptionsRepository] in
-                    do {
-                        try await subscriptionsRepository.saveDittoSubscription(subscription)
-                    } catch {
-                        appState.setError(error)
-                    }
-                    editorSubscription = nil
-                }
-            }
-        }
-
-        func formSaveObserver(
-            name: String,
-            query: String,
-            appState: AppState
-        ) {
-            if var observer = editorObservable {
-                observer.name = name
-                observer.query = query
-                Task { [observableRepository] in
-                    do {
-                        try await observableRepository.saveDittoObservable(observer)
-                    } catch {
-                        appState.setError(error)
-                    }
-                    editorObservable = nil
-                }
-            }
-        }
-
-        func importSubscriptionsFromQR(
-            _ items: [SubscriptionQRItem],
-            appState: AppState,
-            onProgress: @escaping @MainActor (Int, Int) -> Void
-        ) async {
-            let total = items.count
-            for (index, item) in items.enumerated() {
-                var sub = DittoSubscription(id: UUID().uuidString)
-                sub.name = item.name
-                sub.query = item.query
-                do {
-                    try await subscriptionsRepository.saveDittoSubscription(sub)
-                } catch {
-                    appState.setError(error)
-                }
-                onProgress(index + 1, total)
-            }
-            // Explicitly refresh subscriptions on @MainActor so SwiftUI sees the update
-            // before the sheet dismissal re-render fires. The cross-actor callback
-            // (onSubscriptionsUpdate) races with the dismiss re-render; reading the
-            // cache here on @MainActor eliminates that race.
-            subscriptions = await subscriptionsRepository.getCachedSubscriptions()
-        }
-
-        /// Enqueues a freshly emitted observer event onto the pending buffer
-        /// and (re)schedules a flush. Coalescing across a 100ms window keeps
-        /// SwiftUI from re-rendering on every individual SDK callback during
-        /// high-frequency sync.
-        private func enqueueObservedEvent(_ event: DittoObserveEvent) {
-            pendingObservedEvents.append(event)
-            guard observedEventFlushTask == nil else { return }
-            observedEventFlushTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: Self.observedEventFlushInterval)
-                guard let self else { return }
-                flushPendingObservedEvents()
-            }
-        }
-
-        private func flushPendingObservedEvents() {
-            observedEventFlushTask = nil
-            guard !pendingObservedEvents.isEmpty else { return }
-            let batch = pendingObservedEvents
-            pendingObservedEvents.removeAll(keepingCapacity: true)
-            eventStore.append(contentsOf: batch)
-        }
-
-        private func cancelObservedEventFlush() {
-            observedEventFlushTask?.cancel()
-            observedEventFlushTask = nil
-            pendingObservedEvents.removeAll(keepingCapacity: false)
-        }
-
-        func registerStoreObserver(_ observable: DittoObservable) async throws {
-            guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
-                throw InvalidStoreState(message: "Could not find observable")
-            }
-            guard let ditto = await dittoManager.dittoSelectedApp else {
-                throw InvalidStateError(message: "Could not get ditto reference from manager")
-            }
-            if observerables[index].storeObserver != nil {
-                throw InvalidStoreState(message: "Observer already registered")
-            }
-
-            // if you activate an observable it's instantly selected
-            selectedObservable = observable
-
-            // used for calculating the diffs
-            let dittoDiffer = DittoDiffer()
-
-            // Deserialize arguments from JSON string. The observer callback runs
-            // on an SDK-determined thread (non-MainActor). Build the event from
-            // the results synchronously, then hop to the MainActor to mutate
-            // @Observable view-model state.
-            let observableId = observable.id
-            let observer = try ditto.store.registerObserver(
-                query: observable.query
-            ) { [weak self] results in
-                // required to show the end user when the event fired
-                var event = DittoObserveEvent.new(observeId: observableId)
-
-                let diff = dittoDiffer.diff(results.items)
-
-                event.eventTime = Date().ISO8601Format()
-
-                // set diff information
-                event.insertIndexes = Array(diff.insertions)
-                event.deletedIndexes = Array(diff.deletions)
-                event.updatedIndexes = Array(diff.updates)
-                event.movedIndexes = Array(diff.moves)
-
-                event.data = results.items.compactMap {
-                    let data = $0.jsonData()
-                    return String(data: data, encoding: .utf8)
-                }
-
-                let capturedEvent = event
-                Task { @MainActor [weak self] in
-                    self?.enqueueObservedEvent(capturedEvent)
-                }
-            }
-            observerables[index].storeObserver = observer
-        }
-
-        func removeStoreObserver(_ observable: DittoObservable) async throws {
-            guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
-                throw InvalidStoreState(message: "Could not find observable")
-            }
-            observerables[index].storeObserver?.cancel()
-            observerables[index].storeObserver = nil
-            selectedEventId = nil
-            cancelObservedEventFlush()
-            eventStore.removeAll()
-        }
-
-        // MARK: - Editor Staging
-
-        /// The View calls `presentSubscriptionEditor`/`presentObservableEditor`
-        /// (in `MainStudioView` extensions) to set the editor target and toggle
-        /// `activeSheet`. These VM helpers stage the data only; they don't
-        /// touch sheet state, keeping the VM independent of `ActiveSheet`.
-        func stageSubscriptionEditor(_ subscription: DittoSubscription) {
-            editorSubscription = subscription
-        }
-
-        func stageObservableEditor(_ observable: DittoObservable) {
-            editorObservable = observable
-        }
-
-        // MARK: - Attachment Parsers
-
-        func parseCollectionName(from query: String) -> String? {
-            let pattern = #"(?i)\bFROM\s+(\w+)"#
-            guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)),
-                  let range = Range(match.range(at: 1), in: query) else
-            {
-                return nil
-            }
-            return String(query[range])
-        }
-
-        func parseDocumentId(from jsonString: String) -> Any? {
-            guard let data = jsonString.data(using: .utf8),
-                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else
-            {
-                return nil
-            }
-            return dict["_id"]
-        }
-
-        // MARK: - Attachment Staging
-
-        /// Sheet presentation is handled by the View — these helpers only stage
-        /// the data the sheet will read.
-        func stageAddAttachment(documentJson: String) {
-            attachmentTargetJson = documentJson
-            attachmentTargetCollection = parseCollectionName(from: selectedQuery)
-        }
-
-        func stageDeleteAttachment(documentJson: String) {
-            deleteAttachmentTargetJson = documentJson
-            deleteAttachmentTargetCollection = parseCollectionName(from: selectedQuery)
-        }
-
-        func executeDeleteAttachment(
-            selectedAttachments: [AttachmentInfo],
-            appState: AppState
-        ) async {
-            guard let json = deleteAttachmentTargetJson,
-                  let docId = parseDocumentId(from: json) else
-            {
-                appState.setError(AttachmentError.noDocumentId)
-                return
-            }
-            guard let collection = deleteAttachmentTargetCollection else {
-                appState.setError(AttachmentError.collectionNotFound)
-                return
-            }
-
-            let docIdString: String = if let str = docId as? String {
-                str
-            } else {
-                "\(docId)"
-            }
-
-            let identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
-
-            attachmentProgress.isActive = true
-            attachmentProgress.message = "Deleting attachment field(s)..."
-            attachmentProgress.fractionCompleted = 0.0
-
-            do {
-                for (index, att) in selectedAttachments.enumerated() {
-                    guard att.fieldName.wholeMatch(of: identifierPattern) != nil,
-                          collection.wholeMatch(of: identifierPattern) != nil else
-                    {
-                        throw AttachmentError.invalidFieldName
-                    }
-                    let query = "UPDATE \(collection) SET \(att.fieldName) = null WHERE _id = '\(docIdString)'"
-                    _ = try await queryService.executeSelectedAppQuery(query: query)
-                    attachmentProgress.fractionCompleted = Double(index + 1) / Double(selectedAttachments.count)
-                }
-                attachmentProgress.message = "Deleted \(selectedAttachments.count) field(s) — re-run query to see changes"
-                try? await Task.sleep(for: .seconds(2.5))
-                attachmentProgress.isActive = false
-                Log.info("Deleted \(selectedAttachments.count) attachment field(s) from document \(docIdString)")
-            } catch {
-                attachmentProgress.isActive = false
-                appState.setError(error)
-            }
-        }
-
-        func executeAddAttachment(
-            fileURL: URL,
-            fieldName: String,
-            metadata: [String: String],
-            appState: AppState
-        ) async {
-            guard let json = attachmentTargetJson,
-                  let docId = parseDocumentId(from: json) else
-            {
-                appState.setError(AttachmentError.noDocumentId)
-                return
-            }
-            guard let collection = attachmentTargetCollection else {
-                appState.setError(AttachmentError.collectionNotFound)
-                return
-            }
-
-            // Convert document ID to String for the AttachmentService API
-            let docIdString: String = if let str = docId as? String {
-                str
-            } else {
-                "\(docId)"
-            }
-
-            attachmentProgress.isActive = true
-            attachmentProgress.message = "Uploading attachment..."
-            attachmentProgress.fractionCompleted = 0.0
-
-            do {
-                if selectedExecuteMode == "Local" {
-                    try await AttachmentService.shared.createAndLink(
-                        fileURL: fileURL,
-                        metadata: metadata,
-                        collection: collection,
-                        documentId: docIdString,
-                        fieldName: fieldName
-                    )
-                } else {
-                    try await AttachmentService.shared.createAndLinkViaHttp(
-                        fileURL: fileURL,
-                        metadata: metadata,
-                        collection: collection,
-                        documentId: docIdString,
-                        fieldName: fieldName
-                    )
-                }
-                attachmentProgress.fractionCompleted = 1.0
-                attachmentProgress.message = "Attachment linked successfully"
-                try? await Task.sleep(for: .seconds(1.5))
-                attachmentProgress.isActive = false
-            } catch {
-                attachmentProgress.isActive = false
-                appState.setError(error)
-            }
-        }
-
-        // MARK: - Attachment Detection & Viewing
-
-        func detectAttachmentsInSelectedJson() {
-            guard let json = selectedJsonForInspector else {
-                detectedAttachments = []
-                return
-            }
-            detectedAttachments = AttachmentInfo.detectTokens(in: json)
-            attachmentLoadedImages.removeAll()
-            attachmentLoadingIds.removeAll()
-            attachmentErrors.removeAll()
-        }
-
-        func fetchAttachmentForViewing(_ attachment: AttachmentInfo, appState: AppState) async {
-            guard let json = selectedJsonForInspector,
-                  let data = json.data(using: .utf8),
-                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let token = dict[attachment.fieldName] as? [String: Any] else
-            {
-                return
-            }
-
-            attachmentLoadingIds.insert(attachment.id)
-            attachmentProgress.isActive = true
-            attachmentProgress.message = "Downloading attachment..."
-
-            do {
-                let fileData: Data = if selectedExecuteMode == "Local" {
-                    try await AttachmentService.shared.fetch(token: token, id: attachment.id)
-                } else {
-                    try await AttachmentService.shared.fetchViaHttp(attachmentId: attachment.id)
-                }
-                attachmentProgress.isActive = false
-
-                if attachment.isImage {
-                    attachmentLoadedImages[attachment.id] = fileData
-                } else {
-                    // Save to temp and open in OS default app
-                    let tempDir = FileManager.default.temporaryDirectory
-                    let fileName = attachment.fileName ?? "attachment"
-                    let tempURL = tempDir.appendingPathComponent(fileName)
-                    try fileData.write(to: tempURL)
-                    #if os(macOS)
-                    NSWorkspace.shared.open(tempURL)
-                    #else
-                    // UIApplication.shared.open() doesn't work with local file URLs on iOS.
-                    // Use UIActivityViewController as a share sheet to let the user open/save the file.
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController
-                    {
-                        let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
-                        activityVC.popoverPresentationController?.sourceView = rootVC.view
-                        rootVC.present(activityVC, animated: true)
-                    }
-                    #endif
-                }
-                attachmentLoadingIds.remove(attachment.id)
-            } catch {
-                attachmentProgress.isActive = false
-                attachmentLoadingIds.remove(attachment.id)
-                attachmentErrors[attachment.id] = error.localizedDescription
-                appState.setError(error)
-            }
-        }
-    }
-}
-
 // MARK: Helpers
 
 // MARK: - Sheet Presentation Helpers
@@ -1534,7 +516,7 @@ extension MainStudioView {
     /// Stages the editor for an existing subscription and presents the editor
     /// sheet. Called from the sidebar's context menu.
     func presentSubscriptionEditor(_ subscription: DittoSubscription) {
-        viewModel.stageSubscriptionEditor(subscription)
+        viewModel.subObsVM.stageSubscriptionEditor(subscription)
         activeSheet = .editSubscription
     }
 
@@ -1542,13 +524,13 @@ extension MainStudioView {
     /// `+` FAB menu's "Add Subscription" action so the empty-state CTA can hand
     /// off to the same editor flow.
     func presentNewSubscriptionEditor() {
-        viewModel.editorSubscription = DittoSubscription.new()
+        viewModel.subObsVM.stageNewSubscription()
         activeSheet = .editSubscription
     }
 
     /// Stages the editor for an existing observable and presents the editor sheet.
     func presentObservableEditor(_ observable: DittoObservable) {
-        viewModel.stageObservableEditor(observable)
+        viewModel.subObsVM.stageObservableEditor(observable)
         activeSheet = .editObserver
     }
 
@@ -1556,19 +538,25 @@ extension MainStudioView {
     /// `+` FAB menu's "Add Observer" action so the empty-state CTA can hand off
     /// to the same editor flow.
     func presentNewObserverEditor() {
-        viewModel.editorObservable = DittoObservable.new()
+        viewModel.subObsVM.stageNewObservable()
         activeSheet = .editObserver
     }
 
     /// Stages the document JSON for the add-attachment sheet and presents it.
     func presentAddAttachment(documentJson: String) {
-        viewModel.stageAddAttachment(documentJson: documentJson)
+        viewModel.attachmentVM.stageAddAttachment(
+            documentJson: documentJson,
+            currentQuery: viewModel.queryVM.selectedQuery
+        )
         activeSheet = .attachmentPicker
     }
 
     /// Stages the document JSON for the delete-attachment sheet and presents it.
     func presentDeleteAttachment(documentJson: String) {
-        viewModel.stageDeleteAttachment(documentJson: documentJson)
+        viewModel.attachmentVM.stageDeleteAttachment(
+            documentJson: documentJson,
+            currentQuery: viewModel.queryVM.selectedQuery
+        )
         activeSheet = .deleteAttachmentPicker
     }
 }

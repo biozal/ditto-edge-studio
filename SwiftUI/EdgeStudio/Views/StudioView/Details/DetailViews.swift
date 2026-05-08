@@ -55,7 +55,7 @@ extension MainStudioView {
 
             // Dynamic subtitle outside ViewThatFits — updating this text no longer
             // invalidates the layout-fitting measurement loop above.
-            if let statusInfo = viewModel.syncStatusItems.first {
+            if let statusInfo = viewModel.syncVM.syncStatusItems.first {
                 Text("Last updated: \(statusInfo.formattedLastUpdate)")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -77,7 +77,7 @@ extension MainStudioView {
             }
         }
         .overlay(alignment: .bottom) {
-            DetailBottomBar(connections: viewModel.connectionsByTransport)
+            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport)
                 .padding(.bottom, 12)
         }
         #if os(iOS)
@@ -122,11 +122,11 @@ extension MainStudioView {
                     HStack(spacing: 16) {
                         Button {
                             Task {
-                                do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
                             }
                         } label: {
                             Image(systemName: "arrow.2.circlepath")
-                                .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                         }
                         .accessibilityIdentifier("SyncButton")
 
@@ -157,7 +157,7 @@ extension MainStudioView {
     // MARK: - Pagination helpers (used by queryDetailView)
 
     private var queryResultsCount: Int {
-        viewModel.jsonResults.count
+        viewModel.queryVM.jsonResults.count
     }
 
     private var queryPageSizes: [Int] {
@@ -179,7 +179,7 @@ extension MainStudioView {
     // MARK: - Pagination helpers (used by observeDetailView)
 
     private var observerEventsCount: Int {
-        viewModel.eventStore.count
+        viewModel.subObsVM.eventStore.count
     }
 
     private var observerPageSizes: [Int] {
@@ -201,7 +201,7 @@ extension MainStudioView {
         let start = (observerCurrentPage - 1) * observerPageSize
         guard start < observerEventsCount else { return [] }
         let end = min(start + observerPageSize, observerEventsCount)
-        return Array(viewModel.eventStore.events[start ..< end])
+        return Array(viewModel.subObsVM.eventStore.events[start ..< end])
     }
 
     // MARK: - Pagination helpers (used by observe detail pane)
@@ -227,13 +227,13 @@ extension MainStudioView {
             // Content split — GeometryReader fills all remaining space
             GeometryReader { geometry in
                 VStack(spacing: 0) {
-                    QueryEditorView(queryText: $viewModel.selectedQuery)
+                    QueryEditorView(queryText: $viewModel.queryVM.selectedQuery)
                         .frame(height: geometry.size.height * 0.5)
 
                     Divider()
 
                     QueryResultsView(
-                        jsonResults: $viewModel.jsonResults,
+                        jsonResults: $viewModel.queryVM.jsonResults,
                         currentPage: $queryCurrentPage,
                         pageSize: $queryPageSize,
                         onJsonSelected: { json in
@@ -250,9 +250,9 @@ extension MainStudioView {
                     .frame(height: geometry.size.height * 0.5)
                     .overlay(alignment: .bottom) {
                         AttachmentProgressOverlay(
-                            isActive: viewModel.attachmentProgress.isActive,
-                            message: viewModel.attachmentProgress.message,
-                            fractionCompleted: viewModel.attachmentProgress.fractionCompleted
+                            isActive: viewModel.attachmentVM.attachmentProgress.isActive,
+                            message: viewModel.attachmentVM.attachmentProgress.message,
+                            fractionCompleted: viewModel.attachmentVM.attachmentProgress.fractionCompleted
                         )
                         .padding(.bottom, 8)
                     }
@@ -267,8 +267,8 @@ extension MainStudioView {
         .overlay(alignment: .bottom) {
             #if os(iOS)
             if horizontalSizeClass != .compact {
-                DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                    if !viewModel.jsonResults.isEmpty {
+                DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+                    if !viewModel.queryVM.jsonResults.isEmpty {
                         PaginationControls(
                             totalCount: queryResultsCount,
                             currentPage: $queryCurrentPage,
@@ -289,8 +289,8 @@ extension MainStudioView {
                 .padding(.bottom, 12)
             }
             #else
-            DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                if !viewModel.jsonResults.isEmpty {
+            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+                if !viewModel.queryVM.jsonResults.isEmpty {
                     PaginationControls(
                         totalCount: queryResultsCount,
                         currentPage: $queryCurrentPage,
@@ -351,8 +351,8 @@ extension MainStudioView {
                             Divider().frame(height: 18)
 
                             // Execute mode picker
-                            Picker("", selection: $viewModel.selectedExecuteMode) {
-                                ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
                             }
                             .pickerStyle(.menu)
                             .frame(width: 85)
@@ -362,22 +362,22 @@ extension MainStudioView {
                                 FontAwesomeText(
                                     icon: NavigationIcon.play,
                                     size: 14,
-                                    color: viewModel.isQueryExecuting ? .gray : .green
+                                    color: viewModel.queryVM.isQueryExecuting ? .gray : .green
                                 )
                                 .accessibilityLabel("Execute Query")
                             }
-                            .disabled(viewModel.isQueryExecuting)
+                            .disabled(viewModel.queryVM.isQueryExecuting)
 
                             Divider().frame(height: 18)
 
                             // Sync toggle
                             Button {
                                 Task {
-                                    do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                                    do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
                                 }
                             } label: {
                                 Image(systemName: "arrow.2.circlepath")
-                                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                                    .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                             }
                             .accessibilityIdentifier("SyncButton")
 
@@ -405,8 +405,8 @@ extension MainStudioView {
                     // REGULAR (iPad): keep original split layout
                     ToolbarItem(placement: .navigationBarLeading) {
                         HStack(spacing: 2) {
-                            Picker("", selection: $viewModel.selectedExecuteMode) {
-                                ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
                             }
                             .pickerStyle(.menu)
                             .frame(width: 90)
@@ -417,12 +417,12 @@ extension MainStudioView {
                                 FontAwesomeText(
                                     icon: NavigationIcon.play,
                                     size: 14,
-                                    color: viewModel.isQueryExecuting ? .gray : .green
+                                    color: viewModel.queryVM.isQueryExecuting ? .gray : .green
                                 )
                                 .accessibilityLabel("Execute Query")
                                 .padding(.horizontal, 4)
                             }
-                            .disabled(viewModel.isQueryExecuting)
+                            .disabled(viewModel.queryVM.isQueryExecuting)
                         }
                     }
                     appNameToolbarLabel()
@@ -435,7 +435,7 @@ extension MainStudioView {
                 if horizontalSizeClass == .compact {
                     ToolbarItemGroup(placement: .bottomBar) {
                         ConnectionStatusMenu(
-                            connections: viewModel.connectionsByTransport,
+                            connections: viewModel.syncVM.connectionsByTransport,
                             pageSize: $queryPageSize,
                             pageSizes: queryPageSizes,
                             onPageSizeChange: { newSize in
@@ -446,7 +446,7 @@ extension MainStudioView {
 
                         Spacer()
 
-                        if !viewModel.jsonResults.isEmpty {
+                        if !viewModel.queryVM.jsonResults.isEmpty {
                             Button {
                                 queryCurrentPage = max(1, queryCurrentPage - 1)
                             } label: {
@@ -497,8 +497,8 @@ extension MainStudioView {
         #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Picker("", selection: $viewModel.selectedExecuteMode) {
-                    ForEach(viewModel.executeModes, id: \.self) { Text($0).tag($0) }
+                Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                    ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
                 }
                 .pickerStyle(.menu)
                 .frame(width: 100)
@@ -508,11 +508,11 @@ extension MainStudioView {
                     FontAwesomeText(
                         icon: NavigationIcon.play,
                         size: 14,
-                        color: viewModel.isQueryExecuting ? .gray : .green
+                        color: viewModel.queryVM.isQueryExecuting ? .gray : .green
                     )
                     .accessibilityLabel("Execute Query")
                 }
-                .disabled(viewModel.isQueryExecuting)
+                .disabled(viewModel.queryVM.isQueryExecuting)
             }
         }
         #endif
@@ -530,7 +530,7 @@ extension MainStudioView {
         } label: {
             FontAwesomeText(icon: DataIcon.code, size: 14)
         }
-        .disabled(viewModel.jsonResults.isEmpty)
+        .disabled(viewModel.queryVM.jsonResults.isEmpty)
         .help("Generate DQL statement templates based on query results")
         .padding(.trailing, 8)
     }
@@ -540,7 +540,7 @@ extension MainStudioView {
     }
 
     private func queryGenerateAndInsert(_ type: QueryDQLStatementType) {
-        let lastQuery = viewModel.selectedQuery
+        let lastQuery = viewModel.queryVM.selectedQuery
         guard !lastQuery.isEmpty else {
             queryShowNotification("No query available")
             return
@@ -558,12 +558,12 @@ extension MainStudioView {
         case .delete: DQLGenerator.generateDelete(collection: collectionName)
         case .evict: DQLGenerator.generateEvict(collection: collectionName)
         }
-        viewModel.selectedQuery = dql
+        viewModel.queryVM.selectedQuery = dql
         queryShowNotification("DQL inserted into editor")
     }
 
     private func queryExtractFieldNames() -> [String] {
-        guard let first = viewModel.jsonResults.first,
+        guard let first = viewModel.queryVM.jsonResults.first,
               let data = first.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
         var keys = Array(obj.keys).sorted()
@@ -575,7 +575,7 @@ extension MainStudioView {
     }
 
     private func queryFlattenResults() -> String {
-        let results = viewModel.jsonResults
+        let results = viewModel.queryVM.jsonResults
         guard results.count > 1 else { return results.first ?? "[]" }
         return "[\n" + results.joined(separator: ",\n") + "\n]"
     }
@@ -601,7 +601,7 @@ extension MainStudioView {
                     Divider()
 
                     // Bottom pane (50%) — selected event detail
-                    observableDetailSelectedEvent(observeEvent: viewModel.selectedEventObject)
+                    observableDetailSelectedEvent(observeEvent: viewModel.subObsVM.selectedEventObject)
                         .frame(height: geometry.size.height * 0.5, alignment: .top)
                 }
             }
@@ -614,8 +614,8 @@ extension MainStudioView {
         .overlay(alignment: .bottom) {
             #if os(iOS)
             if horizontalSizeClass != .compact {
-                DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                    if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+                DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+                    if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
                         PaginationControls(
                             totalCount: observeDetailFilteredData.count,
                             currentPage: $observeDetailCurrentPage,
@@ -635,8 +635,8 @@ extension MainStudioView {
                 .padding(.bottom, 12)
             }
             #else
-            DetailBottomBar(connections: viewModel.connectionsByTransport) {
-                if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+                if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
                     PaginationControls(
                         totalCount: observeDetailFilteredData.count,
                         currentPage: $observeDetailCurrentPage,
@@ -656,14 +656,14 @@ extension MainStudioView {
             .padding(.bottom, 12)
             #endif
         }
-        .onChange(of: viewModel.eventStore.count) { _, _ in
+        .onChange(of: viewModel.subObsVM.eventStore.count) { _, _ in
             observerCurrentPage = 1
             if !observerPageSizes.contains(observerPageSize) {
                 observerPageSize = observerPageSizes.first ?? 25
             }
         }
-        .onChange(of: viewModel.selectedEventId) { _, _ in refreshObserveDetailData() }
-        .onChange(of: viewModel.eventMode) { _, _ in refreshObserveDetailData() }
+        .onChange(of: viewModel.subObsVM.selectedEventId) { _, _ in refreshObserveDetailData() }
+        .onChange(of: viewModel.subObsVM.eventMode) { _, _ in refreshObserveDetailData() }
         #if os(iOS)
             .navigationTitle("Observer Events")
             .toolbar {
@@ -674,11 +674,11 @@ extension MainStudioView {
                         HStack(spacing: 18) {
                             Button {
                                 Task {
-                                    do { try await viewModel.toggleSync() } catch { appState.setError(error) }
+                                    do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
                                 }
                             } label: {
                                 Image(systemName: "arrow.2.circlepath")
-                                    .foregroundStyle(viewModel.isSyncEnabled ? Color.green : Color.red)
+                                    .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                             }
                             .accessibilityIdentifier("SyncButton")
 
@@ -707,7 +707,7 @@ extension MainStudioView {
                 if horizontalSizeClass == .compact {
                     ToolbarItemGroup(placement: .bottomBar) {
                         ConnectionStatusMenu(
-                            connections: viewModel.connectionsByTransport,
+                            connections: viewModel.syncVM.connectionsByTransport,
                             pageSize: $observeDetailPageSize,
                             pageSizes: observeDetailPageSizes,
                             onPageSizeChange: { newSize in
@@ -718,7 +718,7 @@ extension MainStudioView {
 
                         Spacer()
 
-                        if viewModel.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+                        if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
                             Button {
                                 observeDetailCurrentPage = max(1, observeDetailCurrentPage - 1)
                             } label: {
@@ -758,7 +758,7 @@ extension MainStudioView {
 
     private func observableEventsList() -> some View {
         VStack(spacing: 0) {
-            if !viewModel.eventStore.isEmpty {
+            if !viewModel.subObsVM.eventStore.isEmpty {
                 HStack {
                     Spacer()
                     PaginationControls(
@@ -782,13 +782,13 @@ extension MainStudioView {
                 Divider()
             }
 
-            if viewModel.selectedObservable == nil {
+            if viewModel.subObsVM.selectedObservable == nil {
                 ContentUnavailableView(
                     "No Observer Selected",
                     systemImage: "exclamationmark.triangle.fill",
                     description: Text("Select an observer from the sidebar to view events.")
                 )
-            } else if viewModel.eventStore.isEmpty {
+            } else if viewModel.subObsVM.eventStore.isEmpty {
                 ContentUnavailableView(
                     "No Observer Events",
                     systemImage: "exclamationmark.triangle.fill",
@@ -797,14 +797,14 @@ extension MainStudioView {
             } else {
                 ObserverEventsTableView(
                     events: pagedObservableEvents,
-                    selectedEventId: $viewModel.selectedEventId
+                    selectedEventId: $viewModel.subObsVM.selectedEventId
                 )
             }
         }
     }
 
     private func filteredObserveEventData(_ event: DittoObserveEvent) -> [String] {
-        switch viewModel.eventMode {
+        switch viewModel.subObsVM.eventMode {
         case "inserted": return event.getInsertedData()
         case "updated": return event.getUpdatedData()
         default: return event.data
@@ -812,7 +812,7 @@ extension MainStudioView {
     }
 
     private func refreshObserveDetailData() {
-        guard let event = viewModel.selectedEventObject else {
+        guard let event = viewModel.subObsVM.selectedEventObject else {
             observeDetailFilteredData = []
             return
         }
@@ -835,7 +835,7 @@ extension MainStudioView {
 
                     Spacer()
 
-                    Picker("Filter", selection: $viewModel.eventMode) {
+                    Picker("Filter", selection: $viewModel.subObsVM.eventMode) {
                         Text("Items").tag("items")
                         Text("Inserted").tag("inserted")
                         Text("Updated").tag("updated")
