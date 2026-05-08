@@ -478,8 +478,13 @@ extension MainStudioView {
         var favorites: [DittoQueryHistory] = []
         var collections: [DittoCollection] = []
         var observerables: [DittoObservable] = []
-        var observableEvents: [DittoObserveEvent] = []
-        var selectedObservableEvents: [DittoObserveEvent] = []
+        var eventStore = ObservableEventStore()
+
+        // Coalesces high-frequency observer callbacks into a single batched
+        // SwiftUI update every ~100ms to prevent invalidation storms.
+        private var pendingObservedEvents: [DittoObserveEvent] = []
+        private var observedEventFlushTask: Task<Void, Never>?
+        private static let observedEventFlushInterval: Duration = .milliseconds(100)
 
         // query editor view
         var selectedQuery: String
@@ -758,7 +763,7 @@ extension MainStudioView {
 
         var selectedEventObject: DittoObserveEvent? {
             guard let selectedId = selectedEventId else { return nil }
-            return observableEvents.first(where: { $0.id == selectedId })
+            return eventStore.event(id: selectedId)
         }
 
         func addQueryToHistory(appState: AppState) async {
@@ -811,7 +816,8 @@ extension MainStudioView {
             history = []
             favorites = []
             observerables = []
-            observableEvents = []
+            cancelObservedEventFlush()
+            eventStore.removeAll()
             syncStatusItems = []
             connectionsByTransport = .empty
             isSyncEnabled = false
@@ -924,7 +930,8 @@ extension MainStudioView {
             try await ObservableRepository.shared.removeDittoObservable(observable)
 
             // remove events for the observable
-            observableEvents.removeAll(where: { $0.observeId == observable.id })
+            eventStore.remove(observerId: observable.id)
+            pendingObservedEvents.removeAll { $0.observeId == observable.id }
 
             if selectedObservable?.id == observable.id {
                 selectedObservable = nil
@@ -1025,12 +1032,32 @@ extension MainStudioView {
             subscriptions = await SubscriptionsRepository.shared.getCachedSubscriptions()
         }
 
-        func loadObservedEvents() async {
-            if let selectedId = selectedObservable?.id {
-                selectedObservableEvents = observableEvents.filter { $0.observeId == selectedId }
-            } else {
-                selectedObservableEvents = []
+        /// Enqueues a freshly emitted observer event onto the pending buffer
+        /// and (re)schedules a flush. Coalescing across a 100ms window keeps
+        /// SwiftUI from re-rendering on every individual SDK callback during
+        /// high-frequency sync.
+        private func enqueueObservedEvent(_ event: DittoObserveEvent) {
+            pendingObservedEvents.append(event)
+            guard observedEventFlushTask == nil else { return }
+            observedEventFlushTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: Self.observedEventFlushInterval)
+                guard let self else { return }
+                flushPendingObservedEvents()
             }
+        }
+
+        private func flushPendingObservedEvents() {
+            observedEventFlushTask = nil
+            guard !pendingObservedEvents.isEmpty else { return }
+            let batch = pendingObservedEvents
+            pendingObservedEvents.removeAll(keepingCapacity: true)
+            eventStore.append(contentsOf: batch)
+        }
+
+        private func cancelObservedEventFlush() {
+            observedEventFlushTask?.cancel()
+            observedEventFlushTask = nil
+            pendingObservedEvents.removeAll(keepingCapacity: false)
         }
 
         func registerStoreObserver(_ observable: DittoObservable) async throws {
@@ -1078,11 +1105,7 @@ extension MainStudioView {
 
                 let capturedEvent = event
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    observableEvents.append(capturedEvent)
-                    if capturedEvent.observeId == selectedObservable?.id {
-                        selectedObservableEvents.append(capturedEvent)
-                    }
+                    self?.enqueueObservedEvent(capturedEvent)
                 }
             }
             observerables[index].storeObserver = observer
@@ -1095,8 +1118,8 @@ extension MainStudioView {
             observerables[index].storeObserver?.cancel()
             observerables[index].storeObserver = nil
             selectedEventId = nil
-            observableEvents.removeAll()
-            observableEvents = []
+            cancelObservedEventFlush()
+            eventStore.removeAll()
         }
 
         func showObservableEditor(_ observable: DittoObservable) {

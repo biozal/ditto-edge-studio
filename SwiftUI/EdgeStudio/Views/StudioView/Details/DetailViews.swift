@@ -179,7 +179,7 @@ extension MainStudioView {
     // MARK: - Pagination helpers (used by observeDetailView)
 
     private var observerEventsCount: Int {
-        viewModel.observableEvents.count
+        viewModel.eventStore.count
     }
 
     private var observerPageSizes: [Int] {
@@ -201,7 +201,7 @@ extension MainStudioView {
         let start = (observerCurrentPage - 1) * observerPageSize
         guard start < observerEventsCount else { return [] }
         let end = min(start + observerPageSize, observerEventsCount)
-        return Array(viewModel.observableEvents[start ..< end])
+        return Array(viewModel.eventStore.events[start ..< end])
     }
 
     // MARK: - Pagination helpers (used by observe detail pane)
@@ -656,7 +656,7 @@ extension MainStudioView {
             .padding(.bottom, 12)
             #endif
         }
-        .onChange(of: viewModel.observableEvents.count) { _, _ in
+        .onChange(of: viewModel.eventStore.count) { _, _ in
             observerCurrentPage = 1
             if !observerPageSizes.contains(observerPageSize) {
                 observerPageSize = observerPageSizes.first ?? 25
@@ -758,7 +758,7 @@ extension MainStudioView {
 
     private func observableEventsList() -> some View {
         VStack(spacing: 0) {
-            if !viewModel.observableEvents.isEmpty {
+            if !viewModel.eventStore.isEmpty {
                 HStack {
                     Spacer()
                     PaginationControls(
@@ -788,7 +788,7 @@ extension MainStudioView {
                     systemImage: "exclamationmark.triangle.fill",
                     description: Text("Select an observer from the sidebar to view events.")
                 )
-            } else if viewModel.observableEvents.isEmpty {
+            } else if viewModel.eventStore.isEmpty {
                 ContentUnavailableView(
                     "No Observer Events",
                     systemImage: "exclamationmark.triangle.fill",

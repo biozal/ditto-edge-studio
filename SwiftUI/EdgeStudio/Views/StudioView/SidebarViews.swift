@@ -335,7 +335,6 @@ extension MainStudioView {
                         viewModel.sidebarMenuItems.first {
                             $0.name == "Observers"
                         } ?? viewModel.sidebarMenuItems[0]
-                    Task { await viewModel.loadObservedEvents() }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "eye")
@@ -363,7 +362,6 @@ extension MainStudioView {
                                 viewModel.selectedSidebarMenuItem =
                                     viewModel.sidebarMenuItems.first { $0.name == "Observers" }
                                         ?? viewModel.sidebarMenuItems[0]
-                                await viewModel.loadObservedEvents()
                             } catch { appState.setError(error) }
                         }
                     } label: {
@@ -406,7 +404,6 @@ extension MainStudioView {
                                     viewModel.selectedSidebarMenuItem =
                                         viewModel.sidebarMenuItems.first { $0.name == "Observers" }
                                             ?? viewModel.sidebarMenuItems[0]
-                                    await viewModel.loadObservedEvents()
                                 } catch { appState.setError(error) }
                             }
                         } label: {
