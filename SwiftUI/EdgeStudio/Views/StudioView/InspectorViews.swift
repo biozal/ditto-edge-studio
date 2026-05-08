@@ -3,22 +3,22 @@ import SwiftUI
 extension MainStudioView {
     func inspectorView() -> some View {
         Group {
-            switch viewModel.selectedSidebarMenuItem.name {
-            case "Collections", "Query":
-                queryTabInspectorView()
-            case "Observers":
-                observeDetailInspectorView()
-            case "App Metrics", "Query Metrics":
-                metricsInspectorView()
-            case "Logging":
-                loggingInspectorView()
-            default: // "Subscriptions"
+            switch viewModel.selectedSidebarDestination {
+            case .subscriptions:
                 syncTabsInspectorView()
+            case .query:
+                queryTabInspectorView()
+            case .observers:
+                observeDetailInspectorView()
+            case .appMetrics, .queryMetrics:
+                metricsInspectorView()
+            case .logging:
+                loggingInspectorView()
             }
         }
-        .id(viewModel.selectedSidebarMenuItem)
+        .id(viewModel.selectedSidebarDestination)
         .transition(.blurReplace)
-        .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
+        .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarDestination)
     }
 
     // MARK: - Per-Tab Inspector Dispatchers
@@ -170,7 +170,7 @@ extension MainStudioView {
     }
 
     private func metricsDocsInspectorContent() -> some View {
-        let resourceName = viewModel.selectedSidebarMenuItem.name == "App Metrics" ? "appmetrics" : "querymetrics"
+        let resourceName = viewModel.selectedSidebarDestination == .appMetrics ? "appmetrics" : "querymetrics"
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Metrics Help").font(.headline)
@@ -572,18 +572,15 @@ extension MainStudioView {
 
     // MARK: - Inspector Helper Methods
 
-    /// Loads a query from the inspector and automatically switches to Collections view if needed
-    /// to ensure the QueryEditor is visible.
+    /// Loads a query from the inspector and automatically switches to the Query
+    /// destination if needed so the QueryEditor is visible.
     func loadQueryFromInspector(_ query: String) {
         // CRITICAL: Force sidebar to stay visible BEFORE any state changes
         columnVisibility = .all
 
-        // Only Collections view has the QueryEditor now (History/Favorites are in inspector)
-        if viewModel.selectedSidebarMenuItem.name != "Collections" {
-            // Switch to Collections to show the QueryEditor
-            if let collectionsItem = viewModel.sidebarMenuItems.first(where: { $0.name == "Collections" }) {
-                viewModel.selectedSidebarMenuItem = collectionsItem
-            }
+        // Only the Query destination has the QueryEditor now (History/Favorites are in inspector)
+        if viewModel.selectedSidebarDestination != .query {
+            viewModel.selectedSidebarDestination = .query
         }
 
         // Load the query

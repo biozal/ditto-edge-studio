@@ -4,6 +4,13 @@ struct ContentView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
+    /// Persists the `_id` of the currently open database across app launches via
+    /// SceneStorage (per-window state, restored on cold launch). When `loadApps`
+    /// completes we re-open whichever database matches this id, so users land
+    /// back where they were after a restart. Cleared when the user closes the
+    /// database or hydration fails.
+    @SceneStorage("selectedDatabaseId") private var storedDatabaseId: String?
+
     #if os(macOS)
     @State private var quickstartService = QuickstartDownloadService()
     @State private var showNoConnectionAlert = false
@@ -68,6 +75,27 @@ struct ContentView: View {
         .onAppear {
             Task {
                 await viewModel.loadApps(appState: appState)
+                // Restore the previously open database if one was persisted in
+                // SceneStorage. Skip if a database is already presented (e.g. the
+                // user tapped a card before the load finished) or if the stored
+                // id no longer matches any saved config (e.g. the user deleted
+                // the config between launches).
+                if let storedId = storedDatabaseId,
+                   !viewModel.isMainStudioViewPresented,
+                   let config = viewModel.dittoApps.first(where: { $0._id == storedId })
+                {
+                    await viewModel.showMainStudio(config, appState: appState)
+                }
+            }
+        }
+        // Keep SceneStorage in sync with the currently presented database so a
+        // cold launch restores the right one. Setting `nil` on close clears it
+        // and prevents auto-reopening a database the user explicitly closed.
+        .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
+            if isPresented {
+                storedDatabaseId = viewModel.selectedDittoConfigForDatabase?._id
+            } else if !viewModel.isClosingDatabase {
+                storedDatabaseId = nil
             }
         }
         #if os(macOS)

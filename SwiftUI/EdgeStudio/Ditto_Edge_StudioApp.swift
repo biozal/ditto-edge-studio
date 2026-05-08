@@ -34,7 +34,6 @@ class WindowController {
 // swiftlint:disable:next type_name
 struct Ditto_Edge_StudioApp: App {
     @State private var appState = AppState()
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -126,16 +125,6 @@ struct Ditto_Edge_StudioApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 800, height: 540)
-        .onChange(of: scenePhase) { newPhase, _ in
-            switch newPhase {
-            case .background, .inactive:
-                Task {}
-            case .active:
-                break
-            @unknown default:
-                break
-            }
-        }
 
         #if os(macOS)
 

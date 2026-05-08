@@ -25,69 +25,21 @@ extension MainStudioView {
             // ── Top Navigation Items ─────────────────────────────────────
             // Like Apple Music's Search / Home / New / Radio rows — these
             // are the primary way to switch the detail view on the right.
+            // Metrics destinations are filtered into `availableDestinations`
+            // by `metricsEnabled`, so a single ForEach covers both cases.
             Section {
-                ForEach(viewModel.sidebarMenuItems) { item in
+                ForEach(availableDestinations) { destination in
                     Button {
-                        viewModel.selectedSidebarMenuItem = item
+                        viewModel.selectedSidebarDestination = destination
                     } label: {
-                        Label(item.name, systemImage: item.systemIcon)
-                        #if os(iOS)
-                            .font(.subheadline)
-                        #endif
-                            .foregroundStyle(
-                                viewModel.selectedSidebarMenuItem == item
-                                    ? Color.primary
-                                    : Color.primary
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        viewModel.selectedSidebarMenuItem == item
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
-                    )
-                }
-                // ── Metrics Content Section (when enabled) ───────────────────
-                if metricsEnabled {
-                    Button {
-                        viewModel.selectedSidebarMenuItem = MenuItem(
-                            id: 4,
-                            name: "App Metrics",
-                            systemIcon: "cpu"
-                        )
-                    } label: {
-                        Label("App Metrics", systemImage: "cpu")
+                        Label(destination.displayName, systemImage: destination.systemIcon)
                         #if os(iOS)
                             .font(.subheadline)
                         #endif
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(
-                        viewModel.selectedSidebarMenuItem.name
-                            == "App Metrics"
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
-                    )
-
-                    Button {
-                        viewModel.selectedSidebarMenuItem = MenuItem(
-                            id: 5,
-                            name: "Query Metrics",
-                            systemIcon: "text.magnifyingglass"
-                        )
-                    } label: {
-                        Label(
-                            "Query Metrics",
-                            systemImage: "text.magnifyingglass"
-                        )
-                        #if os(iOS)
-                        .font(.subheadline)
-                        #endif
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        viewModel.selectedSidebarMenuItem.name
-                            == "Query Metrics"
+                        viewModel.selectedSidebarDestination == destination
                             ? Color.accentColor.opacity(0.18)
                             : Color.clear
                     )
@@ -120,7 +72,7 @@ extension MainStudioView {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        showingSubscriptionQRDisplay = true
+                        activeSheet = .subscriptionQRDisplay
                     } label: {
                         Image(systemName: "qrcode")
                             .font(.caption)
@@ -207,12 +159,7 @@ extension MainStudioView {
             } label: {
                 Button {
                     expandedSubscriptionIds.formSymmetricDifference([sub.id])
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first {
-                            $0.name == "Subscriptions"
-                        }
-                        ?? viewModel
-                        .sidebarMenuItems[0]
+                    viewModel.selectedSidebarDestination = .subscriptions
                 } label: {
                     HStack(spacing: 8) {
                         Image(
@@ -228,7 +175,7 @@ extension MainStudioView {
                 .buttonStyle(.plain)
             }
             .contextMenu {
-                Button("Edit") { viewModel.showSubscriptionEditor(sub) }
+                Button("Edit") { presentSubscriptionEditor(sub) }
                 Divider()
                 Button("Delete", role: .destructive) {
                     Task {
@@ -295,17 +242,13 @@ extension MainStudioView {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
-                            ?? viewModel.sidebarMenuItems[0]
+                    viewModel.selectedSidebarDestination = .query
                 }
             }
             .contextMenu {
                 Button {
                     viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
-                            ?? viewModel.sidebarMenuItems[0]
+                    viewModel.selectedSidebarDestination = .query
                 } label: {
                     Label("SELECT * FROM \(collection.name)", systemImage: "arrow.right.doc.on.clipboard")
                 }
@@ -331,10 +274,7 @@ extension MainStudioView {
                 Button {
                     expandedObserverIds.formSymmetricDifference([observer.id])
                     viewModel.selectedObservable = observer
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first {
-                            $0.name == "Observers"
-                        } ?? viewModel.sidebarMenuItems[0]
+                    viewModel.selectedSidebarDestination = .observers
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "eye")
@@ -359,9 +299,7 @@ extension MainStudioView {
                             do {
                                 try await viewModel.registerStoreObserver(observer)
                                 viewModel.selectedObservable = observer
-                                viewModel.selectedSidebarMenuItem =
-                                    viewModel.sidebarMenuItems.first { $0.name == "Observers" }
-                                        ?? viewModel.sidebarMenuItems[0]
+                                viewModel.selectedSidebarDestination = .observers
                             } catch { appState.setError(error) }
                         }
                     } label: {
@@ -401,9 +339,7 @@ extension MainStudioView {
                                 do {
                                     try await viewModel.registerStoreObserver(observer)
                                     viewModel.selectedObservable = observer
-                                    viewModel.selectedSidebarMenuItem =
-                                        viewModel.sidebarMenuItems.first { $0.name == "Observers" }
-                                            ?? viewModel.sidebarMenuItems[0]
+                                    viewModel.selectedSidebarDestination = .observers
                                 } catch { appState.setError(error) }
                             }
                         } label: {

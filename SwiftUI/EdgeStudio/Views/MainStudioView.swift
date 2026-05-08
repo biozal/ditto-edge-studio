@@ -11,11 +11,12 @@ struct MainStudioView: View {
     @Binding var isMainStudioViewPresented: Bool
     @Binding var isClosingDatabase: Bool
     @State var viewModel: MainStudioView.ViewModel
-    @State private var showingImportView = false
-    @State private var showingImportSubscriptionsView = false
-    @State var showingSubscriptionQRDisplay = false
-    @State var showingSubscriptionQRScanner = false
-    @State var selectedSyncTab = 0 // Persists tab selection
+    /// Currently presented modal sheet (or `nil` when none). Drives the single
+    /// `.sheet(item:)` modifier on the body — replaces the previous tower of
+    /// `.sheet(isPresented:)` modifiers driven by independent `Bool` flags.
+    @State var activeSheet: ActiveSheet?
+    /// Persists the sync detail's sub-tab (Peers List / Presence Viewer) across app launches.
+    @AppStorage("selectedSyncTab") var selectedSyncTab = 0
     @State var queryCurrentPage = 1
     @State var queryPageSize = 10
     @State var observerCurrentPage = 1
@@ -45,15 +46,139 @@ struct MainStudioView: View {
     @State var columnVisibility: NavigationSplitViewVisibility = .all
     @State var preferredCompactColumn: NavigationSplitViewColumn = .detail
 
-    /// used for editing observers and subscriptions
-    private var isSheetPresented: Binding<Bool> {
-        Binding<Bool>(
-            get: { viewModel.actionSheetMode != .none },
-            set: { newValue in
-                if !newValue {
-                    viewModel.actionSheetMode = .none
+    /// Sidebar destinations to display, filtering out metrics destinations when
+    /// telemetry is disabled (matches the previous `buildSidebarItems` behavior).
+    var availableDestinations: [SidebarDestination] {
+        SidebarDestination.allCases.filter { destination in
+            !destination.isMetricsDestination || metricsEnabled
+        }
+    }
+
+    /// Renders the body of whichever sheet is currently presented. Routed by the
+    /// single `.sheet(item: $activeSheet)` modifier on the body so only one sheet
+    /// can be active at a time.
+    @ViewBuilder
+    func sheetContent(for sheet: ActiveSheet) -> some View {
+        switch sheet {
+        case .editSubscription:
+            if let subscription = viewModel.editorSubscription {
+                SubscriptionObserverEditor(
+                    title: subscription.name.isEmpty
+                        ? "New Query Argument"
+                        : subscription.name,
+                    name: subscription.name,
+                    query: subscription.query,
+                    onSave: { name, query, appState in
+                        viewModel.formSaveSubscription(name: name, query: query, appState: appState)
+                        activeSheet = nil
+                    },
+                    onCancel: {
+                        viewModel.formCancel()
+                        activeSheet = nil
+                    }
+                ).environment(appState)
+            }
+        case .editObserver:
+            if let observer = viewModel.editorObservable {
+                SubscriptionObserverEditor(
+                    title: observer.name.isEmpty
+                        ? "New Observer"
+                        : observer.name,
+                    name: observer.name,
+                    query: observer.query,
+                    onSave: { name, query, appState in
+                        viewModel.formSaveObserver(name: name, query: query, appState: appState)
+                        activeSheet = nil
+                    },
+                    onCancel: {
+                        viewModel.formCancel()
+                        activeSheet = nil
+                    }
+                ).environment(appState)
+            }
+        case .addIndex:
+            AddIndexView(
+                collections: viewModel.collections,
+                onCancel: { activeSheet = nil },
+                onCreated: {
+                    activeSheet = nil
+                    Task { await viewModel.refreshCollectionCounts() }
+                }
+            ).environment(appState)
+        case .importJSON:
+            ImportDataView(isPresented: importJSONBinding)
+                .environment(appState)
+        case .importSubscriptions:
+            ImportSubscriptionsView(
+                isPresented: importSubscriptionsBinding,
+                existingSubscriptions: viewModel.subscriptions,
+                selectedAppId: viewModel.selectedApp._id
+            )
+            .environment(appState)
+        case .subscriptionQRDisplay:
+            SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {
+                SubscriptionQRItem(name: $0.name, query: $0.query, args: nil)
+            })
+        case .subscriptionQRScanner:
+            SubscriptionQRScannerView { items, onProgress in
+                await viewModel.importSubscriptionsFromQR(items, appState: appState, onProgress: onProgress)
+            }
+            #if os(macOS)
+            .frame(minWidth: 480, minHeight: 360)
+            #endif
+        case .attachmentPicker:
+            if let json = viewModel.attachmentTargetJson,
+               let docId = viewModel.parseDocumentId(from: json)
+            {
+                AttachmentPickerSheet(
+                    documentId: String(describing: docId),
+                    collection: viewModel.attachmentTargetCollection ?? "unknown",
+                    executeMode: viewModel.selectedExecuteMode
+                ) { fileURL, fieldName, metadata in
+                    Task {
+                        await viewModel.executeAddAttachment(
+                            fileURL: fileURL,
+                            fieldName: fieldName,
+                            metadata: metadata,
+                            appState: appState
+                        )
+                    }
                 }
             }
+        case .deleteAttachmentPicker:
+            if let json = viewModel.deleteAttachmentTargetJson,
+               let docId = viewModel.parseDocumentId(from: json)
+            {
+                let attachments = AttachmentInfo.detectTokens(in: json)
+                DeleteAttachmentSheet(
+                    documentId: String(describing: docId),
+                    collection: viewModel.deleteAttachmentTargetCollection ?? "unknown",
+                    attachments: attachments
+                ) { selected in
+                    Task {
+                        await viewModel.executeDeleteAttachment(
+                            selectedAttachments: selected,
+                            appState: appState
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Bridges legacy `Binding<Bool>` APIs (e.g. `ImportDataView.isPresented`) to
+    /// the unified `activeSheet` state. Setting `false` clears the sheet.
+    private var importJSONBinding: Binding<Bool> {
+        Binding(
+            get: { activeSheet == .importJSON },
+            set: { if !$0 { activeSheet = nil } }
+        )
+    }
+
+    private var importSubscriptionsBinding: Binding<Bool> {
+        Binding(
+            get: { activeSheet == .importSubscriptions },
+            set: { if !$0 { activeSheet = nil } }
         )
     }
 
@@ -98,22 +223,21 @@ struct MainStudioView: View {
                             "Add Subscription",
                             systemImage: "arrow.trianglehead.2.clockwise"
                         ) {
-                            viewModel.editorSubscription =
-                                DittoSubscription.new()
-                            viewModel.actionSheetMode = .subscription
+                            viewModel.editorSubscription = DittoSubscription.new()
+                            activeSheet = .editSubscription
                         }
                         Button("Add Observer", systemImage: "eye") {
                             viewModel.editorObservable = DittoObservable.new()
-                            viewModel.actionSheetMode = .observer
+                            activeSheet = .editObserver
                         }
                         Button("Add Index", systemImage: "plus.magnifyingglass") {
-                            viewModel.actionSheetMode = .addIndex
+                            activeSheet = .addIndex
                         }
 
                         Divider()
 
                         Button("Import Subscriptions → QR Code", systemImage: "qrcode.viewfinder") {
-                            showingSubscriptionQRScanner = true
+                            activeSheet = .subscriptionQRScanner
                         }
 
                         // Only show Import from Server when HTTP API is configured
@@ -121,14 +245,14 @@ struct MainStudioView: View {
                             !viewModel.selectedApp.httpApiKey.isEmpty
                         {
                             Button("Import Subscriptions → Server", systemImage: "arrow.down.circle") {
-                                showingImportSubscriptionsView = true
+                                activeSheet = .importSubscriptions
                             }
                         }
 
                         Divider()
 
                         Button("Import JSON Data", systemImage: "arrow.up") {
-                            showingImportView = true
+                            activeSheet = .importJSON
                         }
                     } label: {
                         Image(systemName: "plus")
@@ -159,24 +283,24 @@ struct MainStudioView: View {
             )
         } detail: {
             Group {
-                switch viewModel.selectedSidebarMenuItem.name {
-                case "Collections", "Query":
-                    queryDetailView()
-                case "Observers":
-                    observeDetailView()
-                case "App Metrics":
-                    AppMetricsDetailView()
-                case "Query Metrics":
-                    QueryMetricsDetailView()
-                case "Logging":
-                    LoggingDetailView()
-                default:
+                switch viewModel.selectedSidebarDestination {
+                case .subscriptions:
                     syncTabsDetailView()
+                case .query:
+                    queryDetailView()
+                case .observers:
+                    observeDetailView()
+                case .appMetrics:
+                    AppMetricsDetailView()
+                case .queryMetrics:
+                    QueryMetricsDetailView()
+                case .logging:
+                    LoggingDetailView()
                 }
             }
-            .id(viewModel.selectedSidebarMenuItem)
+            .id(viewModel.selectedSidebarDestination)
             .transition(.blurReplace)
-            .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
+            .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarDestination)
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
@@ -189,101 +313,8 @@ struct MainStudioView: View {
                     .presentationDetents([.medium, .large])
                     .inspectorColumnWidth(min: 250, ideal: 350, max: 500)
             }
-            .sheet(isPresented: isSheetPresented) {
-                if let subscription = viewModel.editorSubscription {
-                    SubscriptionObserverEditor(
-                        title: subscription.name.isEmpty
-                            ? "New Query Argument"
-                            : subscription.name,
-                        name: subscription.name,
-                        query: subscription.query,
-                        onSave: viewModel.formSaveSubscription,
-                        onCancel: viewModel.formCancel
-                    ).environment(appState)
-                } else if let observer = viewModel.editorObservable {
-                    SubscriptionObserverEditor(
-                        title: observer.name.isEmpty
-                            ? "New Observer"
-                            : observer.name,
-                        name: observer.name,
-                        query: observer.query,
-                        onSave: viewModel.formSaveObserver,
-                        onCancel: viewModel.formCancel
-                    ).environment(appState)
-                } else if viewModel.actionSheetMode == .addIndex {
-                    AddIndexView(
-                        collections: viewModel.collections,
-                        onCancel: { viewModel.actionSheetMode = .none },
-                        onCreated: {
-                            viewModel.actionSheetMode = .none
-                            Task { await viewModel.refreshCollectionCounts() }
-                        }
-                    ).environment(appState)
-                }
-            }
-            .sheet(isPresented: $showingImportView) {
-                ImportDataView(isPresented: $showingImportView)
-                    .environment(appState)
-            }
-            .sheet(isPresented: $showingImportSubscriptionsView) {
-                ImportSubscriptionsView(
-                    isPresented: $showingImportSubscriptionsView,
-                    existingSubscriptions: viewModel.subscriptions,
-                    selectedAppId: viewModel.selectedApp._id
-                )
-                .environment(appState)
-            }
-            .sheet(isPresented: $showingSubscriptionQRDisplay) {
-                SubscriptionQRDisplayView(subscriptions: viewModel.subscriptions.map {
-                    SubscriptionQRItem(name: $0.name, query: $0.query, args: nil)
-                })
-            }
-            .sheet(isPresented: $showingSubscriptionQRScanner) {
-                SubscriptionQRScannerView { items, onProgress in
-                    await viewModel.importSubscriptionsFromQR(items, appState: appState, onProgress: onProgress)
-                }
-                #if os(macOS)
-                .frame(minWidth: 480, minHeight: 360)
-                #endif
-            }
-            .sheet(isPresented: $viewModel.showAttachmentPicker) {
-                if let json = viewModel.attachmentTargetJson,
-                   let docId = viewModel.parseDocumentId(from: json)
-                {
-                    AttachmentPickerSheet(
-                        documentId: String(describing: docId),
-                        collection: viewModel.attachmentTargetCollection ?? "unknown",
-                        executeMode: viewModel.selectedExecuteMode
-                    ) { fileURL, fieldName, metadata in
-                        Task {
-                            await viewModel.executeAddAttachment(
-                                fileURL: fileURL,
-                                fieldName: fieldName,
-                                metadata: metadata,
-                                appState: appState
-                            )
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $viewModel.showDeleteAttachmentPicker) {
-                if let json = viewModel.deleteAttachmentTargetJson,
-                   let docId = viewModel.parseDocumentId(from: json)
-                {
-                    let attachments = AttachmentInfo.detectTokens(in: json)
-                    DeleteAttachmentSheet(
-                        documentId: String(describing: docId),
-                        collection: viewModel.deleteAttachmentTargetCollection ?? "unknown",
-                        attachments: attachments
-                    ) { selected in
-                        Task {
-                            await viewModel.executeDeleteAttachment(
-                                selectedAttachments: selected,
-                                appState: appState
-                            )
-                        }
-                    }
-                }
+            .sheet(item: $activeSheet) { sheet in
+                sheetContent(for: sheet)
             }
         #if os(macOS)
             .toolbar {
@@ -301,14 +332,10 @@ struct MainStudioView: View {
                 closeToolbarButton() // Trailing: back to database picker
             }
         #endif
-            // Sync sidebar items on first render (picks up the UserDefaults value after registerDefaults)
+            // Sync inspector items on first render (picks up the UserDefaults value after registerDefaults)
             // and kick off the initial repository load. The load runs as a tracked
             // `loadTask` on the ViewModel so `closeSelectedApp` / `deinit` can cancel it.
             .task {
-                viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(
-                    metricsEnabled: metricsEnabled
-                )
-                // Sync inspector items with current metrics setting on first render
                 viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(
                     metricsEnabled: metricsEnabled
                 )
@@ -316,14 +343,11 @@ struct MainStudioView: View {
             }
             // React to metrics setting changes (macOS Settings window or iOS Settings app)
             .onChange(of: metricsEnabled) { _, enabled in
-                viewModel.sidebarMenuItems = MainStudioView.ViewModel.buildSidebarItems(metricsEnabled: enabled)
                 viewModel.queryInspectorMenuItems = MainStudioView.ViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
                 if !enabled {
-                    // Auto-navigate away from metrics sidebar items
-                    if viewModel.selectedSidebarMenuItem.name == "App Metrics" ||
-                        viewModel.selectedSidebarMenuItem.name == "Query Metrics"
-                    {
-                        viewModel.selectedSidebarMenuItem = viewModel.sidebarMenuItems[0]
+                    // Auto-navigate away from metrics sidebar destinations
+                    if viewModel.selectedSidebarDestination.isMetricsDestination {
+                        viewModel.selectedSidebarDestination = .subscriptions
                     }
                     // Auto-navigate away from Metrics inspector tab
                     if viewModel.selectedQueryInspectorMenuItem.name == "Metrics" {
@@ -336,7 +360,7 @@ struct MainStudioView: View {
                 Task { await viewModel.refreshLastQueryMetrics() }
             }
         #if os(iOS)
-            .onChange(of: viewModel.selectedSidebarMenuItem) { _, _ in
+            .onChange(of: viewModel.selectedSidebarDestination) { _, _ in
                 preferredCompactColumn = .detail
             }
         #endif
@@ -459,8 +483,9 @@ extension MainStudioView {
     class ViewModel {
         var selectedApp: DittoConfigForDatabase
 
-        // used for displaying action sheets
-        var actionSheetMode = ActionSheetMode.none
+        // Editor staging state — populated by the View before presenting the
+        // edit-subscription / edit-observer sheet via `activeSheet`. The sheet's
+        // routing enum (`ActiveSheet`) replaces the old `ActionSheetMode`.
         var editorSubscription: DittoSubscription?
         var editorObservable: DittoObservable?
 
@@ -512,9 +537,22 @@ extension MainStudioView {
         /// results view
         var jsonResults: [String]
 
-        // Sidebar Toolbar
-        var selectedSidebarMenuItem: MenuItem
-        var sidebarMenuItems: [MenuItem] = []
+        /// UserDefaults key for the persisted sidebar destination. Mirrors the
+        /// `@AppStorage` key the View uses for `selectedSyncTab`.
+        @ObservationIgnored
+        private static let sidebarDestinationKey = "selectedSidebarDestination"
+
+        /// Currently selected sidebar destination. Persisted to UserDefaults so the
+        /// last-viewed sidebar tab restores on relaunch (matches `@AppStorage`
+        /// semantics without requiring a View-level property wrapper).
+        var selectedSidebarDestination: SidebarDestination = .subscriptions {
+            didSet {
+                UserDefaults.standard.set(
+                    selectedSidebarDestination.rawValue,
+                    forKey: Self.sidebarDestinationKey
+                )
+            }
+        }
 
         // Inspector Toolbar (used only when Collections tab is active)
         var selectedQueryInspectorMenuItem: MenuItem
@@ -543,10 +581,10 @@ extension MainStudioView {
         // MARK: - Attachment State
 
         var attachmentProgress = AttachmentProgress()
-        var showAttachmentPicker = false
+        // Attachment staging state — populated by the View before presenting the
+        // attachment / delete-attachment sheet via `activeSheet`.
         var attachmentTargetJson: String?
         var attachmentTargetCollection: String?
-        var showDeleteAttachmentPicker = false
         var deleteAttachmentTargetJson: String?
         var deleteAttachmentTargetCollection: String?
 
@@ -558,16 +596,16 @@ extension MainStudioView {
 
         init(_ dittoAppConfig: DittoConfigForDatabase) {
             selectedApp = dittoAppConfig
-            let subscriptionItem = MenuItem(
-                id: 1,
-                name: "Subscriptions",
-                systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"
-            )
 
-            selectedSidebarMenuItem = subscriptionItem
-            sidebarMenuItems = Self.buildSidebarItems(
-                metricsEnabled: UserDefaults.standard.bool(forKey: "metricsEnabled")
-            )
+            // Restore the last-viewed sidebar destination from UserDefaults. If the
+            // stored value is unrecognized (e.g. an obsolete enum case after an
+            // upgrade) we fall back to `.subscriptions`. The View also gates metrics
+            // destinations on `metricsEnabled` so a stale persisted metrics tab can't
+            // strand the user on a hidden destination.
+            let storedDestination = UserDefaults.standard
+                .string(forKey: Self.sidebarDestinationKey)
+                .flatMap(SidebarDestination.init(rawValue:))
+            selectedSidebarDestination = storedDestination ?? .subscriptions
 
             // query section
             selectedQuery = ""
@@ -794,16 +832,6 @@ extension MainStudioView {
             }
             items.append(MenuItem(id: 8, name: "Help", systemIcon: "questionmark"))
             return items
-        }
-
-        /// Builds the sidebar menu items based on whether metrics collection is enabled.
-        static func buildSidebarItems(metricsEnabled: Bool) -> [MenuItem] {
-            [
-                MenuItem(id: 1, name: "Subscriptions", systemIcon: "arrow.trianglehead.2.clockwise.rotate.90"),
-                MenuItem(id: 2, name: "Query", systemIcon: "macpro.gen2"),
-                MenuItem(id: 3, name: "Observers", systemIcon: "eye"),
-                MenuItem(id: 6, name: "Logging", systemIcon: "doc.plaintext.fill")
-            ]
         }
 
         func refreshLastQueryMetrics() async {
@@ -1036,7 +1064,7 @@ extension MainStudioView {
 
         func formCancel() {
             editorSubscription = nil
-            actionSheetMode = .none
+            editorObservable = nil
         }
 
         func formSaveSubscription(
@@ -1056,7 +1084,6 @@ extension MainStudioView {
                     editorSubscription = nil
                 }
             }
-            actionSheetMode = .none
         }
 
         func formSaveObserver(
@@ -1076,7 +1103,6 @@ extension MainStudioView {
                     editorObservable = nil
                 }
             }
-            actionSheetMode = .none
         }
 
         func importSubscriptionsFromQR(
@@ -1193,14 +1219,18 @@ extension MainStudioView {
             eventStore.removeAll()
         }
 
-        func showObservableEditor(_ observable: DittoObservable) {
-            editorObservable = observable
-            actionSheetMode = .observer
+        // MARK: - Editor Staging
+
+        /// The View calls `presentSubscriptionEditor`/`presentObservableEditor`
+        /// (in `MainStudioView` extensions) to set the editor target and toggle
+        /// `activeSheet`. These VM helpers stage the data only; they don't
+        /// touch sheet state, keeping the VM independent of `ActiveSheet`.
+        func stageSubscriptionEditor(_ subscription: DittoSubscription) {
+            editorSubscription = subscription
         }
 
-        func showSubscriptionEditor(_ subscription: DittoSubscription) {
-            editorSubscription = subscription
-            actionSheetMode = .subscription
+        func stageObservableEditor(_ observable: DittoObservable) {
+            editorObservable = observable
         }
 
         // MARK: - Attachment Parsers
@@ -1225,18 +1255,18 @@ extension MainStudioView {
             return dict["_id"]
         }
 
-        // MARK: - Attachment Actions
+        // MARK: - Attachment Staging
 
-        func requestAddAttachment(documentJson: String) {
+        /// Sheet presentation is handled by the View — these helpers only stage
+        /// the data the sheet will read.
+        func stageAddAttachment(documentJson: String) {
             attachmentTargetJson = documentJson
             attachmentTargetCollection = parseCollectionName(from: selectedQuery)
-            showAttachmentPicker = true
         }
 
-        func requestDeleteAttachment(documentJson: String) {
+        func stageDeleteAttachment(documentJson: String) {
             deleteAttachmentTargetJson = documentJson
             deleteAttachmentTargetCollection = parseCollectionName(from: selectedQuery)
-            showDeleteAttachmentPicker = true
         }
 
         func executeDeleteAttachment(
@@ -1412,11 +1442,99 @@ extension MainStudioView {
 
 // MARK: Helpers
 
-enum ActionSheetMode: String {
-    case none
-    case subscription
-    case observer
+// MARK: - Sheet Presentation Helpers
+
+extension MainStudioView {
+    /// Stages the editor for an existing subscription and presents the editor
+    /// sheet. Called from the sidebar's context menu.
+    func presentSubscriptionEditor(_ subscription: DittoSubscription) {
+        viewModel.stageSubscriptionEditor(subscription)
+        activeSheet = .editSubscription
+    }
+
+    /// Stages the editor for an existing observable and presents the editor sheet.
+    func presentObservableEditor(_ observable: DittoObservable) {
+        viewModel.stageObservableEditor(observable)
+        activeSheet = .editObserver
+    }
+
+    /// Stages the document JSON for the add-attachment sheet and presents it.
+    func presentAddAttachment(documentJson: String) {
+        viewModel.stageAddAttachment(documentJson: documentJson)
+        activeSheet = .attachmentPicker
+    }
+
+    /// Stages the document JSON for the delete-attachment sheet and presents it.
+    func presentDeleteAttachment(documentJson: String) {
+        viewModel.stageDeleteAttachment(documentJson: documentJson)
+        activeSheet = .deleteAttachmentPicker
+    }
+}
+
+/// Single source of truth for which modal sheet is currently presented over the
+/// studio. Replaces the previous handful of independent `Bool` flags + the
+/// `ActionSheetMode` enum, ensuring only one sheet is ever active at a time
+/// (SwiftUI's `.sheet(item:)` semantics) and that double-presents become
+/// impossible by construction.
+enum ActiveSheet: String, Identifiable {
+    case editSubscription
+    case editObserver
     case addIndex
+    case importJSON
+    case importSubscriptions
+    case subscriptionQRDisplay
+    case subscriptionQRScanner
+    case attachmentPicker
+    case deleteAttachmentPicker
+
+    var id: String {
+        rawValue
+    }
+}
+
+/// Type-safe identifier for the studio sidebar's primary navigation destinations.
+/// Replaces the previous string-keyed `MenuItem.name` switches so the compiler can
+/// enforce exhaustive handling and `@AppStorage` can persist the selection across launches.
+enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
+    case subscriptions
+    case query
+    case observers
+    case appMetrics
+    case queryMetrics
+    case logging
+
+    var id: String {
+        rawValue
+    }
+
+    /// Human-readable label used in the sidebar list.
+    var displayName: String {
+        switch self {
+        case .subscriptions: "Subscriptions"
+        case .query: "Query"
+        case .observers: "Observers"
+        case .appMetrics: "App Metrics"
+        case .queryMetrics: "Query Metrics"
+        case .logging: "Logging"
+        }
+    }
+
+    /// SF Symbol name rendered alongside the label.
+    var systemIcon: String {
+        switch self {
+        case .subscriptions: "arrow.trianglehead.2.clockwise.rotate.90"
+        case .query: "macpro.gen2"
+        case .observers: "eye"
+        case .appMetrics: "cpu"
+        case .queryMetrics: "text.magnifyingglass"
+        case .logging: "doc.plaintext.fill"
+        }
+    }
+
+    /// True when this destination should only appear when telemetry is enabled.
+    var isMetricsDestination: Bool {
+        self == .appMetrics || self == .queryMetrics
+    }
 }
 
 struct MenuItem: Identifiable, Equatable, Hashable {
