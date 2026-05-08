@@ -12,7 +12,17 @@ import SwiftUI
 ///   .background(WindowFrameRestorer())
 struct WindowFrameRestorer: NSViewRepresentable {
     private static let frameKey = "EdgeStudio.MainStudioWindowFrame"
-    private static let minimumSize = CGSize(width: 960, height: 680)
+    /// Mirrors the `.frame(minWidth: 1400, minHeight: 820)` constraint applied
+    /// to `MainStudioView` in `ContentView`. The picker window opens at 800x540
+    /// (`WindowGroup.defaultSize`); when the user opens a database, this
+    /// `NSViewRepresentable` runs from the studio's `.background(...)` and
+    /// must grow the window to at least the studio's content min — otherwise
+    /// the sidebar segmented picker (288pt of 48pt icons) and the bottom FAB
+    /// get clipped, which is what users see when they say "the buttons on the
+    /// left don't show up". Phase 8 removed the imperative NSWindow sizing
+    /// (`window.setContentSize`) without bumping this floor; this fix restores
+    /// parity by aligning the floor with the studio's actual content min.
+    private static let minimumSize = CGSize(width: 1400, height: 820)
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
