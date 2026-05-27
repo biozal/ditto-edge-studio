@@ -28,9 +28,14 @@ This repository contains multiple platform implementations of Edge Studio:
 |----------|----------|-----------|
 | **SwiftUI** (macOS/iPadOS) | `SwiftUI/` | Swift / SwiftUI — this is the primary codebase documented in this file |
 | **Android** | `android/` | Kotlin / Jetpack Compose |
-| **.NET / Avalonia** | `dotnet/` | C# / Avalonia UI — see `dotnet/CLAUDE.md` for guidance |
 
 Each platform has its own `CLAUDE.md` with platform-specific instructions.
+
+> **.NET community:** the previous `dotnet/` Avalonia implementation is
+> archived and no longer maintained. The Ditto Visual Studio Code
+> extension and JetBrains IDE plugin replace it and serve the .NET
+> community going forward. The `dotnet/` tree is retained in git history
+> for reference only — do not add new features to it.
 
 ## Project Overview
 

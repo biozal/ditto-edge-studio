@@ -3,11 +3,11 @@
 **Priority:** Low  
 **Complexity:** Low  
 **Status:** Mostly Complete — Minor UI Gaps  
-**Platforms with feature:** SwiftUI, .NET/Avalonia, Android  
+**Platforms with feature:** SwiftUI, Android  
 
 ## Summary
 
-Android already has a `DiskUsageScreen.kt` with storage breakdown by category and per-collection estimates. This issue tracks minor UI/feature gaps compared to SwiftUI and .NET to ensure full parity.
+Android already has a `DiskUsageScreen.kt` with storage breakdown by category and per-collection estimates. This issue tracks minor UI/feature gaps compared to SwiftUI to ensure full parity.
 
 ## Current State in Android
 

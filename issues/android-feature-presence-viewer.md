@@ -3,11 +3,11 @@
 **Priority:** High  
 **Complexity:** High  
 **Status:** Not Started  
-**Platforms with feature:** SwiftUI, .NET/Avalonia  
+**Platforms with feature:** SwiftUI  
 
 ## Summary
 
-Android is missing the interactive Presence Viewer — a network topology graph that visualizes Ditto peers as nodes with color-coded connection lines representing transport types (Bluetooth, LAN, P2P WiFi, WebSocket, Cloud). Both SwiftUI (SpriteKit) and .NET (SkiaSharp) have full implementations. Android needs an equivalent using Jetpack Compose Canvas.
+Android is missing the interactive Presence Viewer — a network topology graph that visualizes Ditto peers as nodes with color-coded connection lines representing transport types (Bluetooth, LAN, P2P WiFi, WebSocket, Cloud). SwiftUI has a full SpriteKit implementation. Android needs an equivalent using Jetpack Compose Canvas.
 
 ## Current State in Android
 
@@ -21,7 +21,7 @@ Android is missing the interactive Presence Viewer — a network topology graph 
 
 ### 1. Tab Structure in Subscription Detail Area
 
-Both SwiftUI and .NET show three tabs when viewing Subscriptions:
+SwiftUI shows three tabs when viewing Subscriptions:
 
 | Tab | Content | Status in Android |
 |-----|---------|-------------------|
@@ -81,7 +81,6 @@ data class PresenceGraphSnapshot(
 
 **Reference files:**
 - SwiftUI: `SwiftUI/EdgeStudio/Components/PresenceViewer/PresenceProtocols.swift`
-- .NET: `dotnet/src/EdgeStudio.Shared/Models/PresenceGraphData.cs`
 
 ### 3. Network Layout Engine (BFS Ring Layout)
 
@@ -114,7 +113,6 @@ object NetworkLayoutEngine {
 
 **Reference files:**
 - SwiftUI: `SwiftUI/EdgeStudio/Components/PresenceViewer/NetworkLayoutEngine.swift`
-- .NET: `dotnet/src/EdgeStudio.Shared/Services/NetworkLayoutEngine.cs`
 
 ### 4. PresenceViewerViewModel
 
@@ -138,7 +136,7 @@ class PresenceViewerViewModel(
 ```
 
 **Reference files:**
-- .NET: `dotnet/src/EdgeStudio/ViewModels/PresenceViewerViewModel.cs`
+- SwiftUI: `SwiftUI/EdgeStudio/Views/StudioView/Details/PresenceViewerSK.swift` — ViewModel inner class with zoom + filter state.
 
 ### 5. Compose Canvas Rendering
 
@@ -243,7 +241,7 @@ When no peers are connected, show centered:
 - "Waiting for peer connections..."
 - "Start sync to see the mesh network"
 
-Reference: .NET's `PresenceViewerView.axaml` empty state overlay.
+Reference: SwiftUI's empty-state overlay inside `PresenceViewerSK.swift`.
 
 ## Key Reference Files
 
@@ -254,16 +252,6 @@ Reference: .NET's `PresenceViewerView.axaml` empty state overlay.
 - `SwiftUI/EdgeStudio/Components/PresenceViewer/ConnectionLine.swift` — Edge visual with dash patterns
 - `SwiftUI/EdgeStudio/Components/PresenceViewer/PresenceProtocols.swift` — Data abstractions
 - `SwiftUI/EdgeStudio/Views/StudioView/Details/PresenceViewerSK.swift` — SwiftUI wrapper + ViewModel
-
-### .NET/Avalonia
-- `dotnet/src/EdgeStudio/Controls/PresenceGraphControl.cs` — Custom control with SkiaSharp rendering
-- `dotnet/src/EdgeStudio/Controls/PresenceGraphRenderer.cs` — Drawing logic (colors, shapes, legend)
-- `dotnet/src/EdgeStudio/Controls/PresenceGraphAnimator.cs` — Animation state machine
-- `dotnet/src/EdgeStudio/Controls/AnimatedNodeState.cs` — Per-node animation tracking
-- `dotnet/src/EdgeStudio.Shared/Services/NetworkLayoutEngine.cs` — Layout algorithm (C# port)
-- `dotnet/src/EdgeStudio.Shared/Models/PresenceGraphData.cs` — Data models
-- `dotnet/src/EdgeStudio/ViewModels/PresenceViewerViewModel.cs` — ViewModel
-- `dotnet/src/EdgeStudio/Views/StudioView/Details/PresenceViewerView.axaml` — XAML view
 
 ### Android (existing files to modify)
 - `android/app/src/main/java/com/costoda/dittoedgestudio/viewmodel/MainStudioViewModel.kt` — Add presence observer

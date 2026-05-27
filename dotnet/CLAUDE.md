@@ -1,5 +1,23 @@
 # CLAUDE.md
 
+> # ⚠️ ARCHIVED — no longer maintained
+>
+> This Avalonia/.NET implementation of Edge Studio is **archived**.
+> It will not receive new features, bug fixes, or security updates.
+> Do not start new work in this tree.
+>
+> **.NET community should use:**
+>
+> - **Ditto Visual Studio Code extension** (cross-platform)
+> - **Ditto JetBrains IDE plugin** (Rider / IntelliJ family)
+>
+> Active native development continues in the `SwiftUI/` (macOS/iPadOS)
+> and `android/` (Kotlin/Compose) trees only. See the
+> [root CLAUDE.md](../CLAUDE.md) for current platform guidance.
+>
+> The guidance below is preserved for anyone who needs to read or
+> extract code from the archived implementation.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with the Avalonia version of Edge Studio.
 
 ## ⚠️ CRITICAL DEVELOPMENT RULE

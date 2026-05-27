@@ -1,4 +1,31 @@
-## Edge Studio 
+> # ⚠️ Archived — no longer maintained
+>
+> This Avalonia/.NET implementation of Edge Studio has been retired.
+> The codebase is kept here for historical reference only and will not
+> receive new features, bug fixes, or security updates.
+>
+> **.NET developers should use one of these supported tools instead:**
+>
+> - **Ditto Visual Studio Code extension** — full Edge Studio
+>   functionality (subscriptions, query editor, presence viewer,
+>   metrics, attachments) integrated into VS Code. Works on Windows,
+>   Linux, and macOS.
+> - **Ditto JetBrains IDE plugin** — same feature set, integrated into
+>   Rider, IntelliJ, and the rest of the JetBrains family.
+>
+> Both replacements are actively developed and cover the .NET workflow
+> better than this standalone app did. The actively maintained native
+> apps in this repository are the SwiftUI (macOS/iPadOS) and Android
+> (Kotlin/Compose) versions — see the [root README](../README.md) and
+> [root CLAUDE.md](../CLAUDE.md).
+>
+> The rest of this document is preserved for anyone who needs to
+> understand or extract code from the archived implementation.
+
+---
+
+## Edge Studio (archived)
+
 Edge Studio is a .NET application written in C# using the Avalonia framework and SukiUI theme and controls.  It is a desktop application that allows you to create a local Ditto Database based on a database registered in the Ditto Portal and use the Ditto SDK to query information in the Ditto Edge Server, local Edge Server, or P2P with other devices sharing the same DatabaseId.  
 
 Edge Studio can run on Windows, Linux, and macOS with the same codebase.

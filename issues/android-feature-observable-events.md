@@ -3,11 +3,11 @@
 **Priority:** High  
 **Complexity:** High  
 **Status:** Not Started (stub UI exists)  
-**Platforms with feature:** SwiftUI, .NET/Avalonia  
+**Platforms with feature:** SwiftUI  
 
 ## Summary
 
-Android's Observer feature is a stub — it shows "Coming Soon" placeholder text when the Observers nav item is selected. The data model (`DittoObservable`) and repository (`ObservableRepository`) exist for saving observer definitions, but there is no observer activation, event capture, event display, or event detail UI. Both SwiftUI and .NET have complete implementations with live event streaming, diff computation, event tables, filtering, and detailed change inspection.
+Android's Observer feature is a stub — it shows "Coming Soon" placeholder text when the Observers nav item is selected. The data model (`DittoObservable`) and repository (`ObservableRepository`) exist for saving observer definitions, but there is no observer activation, event capture, event display, or event detail UI. SwiftUI has a complete implementation with live event streaming, diff computation, event tables, filtering, and detailed change inspection.
 
 ## Current State in Android
 
@@ -194,7 +194,6 @@ fun computeDiff(previous: List<String>, current: List<String>): DiffResult {
 
 **Reference:**
 - SwiftUI: `SwiftUI/EdgeStudio/Views/MainStudioView.swift` — `registerStoreObserver()` method
-- .NET: `dotnet/src/EdgeStudio.Shared/Data/Repositories/SqliteObserverRepository.cs` — `OnObserverCallback()` and `ComputeDiff()`
 
 ### 4. Observer Editor Sheet
 
@@ -358,12 +357,6 @@ When Observers is the active nav item, the inspector should show:
 - `SwiftUI/EdgeStudio/Views/MainStudioView.swift` — `registerStoreObserver()` with diff computation, event accumulation
 - `SwiftUI/EdgeStudio/Views/StudioView/Details/DetailViews.swift` — `observableEventsList()` and `observableDetailSelectedEvent()` 
 - `SwiftUI/EdgeStudio/Views/StudioView/SidebarViews.swift` — Observer list items with activation toggle
-
-### .NET/Avalonia
-- `dotnet/src/EdgeStudio/ViewModels/ObserversViewModel.cs` — Complete ViewModel with activation, events, filtering, pagination
-- `dotnet/src/EdgeStudio/Views/StudioView/Details/ObserverDetailView.axaml` — Detail view with event table
-- `dotnet/src/EdgeStudio/Views/StudioView/Sidebar/ObserverListingView.axaml` — Observer list
-- `dotnet/src/EdgeStudio.Shared/Data/Repositories/SqliteObserverRepository.cs` — Repository with `ActivateObserverAsync()`, `OnObserverCallback()`, `ComputeDiff()`
 
 ### Android (existing files to modify)
 - `android/app/src/main/java/com/costoda/dittoedgestudio/domain/model/DittoObservable.kt` — May need storeObserver reference
