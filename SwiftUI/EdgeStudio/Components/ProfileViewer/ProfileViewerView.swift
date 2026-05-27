@@ -100,7 +100,7 @@ struct ProfileViewerView: View {
                         // percentages that don't sum to 100% across
                         // the visible boxes (parse + plan + I/O wait
                         // aren't in any operator's exec).
-                        planTotalExecNs: profile.plan.planTotalExecNs
+                        planTotalExecNs: profile.plan.subtreeExecNs
                     )
                 }
             }

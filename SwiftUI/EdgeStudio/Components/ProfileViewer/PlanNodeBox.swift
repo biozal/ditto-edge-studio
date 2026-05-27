@@ -185,15 +185,23 @@ struct PlanNodeBox: View {
 
 extension QueryProfileOperator {
     /// Sum of `execNs` across this operator and every descendant in
-    /// its subtree. Used as the denominator for Plan view percentage
-    /// badges so they add to exactly 100% across the rendered tree.
+    /// its subtree. Intentionally named "subtree" rather than
+    /// "plan-total" because the value is only the **plan total** when
+    /// called on the root operator — calling it on a non-root node
+    /// silently returns a smaller total that would break the
+    /// `PlanNodeBox` badge invariant (per-node shares no longer sum
+    /// to 100% across the rendered tree).
+    ///
+    /// Callers wanting the plan total should call this on
+    /// `profile.plan` exactly once and thread the result down through
+    /// the View hierarchy — see `ProfileViewerView`.
     ///
     /// Operators without exec phase times contribute 0 — they appear
     /// in the tree but aren't part of the work-pie.
-    var planTotalExecNs: Int64 {
+    var subtreeExecNs: Int64 {
         let here = stats?.execNs ?? 0
         return children.reduce(here) { acc, child in
-            acc + child.planTotalExecNs
+            acc + child.subtreeExecNs
         }
     }
 }

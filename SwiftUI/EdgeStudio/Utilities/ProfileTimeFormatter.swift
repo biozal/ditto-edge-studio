@@ -57,14 +57,23 @@ enum ProfileTimeFormatter {
         return format(ns: ns)
     }
 
-    /// Renders the share of total `elapsedNs` represented by the given
-    /// raw value as a percentage string (e.g. `"19.1%"`). Returns nil
-    /// if the share is below `threshold` (default 5%) so the caller
-    /// can hide low-noise badges entirely.
+    /// Renders `ns / totalNs` as a percentage string (e.g. `"19.1%"`).
+    /// The denominator is whatever the caller passes — this helper
+    /// doesn't assume `totalNs` is request-elapsed, plan-total-exec,
+    /// or anything else. Callers pick the semantic they want and
+    /// document it at the call site.
     ///
-    /// Used by the Plan view to attach a `(19.1%)` annotation to
-    /// hotspot operators — see `plans/dql-profile-feature.md` for the
-    /// Couchbase-style display this mimics.
+    /// Returns nil when:
+    ///   - `ns` is nil
+    ///   - `totalNs <= 0` (defensive against divide-by-zero / malformed
+    ///     profile envelopes)
+    ///   - the resulting share is strictly below `threshold` (default
+    ///     5%, lets callers hide low-noise badges)
+    ///
+    /// Used by `PlanNodeBox.timeLabel` (passes `threshold: 0` so every
+    /// reporting operator gets a badge — the badges add to 100% across
+    /// the visible plan and hiding small ones would defeat the
+    /// bottleneck-spotting workflow).
     static func percentOfTotal(
         ns: Int64?,
         totalNs: Int64,

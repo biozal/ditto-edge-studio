@@ -150,12 +150,60 @@ the original Plan view did this and the resulting badges added to
 117% on a 3-node plan.
 
 **Plan view shows `exec` only.** That's the operator's own
-non-overlapping CPU work, the same number the hotspot orange check
-already uses, so the colour and the percent badge always agree. The
-sum of per-operator `exec` across the tree should land at ≤ 100% of
-`elapsedNs` (the remainder is parse/plan time plus pipeline
-overhead). If users want the full exec/recv/send breakdown they
-switch to Card view, which renders each phase as its own badge.
+non-overlapping CPU work.
+
+### Plan view: percentage badge denominator
+
+The badge on each operator box reads `execNs / planTotalExecNs`,
+where `planTotalExecNs` is the sum of `execNs` across **every
+operator in the plan tree** (computed by
+`QueryProfileOperator.subtreeExecNs` on the root and threaded down
+through the View hierarchy).
+
+This is the same idiom **SQL Server** uses for "% of total plan
+cost" and **Snowflake** uses for "% of overall compute time" in its
+Query Profile view. The semantic is *share of plan operator CPU*.
+Postgres `EXPLAIN ANALYZE` and pgAdmin use *exclusive time / total
+query time* — operationally identical to ours on plans where
+operator-exec covers all of wall-clock, but ours stays defined when
+parse + plan + I/O wait dominate.
+
+#### Why not `execNs / elapsedNs`?
+
+It looks tempting because `elapsedNs` is the obvious total, but on
+a real Ditto query the parse + plan + I/O-wait + SDK overhead can
+easily be 90% of `elapsedNs` while no operator reports `exec` for
+any of it. Dividing by it gives honest-but-tiny percentages that
+don't add to anything meaningful across the visible boxes — we
+saw a real query render `7.5% + 0.5% + 1.0% = 9%`, which told the
+user nothing about which operator dominated.
+
+#### Why not `Σ(exec + recv + send) / elapsedNs`?
+
+`recv` for a parent overlaps with `exec`/`send` for its children
+(pipelined execution), so summing them across the tree
+double-counts wall-clock and produces shares > 100%. We saw 117%
+on a real query.
+
+#### Sum-to-100% invariant
+
+`PlanNodeBoxTests` in the unit-test target asserts the badges sum
+to within 0.2pp of 100% on five fixtures: the canonical worked
+example, a three-node synthetic plan modelled on the original
+reported bug, a single-operator plan (must read exactly 100%), a
+deeply nested tree, and a regression doc fixture that records the
+old `exec + recv + send` bug shape. A future change that breaks
+the arithmetic in **either** direction (sum > 100 or sum < 100)
+fails the test.
+
+#### Hotspot orange threshold
+
+The same `planTotalExecNs` denominator drives the orange "this
+operator is the bottleneck" colour (≥ 50% share). Colour and badge
+always tell the same story; they cannot get out of sync.
+
+If users want the full exec/recv/send breakdown they switch to
+Card view, which renders each phase as its own badge.
 
 ---
 

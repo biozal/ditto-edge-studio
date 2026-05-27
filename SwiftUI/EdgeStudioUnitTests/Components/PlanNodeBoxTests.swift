@@ -135,9 +135,9 @@ struct PlanNodeBoxTests {
         }
     }
 
-    // MARK: - planTotalExecNs computation
+    // MARK: - subtreeExecNs computation
 
-    @Suite("planTotalExecNs")
+    @Suite("subtreeExecNs")
     struct PlanTotalTests {
         @Test(.tags(.utility, .fast))
         func `Sums exec across the canonical fixture's whole tree`() throws {
@@ -150,7 +150,7 @@ struct PlanNodeBoxTests {
                 QueryProfileParser.parseItem(QueryProfileFixtures.canonicalEnvelope)
             )
 
-            let computed = profile.plan.planTotalExecNs
+            let computed = profile.plan.subtreeExecNs
 
             // Hand-sum exec across the whole tree as a cross-check.
             // Anything other than this matches means the extension's
@@ -173,7 +173,7 @@ struct PlanNodeBoxTests {
                 children: [],
                 attributes: []
             )
-            #expect(leaf.planTotalExecNs == 0)
+            #expect(leaf.subtreeExecNs == 0)
         }
 
         @Test(.tags(.utility, .fast))
@@ -215,7 +215,7 @@ struct PlanNodeBoxTests {
             // Crucially: recv/send for childA do NOT inflate the
             // total. The bug shape that gave 117% would set this to
             // 200 + 1000 + 1000 = 2200; we want 200.
-            #expect(parent.planTotalExecNs == 200)
+            #expect(parent.subtreeExecNs == 200)
         }
 
         private func manualExecSum(_ op: QueryProfileOperator) -> Int64 {
@@ -252,7 +252,7 @@ struct PlanNodeBoxTests {
                 QueryProfileParser.parseItem(QueryProfileFixtures.canonicalEnvelope)
             )
 
-            let total = profile.plan.planTotalExecNs
+            let total = profile.plan.subtreeExecNs
             #expect(total > 0, "fixture must report a positive plan-total exec")
 
             let sumOfShares = renderedPercentages(in: profile.plan, planTotalExecNs: total)
@@ -284,7 +284,7 @@ struct PlanNodeBoxTests {
                 children: [indexScan, fetch, filter]
             )
 
-            let total = plan.planTotalExecNs
+            let total = plan.subtreeExecNs
             #expect(total == 89_130 + 6_090 + 12_040, "plan total ignores recv/send")
 
             let shares = renderedPercentages(in: plan, planTotalExecNs: total)
@@ -303,7 +303,7 @@ struct PlanNodeBoxTests {
             // must read exactly 100.0%.
             let only = makeNode(name: "scan", exec: 50_000, recv: 999_999, send: 999_999)
 
-            let total = only.planTotalExecNs
+            let total = only.subtreeExecNs
             let label = PlanNodeBox.timeLabel(
                 execNs: only.stats?.execNs,
                 planTotalExecNs: total
@@ -326,7 +326,7 @@ struct PlanNodeBoxTests {
             let b = makeNode(name: "b", exec: 50, recv: 0, send: 0)
             let root = makeNode(name: "root", exec: 0, recv: 0, send: 0, children: [a, b])
 
-            let total = root.planTotalExecNs
+            let total = root.subtreeExecNs
             #expect(total == 100)
 
             let shares = renderedPercentages(in: root, planTotalExecNs: total)
