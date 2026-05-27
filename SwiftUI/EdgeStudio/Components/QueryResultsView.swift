@@ -4,11 +4,16 @@ import SwiftUI
 enum ResultViewTab: String, CaseIterable {
     case raw = "Raw"
     case table = "Table"
+    case profile = "Profile"
 
     var icon: String {
         switch self {
         case .raw: return "doc.plaintext"
         case .table: return "tablecells"
+        // Tree-list glyph signals "execution plan" without leaning on
+        // a database-specific symbol. The Profile tab content swaps
+        // this icon at the Card vs Plan sub-picker in Slice 3.
+        case .profile: return "list.bullet.indent"
         }
     }
 }
@@ -19,10 +24,26 @@ struct QueryResultsView: View {
     var onAddAttachment: ((String) -> Void)?
     var onDeleteAttachment: ((String) -> Void)?
 
+    /// Execution-plan profile captured for the most recent Local run.
+    /// Nil when metrics are off, the query isn't a SELECT, the run
+    /// went through HTTP, or no query has been run yet. The Profile
+    /// tab uses this plus `lastQueryText` + `metricsEnabled` below
+    /// to pick which of its four states to render.
+    var profile: QueryProfile?
+    /// Last query the user submitted. Used by the Profile tab's
+    /// empty states to differentiate "no query yet" from "non-SELECT
+    /// query" — `profile` being nil isn't sufficient to tell them
+    /// apart on its own.
+    var lastQueryText = ""
+
     @State private var selectedTab: ResultViewTab = .raw
     @Binding var currentPage: Int
     @Binding var pageSize: Int
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Mirrors the global "Collect Metrics" setting so the Profile
+    /// tab can render the "Profiling is turned off" empty state with
+    /// a one-tap "Open Settings…" CTA when it's false.
+    @AppStorage("metricsEnabled") private var metricsEnabled = true
 
     private var pageSizes: [Int] {
         switch resultCount {
@@ -48,6 +69,8 @@ struct QueryResultsView: View {
         jsonResults: Binding<[String]>,
         currentPage: Binding<Int>,
         pageSize: Binding<Int>,
+        profile: QueryProfile? = nil,
+        lastQueryText: String = "",
         onJsonSelected: ((String) -> Void)? = nil,
         onAddAttachment: ((String) -> Void)? = nil,
         onDeleteAttachment: ((String) -> Void)? = nil
@@ -55,6 +78,8 @@ struct QueryResultsView: View {
         _jsonResults = jsonResults
         _currentPage = currentPage
         _pageSize = pageSize
+        self.profile = profile
+        self.lastQueryText = lastQueryText
         self.onJsonSelected = onJsonSelected
         self.onAddAttachment = onAddAttachment
         self.onDeleteAttachment = onDeleteAttachment
@@ -94,6 +119,12 @@ struct QueryResultsView: View {
                         onJsonSelected: onJsonSelected,
                         onAddAttachment: onAddAttachment,
                         onDeleteAttachment: onDeleteAttachment
+                    )
+                case .profile:
+                    ProfileViewerView(
+                        profile: profile,
+                        metricsEnabled: metricsEnabled,
+                        lastQueryText: lastQueryText
                     )
                 }
             }

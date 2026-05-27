@@ -25,6 +25,11 @@ protocol DittoManagerProtocol: Sendable {
 protocol QueryServiceProtocol: Sendable {
     func executeSelectedAppQuery(query: String) async throws -> [String]
     func executeSelectedAppQueryHttp(query: String) async throws -> [String]
+    /// SELECT-with-profile variant for the Query editor — captures the
+    /// PROFILE envelope alongside the user-facing rows when Collect
+    /// Metrics is enabled. MCP / attachment flows keep using the
+    /// plain `[String]` method above; they don't need the profile.
+    func executeSelectedAppQueryWithProfile(query: String) async throws -> QueryExecutionResult
 }
 
 // MARK: - DatabaseRepositoryProtocol

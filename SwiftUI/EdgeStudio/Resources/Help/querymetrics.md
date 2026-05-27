@@ -63,3 +63,16 @@ Metrics are pushed under the job label `edge_studio` and include information suc
 - Query latency statistics (e.g. average and most recent query latency)
 
 The exact metric names and labels are determined by the exporter implementation and may evolve over time. Inspect the exported metrics (for example, via your Prometheus target or Pushgateway UI) to see the precise names available in your version.
+
+---
+
+## See also: Execution Profile
+
+Query Metrics records a per-query `EXPLAIN` plus latency for **every** query you run. The **Profile tab** in the Query results pane is a complementary feature — it captures the deeper `PROFILE` envelope (operator tree, per-phase timing) for the **most recent SELECT** so you can see exactly where the time went.
+
+Both features share the **Collect Metrics** Settings toggle as their on/off switch. With it enabled:
+
+- **Query Metrics** (this screen) — historical view across many queries; great for spotting which queries are slow over time.
+- **Execution Profile** (Query → Profile tab) — deep dive into one query; great for finding the bottleneck operator inside a slow plan.
+
+See the User Guide for the full Execution Profile reference, or jump straight to the Profile tab next to Raw and Table after running any `SELECT`.

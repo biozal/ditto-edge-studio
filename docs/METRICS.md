@@ -33,6 +33,8 @@ The Metrics feature provides two complementary views accessible from the sidebar
 
 Both views display only in-session data. Nothing is persisted to disk and nothing carries over between app launches.
 
+**Related:** the **Profile tab** in the Query results pane (next to Raw and Table) is a complementary surface — it captures the deeper `PROFILE` envelope for the most recent SELECT and visualises the operator tree. Profile capture shares the same **Collect Metrics** toggle as its on/off switch. See [PROFILE.md](PROFILE.md) for the engineering reference.
+
 ---
 
 ## What Is and Is Not Counted

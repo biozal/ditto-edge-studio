@@ -236,6 +236,14 @@ extension MainStudioView {
                         jsonResults: $viewModel.queryVM.jsonResults,
                         currentPage: $queryCurrentPage,
                         pageSize: $queryPageSize,
+                        // Forward the captured profile + last query
+                        // text so the Profile tab can render either
+                        // the populated card view or the right
+                        // empty state (metrics off / non-SELECT /
+                        // no query yet). See `QueryProfile` and the
+                        // viewer at `Components/ProfileViewer/`.
+                        profile: viewModel.queryVM.latestProfile,
+                        lastQueryText: viewModel.queryVM.selectedQuery,
                         onJsonSelected: { json in
                             viewModel.showJsonInInspector(json)
                             showInspector = true
@@ -825,7 +833,11 @@ extension MainStudioView {
             if observeEvent != nil {
                 HStack(spacing: 8) {
                     Picker("", selection: $observeDetailViewMode) {
-                        ForEach(ResultViewTab.allCases, id: \.self) { tab in
+                        // Filter out .profile — it doesn't apply to
+                        // observe events (they're not queries). The
+                        // switch below uses `default` so the case
+                        // stays unreachable but exhaustive.
+                        ForEach(ResultViewTab.allCases.filter { $0 != .profile }, id: \.self) { tab in
                             Label(tab.rawValue, systemImage: tab.icon).tag(tab)
                         }
                     }
@@ -871,6 +883,11 @@ extension MainStudioView {
                             showInspector = true
                         }
                     )
+                case .profile:
+                    // Unreachable — the picker above filters .profile
+                    // out. Present here only so the switch is
+                    // exhaustive for the compiler.
+                    EmptyView()
                 }
             } else {
                 ContentUnavailableView(

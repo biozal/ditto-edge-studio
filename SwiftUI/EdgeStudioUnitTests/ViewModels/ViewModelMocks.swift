@@ -61,6 +61,12 @@ actor MockQueryService: QueryServiceProtocol {
     var stubbedLocalResults: [String] = []
     var stubbedHttpResults: [String] = []
 
+    /// Canned profile for the new profile-capturing variant. Tests
+    /// that exercise the QueryViewModel's profile state can pre-load
+    /// this; the default `nil` mirrors "metrics disabled" or
+    /// "non-SELECT" runtime behaviour.
+    var stubbedLocalProfile: QueryProfile?
+
     func executeSelectedAppQuery(query: String) async throws -> [String] {
         lastLocalQuery = query
         return stubbedLocalResults
@@ -71,8 +77,17 @@ actor MockQueryService: QueryServiceProtocol {
         return stubbedHttpResults
     }
 
+    func executeSelectedAppQueryWithProfile(query: String) async throws -> QueryExecutionResult {
+        lastLocalQuery = query
+        return QueryExecutionResult(items: stubbedLocalResults, profile: stubbedLocalProfile)
+    }
+
     func setStubbedLocalResults(_ results: [String]) {
         stubbedLocalResults = results
+    }
+
+    func setStubbedLocalProfile(_ profile: QueryProfile?) {
+        stubbedLocalProfile = profile
     }
 }
 

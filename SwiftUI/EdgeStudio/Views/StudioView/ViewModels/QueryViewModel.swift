@@ -28,6 +28,20 @@ final class QueryViewModel {
     /// after every execute so SwiftUI sees a single invalidation per run.
     var jsonResults: [String] = []
 
+    /// Execution-plan profile captured for the most recent Local-mode
+    /// query when Collect Metrics is enabled and the statement is a
+    /// `SELECT`. Nil whenever:
+    ///   - Metrics is disabled in Settings
+    ///   - Last query was a non-SELECT (INSERT / UPDATE / DELETE / EVICT)
+    ///   - Last execution was through the HTTP transport (PROFILE is
+    ///     local-only for v1, see plans/dql-profile-feature.md)
+    ///   - No query has been run yet on this database session
+    /// The Profile tab in `QueryResultsView` reads this and renders one
+    /// of four states; the empty-state messaging there relies on knowing
+    /// *which* condition made the profile nil, so the tab also reads
+    /// `metricsEnabled` and `selectedQuery` to differentiate.
+    var latestProfile: QueryProfile?
+
     var isQueryExecuting = false
 
     // MARK: - Inspector Data
@@ -121,6 +135,7 @@ final class QueryViewModel {
     func reset() {
         selectedQuery = ""
         jsonResults = []
+        latestProfile = nil
         isQueryExecuting = false
         history = []
         favorites = []
@@ -180,9 +195,21 @@ final class QueryViewModel {
         isQueryExecuting = true
         do {
             if selectedExecuteMode == "Local" {
-                jsonResults = try await queryService.executeSelectedAppQuery(query: selectedQuery)
+                // Local path captures the PROFILE envelope when
+                // Collect Metrics is enabled + statement is SELECT.
+                // See QueryService.executeSelectedAppQueryWithProfile.
+                let result = try await queryService.executeSelectedAppQueryWithProfile(
+                    query: selectedQuery
+                )
+                jsonResults = result.items
+                latestProfile = result.profile
             } else {
+                // HTTP path: PROFILE is local-only for v1. Clear any
+                // stale profile from a prior Local run so the Profile
+                // tab doesn't display data that's not for the visible
+                // results.
                 jsonResults = try await queryService.executeSelectedAppQueryHttp(query: selectedQuery)
+                latestProfile = nil
             }
             await addQueryToHistory(appState: appState)
         } catch {

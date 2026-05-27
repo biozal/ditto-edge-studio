@@ -105,6 +105,137 @@ struct QueryServiceTests {
         }
     }
 
+    // MARK: - PROFILE injection (executeSelectedAppQueryWithProfile)
+
+    /// Tests the new SELECT-with-profile entry point. Most of the
+    /// behaviour (DB interaction, JSON shaping) is covered by the
+    /// existing tests above via the shared codepath — this suite
+    /// focuses on the unique additions: PROFILE prefix gating
+    /// (isSelectStatement / alreadyHasProfilePrefix) and the
+    /// QueryExecutionResult return shape.
+    @Suite("PROFILE injection", .serialized)
+    struct ProfileInjectionTests {
+
+        @Test("Returns empty result and nil profile when no database selected", .tags(.service, .fast))
+        func testWithProfileNoDatabase() async throws {
+            // ARRANGE
+            let service = QueryService.shared
+
+            // ACT
+            let result = try await service.executeSelectedAppQueryWithProfile(
+                query: "SELECT * FROM tasks"
+            )
+
+            // ASSERT — graceful fallback matches the legacy method's shape
+            #expect(result.items == ["No results found"])
+            #expect(result.profile == nil)
+        }
+
+        // MARK: isSelectStatement
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts uppercase SELECT`() {
+            #expect(QueryService.isSelectStatement("SELECT * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts lowercase select`() {
+            #expect(QueryService.isSelectStatement("select * from tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts mixed case SeLeCt`() {
+            #expect(QueryService.isSelectStatement("SeLeCt * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts leading whitespace`() {
+            #expect(QueryService.isSelectStatement("   SELECT * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts leading newlines and tabs`() {
+            #expect(QueryService.isSelectStatement("\n\tSELECT * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects INSERT`() {
+            #expect(QueryService.isSelectStatement("INSERT INTO tasks SET name = 'x'") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects UPDATE`() {
+            #expect(QueryService.isSelectStatement("UPDATE tasks SET done = true") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects DELETE`() {
+            #expect(QueryService.isSelectStatement("DELETE FROM tasks WHERE _id = 'x'") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects EVICT`() {
+            #expect(QueryService.isSelectStatement("EVICT FROM tasks") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects ALTER SYSTEM`() {
+            #expect(QueryService.isSelectStatement("ALTER SYSTEM SET DQL_STRICT_MODE = 'true'") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects empty string`() {
+            #expect(QueryService.isSelectStatement("") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects whitespace only`() {
+            #expect(QueryService.isSelectStatement("   \n\t  ") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement rejects SELECTOR with no boundary`() {
+            // Defensive — make sure we don't false-positive on words
+            // that start with "SELECT" but aren't the SELECT keyword.
+            #expect(QueryService.isSelectStatement("SELECTOR FROM tasks") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `isSelectStatement accepts bare SELECT with no trailing whitespace`() {
+            // Edge case — pathological but well-defined input.
+            #expect(QueryService.isSelectStatement("SELECT") == true)
+        }
+
+        // MARK: alreadyHasProfilePrefix
+
+        @Test(.tags(.service, .fast))
+        func `alreadyHasProfilePrefix detects user-typed PROFILE`() {
+            #expect(QueryService.alreadyHasProfilePrefix("PROFILE SELECT * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `alreadyHasProfilePrefix detects lowercase profile`() {
+            #expect(QueryService.alreadyHasProfilePrefix("profile select * from tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `alreadyHasProfilePrefix detects PROFILE after whitespace`() {
+            #expect(QueryService.alreadyHasProfilePrefix("  PROFILE SELECT * FROM tasks") == true)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `alreadyHasProfilePrefix rejects plain SELECT`() {
+            #expect(QueryService.alreadyHasProfilePrefix("SELECT * FROM tasks") == false)
+        }
+
+        @Test(.tags(.service, .fast))
+        func `alreadyHasProfilePrefix rejects PROFILED noise word`() {
+            // "PROFILED" is not a DQL keyword but make sure we don't
+            // false-positive on prefix-only matches without word boundary.
+            #expect(QueryService.alreadyHasProfilePrefix("PROFILED SELECT") == false)
+        }
+    }
+
     // MARK: - HTTP Query Error Path Tests
 
     @Suite("HTTP Query Error Path Tests", .serialized)
