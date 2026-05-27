@@ -16,18 +16,17 @@ struct ContentView: View {
     /// them. Reset whenever the editor sheet opens or closes.
     @State private var databaseEditorHasUnsavedChanges = false
 
-    #if os(macOS)
-    @State private var quickstartService = QuickstartDownloadService()
-    @State private var showNoConnectionAlert = false
-    @State private var showExistingFolderAlert = false
-    @State private var showProgressSheet = false
-    @State private var quickstartDestination: URL?
-    @State private var existingFolderURL: URL?
-    @State private var continueWithoutConfig = false
-    #endif
+    // Quickstart download flow state lives on `ContentView.ViewModel` as of
+    // Phase 10c — the View used to own seven @State properties + the
+    // orchestration methods (NSOpenPanel, performDownload). Moving it to the
+    // VM makes the flow unit-testable and keeps the View as a thin trigger.
 
     var body: some View {
-        Group {
+        // Local `@Bindable` projection so `$viewModel.x` produces a
+        // `Binding<X>` for inner properties of the @Observable VM. Replaces a
+        // dozen `Binding(get:set:)` long-forms across this view.
+        @Bindable var viewModel = viewModel
+        return Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
                 #if os(macOS)
@@ -37,14 +36,8 @@ struct ContentView: View {
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
                 MainStudioView(
-                    isMainStudioViewPresented: Binding(
-                        get: { viewModel.isMainStudioViewPresented },
-                        set: { viewModel.isMainStudioViewPresented = $0 }
-                    ),
-                    isClosingDatabase: Binding(
-                        get: { viewModel.isClosingDatabase },
-                        set: { viewModel.isClosingDatabase = $0 }
-                    ),
+                    isMainStudioViewPresented: $viewModel.isMainStudioViewPresented,
+                    isClosingDatabase: $viewModel.isClosingDatabase,
                     dittoAppConfig: selectedApp
                 )
                 .environment(appState)
@@ -88,49 +81,35 @@ struct ContentView: View {
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            startQuickstartDownload()
+            Task { await viewModel.startQuickstartDownload() }
         }
-        .alert("No Database Connection", isPresented: $showNoConnectionAlert) {
+        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
             Button("Continue Anyway") {
-                continueWithoutConfig = true
-                openFolderPickerAndDownload(configureEnv: false)
+                Task { await viewModel.continueDownloadWithoutConfig() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
         }
-        .alert("Quickstarts Folder Exists", isPresented: $showExistingFolderAlert) {
+        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
             Button("Replace", role: .destructive) {
-                if let existing = existingFolderURL, let dest = quickstartDestination {
-                    try? quickstartService.removeExistingFolder(at: existing)
-                    Task {
-                        let hasApp = await DittoManager.shared.dittoSelectedApp != nil
-                        let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
-                        let hasConfig = hasApp && hasAppConfig
-                        await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
-                    }
-                }
+                Task { await viewModel.replaceExistingFolderAndDownload() }
             }
             Button("Choose Different Location") {
-                Task {
-                    let hasApp = await DittoManager.shared.dittoSelectedApp != nil
-                    let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
-                    let hasConfig = hasApp && hasAppConfig
-                    openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
-                }
+                Task { await viewModel.chooseDifferentLocationAndDownload() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
         }
-        .sheet(isPresented: $showProgressSheet) {
+        .sheet(isPresented: $viewModel.showProgressSheet) {
             QuickstartProgressWindow(
-                service: quickstartService,
-                onCancel: { showProgressSheet = false }
+                service: viewModel.quickstartService,
+                onCancel: { viewModel.showProgressSheet = false }
             )
             // Lock the sheet during an in-flight download, but allow dismissal
             // when an error has been surfaced so the user can recover.
-            .interactiveDismissDisabled(quickstartService.isDownloading && !quickstartService.hasError)
+            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
         }
         #endif
     }
@@ -152,7 +131,8 @@ struct ContentView: View {
 #if os(macOS)
 extension ContentView {
     var macOSPickerView: some View {
-        ZStack(alignment: .bottomLeading) {
+        @Bindable var viewModel = viewModel
+        return ZStack(alignment: .bottomLeading) {
             Image("ditto-splash")
                 .resizable()
                 .scaledToFill()
@@ -261,18 +241,12 @@ extension ContentView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(
-            isPresented: Binding(
-                get: { viewModel.isPresented },
-                set: { viewModel.isPresented = $0 }
-            ),
+            isPresented: $viewModel.isPresented,
             onDismiss: { databaseEditorHasUnsavedChanges = false },
             content: {
                 if let dittoAppConfig = viewModel.dittoAppToEdit {
                     DatabaseEditorView(
-                        isPresented: Binding(
-                            get: { viewModel.isPresented },
-                            set: { viewModel.isPresented = $0 }
-                        ),
+                        isPresented: $viewModel.isPresented,
                         hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
                         dittoAppConfig: dittoAppConfig
                     )
@@ -289,19 +263,13 @@ extension ContentView {
                 }
             }
         )
-        .sheet(isPresented: Binding(
-            get: { viewModel.isShowingQRCode },
-            set: { viewModel.isShowingQRCode = $0 }
-        )) {
+        .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                     .frame(minWidth: 360, minHeight: 420)
             }
         }
-        .sheet(isPresented: Binding(
-            get: { viewModel.isShowingQRScanner },
-            set: { viewModel.isShowingQRScanner = $0 }
-        )) {
+        .sheet(isPresented: $viewModel.isShowingQRScanner) {
             QRCodeScannerView { config, favorites in
                 Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
             }
@@ -310,102 +278,6 @@ extension ContentView {
     }
 }
 
-// MARK: - Quickstart Download Flow (macOS)
-
-extension ContentView {
-    func startQuickstartDownload() {
-        continueWithoutConfig = false
-
-        Task {
-            let hasApp = await DittoManager.shared.dittoSelectedApp != nil
-            let hasAppConfig = await DittoManager.shared.dittoSelectedAppConfig != nil
-            let hasConnection = hasApp && hasAppConfig
-
-            if !hasConnection {
-                showNoConnectionAlert = true
-            } else {
-                openFolderPickerAndDownload(configureEnv: true)
-            }
-        }
-    }
-
-    func openFolderPickerAndDownload(configureEnv: Bool) {
-        let panel = NSOpenPanel()
-        panel.title = "Choose Download Location for Quickstarts"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
-            return
-        }
-
-        quickstartDestination = selectedURL
-
-        // Check for existing folder
-        if let existing = quickstartService.existingQuickstartFolder(in: selectedURL) {
-            existingFolderURL = existing
-            showExistingFolderAlert = true
-            return
-        }
-
-        Task {
-            await performDownload(to: selectedURL, configureEnv: configureEnv)
-        }
-    }
-
-    func performDownload(to destination: URL, configureEnv: Bool) async {
-        // Reset and show progress
-        quickstartService.reset()
-        showProgressSheet = true
-
-        do {
-            let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
-
-            if configureEnv, let config = await DittoManager.shared.dittoSelectedAppConfig {
-                quickstartService.updateStatus("Configuring .env files...")
-                quickstartService.configureEnvFiles(
-                    in: extractedDir,
-                    databaseId: config.databaseId,
-                    token: config.token,
-                    authUrl: config.authUrl,
-                    websocketUrl: config.websocketUrl
-                )
-
-                quickstartService.updateStatus("Configuring edge-server...")
-                try? quickstartService.configureEdgeServerYaml(
-                    in: extractedDir,
-                    databaseId: config.databaseId,
-                    token: config.token,
-                    authUrl: config.authUrl
-                )
-            }
-
-            quickstartService.updateStatus("Discovering projects...")
-            quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
-
-            quickstartService.setComplete()
-
-            // Brief pause to show "Complete" before transitioning
-            try? await Task.sleep(for: .milliseconds(500))
-
-            // Close progress sheet, open browser
-            showProgressSheet = false
-
-            let projects = quickstartService.projects
-            WindowController.showQuickstartBrowser(
-                projects: projects,
-                isConfigured: configureEnv,
-                directory: extractedDir
-            )
-        } catch {
-            quickstartService.setError(error.localizedDescription)
-            // Progress sheet stays open showing error — user clicks OK to dismiss
-        }
-    }
-}
 #endif
 
 // MARK: - iPad Picker View
@@ -413,20 +285,15 @@ extension ContentView {
 #if os(iOS)
 extension ContentView {
     var iPadPickerView: some View {
-        compactPickerContent
+        @Bindable var viewModel = viewModel
+        return compactPickerContent
             .sheet(
-                isPresented: Binding(
-                    get: { viewModel.isPresented },
-                    set: { viewModel.isPresented = $0 }
-                ),
+                isPresented: $viewModel.isPresented,
                 onDismiss: { databaseEditorHasUnsavedChanges = false },
                 content: {
                     if let dittoAppConfig = viewModel.dittoAppToEdit {
                         DatabaseEditorView(
-                            isPresented: Binding(
-                                get: { viewModel.isPresented },
-                                set: { viewModel.isPresented = $0 }
-                            ),
+                            isPresented: $viewModel.isPresented,
                             hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
                             dittoAppConfig: dittoAppConfig
                         )
@@ -436,18 +303,12 @@ extension ContentView {
                     }
                 }
             )
-            .sheet(isPresented: Binding(
-                get: { viewModel.isShowingQRCode },
-                set: { viewModel.isShowingQRCode = $0 }
-            )) {
+            .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                 }
             }
-            .sheet(isPresented: Binding(
-                get: { viewModel.isShowingQRScanner },
-                set: { viewModel.isShowingQRScanner = $0 }
-            )) {
+            .sheet(isPresented: $viewModel.isShowingQRScanner) {
                 QRCodeScannerView { config, favorites in
                     Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
                 }
@@ -837,6 +698,145 @@ extension ContentView {
                 appState.setError(error)
             }
         }
+
+        // MARK: - Quickstart Download Flow (macOS)
+
+        //
+        // Phase 10c moved this orchestration off of `ContentView` itself so the
+        // flow is unit-testable and the View stays a thin trigger. The driver
+        // is `startQuickstartDownload()` — it routes either through the "no
+        // connection" alert (if Ditto isn't configured) or directly to the
+        // folder picker, then into `performDownload(...)`. Alert button
+        // handlers call into the small `replaceExistingFolderAndDownload()` /
+        // `chooseDifferentLocationAndDownload()` / `continueDownloadWithoutConfig()`
+        // helpers so the View doesn't reach into VM state.
+
+        #if os(macOS)
+        var quickstartService = QuickstartDownloadService()
+        var showNoConnectionAlert = false
+        var showExistingFolderAlert = false
+        var showProgressSheet = false
+        var quickstartDestination: URL?
+        var existingFolderURL: URL?
+        @ObservationIgnored
+        private var continueWithoutConfig = false
+
+        func startQuickstartDownload() async {
+            continueWithoutConfig = false
+            if await hasDittoConnection() {
+                openFolderPickerAndDownload(configureEnv: true)
+            } else {
+                showNoConnectionAlert = true
+            }
+        }
+
+        /// Triggered by the "Continue Anyway" button on the no-connection alert.
+        func continueDownloadWithoutConfig() async {
+            continueWithoutConfig = true
+            openFolderPickerAndDownload(configureEnv: false)
+        }
+
+        /// Triggered by the "Replace" button on the folder-exists alert.
+        func replaceExistingFolderAndDownload() async {
+            guard let existing = existingFolderURL,
+                  let dest = quickstartDestination else { return }
+            try? quickstartService.removeExistingFolder(at: existing)
+            let configureEnv = await hasDittoConnection() && !continueWithoutConfig
+            await performDownload(to: dest, configureEnv: configureEnv)
+        }
+
+        /// Triggered by the "Choose Different Location" button on the folder-exists alert.
+        func chooseDifferentLocationAndDownload() async {
+            let configureEnv = await hasDittoConnection() && !continueWithoutConfig
+            openFolderPickerAndDownload(configureEnv: configureEnv)
+        }
+
+        /// Returns `true` when both `dittoSelectedApp` and
+        /// `dittoSelectedAppConfig` are populated — i.e. a database is fully
+        /// hydrated and ready for the quickstart `.env` configurator to read
+        /// from. Falls back to `false` on any partial state.
+        private func hasDittoConnection() async -> Bool {
+            let hasApp = await dittoManager.dittoSelectedApp != nil
+            let hasAppConfig = await dittoManager.dittoSelectedAppConfig != nil
+            return hasApp && hasAppConfig
+        }
+
+        private func openFolderPickerAndDownload(configureEnv: Bool) {
+            let panel = NSOpenPanel()
+            panel.title = "Choose Download Location for Quickstarts"
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Choose"
+
+            guard panel.runModal() == .OK, let selectedURL = panel.url else {
+                return
+            }
+
+            quickstartDestination = selectedURL
+
+            // Existing-folder collision → surface the "Replace / Choose
+            // Different Location / Cancel" alert instead of overwriting.
+            if let existing = quickstartService.existingQuickstartFolder(in: selectedURL) {
+                existingFolderURL = existing
+                showExistingFolderAlert = true
+                return
+            }
+
+            Task { await performDownload(to: selectedURL, configureEnv: configureEnv) }
+        }
+
+        private func performDownload(to destination: URL, configureEnv: Bool) async {
+            quickstartService.reset()
+            showProgressSheet = true
+
+            do {
+                let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
+
+                if configureEnv, let config = await dittoManager.dittoSelectedAppConfig {
+                    quickstartService.updateStatus("Configuring .env files...")
+                    quickstartService.configureEnvFiles(
+                        in: extractedDir,
+                        databaseId: config.databaseId,
+                        token: config.token,
+                        authUrl: config.authUrl,
+                        websocketUrl: config.websocketUrl
+                    )
+
+                    quickstartService.updateStatus("Configuring edge-server...")
+                    try? quickstartService.configureEdgeServerYaml(
+                        in: extractedDir,
+                        databaseId: config.databaseId,
+                        token: config.token,
+                        authUrl: config.authUrl
+                    )
+                }
+
+                quickstartService.updateStatus("Discovering projects...")
+                quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
+
+                quickstartService.setComplete()
+
+                // Brief pause to show "Complete" before transitioning
+                try? await Task.sleep(for: .milliseconds(500))
+
+                showProgressSheet = false
+
+                let projects = quickstartService.projects
+                WindowController.showQuickstartBrowser(
+                    projects: projects,
+                    isConfigured: configureEnv,
+                    directory: extractedDir
+                )
+            } catch {
+                quickstartService.setError(error.localizedDescription)
+                // Progress sheet stays open showing the error — user clicks OK
+                // to dismiss; `interactiveDismissDisabled` is gated on
+                // `quickstartService.hasError` so dismissal is allowed here.
+            }
+        }
+        #endif
     }
 }
 

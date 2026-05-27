@@ -165,15 +165,6 @@ actor SubscriptionsRepository {
         Log.debug("SubscriptionsRepository cache cleared")
     }
 
-    /// Cancels all active subscriptions (legacy method for backward compatibility)
-    func cancelAllSubscriptions() {
-        // Use Task to ensure cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performSubscriptionCleanup()
-        }
-    }
-
     // MARK: - State Management
 
     func setAppState(_ appState: AppState) {
@@ -194,16 +185,6 @@ actor SubscriptionsRepository {
 
     private func notifySubscriptionsUpdate() async {
         await onSubscriptionsUpdate?(cachedSubscriptions)
-    }
-
-    private func performSubscriptionCleanup() async {
-        // Cancel all subscriptions
-        for subscription in cachedSubscriptions {
-            subscription.syncSubscription?.cancel()
-        }
-
-        // Notify UI that subscriptions list is now empty
-        await onSubscriptionsUpdate?([])
     }
 }
 

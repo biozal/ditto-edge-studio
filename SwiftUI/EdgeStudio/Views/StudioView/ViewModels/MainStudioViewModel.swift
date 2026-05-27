@@ -76,12 +76,24 @@ extension MainStudioView {
 
         var selectedSidebarDestination: SidebarDestination = .subscriptions {
             didSet {
+                if suppressDestinationPersistence {
+                    suppressDestinationPersistence = false
+                    return
+                }
                 UserDefaults.standard.set(
                     selectedSidebarDestination.rawValue,
                     forKey: Self.sidebarDestinationKey
                 )
             }
         }
+
+        /// One-shot bypass for the `selectedSidebarDestination` didSet so an
+        /// internal auto-correction (e.g. "fresh database → force Subscriptions")
+        /// doesn't trample the user's last *intentional* persisted choice from
+        /// another database. Set immediately before the assignment; the didSet
+        /// consumes and resets it.
+        @ObservationIgnored
+        private var suppressDestinationPersistence = false
 
         // MARK: - Metrics Inspector (parent-owned cross-cutting state)
 
@@ -265,6 +277,36 @@ extension MainStudioView {
             // 4. Local peer info fetch (bypasses QueryService so the startup
             //    query stays out of Query Metrics).
             await syncVM.loadLocalPeerInfo()
+
+            // 5. "Fresh database" handling. If this database has no
+            //    subscriptions and no query history, treat it as a brand-new
+            //    connection: force Subscriptions as the sidebar destination
+            //    (Query/Observers are dead-ends with no data), and auto-open
+            //    the Welcome window if the user hasn't opted out.
+            let isFreshDatabase = subs.isEmpty && hist.isEmpty
+            if isFreshDatabase {
+                if selectedSidebarDestination != .subscriptions {
+                    // Silent override — preserve the user's last intentional
+                    // choice from other databases.
+                    suppressDestinationPersistence = true
+                    selectedSidebarDestination = .subscriptions
+                }
+
+                let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
+                if showWelcome {
+                    // Defer to the next runloop so MainStudioView has finished
+                    // mounting before the welcome window opens; otherwise the
+                    // window-open animation races the studio's mount and the
+                    // welcome window briefly steals focus from a half-rendered
+                    // ContentView.
+                    Task { @MainActor in
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("OpenWelcomeWindow"),
+                            object: nil
+                        )
+                    }
+                }
+            }
         }
 
         // MARK: - Close / Cleanup
@@ -320,29 +362,35 @@ extension MainStudioView {
             let collectionsRepository = collectionsRepository
             let dittoManager = dittoManager
 
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask(priority: .utility) {
-                    // Clear repository caches
-                    await historyRepository.clearCache()
-                    await favoritesRepository.clearCache()
-                    await observableRepository.clearCache()
-                    await subscriptionsRepository.clearCache()
+            // Ordered cleanup is required to release the persistence-directory
+            // lock before any subsequent `Ditto.open` runs. Repositories hold
+            // observer/subscription references that retain the Ditto instance;
+            // if `closeDittoSelectedDatabase` nils the manager's ref while
+            // those holders are still live, the SDK lock survives the close
+            // and reopening the same database hits a lock error.
+            //
+            // Run on a utility-priority detached task so we don't block the
+            // main thread, and serialize the steps: drop all repo-side Ditto
+            // references first, then have the manager nil its own ref last.
+            await Task.detached(priority: .utility) {
+                // Step 1: drop every repository-held reference to Ditto.
+                async let history: Void = historyRepository.clearCache()
+                async let favorites: Void = favoritesRepository.clearCache()
+                async let observables: Void = observableRepository.clearCache()
+                async let subscriptions: Void = subscriptionsRepository.clearCache()
+                _ = await (history, favorites, observables, subscriptions)
 
-                    // Stop other repository observers
-                    await systemRepository.stopObserver()
-                    await collectionsRepository.stopObserver()
+                await systemRepository.stopObserver()
+                await collectionsRepository.stopObserver()
 
-                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-                    Log.info("[Close:Repos] Caches cleared, observers stopped (\(String(format: "%.3f", elapsed))s)")
-                }
+                let repoElapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+                Log.info("[Close:Repos] Caches cleared, observers stopped (\(String(format: "%.3f", repoElapsed))s)")
 
-                group.addTask(priority: .utility) {
-                    // Close DittoManager selected app
-                    await dittoManager.closeDittoSelectedDatabase()
-                    let elapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
-                    Log.info("[Close:DittoManager] closeDittoSelectedDatabase complete (\(String(format: "%.3f", elapsed))s)")
-                }
-            }
+                // Step 2: now that no repository retains Ditto, close it.
+                await dittoManager.closeDittoSelectedDatabase()
+                let dittoElapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
+                Log.info("[Close:DittoManager] closeDittoSelectedDatabase complete (\(String(format: "%.3f", dittoElapsed))s)")
+            }.value
 
             let totalElapsed = CFAbsoluteTimeGetCurrent() - cleanupStart
             Log.info("[Close] All cleanup operations complete (\(String(format: "%.3f", totalElapsed))s)")

@@ -66,19 +66,14 @@ extension MainStudioView {
                     }
                     .listRowBackground(Color.clear)
                 } else if viewModel.subObsVM.subscriptions.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Subscriptions", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
-                    } description: {
-                        Text("Subscriptions sync data from the server in real time.")
-                    } actions: {
-                        Button {
+                    SidebarEmptyStateRow(
+                        icon: "arrow.trianglehead.2.clockwise.rotate.90",
+                        title: "No Subscriptions",
+                        description: "Subscriptions sync data from the server in real time."
+                    ) {
+                        DittoYellowButton(title: "Add Subscription", systemIcon: "plus") {
                             presentNewSubscriptionEditor()
-                        } label: {
-                            Label("Add Subscription", systemImage: "plus")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.dittoYellow)
-                        .foregroundStyle(Color.black)
                         .accessibilityIdentifier("EmptySubscriptionsAddButton")
                     }
                     .listRowBackground(Color.clear)
@@ -108,19 +103,14 @@ extension MainStudioView {
             // ── Collections Content Section ──────────────────────────────
             Section {
                 if viewModel.collections.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Collections", systemImage: "tray")
-                    } description: {
-                        Text("Collections appear once data is synced or imported into this database.")
-                    } actions: {
-                        Button {
+                    SidebarEmptyStateRow(
+                        icon: "tray",
+                        title: "No Collections",
+                        description: "Collections appear once data is synced or imported into this database."
+                    ) {
+                        DittoYellowButton(title: "Run a Query", systemIcon: "macpro.gen2") {
                             viewModel.selectedSidebarDestination = .query
-                        } label: {
-                            Label("Run a Query", systemImage: "macpro.gen2")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.dittoYellow)
-                        .foregroundStyle(Color.black)
                         .accessibilityIdentifier("EmptyCollectionsQueryButton")
                     }
                     .listRowBackground(Color.clear)
@@ -154,19 +144,14 @@ extension MainStudioView {
             // ── Observers Content Section ────────────────────────────────
             Section {
                 if viewModel.subObsVM.observerables.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Observers", systemImage: "eye")
-                    } description: {
-                        Text("Observers stream real-time changes for a saved query.")
-                    } actions: {
-                        Button {
+                    SidebarEmptyStateRow(
+                        icon: "eye",
+                        title: "No Observers",
+                        description: "Observers stream real-time changes for a saved query."
+                    ) {
+                        DittoYellowButton(title: "Add Observer", systemIcon: "plus") {
                             presentNewObserverEditor()
-                        } label: {
-                            Label("Add Observer", systemImage: "plus")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.dittoYellow)
-                        .foregroundStyle(Color.black)
                         .accessibilityIdentifier("EmptyObserversAddButton")
                     }
                     .listRowBackground(Color.clear)
@@ -206,7 +191,7 @@ extension MainStudioView {
                 .padding(.leading, 4)
             } label: {
                 Button {
-                    expandedSubscriptionIds.formSymmetricDifference([sub.id])
+                    toggleSubscriptionExpansion(sub.id)
                     viewModel.selectedSidebarDestination = .subscriptions
                 } label: {
                     HStack(spacing: 8) {
@@ -320,7 +305,7 @@ extension MainStudioView {
                 .padding(.leading, 4)
             } label: {
                 Button {
-                    expandedObserverIds.formSymmetricDifference([observer.id])
+                    toggleObserverExpansion(observer.id)
                     viewModel.subObsVM.selectedObservable = observer
                     viewModel.selectedSidebarDestination = .observers
                 } label: {
@@ -495,5 +480,75 @@ struct ObserverCard: View {
         )
         .padding(.horizontal, 2)
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Sidebar Empty-State Helpers
+
+/// Compact empty-state row sized for the sidebar column.
+///
+/// `ContentUnavailableView` is the obvious SwiftUI choice but its
+/// default `.title2` headline and ~40pt icon overflow a ~200pt
+/// sidebar, producing wrapped/hyphenated text like
+/// "No\nSubscrip-\ntions". This row uses a 22pt icon and `.subheadline`
+/// title so all three empty sections fit comfortably in one viewport.
+private struct SidebarEmptyStateRow<Actions: View>: View {
+    let icon: String
+    let title: String
+    let description: String
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            actions()
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+/// Ditto-yellow CTA button used in sidebar empty states.
+///
+/// `.buttonStyle(.borderedProminent) + .tint(.dittoYellow)` doesn't
+/// propagate `.foregroundStyle(.black)` to the SF Symbol inside the
+/// `Label` — borderedProminent derives its label color from the tint.
+/// Rolling our own button with `.buttonStyle(.plain)` and explicit
+/// background lets the foreground style compose onto both icon and
+/// text reliably.
+private struct DittoYellowButton: View {
+    let title: String
+    let systemIcon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemIcon)
+                    .font(.caption.weight(.semibold))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.dittoYellow)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

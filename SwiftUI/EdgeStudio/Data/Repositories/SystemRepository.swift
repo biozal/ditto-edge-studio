@@ -16,6 +16,14 @@ actor SystemRepository {
     private var pendingStatusItems: [SyncStatusInfo]?
     private var sessionId = 0
 
+    #if DEBUG
+    /// Diagnostic counter for the `[PresenceDiag]` log lines added while
+    /// investigating an empty Peers List on the 5.0.0-experimental-conn-limit
+    /// SDK. Remove this and the diagnostic block in `registerSyncStatusObserver`
+    /// once the root cause is identified.
+    private var presenceDiagFireCount = 0
+    #endif
+
     // Store the callback inside the actor. Both callbacks are @MainActor so
     // call sites get a compile-time guarantee that mutations to @Observable
     // view-model state happen on the main thread. The completion handler is
@@ -217,10 +225,24 @@ actor SystemRepository {
         let currentSession = sessionId
         Log.info("[SystemRepository] Registering syncStatus observer, sessionId=\(currentSession)")
 
-        // Register presence observer for real-time peer connection changes
+        // Register presence observer for real-time peer connection changes.
+        //
+        // IMPORTANT: do NOT capture `ditto` strongly in the closure or Task.
+        // Re-acquire it from `dittoManager.dittoSelectedApp` inside the Task
+        // and bail if nil. Strong-capturing `ditto` here means every fired
+        // callback holds the SDK Ditto instance for the duration of its DQL
+        // query — which can be tens of seconds while session-storage SQLite
+        // databases recover dirty WAL. That delays `Ditto.deinit` (which
+        // calls `ditto_shutdown` and checkpoints SQLite) past database close
+        // and creates the very dirty-WAL state that makes the next session's
+        // DQL hang.
         syncStatusObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
                 guard let self else { return }
+                guard let ditto = await dittoManager.dittoSelectedApp else {
+                    Log.info("[SystemRepository] syncStatus callback bailed: no active Ditto")
+                    return
+                }
                 let capturedSession = await sessionId
 
                 // Step 1: Extract directly connected peers from presence graph (source of truth).
@@ -228,6 +250,18 @@ actor SystemRepository {
                 // multihop). Filter to only peers where the local device is an endpoint of at
                 // least one connection to avoid showing peers we never directly communicated with.
                 let localPeerKeyString = presenceGraph.localPeer.peerKeyString
+
+                #if DEBUG
+                // Diagnostic for empty-Peers-List on 5.0.0-experimental-conn-limit.
+                // Dumps raw presence-graph contents BEFORE filtering so we can
+                // see whether `peer.connections` is populated and whether the
+                // local-endpoint match succeeds. The actual work runs inside
+                // `logPresenceDiagnostics` so it has actor-isolated access to
+                // `presenceDiagFireCount`. Remove with the counter property
+                // and the helper once the root cause is identified.
+                await logPresenceDiagnostics(graph: presenceGraph)
+                #endif
+
                 let connectedPeers = presenceGraph.remotePeers.filter { peer in
                     peer.connections.contains {
                         $0.peerKeyString1 == localPeerKeyString || $0.peerKeyString2 == localPeerKeyString
@@ -388,6 +422,20 @@ actor SystemRepository {
 
     /// Processes sync status updates with backpressure handling
     private func processSyncStatusUpdate(_ statusItems: [SyncStatusInfo]) async {
+        #if DEBUG
+        // Diagnostic for empty-Peers-List investigation. Logs the state of the
+        // dispatch pipeline so we can see whether items are reaching it, the
+        // callback is wired, and the pipeline is locked. Remove with the rest
+        // of the [PresenceDiag] instrumentation once resolved.
+        Log.info(
+            "[PresenceDiag] dispatch: " +
+                "items=\(statusItems.count) " +
+                "hasCallback=\(onSyncStatusUpdate != nil) " +
+                "isProcessing=\(isProcessingUpdate) " +
+                "hasPending=\(hasPendingUpdate)"
+        )
+        #endif
+
         if isProcessingUpdate {
             // Already processing - queue this update as pending (drops any previous pending)
             hasPendingUpdate = true
@@ -679,6 +727,40 @@ actor SystemRepository {
         hasPendingUpdate = false
         pendingStatusItems = nil
     }
+
+    #if DEBUG
+    /// Actor-isolated diagnostic logger. Called via `await` from the
+    /// non-isolated presence observer Task so `presenceDiagFireCount` can be
+    /// mutated and read safely. Each fire emits one summary line plus one
+    /// line per remote peer enumerating `peer.connections`. Remove with the
+    /// counter property and call site in `registerSyncStatusObserver` once
+    /// the experimental-conn-limit Peers-List empty issue is resolved.
+    private func logPresenceDiagnostics(graph: DittoPresenceGraph) {
+        presenceDiagFireCount += 1
+        let fireNum = presenceDiagFireCount
+        let rawLocalKey = graph.localPeer.peerKey
+        let localPeerKeyString = graph.localPeer.peerKeyString
+        let allConnsCount = graph.allConnectionsByID().count
+        Log.info(
+            "[PresenceDiag] fire=#\(fireNum) " +
+                "local.peerKey=\(rawLocalKey) " +
+                "local.peerKeyString=\(localPeerKeyString) " +
+                "remote_count=\(graph.remotePeers.count) " +
+                "graph.allConnectionsByID.count=\(allConnsCount)"
+        )
+        for peer in graph.remotePeers {
+            let connsDesc = peer.connections
+                .map { "\($0.peer1)<->\($0.peer2)/\($0.type.rawValue)" }
+                .joined(separator: ", ")
+            Log.info(
+                "[PresenceDiag] fire=#\(fireNum)   " +
+                    "peer.peerKey=\(peer.peerKey) " +
+                    "connections.count=\(peer.connections.count) " +
+                    "[\(connsDesc)]"
+            )
+        }
+    }
+    #endif
 }
 
 // MARK: - Protocol Conformance

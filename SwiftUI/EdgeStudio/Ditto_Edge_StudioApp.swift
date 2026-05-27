@@ -12,6 +12,10 @@ class WindowController {
         NotificationCenter.default.post(name: NSNotification.Name("OpenHelpWindow"), object: nil)
     }
 
+    static func openWelcomeWindow() {
+        NotificationCenter.default.post(name: NSNotification.Name("OpenWelcomeWindow"), object: nil)
+    }
+
     static func openQuickstartBrowserWindow() {
         NotificationCenter.default.post(name: NSNotification.Name("OpenQuickstartBrowserWindow"), object: nil)
     }
@@ -91,6 +95,9 @@ struct Ditto_Edge_StudioApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenHelpWindow"))) { _ in
                     openWindow(id: "help-window")
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenWelcomeWindow"))) { _ in
+                    openWindow(id: "welcome-window")
+                }
             #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowQuickstartBrowser"))) { notification in
                     if let userInfo = notification.userInfo,
@@ -146,6 +153,17 @@ struct Ditto_Edge_StudioApp: App {
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 700)
 
+        // Welcome Window — first-run onboarding for fresh databases.
+        // Opens automatically from MainStudioViewModel when a database
+        // is selected with no subscriptions and no query history (gated
+        // on @AppStorage("showWelcomeOnNewDatabase") = true), or on
+        // demand from the Help menu.
+        WindowGroup(id: "welcome-window") {
+            WelcomeWindow()
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 880, height: 720)
+
         // Font Debug Window
         WindowGroup(id: "font-debug-window") {
             FontDebugWindow()
@@ -176,6 +194,10 @@ struct Ditto_Edge_StudioApp: App {
             }
 
             CommandGroup(replacing: .help) {
+                Button("Welcome") {
+                    WindowController.openWelcomeWindow()
+                }
+
                 Button("User Guide") {
                     WindowController.openHelpWindow()
                 }

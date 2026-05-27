@@ -23,9 +23,13 @@ struct MainStudioView: View {
     @State var observerPageSize = 25
     @State var queryIsExporting = false
     @State var queryCopiedDQLNotification: String?
-    @State var expandedCollectionIds: Set<String> = []
-    @State var expandedSubscriptionIds: Set<String> = []
-    @State var expandedObserverIds: Set<String> = []
+    /// Sidebar disclosure state. Private — sidebar code in
+    /// `SidebarViews.swift` toggles via `expandedBinding(for:)` /
+    /// `toggleSubscriptionExpansion(_:)` / `toggleObserverExpansion(_:)`
+    /// helpers below.
+    @State private var expandedCollectionIds: Set<String> = []
+    @State private var expandedSubscriptionIds: Set<String> = []
+    @State private var expandedObserverIds: Set<String> = []
 
     // Observe detail pane state
     @State var observeDetailViewMode: ResultViewTab = .raw
@@ -500,6 +504,18 @@ struct MainStudioView: View {
         )
     }
 
+    /// Toggles whether the named subscription is expanded in the sidebar.
+    /// Public so sidebar button taps in `SidebarViews.swift` can flip expansion
+    /// without reaching into the private `expandedSubscriptionIds` state.
+    func toggleSubscriptionExpansion(_ id: String) {
+        expandedSubscriptionIds.formSymmetricDifference([id])
+    }
+
+    /// Toggles whether the named observable is expanded in the sidebar.
+    func toggleObserverExpansion(_ id: String) {
+        expandedObserverIds.formSymmetricDifference([id])
+    }
+
     func expandedObserverBinding(for obs: DittoObservable) -> Binding<Bool> {
         Binding(
             get: { expandedObserverIds.contains(obs.id) },
@@ -624,17 +640,5 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
     /// True when this destination should only appear when telemetry is enabled.
     var isMetricsDestination: Bool {
         self == .appMetrics || self == .queryMetrics
-    }
-}
-
-struct MenuItem: Identifiable, Equatable, Hashable {
-    var id: Int
-    var name: String
-    var systemIcon: String // SF Symbol name (e.g., "clock", "bookmark")
-
-    /// Computed property for rendering in pickers
-    var image: some View {
-        Image(systemName: systemIcon)
-            .font(.system(size: 48))
     }
 }

@@ -16,10 +16,13 @@ struct LoggingDetailView: View {
     @State private var dateFilterStart: Date = Calendar.current.startOfDay(for: Date())
     @State private var dateFilterEnd = Date()
 
-    // MARK: - Import State
+    // MARK: - Import / Export State
 
     #if os(macOS)
     @State private var isShowingImportPanel = false
+    @State private var isShowingExportPanel = false
+    @State private var exportError: String?
+    @State private var isShowingExportError = false
     #endif
 
     // MARK: - Display Cap
@@ -445,6 +448,53 @@ struct LoggingDetailView: View {
                                 Task { await capture.importFromDirectory(url) }
                             }
                         }
+
+                        // Export — App Logs and Ditto SDK sources have on-disk
+                        // files. App Logs copies the rolling CocoaLumberjack
+                        // files (see LoggingService); Ditto SDK copies the
+                        // `.log` / `.log.gz` files the SDK writes inside the
+                        // active database's persistence directory. The other
+                        // sources hold in-memory entries only and don't have
+                        // files to copy.
+                        if capture.selectedSource == .application || capture.selectedSource == .dittoSDK {
+                            Button { isShowingExportPanel = true } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(capture.selectedSource == .dittoSDK ? "Export Ditto SDK Logs…" : "Export App Logs…")
+                            .fileImporter(
+                                isPresented: $isShowingExportPanel,
+                                allowedContentTypes: [UTType.folder],
+                                allowsMultipleSelection: false
+                            ) { result in
+                                guard case let .success(urls) = result, let url = urls.first else { return }
+                                let source = capture.selectedSource
+                                Task { @MainActor in
+                                    let didStartAccess = url.startAccessingSecurityScopedResource()
+                                    defer { if didStartAccess { url.stopAccessingSecurityScopedResource() } }
+                                    do {
+                                        switch source {
+                                        case .application:
+                                            try LoggingService.shared.exportLogs(to: url)
+                                        case .dittoSDK:
+                                            try await exportDittoSDKLogs(to: url)
+                                        default:
+                                            break
+                                        }
+                                    } catch {
+                                        exportError = error.localizedDescription
+                                        isShowingExportError = true
+                                    }
+                                }
+                            }
+                            .alert("Export Failed", isPresented: $isShowingExportError, presenting: exportError) { _ in
+                                Button("OK", role: .cancel) {}
+                            } message: { message in
+                                Text(message)
+                            }
+                        }
                         #endif
 
                         // Clear — icon only, red tint
@@ -572,4 +622,56 @@ struct LoggingDetailView: View {
         }
         return Array(filtered.suffix(maxDisplayedEntries))
     }
+
+    #if os(macOS)
+    /// Copies the SDK-emitted `.log` / `.log.gz` files from the active
+    /// database's persistence directory into the user-chosen folder. Looks
+    /// in `ditto_logs/` first (current SDK) and falls back to `logs/` for
+    /// older SDK layouts.
+    private func exportDittoSDKLogs(to destinationURL: URL) async throws {
+        guard let persistenceDir = await DittoManager.shared.activePersistenceDirectory else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No active database — open a database first."]
+            )
+        }
+
+        let fileManager = FileManager.default
+        let sourceDir: URL? = ["ditto_logs", "logs"]
+            .map { persistenceDir.appendingPathComponent($0) }
+            .first { fileManager.fileExists(atPath: $0.path) }
+
+        guard let sourceDir else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "No SDK log directory found under \(persistenceDir.path)"]
+            )
+        }
+
+        let contents = try fileManager.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
+        let logFiles = contents.filter {
+            $0.pathExtension == "log" || $0.lastPathComponent.hasSuffix(".log.gz")
+        }
+
+        guard !logFiles.isEmpty else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "No log files found in \(sourceDir.path)"]
+            )
+        }
+
+        for fileURL in logFiles {
+            let destFileURL = destinationURL.appendingPathComponent(fileURL.lastPathComponent)
+            if fileManager.fileExists(atPath: destFileURL.path) {
+                try fileManager.removeItem(at: destFileURL)
+            }
+            try fileManager.copyItem(at: fileURL, to: destFileURL)
+        }
+
+        Log.info("Exported \(logFiles.count) SDK log files from \(sourceDir.path) to \(destinationURL.path)")
+    }
+    #endif
 }

@@ -47,6 +47,12 @@ struct PresenceViewerSK: View {
             createScene()
         }
         .onDisappear {
+            // Stop the presence observer here rather than relying on
+            // ViewModel ARC dealloc. The VM holds a DittoObserver that
+            // (via ditto.presence) retains the Ditto instance — leaving
+            // it alive after database close blocks the SDK's own deinit
+            // shutdown and prevents SQLite WAL from being flushed.
+            viewModel.stopProductionMode()
             cleanupScene()
         }
     }
@@ -55,16 +61,14 @@ struct PresenceViewerSK: View {
 
     /// Toggle switch to filter peers to only directly connected ones
     private var directConnectedToggle: some View {
-        Toggle("Direct Connected", isOn: Binding(
-            get: { viewModel.showDirectConnectedOnly },
-            set: { viewModel.showDirectConnectedOnly = $0 }
-        ))
-        .toggleStyle(.switch)
-        .font(.caption)
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .cornerRadius(8)
-        .help("Show only peers directly connected to this device")
+        @Bindable var viewModel = viewModel
+        return Toggle("Direct Connected", isOn: $viewModel.showDirectConnectedOnly)
+            .toggleStyle(.switch)
+            .font(.caption)
+            .padding(8)
+            .background(.ultraThinMaterial)
+            .cornerRadius(8)
+            .help("Show only peers directly connected to this device")
     }
 
     // MARK: - Zoom Controls
