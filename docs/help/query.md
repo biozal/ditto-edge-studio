@@ -65,8 +65,8 @@ EVICT FROM tasks WHERE _id = 'task1-1'
 The third tab next to **Raw** and **Table** shows an execution-plan profile for the last `SELECT` you ran. Profile capture requires **Collect Metrics** to be enabled in Settings — open Settings (⌘,) and toggle it on, then re-run your query.
 
 - **Card view** — every operator in the plan with its stats badges and attributes. Recursively nests child operators inside their parent.
-- **Plan view** — top-down tree of operator boxes connected by T-junction lines. An operator's box turns **orange** when it's a bottleneck (its `exec` time exceeds 50% of the total elapsed time).
-- **Badges**: `in` / `out` = document counts in/out, `exec` = CPU time inside the operator, `recv` = time waiting on upstream operators, `send` = time pushing output downstream.
+- **Plan view** — top-down tree of operator boxes connected by T-junction lines. Each box shows the operator's `exec` time (its own non-overlapping CPU work) and turns **orange** when that exceeds 50% of total elapsed — that's your bottleneck. The percent badge next to the time is `exec / elapsed`. Plan view intentionally does *not* sum `exec + recv + send` — in a pipelined plan a parent's `recv` overlaps with its child's `exec`, so summing would double-count wall-clock and make per-node percentages exceed 100%.
+- **Badges (Card view)**: `in` / `out` = document counts in/out, `exec` = CPU time inside the operator, `recv` = time waiting on upstream operators, `send` = time pushing output downstream.
 
 Profiles only fire for `SELECT` statements via the Local execute mode — `INSERT` / `UPDATE` / `DELETE` / `EVICT` and HTTP-mode queries don't capture one. See the **User Guide → Collections & Query → Execution Profile** section for the full reference.
 

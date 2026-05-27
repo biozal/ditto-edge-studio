@@ -11,9 +11,19 @@ import SwiftUI
 ///   2. **Key attribute** (subtle) — best-effort distinguishing
 ///      attribute: `collection` for scans, `limit` for limits, etc.
 ///      Hidden for operators without one.
-///   3. **Total time** — `exec + recv + send` rendered through
-///      `ProfileTimeFormatter`, with an optional `(N.N%)` suffix
-///      when the node represents ≥ 5% of the total elapsed time.
+///   3. **Exec time** — the operator's own `execNs` (CPU work),
+///      rendered through `ProfileTimeFormatter`, with an optional
+///      `(N.N%)` suffix when the node represents ≥ 5% of the total
+///      elapsed time. We deliberately do *not* sum `exec + recv + send`
+///      here: in a pipelined execution model the parent's `recv`
+///      overlaps with the child's `exec/send`, so summing them
+///      double-counts the same wall clock and makes per-node
+///      percentages exceed 100% across siblings. `exec` alone is the
+///      non-overlapping CPU work — the same number the hotspot check
+///      uses below, so the orange tint and the percent badge always
+///      agree. If users want the full exec/recv/send breakdown they
+///      can switch to Card view, which renders all three as separate
+///      badges.
 ///   4. **In/out doc counts** — `"N in / M out"`, with both halves
 ///      hidden if the operator emits neither.
 ///
@@ -61,21 +71,13 @@ struct PlanNodeBox: View {
         return nil
     }
 
-    /// Sum of the non-overlapping phases. Ditto's per-operator
-    /// `exec`/`recv`/`send` are disjoint phases on the operator's
-    /// own thread — adding them gives the wall-time the operator
-    /// occupied without double-counting.
-    private var totalNs: Int64? {
-        guard let stats = node.stats else { return nil }
-        let parts: [Int64] = [stats.execNs, stats.recvNs, stats.sendNs].compactMap(\.self)
-        guard !parts.isEmpty else { return nil }
-        return parts.reduce(0, +)
-    }
-
     private var timeLabel: String? {
-        guard let totalNs else { return nil }
-        var label = ProfileTimeFormatter.format(ns: totalNs)
-        if let pct = ProfileTimeFormatter.percentOfTotal(ns: totalNs, totalNs: totalElapsedNs) {
+        // `execNs` only — see file header. Summing exec+recv+send
+        // double-counts wall-clock across pipeline siblings and
+        // produces percentages that exceed 100%.
+        guard let execNs = node.stats?.execNs else { return nil }
+        var label = ProfileTimeFormatter.format(ns: execNs)
+        if let pct = ProfileTimeFormatter.percentOfTotal(ns: execNs, totalNs: totalElapsedNs) {
             label += "  (\(pct))"
         }
         return label

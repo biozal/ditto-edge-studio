@@ -48,8 +48,17 @@ struct ContentView: View {
                 #if os(iOS)
                 iPadPickerView
                 #else
+                // Xcode-launch-style fixed-size, non-resizable window.
+                // The Scene uses `.windowResizability(.contentSize)`, so
+                // declaring a fixed `.frame(width:height:)` here locks
+                // the window to that exact size — guarantees all 3 CTA
+                // buttons (Database Config, Ditto Portal, Import from
+                // QR Code) and the database list panel are always
+                // fully drawn regardless of which screen the user is
+                // on. Once a database is opened MainStudioView's
+                // `.frame(minWidth:minHeight:)` lets the window grow.
                 macOSPickerView
-                    .frame(minWidth: 800, minHeight: 540)
+                    .frame(width: 900, height: 640)
                 #endif
             }
         }
@@ -169,75 +178,90 @@ extension ContentView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.trailing, 24)
 
-            VStack(alignment: .center, spacing: 20) {
-                Image("ditto-edge-studio-splash")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 300, maxHeight: 120)
+            // Bottom-leading hero stack (logo + CTA buttons).
+            //
+            // Wrapped in a VStack with a leading Spacer(minLength: 0) so the
+            // cluster is anchored to the bottom of the window but compresses
+            // upward when the window gets short — without this, fixed
+            // `.padding(.bottom, …)` in a ZStack lets the buttons overflow
+            // past the window's bottom edge (Ditto Portal would clip on a
+            // 14" MacBook). Edge padding (40 left / 40 bottom) keeps the
+            // cluster off the window walls like Xcode's launch screen.
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-                VStack(spacing: 14) {
-                    Button {
-                        viewModel.showAppEditor(DittoConfigForDatabase.new())
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "plus")
-                                .foregroundColor(.black)
-                            Text("Database Config")
-                                .foregroundColor(.black)
-                                .fontWeight(.medium)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.dittoYellow)
-                    .focusEffectDisabled()
-                    .accessibilityIdentifier("AddDatabaseButton")
+                VStack(alignment: .center, spacing: 20) {
+                    Image("ditto-edge-studio-splash")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 300, maxHeight: 120)
 
-                    Button {
-                        if let url = URL(string: "https://portal.ditto.live") {
-                            NSWorkspace.shared.open(url)
+                    VStack(spacing: 14) {
+                        Button {
+                            viewModel.showAppEditor(DittoConfigForDatabase.new())
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "plus")
+                                    .foregroundColor(.black)
+                                Text("Database Config")
+                                    .foregroundColor(.black)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "cloud")
-                                .foregroundColor(.white)
-                            Text("Ditto Portal")
-                                .foregroundColor(.white)
-                                .fontWeight(.medium)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.6))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.glass)
-                    .focusEffectDisabled()
+                        .buttonStyle(.glassProminent)
+                        .tint(.dittoYellow)
+                        .focusEffectDisabled()
+                        .accessibilityIdentifier("AddDatabaseButton")
 
-                    Button {
-                        viewModel.showQRScanner()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "qrcode.viewfinder")
-                                .foregroundColor(.white)
-                            Text("Import from QR Code")
-                                .foregroundColor(.white)
-                                .fontWeight(.medium)
-                            Spacer()
+                        Button {
+                            if let url = URL(string: "https://portal.ditto.live") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "cloud")
+                                    .foregroundColor(.white)
+                                Text("Ditto Portal")
+                                    .foregroundColor(.white)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .buttonStyle(.glass)
+                        .focusEffectDisabled()
+
+                        Button {
+                            viewModel.showQRScanner()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "qrcode.viewfinder")
+                                    .foregroundColor(.white)
+                                Text("Import from QR Code")
+                                    .foregroundColor(.white)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.glass)
+                        .focusEffectDisabled()
                     }
-                    .buttonStyle(.glass)
-                    .focusEffectDisabled()
+                    .frame(width: 280)
                 }
-                .frame(width: 280)
+                .frame(width: 436)
             }
-            .frame(width: 436)
-            .padding(.bottom, 100)
+            .padding(.leading, 40)
+            .padding(.bottom, 128)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(

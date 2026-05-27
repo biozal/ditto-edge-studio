@@ -138,10 +138,24 @@ catalogue.
 | `phaseTimes.recv` | ns | Time waiting on upstream operators to feed input. |
 | `phaseTimes.send` | ns | Time pushing output to downstream operators. |
 
-Phases are **disjoint** on the operator's own execution thread —
-summing `exec + recv + send` gives the total wall-time the operator
-occupied without double-counting. The Plan view's "total time" per
-box uses exactly this sum.
+Phases are disjoint **within a single operator's own thread**, but
+they are *not* disjoint **across the plan**. A parent operator's
+`recv` is wall-clock time spent blocked waiting for its child to
+produce data — during that same wall-clock interval the child is
+running, so the child's `exec`/`send` and the parent's `recv` cover
+the **same physical microseconds**. Summing `exec + recv + send`
+across siblings therefore double-counts wall-clock and produces
+per-node percentages that exceed 100% of the total elapsed time —
+the original Plan view did this and the resulting badges added to
+117% on a 3-node plan.
+
+**Plan view shows `exec` only.** That's the operator's own
+non-overlapping CPU work, the same number the hotspot orange check
+already uses, so the colour and the percent badge always agree. The
+sum of per-operator `exec` across the tree should land at ≤ 100% of
+`elapsedNs` (the remainder is parse/plan time plus pipeline
+overhead). If users want the full exec/recv/send breakdown they
+switch to Card view, which renders each phase as its own badge.
 
 ---
 

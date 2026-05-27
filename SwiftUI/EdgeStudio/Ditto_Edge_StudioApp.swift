@@ -130,8 +130,16 @@ struct Ditto_Edge_StudioApp: App {
                 }
             #endif
         }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 800, height: 540)
+        // .contentSize lets the window snap to whatever frame the
+        // current view declares. ContentView's picker uses a *fixed*
+        // frame (Xcode-launch-style — non-resizable, all buttons always
+        // visible); MainStudioView uses a min frame so once a database
+        // is open the window can be grown freely. .contentMinSize used
+        // to be the default but it always made the picker resizable
+        // and let users drag it below the height needed to fit all 3
+        // CTA buttons.
+        .windowResizability(.contentSize)
+        .defaultSize(width: 900, height: 640)
 
         #if os(macOS)
 
