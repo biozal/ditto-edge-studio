@@ -80,6 +80,18 @@ If any condition fails, the Profile tab explains what's missing and (for the Col
 
 For the full Ditto reference, see [docs.ditto.live/dql/profile](https://docs.ditto.live/dql/profile).
 
+#### Attachments
+
+Ditto documents can reference **binary attachments** — files (images, PDFs, audio, etc.) that live alongside the document and sync between peers on demand. Edge Studio lets you add, view, and remove attachments directly from the query results pane.
+
+**Adding an attachment.** Right-click any document row in the **Raw** or **Table** viewer and choose **Add Attachment…**. Pick a file in the system file picker, then enter the field name to store the attachment under (e.g. `photo`, `invoice_pdf`). Edge Studio uploads the file, writes the resulting attachment token onto the document, and refreshes the row. A progress overlay shows upload status — large files may take a few seconds.
+
+**Viewing attachments.** Select any row that has attachment fields. The **Attachment Viewer** section appears in the Document Viewer (Inspector → JSON Viewer) listing every detected attachment field with its size and download state. Click **Open** on any field to fetch the attachment locally and open it with the system default app for that file type.
+
+**Deleting an attachment.** Right-click the document row and choose **Delete Attachment…**. A sheet lists every detected attachment field on that document with a toggle next to each one. Select the field(s) to remove and tap **Delete**. Edge Studio runs `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'` for each selected field. The attachment binary is left on disk and will be reclaimed by Ditto's normal eviction cycle.
+
+> **Note:** Edge Studio detects attachment fields by inspecting the field value's shape — an attachment token has a recognisable structure. If you store attachments under a non-standard field name, they're still detected as long as the value is a real Ditto attachment token.
+
 ### Observers
 
 Observers register a live DQL query against the local store and fire an event whenever matching documents change — whether from a local write or an incoming sync.

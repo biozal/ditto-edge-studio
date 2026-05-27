@@ -50,13 +50,47 @@ Write and run **DQL (Ditto Query Language)** queries against your Ditto database
 
 - **Collections** appear in the sidebar once documents exist (via INSERT or sync from a peer).
 - **SELECT**, **INSERT**, **UPDATE**, **EVICT**, and index management are all supported.
-- Results display in **Raw** (JSON) or **Table** mode with pagination.
+- Results display in **Raw** (JSON), **Table**, or **Profile** mode (see below) with pagination.
 - Queries are automatically saved to **History**; you can star any query to add it to **Favorites**.
 - Open the Inspector **?** tab for a full DQL reference including syntax examples and index management.
 
 #### Local vs HTTP execution
 
 Queries run against the **local embedded database** by default. If you have configured an **HTTP API URL** and **HTTP API Key** on the database (edit the database card → *Ditto Server – HTTP API* section), a second option — **HTTP** — appears in the execute-mode picker next to the Run button. Selecting HTTP routes the query through the Ditto HTTP API instead of the local store, which is useful for querying the BigPeer directly or comparing results between the cloud and your local replica.
+
+#### Execution Profile
+
+The third tab next to **Raw** and **Table** captures an **execution-plan profile** for the last query you ran. Profiles let you see how Ditto's query engine planned and executed your statement — which operators ran, how many documents they processed, and where the time went.
+
+**When it captures.** A profile is captured automatically when **all three** conditions hold:
+1. **Collect Metrics** is enabled in Settings (this is the same toggle that drives App Metrics and Query Metrics — see Settings below).
+2. The statement is a **`SELECT`** — Ditto's `PROFILE` keyword only supports SELECT today. `INSERT`, `UPDATE`, `DELETE`, and `EVICT` won't capture a profile.
+3. You ran the query through the **Local** execute mode (not HTTP).
+
+If any condition fails, the Profile tab explains what's missing and (for the Collect Metrics case) gives you a one-tap **Open Settings…** button.
+
+**Card view** — the default. Renders each operator in the plan as a card with:
+- The operator name (`scan`, `sequence`, `limit`, `finalProjection`, …) and a row of coloured badges summarising `in` / `out` document counts and per-phase timings.
+- The operator's attributes below — `collection`, `alias`, `datasource`, `limit`, etc. Selectable so you can copy values.
+- Child operators nested inside the parent card so the tree structure stays visible.
+
+**Plan view** — the high-level shape. Renders each operator as a box, connected top-down by T-junction lines: root at the top, children below. Box contents are condensed (operator name + key attribute + total time + in/out counts). An operator's box turns **orange** when its execution time exceeds 50% of the total elapsed time — that's your bottleneck. Long-running operators also get a **percent-of-total badge** (e.g. `19.1%`) next to their time when they're ≥ 5% of the request.
+
+**Reading the badges:** `in` (documents flowing in), `out` (documents flowing out), `exec` (CPU time inside the operator), `recv` (time waiting on upstream operators to feed input), `send` (time pushing output downstream). All times are auto-scaled to the most readable unit — milliseconds for ≥ 1 ms, microseconds for sub-ms, nanoseconds for sub-µs.
+
+For the full Ditto reference, see [docs.ditto.live/dql/profile](https://docs.ditto.live/dql/profile).
+
+#### Attachments
+
+Ditto documents can reference **binary attachments** — files (images, PDFs, audio, etc.) that live alongside the document and sync between peers on demand. Edge Studio lets you add, view, and remove attachments directly from the query results pane.
+
+**Adding an attachment.** Right-click any document row in the **Raw** or **Table** viewer and choose **Add Attachment…**. Pick a file in the system file picker, then enter the field name to store the attachment under (e.g. `photo`, `invoice_pdf`). Edge Studio uploads the file, writes the resulting attachment token onto the document, and refreshes the row. A progress overlay shows upload status — large files may take a few seconds.
+
+**Viewing attachments.** Select any row that has attachment fields. The **Attachment Viewer** section appears in the Document Viewer (Inspector → JSON Viewer) listing every detected attachment field with its size and download state. Click **Open** on any field to fetch the attachment locally and open it with the system default app for that file type.
+
+**Deleting an attachment.** Right-click the document row and choose **Delete Attachment…**. A sheet lists every detected attachment field on that document with a toggle next to each one. Select the field(s) to remove and tap **Delete**. Edge Studio runs `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'` for each selected field. The attachment binary is left on disk and will be reclaimed by Ditto's normal eviction cycle.
+
+> **Note:** Edge Studio detects attachment fields by inspecting the field value's shape — an attachment token has a recognisable structure. If you store attachments under a non-standard field name, they're still detected as long as the value is a real Ditto attachment token.
 
 ### Observers
 

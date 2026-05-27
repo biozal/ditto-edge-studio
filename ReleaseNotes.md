@@ -1,5 +1,51 @@
 # Release Notes
 
+## 1.0b5 — May 2026
+
+### SwiftUI (macOS / iPadOS)
+
+**Attachments (new)**
+- Right-click any document row in **Raw** or **Table** view → **Add Attachment…** to pick a file from disk, name the field, and upload. The attachment token is written back onto the document.
+- Right-click → **Delete Attachment…** opens a sheet listing every detected attachment field with toggles. Selected fields are nulled via `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'`.
+- **Attachment Viewer** section appears in the Inspector's Document Viewer for any selected row that has attachment fields. Shows size and download state per field; **Open** downloads and launches the attachment in the system default app.
+- Progress overlay during upload/download; large files don't block the UI.
+
+**Execution Profile (new)**
+- New **Profile** tab next to **Raw** and **Table** captures Ditto's `~request_profile` envelope for the most recent `SELECT` you ran.
+- **Card view** — every operator in the plan with stats badges (`in` / `out` document counts, `exec` / `recv` / `send` timings) and its attributes nested inside.
+- **Plan view** — top-down tree of operator boxes connected by T-junction lines. An operator's box turns **orange** when it's the bottleneck (`exec` time exceeds 50% of total elapsed). Operators ≥ 5% of total elapsed get a percent-of-total badge.
+- Times auto-scale to the most readable unit — milliseconds for ≥ 1 ms, microseconds for sub-ms, nanoseconds for sub-µs.
+- Gated on the existing **Collect Metrics** Settings toggle. Profile capture only fires on Local-mode SELECTs; HTTP and non-SELECT statements never inject `PROFILE`.
+- When the toggle is off, the Profile tab explains what's missing and offers a one-tap **Open Settings…** button.
+
+**Welcome flow & first-run experience**
+- New Welcome screen for users opening Edge Studio without any configured databases — links to the in-app User Guide and explains the built-in Quickstarts feature for pulling sample configurations.
+- Empty-state titles, button colours and default tabs cleaned up for new-database first open.
+
+**Query results**
+- Full-row right-click context menu on both JSON and Table viewers, including a new **Copy _id** action alongside Copy JSON and the attachment actions above.
+- Table viewer now fills its container, has visible row dividers, and anchors short result pages to the top (fixes the floating-table look on the last page of paginated results).
+
+**Sync & lifecycle**
+- Close → reopen no longer leaves the database file locked (cleanup teardown is now serialised: repositories first, manager second, presence observer explicitly released).
+- Deleting a database configuration now removes all of its on-disk files.
+
+**Logging**
+- Log Export action restored to the Logging screen.
+
+**Architecture**
+- `MainStudioView.ViewModel` split into four sub-VMs (Phase 10a–10b).
+- Protocol-based DI introduced so view models can be instantiated with mocked services in unit tests.
+
+### .NET / Avalonia
+- **Initial attachments support** added before the platform was archived: attachment viewer in the Document Viewer, Add Attachment context menu, and Delete Attachment dialog with field selection.
+- **Archived going forward.** The `dotnet/` Avalonia implementation is no longer maintained. The Ditto Visual Studio Code extension and JetBrains IDE plugin replace it for the .NET community. The `dotnet/` tree remains in git history for reference only and is no longer included in the help-doc sync script.
+
+### Android
+- (No user-facing changes in this release; help docs synced from `docs/help/` source-of-truth.)
+
+---
+
 ## 1.0b3 — March 2026
 
 ### SwiftUI (macOS / iPadOS)

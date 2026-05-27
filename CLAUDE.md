@@ -710,6 +710,7 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 - Multi-database connection management with local storage (using DittoConfigForDatabase model)
 - Query execution with history and favorites
 - Execution-profile capture for `SELECT` statements with Card and Plan views (gated on the Collect Metrics setting; see [docs/PROFILE.md](docs/PROFILE.md))
+- Attachments: add (from file picker), view (in Document Viewer), and delete (via DQL `UPDATE … = null`) directly from query result rows
 - Real-time subscriptions and observables
 - Connection status bar with real-time transport-level monitoring (WebSocket, Bluetooth, P2P WiFi, Access Point)
 - Presence viewer and peer management

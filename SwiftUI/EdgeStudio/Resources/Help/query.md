@@ -70,6 +70,17 @@ The third tab next to **Raw** and **Table** shows an execution-plan profile for 
 
 Profiles only fire for `SELECT` statements via the Local execute mode — `INSERT` / `UPDATE` / `DELETE` / `EVICT` and HTTP-mode queries don't capture one. See the **User Guide → Collections & Query → Execution Profile** section for the full reference.
 
+### Row Actions (right-click)
+
+Right-click any document row in **Raw** or **Table** mode for a per-row action menu:
+
+- **Copy JSON** — full document to clipboard.
+- **Copy _id** — just the document's `_id` value.
+- **Add Attachment…** — pick a file from disk, enter a field name, upload to Ditto. The attachment token is written back to the document.
+- **Delete Attachment…** — open a sheet listing every detected attachment field on the document with toggles. Selected fields are nulled via `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'`.
+
+See **User Guide → Collections & Query → Attachments** for the full attachment workflow including viewing and opening files from the Document Viewer.
+
 ### Pagination
 
 ---

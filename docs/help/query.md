@@ -60,6 +60,27 @@ EVICT FROM tasks WHERE _id = 'task1-1'
 
 ### Table Mode
 
+### Profile Mode
+
+The third tab next to **Raw** and **Table** shows an execution-plan profile for the last `SELECT` you ran. Profile capture requires **Collect Metrics** to be enabled in Settings — open Settings (⌘,) and toggle it on, then re-run your query.
+
+- **Card view** — every operator in the plan with its stats badges and attributes. Recursively nests child operators inside their parent.
+- **Plan view** — top-down tree of operator boxes connected by T-junction lines. An operator's box turns **orange** when it's a bottleneck (its `exec` time exceeds 50% of the total elapsed time).
+- **Badges**: `in` / `out` = document counts in/out, `exec` = CPU time inside the operator, `recv` = time waiting on upstream operators, `send` = time pushing output downstream.
+
+Profiles only fire for `SELECT` statements via the Local execute mode — `INSERT` / `UPDATE` / `DELETE` / `EVICT` and HTTP-mode queries don't capture one. See the **User Guide → Collections & Query → Execution Profile** section for the full reference.
+
+### Row Actions (right-click)
+
+Right-click any document row in **Raw** or **Table** mode for a per-row action menu:
+
+- **Copy JSON** — full document to clipboard.
+- **Copy _id** — just the document's `_id` value.
+- **Add Attachment…** — pick a file from disk, enter a field name, upload to Ditto. The attachment token is written back to the document.
+- **Delete Attachment…** — open a sheet listing every detected attachment field on the document with toggles. Selected fields are nulled via `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'`.
+
+See **User Guide → Collections & Query → Attachments** for the full attachment workflow including viewing and opening files from the Document Viewer.
+
 ### Pagination
 
 ---
