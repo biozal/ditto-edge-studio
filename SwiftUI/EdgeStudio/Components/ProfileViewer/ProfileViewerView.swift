@@ -94,7 +94,13 @@ struct ProfileViewerView: View {
                 case .plan:
                     ProfilePlanTreeView(
                         root: profile.plan,
-                        totalElapsedNs: profile.times.elapsedNs
+                        // Denominator for the badge is the plan's own
+                        // operator-work total — see PlanNodeBox doc.
+                        // Dividing by `elapsedNs` would produce tiny
+                        // percentages that don't sum to 100% across
+                        // the visible boxes (parse + plan + I/O wait
+                        // aren't in any operator's exec).
+                        planTotalExecNs: profile.plan.planTotalExecNs
                     )
                 }
             }

@@ -13,14 +13,14 @@ import SwiftUI
 /// users don't have to infer it from the layout.
 struct ProfilePlanTreeView: View {
     let root: QueryProfileOperator
-    let totalElapsedNs: Int64
+    let planTotalExecNs: Int64
 
     var body: some View {
         // Both axes scrollable so deep trees and wide fan-outs both
         // remain navigable without truncating. The outer padding
         // gives the dropshadow on the boxes room to breathe.
         ScrollView([.horizontal, .vertical]) {
-            PlanNode(node: root, totalElapsedNs: totalElapsedNs)
+            PlanNode(node: root, planTotalExecNs: planTotalExecNs)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
         }
@@ -40,7 +40,7 @@ struct ProfilePlanTreeView: View {
 
 private struct PlanNode: View {
     let node: QueryProfileOperator
-    let totalElapsedNs: Int64
+    let planTotalExecNs: Int64
 
     /// Length of the vertical connector segment between a parent box
     /// and its children's "rail" row. Picked to leave enough vertical
@@ -49,7 +49,7 @@ private struct PlanNode: View {
 
     var body: some View {
         VStack(alignment: .center, spacing: 0) {
-            PlanNodeBox(node: node, totalElapsedNs: totalElapsedNs)
+            PlanNodeBox(node: node, planTotalExecNs: planTotalExecNs)
 
             if !node.children.isEmpty {
                 connectorAndChildren
@@ -73,7 +73,7 @@ private struct PlanNode: View {
             // line connects parent to lone child without the T-junction
             // visual noise.
             if node.children.count == 1 {
-                PlanNode(node: node.children[0], totalElapsedNs: totalElapsedNs)
+                PlanNode(node: node.children[0], planTotalExecNs: planTotalExecNs)
             } else {
                 multipleChildren
             }
@@ -94,7 +94,7 @@ private struct PlanNode: View {
                     )
                     .frame(height: connectorLength)
 
-                    PlanNode(node: child, totalElapsedNs: totalElapsedNs)
+                    PlanNode(node: child, planTotalExecNs: planTotalExecNs)
                 }
             }
         }

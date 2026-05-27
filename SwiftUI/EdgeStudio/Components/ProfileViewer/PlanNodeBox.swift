@@ -3,7 +3,7 @@ import SwiftUI
 /// Single rounded box for the Plan tree view. Distinct from
 /// `ProfileOperatorCard` (used by Card mode): smaller, fixed-width,
 /// and color-coded by hotspot status so an operator burning a
-/// disproportionate share of the request's elapsed time pops visually.
+/// disproportionate share of the plan's operator work pops visually.
 ///
 /// Visual hierarchy (top-to-bottom inside the box):
 ///   1. **Operator name** (bold, monospaced) — `"scan"`, `"limit"`,
@@ -13,39 +13,53 @@ import SwiftUI
 ///      Hidden for operators without one.
 ///   3. **Exec time** — the operator's own `execNs` (CPU work),
 ///      rendered through `ProfileTimeFormatter`, with a `(N.N%)`
-///      suffix showing `execNs / elapsedNs` on every box. We
-///      deliberately do *not* sum `exec + recv + send`
-///      here: in a pipelined execution model the parent's `recv`
-///      overlaps with the child's `exec/send`, so summing them
-///      double-counts the same wall clock and makes per-node
-///      percentages exceed 100% across siblings. `exec` alone is the
-///      non-overlapping CPU work — the same number the hotspot check
-///      uses below, so the orange tint and the percent badge always
-///      agree. If users want the full exec/recv/send breakdown they
-///      can switch to Card view, which renders all three as separate
-///      badges.
+///      suffix showing this node's share of the **plan's total
+///      `execNs`** on every box.
+///
+///      Why `execNs` and why a plan-total denominator:
+///        - We deliberately do *not* sum `exec + recv + send`. In a
+///          pipelined plan a parent's `recv` overlaps with its child's
+///          `exec`/`send`, so the sum double-counts wall-clock and
+///          makes per-node percentages exceed 100% across siblings.
+///        - We also deliberately do *not* divide by `elapsedNs`. The
+///          request's elapsed time includes parse, plan, I/O waits,
+///          and SDK overhead that the operators don't report exec for
+///          — dividing by it gives correct-but-tiny percentages that
+///          add up to ~10% across the visible boxes and tell the user
+///          nothing about which operator dominated.
+///        - `execNs / planTotalExecNs` answers the question the user
+///          actually wants: "of the CPU work in this plan, what
+///          fraction lived in this operator?" — and the values sum to
+///          exactly 100% across the tree by construction.
+///      If users want the full exec/recv/send breakdown they switch
+///      to Card view, which renders all three as separate badges.
 ///   4. **In/out doc counts** — `"N in / M out"`, with both halves
 ///      hidden if the operator emits neither.
 ///
 /// Colors:
 ///   - **Default**: muted green — matches the reference layout in
 ///     `screens/couchbase-plan.png` and signals "normal".
-///   - **Hotspot**: orange when this operator's `exec` exceeds
-///     `hotspotThreshold` (50%) of the request's total `elapsedNs`.
-///     Same threshold that powers the percent badge — see
+///   - **Hotspot**: orange when this operator's share of
+///     `planTotalExecNs` exceeds `hotspotThreshold` (50%). Same
+///     denominator as the percent badge so the colour and the badge
+///     always tell the same story. See
 ///     `plans/dql-profile-feature.md` "Bottleneck threshold".
 struct PlanNodeBox: View {
     let node: QueryProfileOperator
-    let totalElapsedNs: Int64
+    /// Sum of `execNs` across *every* operator in the plan tree.
+    /// Computed once by `ProfilePlanTreeView` and threaded down so
+    /// every box uses the same denominator and the badges add to
+    /// exactly 100%.
+    let planTotalExecNs: Int64
 
-    /// Operator's exec time represents > 50% of total elapsed → flag
-    /// as a bottleneck. Threshold lives here so the orange tint and
-    /// the percent badge agree.
+    /// Operator's exec share of the plan total > 50% → flag as a
+    /// bottleneck. Threshold lives here so the orange tint and the
+    /// percent badge agree.
     static let hotspotThreshold = 0.5
 
     private var isHotspot: Bool {
-        guard let execNs = node.stats?.execNs, totalElapsedNs > 0 else { return false }
-        return Double(execNs) / Double(totalElapsedNs) >= Self.hotspotThreshold
+        guard let execNs = node.stats?.execNs, planTotalExecNs > 0 else { return false }
+        return Double(execNs) / Double(planTotalExecNs) >= Self.hotspotThreshold
     }
 
     private var fillColor: Color {
@@ -72,7 +86,7 @@ struct PlanNodeBox: View {
     }
 
     private var timeLabel: String? {
-        Self.timeLabel(execNs: node.stats?.execNs, totalElapsedNs: totalElapsedNs)
+        Self.timeLabel(execNs: node.stats?.execNs, planTotalExecNs: planTotalExecNs)
     }
 
     /// Static, pure helper so we can unit-test the percentage logic
@@ -81,24 +95,29 @@ struct PlanNodeBox: View {
     ///
     /// - **Time shown is `execNs` only.** Summing `exec + recv + send`
     ///   would double-count wall-clock across pipeline siblings (a
-    ///   parent's `recv` overlaps with its child's `exec`/`send`) and
-    ///   produces percentages that exceed 100% — the bug this helper
-    ///   was extracted to lock down.
-    /// - **Percentage threshold is 0** here on purpose. The
-    ///   `ProfileTimeFormatter.percentOfTotal` default of 5% was
-    ///   chosen back when the displayed time summed all three phases
-    ///   and small operators looked like noise. With `exec`-only the
-    ///   small percentages are exactly what users want to see (it's
-    ///   how they distinguish a real-but-tiny operator from a node
-    ///   whose time is mostly spent waiting on a child).
+    ///   parent's `recv` overlaps with its child's `exec`/`send`).
+    /// - **Denominator is `planTotalExecNs`**, the sum of `execNs`
+    ///   across every operator in the plan. That makes the badge a
+    ///   *share of plan operator work* — values across the tree sum
+    ///   to exactly 100%, which is the invariant
+    ///   `PlanNodeBoxTests` locks down. Dividing by `elapsedNs`
+    ///   instead would produce honest-but-tiny percentages that don't
+    ///   sum to anything meaningful (parse/plan/I-O wait time isn't
+    ///   in any operator's `exec`).
+    /// - **Percentage threshold is 0** so every reporting operator
+    ///   gets a badge — users compare badges across siblings to spot
+    ///   the bottleneck.
     /// - Returns `nil` if `execNs` is missing — the box silently
     ///   omits the time line in that case.
-    static func timeLabel(execNs: Int64?, totalElapsedNs: Int64) -> String? {
+    /// - Returns the formatted time without a percent suffix when
+    ///   `planTotalExecNs <= 0` (defensive — a malformed envelope
+    ///   shouldn't crash the view).
+    static func timeLabel(execNs: Int64?, planTotalExecNs: Int64) -> String? {
         guard let execNs else { return nil }
         var label = ProfileTimeFormatter.format(ns: execNs)
         if let pct = ProfileTimeFormatter.percentOfTotal(
             ns: execNs,
-            totalNs: totalElapsedNs,
+            totalNs: planTotalExecNs,
             threshold: 0
         ) {
             label += "  (\(pct))"
@@ -159,5 +178,22 @@ struct PlanNodeBox: View {
         // of the reference Couchbase screenshot without going overboard
         // with shadow that would clash against dark mode.
         .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Plan-total computation
+
+extension QueryProfileOperator {
+    /// Sum of `execNs` across this operator and every descendant in
+    /// its subtree. Used as the denominator for Plan view percentage
+    /// badges so they add to exactly 100% across the rendered tree.
+    ///
+    /// Operators without exec phase times contribute 0 — they appear
+    /// in the tree but aren't part of the work-pie.
+    var planTotalExecNs: Int64 {
+        let here = stats?.execNs ?? 0
+        return children.reduce(here) { acc, child in
+            acc + child.planTotalExecNs
+        }
     }
 }
