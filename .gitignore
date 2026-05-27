@@ -47,3 +47,8 @@ dotnet/src/EdgeStudio/Assets/Help/*.md
 dotnet/src/EdgeStudio.UI/bin
 dotnet/src/EdgeStudio.UI/obj
 docs/superpowers
+
+# Screenshots — used only for ad-hoc issue reports / iteration aids,
+# never meant to be checked in. Anchored to the repo root so a
+# `screens/` directory nested elsewhere isn't accidentally ignored.
+/screens/
