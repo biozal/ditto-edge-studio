@@ -12,9 +12,9 @@ import SwiftUI
 ///      attribute: `collection` for scans, `limit` for limits, etc.
 ///      Hidden for operators without one.
 ///   3. **Exec time** — the operator's own `execNs` (CPU work),
-///      rendered through `ProfileTimeFormatter`, with an optional
-///      `(N.N%)` suffix when the node represents ≥ 5% of the total
-///      elapsed time. We deliberately do *not* sum `exec + recv + send`
+///      rendered through `ProfileTimeFormatter`, with a `(N.N%)`
+///      suffix showing `execNs / elapsedNs` on every box. We
+///      deliberately do *not* sum `exec + recv + send`
 ///      here: in a pipelined execution model the parent's `recv`
 ///      overlaps with the child's `exec/send`, so summing them
 ///      double-counts the same wall clock and makes per-node
@@ -72,12 +72,35 @@ struct PlanNodeBox: View {
     }
 
     private var timeLabel: String? {
-        // `execNs` only — see file header. Summing exec+recv+send
-        // double-counts wall-clock across pipeline siblings and
-        // produces percentages that exceed 100%.
-        guard let execNs = node.stats?.execNs else { return nil }
+        Self.timeLabel(execNs: node.stats?.execNs, totalElapsedNs: totalElapsedNs)
+    }
+
+    /// Static, pure helper so we can unit-test the percentage logic
+    /// without instantiating a SwiftUI `View`. Returns the formatted
+    /// "X µs  (Y.Y%)" string the Plan view box uses.
+    ///
+    /// - **Time shown is `execNs` only.** Summing `exec + recv + send`
+    ///   would double-count wall-clock across pipeline siblings (a
+    ///   parent's `recv` overlaps with its child's `exec`/`send`) and
+    ///   produces percentages that exceed 100% — the bug this helper
+    ///   was extracted to lock down.
+    /// - **Percentage threshold is 0** here on purpose. The
+    ///   `ProfileTimeFormatter.percentOfTotal` default of 5% was
+    ///   chosen back when the displayed time summed all three phases
+    ///   and small operators looked like noise. With `exec`-only the
+    ///   small percentages are exactly what users want to see (it's
+    ///   how they distinguish a real-but-tiny operator from a node
+    ///   whose time is mostly spent waiting on a child).
+    /// - Returns `nil` if `execNs` is missing — the box silently
+    ///   omits the time line in that case.
+    static func timeLabel(execNs: Int64?, totalElapsedNs: Int64) -> String? {
+        guard let execNs else { return nil }
         var label = ProfileTimeFormatter.format(ns: execNs)
-        if let pct = ProfileTimeFormatter.percentOfTotal(ns: execNs, totalNs: totalElapsedNs) {
+        if let pct = ProfileTimeFormatter.percentOfTotal(
+            ns: execNs,
+            totalNs: totalElapsedNs,
+            threshold: 0
+        ) {
             label += "  (\(pct))"
         }
         return label
