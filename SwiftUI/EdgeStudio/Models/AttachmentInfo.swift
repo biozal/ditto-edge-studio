@@ -38,7 +38,12 @@ extension AttachmentInfo {
         {
             return []
         }
+        return detectTokens(in: dict)
+    }
 
+    /// Overload that accepts an already-parsed document dictionary, avoiding a
+    /// redundant JSON re-parse when the caller already has the `[String: Any]`.
+    static func detectTokens(in dict: [String: Any]) -> [AttachmentInfo] {
         var results: [AttachmentInfo] = []
         for (key, value) in dict {
             guard let obj = value as? [String: Any],

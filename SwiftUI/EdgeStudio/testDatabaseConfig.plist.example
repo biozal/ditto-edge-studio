@@ -5,7 +5,7 @@
     <key>databases</key>
     <array>
         <!-- ONLINE PLAYGROUND EXAMPLE -->
-        <!-- Required fields: name, mode, appId, authToken, authUrl, websocketUrl, httpApiUrl, httpApiKey -->
+        <!-- Required fields: name, mode, appId, authToken, authUrl, httpApiUrl, httpApiKey -->
         <dict>
             <key>name</key>
             <string>Test Online Playground</string>
@@ -17,8 +17,6 @@
             <string>your-auth-token-here</string>
             <key>authUrl</key>
             <string>https://your-auth-url-here.com</string>
-            <key>websocketUrl</key>
-            <string>wss://your-websocket-url-here.com</string>
             <key>httpApiUrl</key>
             <string>https://your-http-api-url-here.com</string>
             <key>httpApiKey</key>
@@ -52,8 +50,6 @@
             <string></string>
             <key>authUrl</key>
             <string></string>
-            <key>websocketUrl</key>
-            <string></string>
             <key>httpApiUrl</key>
             <string></string>
             <key>httpApiKey</key>
@@ -85,8 +81,6 @@
             <key>authToken</key>
             <string></string>
             <key>authUrl</key>
-            <string></string>
-            <key>websocketUrl</key>
             <string></string>
             <key>httpApiUrl</key>
             <string></string>

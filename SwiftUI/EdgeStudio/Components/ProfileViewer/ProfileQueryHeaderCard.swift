@@ -38,9 +38,13 @@ struct ProfileQueryHeaderCard: View {
     /// surprise the user. `capturedAt` is set by `QueryProfileParser`
     /// when it parsed the envelope, which is close enough to "when I
     /// ran the query" for the header.
-    private var localTimestamp: String {
+    private static let capturedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter.string(from: profile.capturedAt)
+        return formatter
+    }()
+
+    private var localTimestamp: String {
+        Self.capturedAtFormatter.string(from: profile.capturedAt)
     }
 }

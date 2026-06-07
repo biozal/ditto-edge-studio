@@ -1,4 +1,3 @@
-import CodeEditor
 import SwiftUI
 
 struct ResultJsonViewer: View {
@@ -175,7 +174,7 @@ struct ResultsList: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, jsonString in
+                ForEach(items, id: \.self) { jsonString in
                     ResultItem(
                         jsonString: jsonString,
                         onJsonSelected: onJsonSelected,

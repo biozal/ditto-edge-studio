@@ -25,7 +25,7 @@ struct ObservableRepositoryTests {
             _id: UUID().uuidString, name: "DB", databaseId: dbId,
             mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
             isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-            token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+            token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
         ))
     }
 
@@ -60,12 +60,12 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: UUID().uuidString, name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId1, name: "Obs1",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -94,7 +94,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId, name: "Obs",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -125,7 +125,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -159,7 +159,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -220,7 +220,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -249,7 +249,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -326,14 +326,14 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnObservablesUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 var obs = DittoObservable(id: TestHelpers.uniqueTestId())
@@ -344,7 +344,7 @@ struct ObservableRepositoryTests {
                 try await repo.saveDittoObservable(obs)
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
 
@@ -358,7 +358,7 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -368,16 +368,16 @@ struct ObservableRepositoryTests {
                 obs.query = "SELECT 2"
                 try await repo.saveDittoObservable(obs)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnObservablesUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
                 try await repo.removeDittoObservable(obs)
 
                 // ASSERT
-                #expect(callbackCount >= 1)
+                #expect(callbackCount.value >= 1)
             }
         }
     }

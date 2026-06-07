@@ -30,7 +30,6 @@ struct ModelTests {
                 databaseId: "db-1",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -48,7 +47,6 @@ struct ModelTests {
                 databaseId: "db-1",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -69,7 +67,6 @@ struct ModelTests {
                 databaseId: "db-1",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -92,7 +89,6 @@ struct ModelTests {
                 databaseId: dbId,
                 token: "tok",
                 authUrl: "https://auth.example.com",
-                websocketUrl: "wss://ws.example.com",
                 httpApiUrl: "https://api.example.com",
                 httpApiKey: "key-123",
                 mode: .smallPeersOnly,
@@ -111,7 +107,6 @@ struct ModelTests {
             #expect(config.databaseId == dbId)
             #expect(config.token == "tok")
             #expect(config.authUrl == "https://auth.example.com")
-            #expect(config.websocketUrl == "wss://ws.example.com")
             #expect(config.httpApiUrl == "https://api.example.com")
             #expect(config.httpApiKey == "key-123")
             #expect(config.mode == .smallPeersOnly)
@@ -133,7 +128,6 @@ struct ModelTests {
                 databaseId: "db-1",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -151,7 +145,6 @@ struct ModelTests {
                 databaseId: "db-strict",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 isStrictModeEnabled: true
@@ -171,7 +164,6 @@ struct ModelTests {
                 "databaseId": "db-compat-strict",
                 "token": "",
                 "authUrl": "",
-                "websocketUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
                 "mode": "server"
@@ -196,7 +188,6 @@ struct ModelTests {
                 "databaseId": "db-strict",
                 "token": "",
                 "authUrl": "",
-                "websocketUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
                 "mode": "server",
@@ -257,7 +248,6 @@ struct ModelTests {
                 "databaseId": "db-decoded",
                 "token": "my-token",
                 "authUrl": "https://auth.example.com",
-                "websocketUrl": "wss://ws.example.com",
                 "httpApiUrl": "https://api.example.com",
                 "httpApiKey": "api-key",
                 "mode": "server",
@@ -295,7 +285,6 @@ struct ModelTests {
                 "databaseId": "db-compat",
                 "token": "",
                 "authUrl": "",
-                "websocketUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
                 "mode": "server"

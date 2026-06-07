@@ -11,7 +11,7 @@ actor QueryMetricsRepository {
     func capture(dql: String, executionTimeMs: Double, resultCount: Int, explainOutput: String) {
         let record = QueryExplainRecord(
             id: UUID(),
-            timestamp: Date(),
+            timestamp: Date.now,
             dql: dql,
             executionTimeMs: executionTimeMs,
             resultCount: resultCount,

@@ -259,7 +259,7 @@ extension MainStudioView {
                     if let count = collection.documentCount {
                         Text("\(count)")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(
+                            .foregroundStyle(
                                 colorScheme == .dark
                                     ? .black : Color.dittoYellow
                             )
@@ -446,7 +446,7 @@ struct ObserverCard: View {
                 Text(observer.name)
                     .font(.headline)
                     .bold()
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
             }
             Spacer()
             if isActive {
@@ -457,7 +457,7 @@ struct ObserverCard: View {
             } else {
                 Text("Idle")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.trailing, 4)
             }
         }

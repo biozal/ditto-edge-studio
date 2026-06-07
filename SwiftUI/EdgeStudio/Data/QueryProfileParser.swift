@@ -63,7 +63,7 @@ enum QueryProfileParser {
             text: stringValue(envelope["text"]) ?? "",
             times: times,
             plan: plan,
-            capturedAt: Date()
+            capturedAt: Date.now
         )
     }
 

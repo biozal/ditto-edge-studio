@@ -3,9 +3,9 @@ import SwiftUI
 struct SubscriptionObserverEditor: View {
     @Environment(AppState.self) private var appState
 
-    @State var title: String
-    @State var name: String
-    @State var query: String
+    let title: String
+    @State private var name: String
+    @State private var query: String
 
     let onSave: (String, String, AppState) -> Void
     let onCancel: () -> Void
@@ -17,7 +17,7 @@ struct SubscriptionObserverEditor: View {
         onSave: @escaping (String, String, AppState) -> Void,
         onCancel: @escaping () -> Void
     ) {
-        _title = State(initialValue: title)
+        self.title = title
         _name = State(initialValue: name)
         _query = State(initialValue: query)
 
@@ -41,7 +41,7 @@ struct SubscriptionObserverEditor: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     Text("Ex: SELECT * FROM collectionName")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(.bottom, 20)
                 }
             }

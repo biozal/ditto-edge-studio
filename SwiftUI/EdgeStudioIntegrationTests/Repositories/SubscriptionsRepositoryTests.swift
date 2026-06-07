@@ -25,7 +25,7 @@ struct SubscriptionsRepositoryTests {
             _id: UUID().uuidString, name: "Test DB", databaseId: dbId,
             mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
             isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-            token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+            token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
         )
         try await service.insertDatabaseConfig(row)
     }
@@ -63,12 +63,12 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
                 let row2 = SQLCipherService.DatabaseConfigRow(
                     _id: UUID().uuidString, name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
                 try await service.insertDatabaseConfig(row1)
                 try await service.insertDatabaseConfig(row2)
 
@@ -102,7 +102,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
                 try await service.insertSubscription(SQLCipherService.SubscriptionRow(
                     _id: UUID().uuidString, databaseId: dbId, name: "S", query: "SELECT 1"
                 ))
@@ -132,7 +132,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
@@ -182,7 +182,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
@@ -219,7 +219,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
@@ -248,7 +248,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
@@ -307,14 +307,14 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnSubscriptionsUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 var sub = DittoSubscription(id: TestHelpers.uniqueTestId())
@@ -325,7 +325,7 @@ struct SubscriptionsRepositoryTests {
                 try await repo.saveDittoSubscription(sub)
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
 
@@ -339,7 +339,7 @@ struct SubscriptionsRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
 
                 let repo = SubscriptionsRepository.shared
                 _ = try await repo.loadSubscriptions(for: dbId)
@@ -349,16 +349,16 @@ struct SubscriptionsRepositoryTests {
                 sub.query = "SELECT 2"
                 try await repo.saveDittoSubscription(sub)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnSubscriptionsUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
                 try await repo.removeDittoSubscription(sub)
 
                 // ASSERT
-                #expect(callbackCount >= 1)
+                #expect(callbackCount.value >= 1)
             }
         }
     }

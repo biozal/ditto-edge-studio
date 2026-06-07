@@ -6,8 +6,6 @@ struct DatabaseCard: View {
 
     @State private var showAppId = false
     @State private var showAuthToken = false
-    @State private var showAuthUrl = false
-    @State private var showWebsocketUrl = false
 
     #if os(iOS)
     @Environment(\.colorScheme) var colorScheme
@@ -34,7 +32,7 @@ struct DatabaseCard: View {
                     .frame(width: 40, height: 40)
                 Text(dittoApp.name)
                     .font(.title3)
-                    .foregroundColor(nameColor)
+                    .foregroundStyle(nameColor)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -4,22 +4,6 @@ import Foundation
 
 /// Parses log files from multiple formats into `LogEntry` arrays.
 enum LogFileParser {
-    // MARK: - ISO8601 Formatters (module-level, reused across calls)
-
-    /// Parses ISO8601 with fractional seconds (e.g. `2026-02-27T13:42:00.123Z`)
-    private static let isoWithFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    /// Parses ISO8601 without fractional seconds (e.g. `2026-02-27T13:42:00Z`)
-    private static let isoWithoutFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
-
     // MARK: - Directory Parsing
 
     /// Parses all `.log` and `.log.gz` files in a Ditto SDK logs directory.
@@ -70,16 +54,26 @@ enum LogFileParser {
     /// Parses CocoaLumberjack plain-text log files.
     /// CocoaLumberjack writes UTC timestamps with slash separators:
     /// `YYYY/MM/DD HH:MM:SS:mmm LEVEL [file.swift:line]   Message`
+    /// Compiled once and reused — `NSRegularExpression(pattern:)` compilation is
+    /// expensive and the pattern is constant across every parse invocation.
+    private static let cocoaLumberjackRegex = try? NSRegularExpression(
+        pattern: #"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}:\d{3})\s+(\w+)\s"#
+    )
+
+    /// Reused across parses (see `cocoaLumberjackRegex`). `DateFormatter` is
+    /// `Sendable`, so a plain `static let` is safe to share.
+    private static let cocoaLumberjackDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy/MM/dd HH:mm:ss:SSS"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0) // CL writes UTC
+        return f
+    }()
+
     static func parseCocoaLumberjackFiles(_ urls: [URL]) -> [LogEntry] {
         var entries: [LogEntry] = []
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy/MM/dd HH:mm:ss:SSS"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0) // CL writes UTC
-
-        // Regex: date with slash separators + space + level keyword
-        let pattern = #"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}:\d{3})\s+(\w+)\s"#
-        let regex = try? NSRegularExpression(pattern: pattern)
+        let formatter = Self.cocoaLumberjackDateFormatter
+        let regex = Self.cocoaLumberjackRegex
 
         for fileURL in urls {
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
@@ -95,7 +89,7 @@ enum LogFileParser {
                 ) else {
                     // Unparseable line — still include as 'other' with info level
                     entries.append(LogEntry(
-                        timestamp: Date(),
+                        timestamp: Date.now,
                         level: .info,
                         message: trimmed,
                         component: .other,
@@ -107,7 +101,7 @@ enum LogFileParser {
 
                 let dateStr = nsLine.substring(with: match.range(at: 1))
                 let levelStr = nsLine.substring(with: match.range(at: 2)).uppercased()
-                let timestamp = formatter.date(from: dateStr) ?? Date()
+                let timestamp = formatter.date(from: dateStr) ?? Date.now
                 let level = cocoaLevelFromString(levelStr)
 
                 // Message = everything after the match
@@ -132,6 +126,22 @@ enum LogFileParser {
     // MARK: - Private Helpers
 
     static func parseJSONLString(_ content: String, source: LogEntrySource) -> [LogEntry] {
+        // Function-local formatters: `ISO8601DateFormatter` is not `Sendable`, so
+        // keeping these local (rather than shared statics) avoids any cross-thread
+        // sharing without needing a `nonisolated(unsafe)` escape hatch. Creation is
+        // negligible relative to the file I/O and per-line parsing below, and they
+        // are reused across every line in this file.
+        let isoWithFraction: ISO8601DateFormatter = {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return f
+        }()
+        let isoWithoutFraction: ISO8601DateFormatter = {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime]
+            return f
+        }()
+
         let lines = content.components(separatedBy: .newlines)
         var entries: [LogEntry] = []
 
@@ -145,7 +155,7 @@ enum LogFileParser {
             // Try with fractional seconds first, then without — Ditto SDK may omit milliseconds
             let timestamp = isoWithFraction.date(from: timestampStr)
                 ?? isoWithoutFraction.date(from: timestampStr)
-                ?? Date()
+                ?? Date.now
             let levelStr = (json["level"] as? String ?? "info").lowercased()
             let target = json["target"] as? String ?? ""
             let message = json["message"] as? String ?? trimmed

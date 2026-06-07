@@ -64,12 +64,12 @@ struct AttachmentPickerSheet: View {
 
             LabeledContent("Collection") {
                 Text(collection)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             LabeledContent("Document ID") {
                 Text(documentId)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -93,32 +93,32 @@ struct AttachmentPickerSheet: View {
                 Text(selectedFileName)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .foregroundColor(selectedFileURL == nil ? .secondary : .primary)
+                    .foregroundStyle(selectedFileURL == nil ? .secondary : .primary)
 
                 Spacer()
 
                 if selectedFileSize > 0 {
                     Text(formattedFileSize(selectedFileSize))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             if isOverHardLimit {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                     Text("File exceeds the 20 MB HTTP limit and cannot be attached.")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                 }
             } else if isOverSoftLimit {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                     Text("File exceeds 10 MB. Large attachments may affect sync performance.")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                 }
             }
 

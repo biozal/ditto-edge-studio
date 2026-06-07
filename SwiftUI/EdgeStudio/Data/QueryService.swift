@@ -36,9 +36,9 @@ actor QueryService {
         }
 
         // Instrument: measure execution time
-        let startDate = Date()
+        let startDate = Date.now
         let results = try await ditto.store.execute(query: query)
-        let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
+        let elapsedMs = Date.now.timeIntervalSince(startDate) * 1000.0
 
         // Record metrics only when collection is enabled (reads UserDefaults synchronously)
         let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
@@ -128,9 +128,9 @@ actor QueryService {
         let effectiveQuery = shouldProfile ? "PROFILE \(query)" : query
 
         // Instrument: measure execution time
-        let startDate = Date()
+        let startDate = Date.now
         let results = try await ditto.store.execute(query: effectiveQuery)
-        let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
+        let elapsedMs = Date.now.timeIntervalSince(startDate) * 1000.0
 
         // Record AppMetrics counters only when collection is enabled
         if isMetricsEnabled {

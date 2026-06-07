@@ -40,7 +40,7 @@ struct ImportDataView: View {
                             Text(selectedFileName)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                                .foregroundColor(selectedFileURL == nil ? .secondary : .primary)
+                                .foregroundStyle(selectedFileURL == nil ? .secondary : .primary)
 
                             Spacer()
 
@@ -66,12 +66,12 @@ struct ImportDataView: View {
                         if useExistingCollection {
                             if existingCollections.isEmpty {
                                 Text("No existing collections found")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 HStack {
                                     Text("Select Collection")
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                     Spacer()
                                     Picker("", selection: $selectedCollection) {
                                         ForEach(existingCollections, id: \._id) { collection in
@@ -101,7 +101,7 @@ struct ImportDataView: View {
                                         ? "Use for first-time data import (WITH INITIAL DOCUMENTS)"
                                         : "Use for adding data to existing collections")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                             .toggleStyle(.switch)
@@ -112,7 +112,7 @@ struct ImportDataView: View {
                                 FontAwesomeText(icon: StatusIcon.circleInfo, size: 12, color: .blue)
                                 Text("Initial insert is designed for loading data for the first time and has special optimizations.")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                             .padding(8)
                             .background(RoundedRectangle(cornerRadius: 6)
@@ -143,14 +143,14 @@ struct ImportDataView: View {
                                     HStack {
                                         Text("Importing: \(progress.current) of \(progress.total) documents")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundStyle(.secondary)
                                         Spacer()
                                     }
 
                                     if let docId = progress.currentDocumentId {
                                         Text("Processing: \(docId)")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                             .truncationMode(.middle)
                                     }
@@ -161,7 +161,7 @@ struct ImportDataView: View {
                                             .scaleEffect(0.8)
                                         Text(currentImportStatus.isEmpty ? "Preparing import..." : currentImportStatus)
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                             }
@@ -175,7 +175,7 @@ struct ImportDataView: View {
                                     Text("Error")
                                         .font(.caption)
                                         .fontWeight(.semibold)
-                                        .foregroundColor(.red)
+                                        .foregroundStyle(.red)
                                     Spacer()
                                     Button(action: {
                                         #if os(macOS)
@@ -192,7 +192,7 @@ struct ImportDataView: View {
                                         }
                                     })
                                     .buttonStyle(.plain)
-                                    .foregroundColor(.red.opacity(0.8))
+                                    .foregroundStyle(.red.opacity(0.8))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                                     .background(RoundedRectangle(cornerRadius: 4)
@@ -203,7 +203,7 @@ struct ImportDataView: View {
                                 ScrollView {
                                     Text(error)
                                         .font(.caption)
-                                        .foregroundColor(.red)
+                                        .foregroundStyle(.red)
                                         .textSelection(.enabled)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
@@ -218,7 +218,7 @@ struct ImportDataView: View {
                                 FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
                                 Text(successMessage)
                                     .font(.caption)
-                                    .foregroundColor(.green)
+                                    .foregroundStyle(.green)
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)

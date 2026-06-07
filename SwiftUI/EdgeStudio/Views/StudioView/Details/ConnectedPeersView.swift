@@ -67,7 +67,7 @@ struct ConnectedPeersView: View {
                                     .frame(height: 1)
                                 Text("Local Network")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                     .fixedSize()
                                 Rectangle()
                                     .fill(Color.secondary.opacity(0.25))
@@ -119,7 +119,7 @@ struct ConnectedPeersView: View {
                     Text(status.deviceName ?? status.peerType)
                         .font(.headline)
                         .bold()
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
 
                     // Show OS info if available
                     if let osInfo = status.osInfo {
@@ -127,13 +127,13 @@ struct ConnectedPeersView: View {
                             FontAwesomeText(icon: osIcon(for: osInfo), size: 12, color: .white.opacity(0.80))
                             Text(osInfo.displayName)
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                         }
                     }
 
                     Text(status.id)
                         .font(.caption2)
-                        .foregroundColor(copiedText == status.id ? .green : .white.opacity(0.80))
+                        .foregroundStyle(copiedText == status.id ? .green : .white.opacity(0.80))
                     #if os(macOS)
                         .help("Double-click to copy ID")
                         .onTapGesture(count: 2) { copyToClipboard(status.id) }
@@ -148,7 +148,7 @@ struct ConnectedPeersView: View {
                         .frame(width: 8, height: 8)
                     Text(status.syncSessionStatus)
                         .font(.subheadline)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                 }
             }
 
@@ -164,7 +164,7 @@ struct ConnectedPeersView: View {
                         FontAwesomeText(icon: SystemIcon.sdk, size: 12, color: .white.opacity(0.80))
                         Text("Ditto SDK: \(sdkVersion)")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.80))
+                            .foregroundStyle(.white.opacity(0.80))
                     }
                 }
 
@@ -174,7 +174,7 @@ struct ConnectedPeersView: View {
                         FontAwesomeText(icon: connectionIcon(for: addressInfo.connectionType), size: 12, color: .white.opacity(0.80))
                         Text(addressInfo.displayText)
                             .font(.caption)
-                            .foregroundColor(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
+                            .foregroundStyle(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
                         #if os(macOS)
                             .help("Double-click to copy address")
                             .onTapGesture(count: 2) { copyToClipboard(addressInfo.displayText) }
@@ -188,7 +188,7 @@ struct ConnectedPeersView: View {
                         ScrollView {
                             Text(metadata)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
@@ -199,7 +199,7 @@ struct ConnectedPeersView: View {
                             FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .white.opacity(0.80))
                             Text("Identity Metadata")
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                         }
                     }
                     .tint(.white)
@@ -211,7 +211,7 @@ struct ConnectedPeersView: View {
                         ScrollView {
                             Text(metadata)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
@@ -222,7 +222,7 @@ struct ConnectedPeersView: View {
                             FontAwesomeText(icon: SystemIcon.circleInfo, size: 12, color: .white.opacity(0.80))
                             Text("Peer Metadata")
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                         }
                     }
                     .tint(.white)
@@ -235,7 +235,7 @@ struct ConnectedPeersView: View {
                             FontAwesomeText(icon: SystemIcon.link, size: 12, color: .white.opacity(0.80))
                             Text("Active Connections (\(connections.count))")
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.80))
+                                .foregroundStyle(.white.opacity(0.80))
                         }
 
                         ForEach(connections) { connection in
@@ -250,7 +250,7 @@ struct ConnectedPeersView: View {
                         FontAwesomeText(icon: SystemIcon.circleCheck, size: 12, color: .white)
                         Text("Synced to commit: \(commitId)")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.80))
+                            .foregroundStyle(.white.opacity(0.80))
                     }
                 }
 
@@ -258,7 +258,7 @@ struct ConnectedPeersView: View {
                     FontAwesomeText(icon: SystemIcon.clock, size: 12, color: .white.opacity(0.80))
                     Text("Last update: \(status.formattedLastUpdate)")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.80))
+                        .foregroundStyle(.white.opacity(0.80))
                 }
             }
 
@@ -285,12 +285,12 @@ struct ConnectedPeersView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.type.displayName)
                     .font(.caption)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
 
                 if let distance = connection.displayDistance {
                     Text("Distance: \(distance)")
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.80))
+                        .foregroundStyle(.white.opacity(0.80))
                 }
             }
 
@@ -307,30 +307,18 @@ struct ConnectedPeersView: View {
     // MARK: - Helper Functions
 
     private func connectionGradient(for status: SyncStatusInfo) -> (Color, Color) {
-        if status.isDittoServer {
-            return (SyncStatusInfo.cloudCardColor, SyncStatusInfo.cloudCardDarkColor)
+        switch status.dominantConnectionType {
+        case "cloud": return (SyncStatusInfo.cloudCardColor, SyncStatusInfo.cloudCardDarkColor)
+        case "websocket": return (ConnectionType.webSocket.cardColor, ConnectionType.webSocket.cardDarkColor)
+        case "lan": return (ConnectionType.accessPoint.cardColor, ConnectionType.accessPoint.cardDarkColor)
+        case "p2p": return (ConnectionType.p2pWiFi.cardColor, ConnectionType.p2pWiFi.cardDarkColor)
+        case "bluetooth": return (ConnectionType.bluetooth.cardColor, ConnectionType.bluetooth.cardDarkColor)
+        default: return (ConnectionType.unknown("").cardColor, ConnectionType.unknown("").cardDarkColor)
         }
-        let connections = status.connections ?? []
-        if connections
-            .contains(where: { $0.type == .webSocket }) { return (ConnectionType.webSocket.cardColor, ConnectionType.webSocket.cardDarkColor) }
-        if connections.contains(where: { $0.type == .accessPoint }) { return (
-            ConnectionType.accessPoint.cardColor,
-            ConnectionType.accessPoint.cardDarkColor
-        ) }
-        if connections.contains(where: { $0.type == .p2pWiFi }) { return (ConnectionType.p2pWiFi.cardColor, ConnectionType.p2pWiFi.cardDarkColor) }
-        if connections
-            .contains(where: { $0.type == .bluetooth }) { return (ConnectionType.bluetooth.cardColor, ConnectionType.bluetooth.cardDarkColor) }
-        return (ConnectionType.unknown("").cardColor, ConnectionType.unknown("").cardDarkColor)
     }
 
     private func dominantTypeKey(for status: SyncStatusInfo) -> String {
-        if status.isDittoServer { return "cloud" }
-        let connections = status.connections ?? []
-        if connections.contains(where: { $0.type == .webSocket }) { return "websocket" }
-        if connections.contains(where: { $0.type == .accessPoint }) { return "lan" }
-        if connections.contains(where: { $0.type == .p2pWiFi }) { return "p2p" }
-        if connections.contains(where: { $0.type == .bluetooth }) { return "bluetooth" }
-        return "unknown"
+        status.dominantConnectionType
     }
 
     private func statusColor(for status: String) -> Color {

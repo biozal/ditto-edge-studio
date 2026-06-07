@@ -9,11 +9,11 @@ struct SecureField: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Button(action: { isRevealed.toggle() }, label: {
                 Text(isRevealed ? value : String(repeating: "•", count: max(value.count, 6)))
                     .font(.body.monospaced())
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(8)

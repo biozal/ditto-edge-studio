@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct TransportConfigView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel: ViewModel
@@ -42,7 +43,7 @@ struct TransportConfigView: View {
                         : viewModel.currentStep.message
                     )
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -67,7 +68,7 @@ struct TransportConfigView: View {
                                 .font(.body)
                             Text("Direct peer-to-peer sync via Bluetooth Low Energy")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -85,7 +86,7 @@ struct TransportConfigView: View {
                                 .font(.body)
                             Text("Sync with peers on the same WiFi or wired network")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -103,7 +104,7 @@ struct TransportConfigView: View {
                                 .font(.body)
                             Text("High-speed peer-to-peer WiFi (Apple devices only)")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -130,7 +131,7 @@ struct TransportConfigView: View {
                 .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges)
                 .buttonStyle(.glassProminent)
                 .tint(.dittoYellow)
-                .foregroundColor(.black)
+                .foregroundStyle(.black)
             }
         }
         .formStyle(.grouped)
@@ -165,19 +166,18 @@ struct TransportConfigView: View {
 // MARK: - ViewModel
 
 extension TransportConfigView {
+    @MainActor
     @Observable
     class ViewModel {
         // Current UI state (bound to toggles)
         var isBluetoothLeEnabled = true
         var isLanEnabled = true
         var isAwdlEnabled = true
-        var isCloudSyncEnabled = true
 
         // Original settings (for change detection)
         private var originalBluetoothLeEnabled = true
         private var originalLanEnabled = true
         private var originalAwdlEnabled = true
-        private var originalCloudSyncEnabled = true
 
         /// Progress tracking
         enum OperationStep: Equatable {
@@ -227,8 +227,7 @@ extension TransportConfigView {
         var hasChanges: Bool {
             isBluetoothLeEnabled != originalBluetoothLeEnabled ||
                 isLanEnabled != originalLanEnabled ||
-                isAwdlEnabled != originalAwdlEnabled ||
-                isCloudSyncEnabled != originalCloudSyncEnabled
+                isAwdlEnabled != originalAwdlEnabled
         }
 
         init() {}
@@ -241,11 +240,9 @@ extension TransportConfigView {
             let ble = appConfig.isBluetoothLeEnabled
             let lan = appConfig.isLanEnabled
             let awdl = appConfig.isAwdlEnabled
-            let cloud = appConfig.isCloudSyncEnabled
             isBluetoothLeEnabled = ble; originalBluetoothLeEnabled = ble
             isLanEnabled = lan; originalLanEnabled = lan
             isAwdlEnabled = awdl; originalAwdlEnabled = awdl
-            isCloudSyncEnabled = cloud; originalCloudSyncEnabled = cloud
         }
 
         /// Applies transport configuration changes with proper sync and observer lifecycle
@@ -267,18 +264,23 @@ extension TransportConfigView {
                 try await DittoManager.shared.applyTransportConfig(
                     isBluetoothLeEnabled: isBluetoothLeEnabled,
                     isLanEnabled: isLanEnabled,
-                    isAwdlEnabled: isAwdlEnabled,
-                    isCloudSyncEnabled: isCloudSyncEnabled
+                    isAwdlEnabled: isAwdlEnabled
                 )
 
-                // Update stored app config in database for persistence
+                // Update stored app config in database for persistence. Revert the
+                // in-memory mutation if the persist fails, so the live config never
+                // diverges from disk on the error path.
                 if let appConfig = await dittoManager.dittoSelectedAppConfig {
+                    let previous = (appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled)
                     appConfig.isBluetoothLeEnabled = isBluetoothLeEnabled
                     appConfig.isLanEnabled = isLanEnabled
                     appConfig.isAwdlEnabled = isAwdlEnabled
-                    appConfig.isCloudSyncEnabled = isCloudSyncEnabled
-
-                    try await DatabaseRepository.shared.updateDittoAppConfig(appConfig)
+                    do {
+                        try await DatabaseRepository.shared.updateDittoAppConfig(appConfig)
+                    } catch {
+                        (appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled) = previous
+                        throw error
+                    }
                 }
 
                 // STEP 3: RESTART SYNC
@@ -300,10 +302,9 @@ extension TransportConfigView {
                 originalBluetoothLeEnabled = isBluetoothLeEnabled
                 originalLanEnabled = isLanEnabled
                 originalAwdlEnabled = isAwdlEnabled
-                originalCloudSyncEnabled = isCloudSyncEnabled
             } catch {
                 currentStep = .error(error.localizedDescription)
-                await appState.setError(error)
+                appState.setError(error)
             }
         }
     }

@@ -71,7 +71,9 @@ final class QueryViewModel {
 
     init(
         dittoAppConfig: DittoConfigForDatabase,
-        metricsEnabled: Bool = UserDefaults.standard.bool(forKey: "metricsEnabled"),
+        // Overridden by MainStudioView's `.task` (the canonical @AppStorage sync
+        // point) before first render — kept deterministic + testable here.
+        metricsEnabled: Bool = false,
         queryService: any QueryServiceProtocol = QueryService.shared,
         historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
         favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared
@@ -225,7 +227,7 @@ final class QueryViewModel {
         let queryHistory = DittoQueryHistory(
             id: UUID().uuidString,
             query: selectedQuery,
-            createdDate: Date().ISO8601Format()
+            createdDate: Date.now.ISO8601Format()
         )
         do {
             try await historyRepository.saveQueryHistory(queryHistory)

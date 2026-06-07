@@ -15,7 +15,7 @@ actor DittoManager {
 
     private init() {}
 
-    static var shared = DittoManager()
+    static let shared = DittoManager()
 
     func closeDittoSelectedDatabase() async {
         let closeStart = CFAbsoluteTimeGetCurrent()
@@ -29,8 +29,10 @@ actor DittoManager {
             Log.info("[Close:Ditto] sync.stop() complete (\(String(format: "%.3f", syncStopElapsed))s)")
         }
 
-        // Stop log capture observers
+        // Stop log capture observers + the global SDK log callback so the SDK
+        // stops delivering log lines into a service tied to the closed session.
         await MainActor.run {
+            DittoLogCaptureService.shared.stopLiveCapture()
             DittoLogCaptureService.shared.stopTransportConditionObserver()
             DittoLogCaptureService.shared.stopConnectionRequestHandler()
         }
@@ -174,12 +176,9 @@ actor DittoManager {
                 config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled
                 config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
 
-                // Configure cloud sync from saved settings — respects isCloudSyncEnabled flag
-                if databaseConfig.isCloudSyncEnabled && !databaseConfig.websocketUrl.isEmpty {
-                    config.connect.webSocketURLs.insert(databaseConfig.websocketUrl)
-                } else {
-                    config.connect.webSocketURLs.remove(databaseConfig.websocketUrl)
-                }
+                // Cloud sync (Big Peer / WebSocket) is established automatically by
+                // the SDK from the server URL passed at Ditto.open() — no manual
+                // webSocketURLs configuration is required in v5.
             }
             logTransportReadback(from: ditto, context: "hydrate")
 
@@ -331,26 +330,23 @@ extension DittoManager {
     ///   - isBluetoothLeEnabled: Enable/disable Bluetooth LE transport
     ///   - isLanEnabled: Enable/disable LAN transport
     ///   - isAwdlEnabled: Enable/disable AWDL transport
-    ///   - isCloudSyncEnabled: Enable/disable Cloud Sync via WebSocket
+    ///
+    /// Cloud sync (Big Peer) is governed by the connect mode passed at
+    /// `Ditto.open()` in v5 and is not toggled here.
     ///
     /// - Throws: AppError if no app is selected
     func applyTransportConfig(
         isBluetoothLeEnabled: Bool,
         isLanEnabled: Bool,
-        isAwdlEnabled: Bool,
-        isCloudSyncEnabled: Bool
+        isAwdlEnabled: Bool
     ) async throws {
         guard let ditto = dittoSelectedApp else {
             throw AppError.error(message: "No Ditto app is currently selected")
         }
 
-        guard let appConfig = dittoSelectedAppConfig else {
-            throw AppError.error(message: "No app configuration available")
-        }
-
         Log
             .info(
-                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
             )
 
         // Apply transport configuration changes
@@ -359,21 +355,10 @@ extension DittoManager {
             config.peerToPeer.bluetoothLE.isEnabled = isBluetoothLeEnabled
             config.peerToPeer.lan.isEnabled = isLanEnabled
             config.peerToPeer.awdl.isEnabled = isAwdlEnabled
-
-            // Configure cloud sync via WebSocket
-            if isCloudSyncEnabled {
-                if !config.connect.webSocketURLs.contains(
-                    appConfig.websocketUrl
-                ) {
-                    config.connect.webSocketURLs.insert(appConfig.websocketUrl)
-                }
-            } else {
-                config.connect.webSocketURLs.remove(appConfig.websocketUrl)
-            }
         }
         Log
             .info(
-                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
             )
         logTransportReadback(from: ditto, context: "applyTransportConfig")
     }
@@ -404,13 +389,18 @@ extension DittoManager: DittoManagerProtocol {}
 // MARK: - Log Level Management
 
 extension DittoManager {
-    /// Changes the SDK log level for a database configuration and persists it.
-    /// If the database is currently active, applies the change to DittoLogger immediately.
+    /// Persists `config` (whose `logLevel` the caller has already set on the
+    /// MainActor) and, if it is the active database, applies the level to
+    /// `DittoLogger` immediately.
+    ///
+    /// IMPORTANT: this does NOT mutate `config`. `DittoConfigForDatabase` is an
+    /// `@unchecked Sendable` reference type whose contract requires all mutation
+    /// to happen on the MainActor; writing to it here (on the actor) would race
+    /// MainActor reads of the same shared instance.
     func changeDittoLogLevel(
         _ levelStr: String,
         for config: DittoConfigForDatabase
     ) async throws {
-        config.logLevel = levelStr
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
         if dittoSelectedAppConfig?._id == config._id {
             DittoLogger.minimumLogLevel = Self.dittoLogLevel(from: levelStr)

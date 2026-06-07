@@ -138,6 +138,15 @@ actor NetworkDiagnosticsService {
         var isUp = false
     }
 
+    /// Reads a null-terminated `[CChar]` buffer (e.g. from `getnameinfo`) into a
+    /// String via the non-deprecated `UnsafePointer<CChar>` `cString` overload.
+    private func string(fromCBuffer buffer: [CChar]) -> String {
+        buffer.withUnsafeBufferPointer { ptr in
+            guard let base = ptr.baseAddress else { return "" }
+            return String(cString: base)
+        }
+    }
+
     private func buildAddressMap() -> [String: AddrEntry] {
         var result: [String: AddrEntry] = [:]
 
@@ -187,7 +196,7 @@ actor NetworkDiagnosticsService {
                     0,
                     NI_NUMERICHOST
                 )
-                result[name, default: AddrEntry()].ipv4 = String(cString: host)
+                result[name, default: AddrEntry()].ipv4 = string(fromCBuffer: host)
 
             case AF_INET6:
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -200,7 +209,7 @@ actor NetworkDiagnosticsService {
                     0,
                     NI_NUMERICHOST
                 )
-                let v6 = String(cString: host)
+                let v6 = string(fromCBuffer: host)
                 // Prefer link-local (fe80::) for display; keep first seen if none recorded
                 let existing = result[name]?.ipv6
                 if existing == nil || v6.lowercased().hasPrefix("fe80") {

@@ -264,6 +264,6 @@ struct FontAwesomeText: View {
     var body: some View {
         Text(icon.unicode)
             .font(.custom(icon.style.fontName, size: size))
-            .foregroundColor(color)
+            .foregroundStyle(color)
     }
 }

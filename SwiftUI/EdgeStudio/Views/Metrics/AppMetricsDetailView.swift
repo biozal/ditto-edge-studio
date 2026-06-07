@@ -10,7 +10,7 @@ struct AppMetricsDetailView: View {
     )
     @State private var queryLatencySamples: [MetricSample] = []
     @State private var storageSnapshot: StorageSnapshot?
-    @State private var lastUpdated = Date()
+    @State private var lastUpdated = Date.now
 
     var body: some View {
         VStack(spacing: 0) {
@@ -248,7 +248,7 @@ struct AppMetricsDetailView: View {
         querySnapshot = qSnap
         queryLatencySamples = latencySamps
         storageSnapshot = sSnap
-        lastUpdated = Date()
+        lastUpdated = Date.now
     }
 
     // MARK: - Formatting
@@ -279,7 +279,7 @@ struct AppMetricsDetailView: View {
     }
 
     private func timeAgo(_ date: Date) -> String {
-        let elapsed = Date().timeIntervalSince(date)
+        let elapsed = Date.now.timeIntervalSince(date)
         if elapsed < 5 { return "just now" }
         if elapsed < 60 { return "\(Int(elapsed))s ago" }
         return "\(Int(elapsed / 60))m ago"

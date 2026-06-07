@@ -29,8 +29,8 @@ actor SystemRepository {
     // view-model state happen on the main thread. The completion handler is
     // @Sendable because it must cross from the @MainActor caller back to this
     // actor's executor.
-    private var onSyncStatusUpdate: (@MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void)?
-    private var onConnectionsUpdate: (@MainActor (ConnectionsByTransport) -> Void)?
+    private var onSyncStatusUpdate: (@MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void)?
+    private var onConnectionsUpdate: (@MainActor @Sendable (ConnectionsByTransport) -> Void)?
 
     private init() {}
 
@@ -46,7 +46,9 @@ actor SystemRepository {
         Log.info("[Close:SystemRepo] Session invalidated, new sessionId=\(sessionId)")
     }
 
-    private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
+    /// Pure mapping — reads no actor state, so keep it nonisolated to avoid an
+    /// actor hop per connection inside the presence-update loop.
+    private nonisolated func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
         switch dittoType {
         case .bluetooth: return .bluetooth
         case .accessPoint: return .accessPoint
@@ -493,7 +495,7 @@ actor SystemRepository {
     /// Function to set the callback from outside the actor.
     /// Drains any pending update that queued up before the callback was registered
     /// (e.g. when the presence observer fires before the new session's callback is set).
-    func setOnSyncStatusUpdate(_ callback: @escaping @MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void) {
+    func setOnSyncStatusUpdate(_ callback: @escaping @MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void) {
         onSyncStatusUpdate = callback
 
         // If a pending update arrived while the callback was nil, process it now.
@@ -558,7 +560,7 @@ actor SystemRepository {
                             connection.peerKeyString2 == localPeerKeyString else { continue }
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }
 
-                        let connectionType = await convertConnectionType(connection.type)
+                        let connectionType = convertConnectionType(connection.type)
 
                         // Skip connections for disabled transports (SDK bug workaround: presence
                         // graph retains stale connections after transport config changes)
@@ -596,7 +598,7 @@ actor SystemRepository {
         }
     }
 
-    func setOnConnectionsUpdate(_ callback: @escaping @MainActor (ConnectionsByTransport) -> Void) {
+    func setOnConnectionsUpdate(_ callback: @escaping @MainActor @Sendable (ConnectionsByTransport) -> Void) {
         onConnectionsUpdate = callback
     }
 
@@ -609,7 +611,7 @@ actor SystemRepository {
     /// - Returns: An array of serializable peer dictionaries, or an empty array if no peers
     ///   are connected or no database is active. Commit IDs are omitted gracefully if the
     ///   `system:data_sync_info` query fails (e.g. sync is stopped).
-    func fetchPeersOnce() async -> [[String: Any]] {
+    func fetchPeersOnce() async -> sending [[String: Any]] {
         guard let ditto = await dittoManager.dittoSelectedApp else {
             return []
         }
@@ -716,12 +718,16 @@ actor SystemRepository {
     ///    the backpressure pipeline permanently locked — all new updates queued as pending
     ///    but were never drained.
     ///
-    /// Callbacks (`onSyncStatusUpdate`, `onConnectionsUpdate`) are intentionally NOT cleared:
-    /// the new session's `setOn*` calls replace them, and `setOnSyncStatusUpdate` drains
-    /// any pending update that arrived before the new callback was registered.
+    /// Callbacks (`onSyncStatusUpdate`, `onConnectionsUpdate`) ARE cleared here so a
+    /// closed session's ViewModel closures don't outlive the session during rapid
+    /// database switching. This is safe because the next session re-registers via
+    /// `setOnSyncStatusUpdate`, which drains any update that queued while the callback
+    /// was nil.
     func stopObserver() async {
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
+        onSyncStatusUpdate = nil
+        onConnectionsUpdate = nil
         dittoServerCount = 0
         isProcessingUpdate = false
         hasPendingUpdate = false

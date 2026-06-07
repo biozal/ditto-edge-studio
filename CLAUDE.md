@@ -701,8 +701,7 @@ Located in the `SwiftUI/` directory:
 Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 - `appId`: Ditto application ID
 - `authToken`: Authentication token
-- `authUrl`: Authentication endpoint
-- `websocketUrl`: WebSocket endpoint
+- `authUrl`: Authentication endpoint (the SDK 5.0 cloud WebSocket connection is derived from this automatically — no separate websocket URL is needed)
 - `httpApiUrl`: HTTP API endpoint
 - `httpApiKey`: HTTP API key
 

@@ -178,31 +178,32 @@ final class SubscriptionObserverViewModel {
     }
 
     func formSaveSubscription(name: String, query: String, appState: AppState) {
-        if var subscription = editorSubscription {
-            subscription.name = name
-            subscription.query = query
-            Task { [subscriptionsRepository] in
-                do {
-                    try await subscriptionsRepository.saveDittoSubscription(subscription)
-                } catch {
-                    appState.setError(error)
-                }
-                editorSubscription = nil
+        guard var subscription = editorSubscription else { return }
+        subscription.name = name
+        subscription.query = query
+        // Clear the editor synchronously so a fast re-open can't observe stale
+        // data while the async save is still in flight.
+        editorSubscription = nil
+        Task { [subscriptionsRepository] in
+            do {
+                try await subscriptionsRepository.saveDittoSubscription(subscription)
+            } catch {
+                appState.setError(error)
             }
         }
     }
 
     func formSaveObserver(name: String, query: String, appState: AppState) {
-        if var observer = editorObservable {
-            observer.name = name
-            observer.query = query
-            Task { [observableRepository] in
-                do {
-                    try await observableRepository.saveDittoObservable(observer)
-                } catch {
-                    appState.setError(error)
-                }
-                editorObservable = nil
+        guard var observer = editorObservable else { return }
+        observer.name = name
+        observer.query = query
+        // Clear the editor synchronously (see formSaveSubscription).
+        editorObservable = nil
+        Task { [observableRepository] in
+            do {
+                try await observableRepository.saveDittoObservable(observer)
+            } catch {
+                appState.setError(error)
             }
         }
     }
@@ -294,7 +295,7 @@ final class SubscriptionObserverViewModel {
 
             let diff = dittoDiffer.diff(results.items)
 
-            event.eventTime = Date().ISO8601Format()
+            event.eventTime = Date.now.ISO8601Format()
 
             // set diff information
             event.insertIndexes = Array(diff.insertions)

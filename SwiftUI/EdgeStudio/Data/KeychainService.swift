@@ -10,7 +10,7 @@ import Security
 /// - Uses kSecAttrAccessibleAfterFirstUnlock for balance of security + usability
 ///
 /// **Data Stored:**
-/// - Database credentials (token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey)
+/// - Database credentials (token, authUrl, httpApiUrl, httpApiKey, secretKey)
 /// - Database name (for UI listing without needing cache file)
 ///
 /// **Performance:**
@@ -30,7 +30,6 @@ actor KeychainService {
         let name: String // Database display name (for UI listing)
         let token: String
         let authUrl: String
-        let websocketUrl: String
         let httpApiUrl: String
         let httpApiKey: String
         let secretKey: String

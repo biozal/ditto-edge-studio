@@ -88,9 +88,10 @@ actor TableResultsParser {
                     allKeys.formUnion(jsonObject.keys)
 
                     // Create row — pre-compute hasAttachments here so contextMenu
-                    // bodies don't re-parse JSON on every render.
+                    // bodies don't re-parse JSON on every render. Reuse the already-
+                    // parsed jsonObject rather than re-deserializing the string.
                     let cells = parseCells(from: jsonObject)
-                    let hasAttachments = !AttachmentInfo.detectTokens(in: jsonString).isEmpty
+                    let hasAttachments = !AttachmentInfo.detectTokens(in: jsonObject).isEmpty
                     let row = TableResultRow(
                         rowIndex: index,
                         originalJson: jsonString,

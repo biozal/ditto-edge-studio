@@ -87,7 +87,7 @@ struct ImportService {
         from url: URL,
         to collection: String,
         insertType: InsertType = .regular,
-        progressHandler: @escaping (ImportProgress) -> Void
+        progressHandler: @escaping @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult {
         // Start accessing the security-scoped resource
         guard url.startAccessingSecurityScopedResource() else {
@@ -158,10 +158,13 @@ struct ImportService {
 
                     successCount += batch.count
 
-                    // Report progress for batch completion on main actor
+                    // Report progress for batch completion on main actor.
+                    // Hoist the Sendable count so the non-Sendable `batch` isn't
+                    // captured by the @Sendable MainActor closure.
+                    let completedCount = batchStartIndex + batch.count
                     await MainActor.run {
                         progressHandler(ImportProgress(
-                            current: batchStartIndex + batch.count,
+                            current: completedCount,
                             total: totalDocuments,
                             currentDocumentId: nil
                         ))
@@ -382,7 +385,7 @@ struct ImportService {
             throw ImportError.queryExecutionFailed(
                 documentId: documentId,
                 query: query,
-                arguments: arguments,
+                argumentsDescription: ImportError.formatArguments(arguments),
                 originalError: error
             )
         }
@@ -396,7 +399,9 @@ enum ImportError: LocalizedError {
     case encodingError(String)
     case fileAccessDenied(String)
     case invalidCollectionName(String)
-    case queryExecutionFailed(documentId: String, query: String, arguments: [String: Any], originalError: Error)
+    /// `argumentsDescription` is pre-formatted at the throw site so the enum stays
+    /// Sendable (a raw `[String: Any]` associated value would not be).
+    case queryExecutionFailed(documentId: String, query: String, argumentsDescription: String, originalError: Error)
 
     var errorDescription: String? {
         switch self {
@@ -407,8 +412,7 @@ enum ImportError: LocalizedError {
              let .fileAccessDenied(message),
              let .invalidCollectionName(message):
             return message
-        case let .queryExecutionFailed(documentId, query, arguments, originalError):
-            let argsFormatted = formatArguments(arguments)
+        case let .queryExecutionFailed(documentId, query, argumentsDescription, originalError):
             return """
             Document \(documentId): \(originalError.localizedDescription)
 
@@ -416,12 +420,12 @@ enum ImportError: LocalizedError {
             \(query)
 
             Arguments:
-            \(argsFormatted)
+            \(argumentsDescription)
             """
         }
     }
 
-    private func formatArguments(_ arguments: [String: Any], maxLength: Int = 200) -> String {
+    static func formatArguments(_ arguments: [String: Any], maxLength: Int = 200) -> String {
         var formatted: [String] = []
         for (key, value) in arguments.sorted(by: { $0.key < $1.key }) {
             if let stringValue = value as? String {

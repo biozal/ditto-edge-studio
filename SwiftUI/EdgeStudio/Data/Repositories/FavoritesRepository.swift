@@ -30,7 +30,7 @@ actor FavoritesRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onFavoritesUpdate: (@MainActor ([DittoQueryHistory]) -> Void)?
+    private var onFavoritesUpdate: (@MainActor @Sendable ([DittoQueryHistory]) -> Void)?
 
     private init() {}
 
@@ -82,7 +82,7 @@ actor FavoritesRepository {
                 _id: favorite.id,
                 databaseId: databaseId,
                 query: favorite.query,
-                createdDate: Date().ISO8601Format()
+                createdDate: Date.now.ISO8601Format()
             )
             try await sqlCipher.insertFavorite(row)
 
@@ -139,7 +139,7 @@ actor FavoritesRepository {
         self.appState = appState
     }
 
-    func setOnFavoritesUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) {
+    func setOnFavoritesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {
         onFavoritesUpdate = callback
     }
 

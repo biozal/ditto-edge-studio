@@ -3,7 +3,10 @@ import Foundation
 
 // MARK: - Tool Definition
 
-struct MCPTool {
+/// Immutable tool-manifest entry. `@unchecked Sendable` because `inputSchema`
+/// is a constant JSON-schema dictionary built once in `allTools` and never
+/// mutated, so sharing across concurrency domains is safe.
+struct MCPTool: @unchecked Sendable {
     let name: String
     let description: String
     let inputSchema: [String: Any]
@@ -353,7 +356,6 @@ enum MCPToolHandlers {
             "databaseId": config.databaseId,
             "mode": config.mode.rawValue,
             "authUrl": config.authUrl,
-            "websocketUrl": config.websocketUrl,
             "httpApiUrl": config.httpApiUrl,
             "httpApiConfigured": !config.httpApiUrl.isEmpty && !config.httpApiKey.isEmpty,
             "allowUntrustedCerts": config.allowUntrustedCerts,
@@ -516,7 +518,6 @@ enum MCPToolHandlers {
         let newBluetooth = arguments["bluetooth"] as? Bool ?? config.isBluetoothLeEnabled
         let newLan = arguments["lan"] as? Bool ?? config.isLanEnabled
         let newAwdl = arguments["awdl"] as? Bool ?? config.isAwdlEnabled
-        let newCloud = arguments["cloud"] as? Bool ?? config.isCloudSyncEnabled
 
         // Step 1: Stop sync
         await DittoManager.shared.selectedDatabaseStopSync()
@@ -526,15 +527,20 @@ enum MCPToolHandlers {
         try await DittoManager.shared.applyTransportConfig(
             isBluetoothLeEnabled: newBluetooth,
             isLanEnabled: newLan,
-            isAwdlEnabled: newAwdl,
-            isCloudSyncEnabled: newCloud
+            isAwdlEnabled: newAwdl
         )
 
-        // Update persisted config
-        config.isBluetoothLeEnabled = newBluetooth
-        config.isLanEnabled = newLan
-        config.isAwdlEnabled = newAwdl
-        config.isCloudSyncEnabled = newCloud
+        // Update persisted config. `DittoConfigForDatabase` is `@unchecked Sendable`
+        // under the contract that its properties are only ever *mutated* on the
+        // MainActor (actors/repositories read but never write them). This handler
+        // runs in a nonisolated async context, so the mutation must hop to the
+        // MainActor to avoid racing the @MainActor SwiftUI views that read these
+        // same properties. See DittoConfigForDatabase's Sendable note.
+        await MainActor.run {
+            config.isBluetoothLeEnabled = newBluetooth
+            config.isLanEnabled = newLan
+            config.isAwdlEnabled = newAwdl
+        }
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
 
         // Step 3: Restart sync
@@ -546,8 +552,7 @@ enum MCPToolHandlers {
             "applied": [
                 "bluetoothLE": newBluetooth,
                 "lan": newLan,
-                "awdl": newAwdl,
-                "cloudSync": newCloud
+                "awdl": newAwdl
             ]
         ]
 

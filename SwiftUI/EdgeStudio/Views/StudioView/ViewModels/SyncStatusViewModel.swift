@@ -61,12 +61,12 @@ final class SyncStatusViewModel {
             Task { @MainActor [weak self] in
                 self?.mergeStatusItems(statusItems)
 
-                // CRITICAL: signal completion AFTER UI update dispatches.
-                // 50ms delay allows SwiftUI LazyVGrid rendering to complete.
-                Task {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    completion()
-                }
+                // CRITICAL: signal completion AFTER the UI update dispatches.
+                // The 50ms delay lets the SwiftUI LazyVGrid render before the next
+                // batch is accepted. Kept inline (no nested Task) so it stays tied
+                // to this MainActor hop.
+                try? await Task.sleep(for: .milliseconds(50))
+                completion()
             }
         }
         await systemRepository.setOnConnectionsUpdate { [weak self] connections in

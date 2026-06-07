@@ -190,6 +190,20 @@ struct SyncStatusInfo: Identifiable, Equatable {
         }
     }
 
+    /// Dominant transport key for the peer card gradient + its change animation.
+    /// Computed once here (rather than rescanning `connections` in several view
+    /// helpers) and folded into `==` so cards only re-render when the dominant
+    /// transport actually changes.
+    var dominantConnectionType: String {
+        if isDittoServer { return "cloud" }
+        guard let connections else { return "unknown" }
+        if connections.contains(where: { $0.type == .webSocket }) { return "websocket" }
+        if connections.contains(where: { $0.type == .accessPoint }) { return "lan" }
+        if connections.contains(where: { $0.type == .p2pWiFi }) { return "p2p" }
+        if connections.contains(where: { $0.type == .bluetooth }) { return "bluetooth" }
+        return "unknown"
+    }
+
     static func == (lhs: SyncStatusInfo, rhs: SyncStatusInfo) -> Bool {
         // Compare the properties that define equality
         lhs.id == rhs.id &&
@@ -198,9 +212,20 @@ struct SyncStatusInfo: Identifiable, Equatable {
             lhs.syncedUpToLocalCommitId == rhs.syncedUpToLocalCommitId &&
             lhs.deviceName == rhs.deviceName &&
             lhs.osInfo == rhs.osInfo &&
-            lhs.dittoSDKVersion == rhs.dittoSDKVersion
+            lhs.dittoSDKVersion == rhs.dittoSDKVersion &&
+            lhs.dominantConnectionType == rhs.dominantConnectionType
         // Note: addressInfo and identityMetadata intentionally excluded
     }
+
+    /// Cached formatter — `DateFormatter` init is expensive (~1ms) and this is
+    /// read from peer cards that re-render on every sync-status update.
+    private static let lastUpdateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .medium
+        formatter.doesRelativeDateFormatting = true
+        return formatter
+    }()
 
     var formattedLastUpdate: String {
         guard let lastUpdateReceivedTime else {
@@ -208,12 +233,7 @@ struct SyncStatusInfo: Identifiable, Equatable {
         }
 
         let date = Date(timeIntervalSince1970: lastUpdateReceivedTime / 1000.0)
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .medium
-        formatter.doesRelativeDateFormatting = true
-
-        return formatter.string(from: date)
+        return Self.lastUpdateFormatter.string(from: date)
     }
 
     var statusColor: String {

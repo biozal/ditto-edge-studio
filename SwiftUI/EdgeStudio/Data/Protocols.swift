@@ -41,14 +41,14 @@ protocol DatabaseRepositoryProtocol: Sendable {
     func addDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws
     func updateDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws
     func deleteDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws
-    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping @MainActor ([DittoConfigForDatabase]) -> Void) async
+    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping @MainActor @Sendable ([DittoConfigForDatabase]) -> Void) async
 }
 
 // MARK: - SubscriptionsRepositoryProtocol
 
 protocol SubscriptionsRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
-    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor ([DittoSubscription]) -> Void) async
+    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) async
     func loadSubscriptions(for databaseId: String) async throws -> [DittoSubscription]
     func saveDittoSubscription(_ subscription: DittoSubscription) async throws
     func removeDittoSubscription(_ subscription: DittoSubscription) async throws
@@ -61,10 +61,10 @@ protocol SubscriptionsRepositoryProtocol: Sendable {
 protocol SystemRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
     func setOnSyncStatusUpdate(
-        _ callback: @escaping @MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void
+        _ callback: @escaping @MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void
     ) async
     func setOnConnectionsUpdate(
-        _ callback: @escaping @MainActor (ConnectionsByTransport) -> Void
+        _ callback: @escaping @MainActor @Sendable (ConnectionsByTransport) -> Void
     ) async
     func registerConnectionsPresenceObserver() async throws
     func invalidateSession() async
@@ -75,7 +75,7 @@ protocol SystemRepositoryProtocol: Sendable {
 
 protocol HistoryRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
-    func setOnHistoryUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) async
+    func setOnHistoryUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) async
     func loadHistory(for databaseId: String) async throws -> [DittoQueryHistory]
     func saveQueryHistory(_ history: DittoQueryHistory) async throws
     func clearCache() async
@@ -85,7 +85,7 @@ protocol HistoryRepositoryProtocol: Sendable {
 
 protocol FavoritesRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
-    func setOnFavoritesUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) async
+    func setOnFavoritesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) async
     func loadFavorites(for databaseId: String) async throws -> [DittoQueryHistory]
     func saveFavorite(_ favorite: DittoQueryHistory) async throws
     func clearCache() async
@@ -95,7 +95,7 @@ protocol FavoritesRepositoryProtocol: Sendable {
 
 protocol ObservableRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
-    func setOnObservablesUpdate(_ callback: @escaping @MainActor ([DittoObservable]) -> Void) async
+    func setOnObservablesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoObservable]) -> Void) async
     func loadObservers(for databaseId: String) async throws -> [DittoObservable]
     func saveDittoObservable(_ observable: DittoObservable) async throws
     func removeDittoObservable(_ observable: DittoObservable) async throws
@@ -106,7 +106,7 @@ protocol ObservableRepositoryProtocol: Sendable {
 
 protocol CollectionsRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
-    func setOnCollectionsUpdate(_ callback: @escaping @MainActor ([DittoCollection]) -> Void) async
+    func setOnCollectionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoCollection]) -> Void) async
     func hydrateCollections() async throws -> [DittoCollection]
     func refreshCollections() async throws -> [DittoCollection]
     func stopObserver() async

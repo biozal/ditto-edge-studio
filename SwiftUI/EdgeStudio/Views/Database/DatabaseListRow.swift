@@ -16,14 +16,14 @@ struct DatabaseListRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(dittoApp.name)
                     .font(.headline)
-                    .foregroundColor(Color.Ditto.sulfurYellow)
+                    .foregroundStyle(Color.Ditto.sulfurYellow)
 
                 HStack(spacing: 4) {
                     Text(isIdRevealed
                         ? dittoApp.databaseId
                         : String(repeating: "•", count: min(dittoApp.databaseId.count, 24)))
                         .font(.caption.monospaced())
-                        .foregroundColor(Color.Ditto.papyrusWhite)
+                        .foregroundStyle(Color.Ditto.papyrusWhite)
                         .lineLimit(1)
 
                     Button {
@@ -31,7 +31,7 @@ struct DatabaseListRow: View {
                     } label: {
                         Image(systemName: isIdRevealed ? "eye.slash" : "eye")
                             .font(.caption2)
-                            .foregroundColor(Color.Ditto.papyrusWhite)
+                            .foregroundStyle(Color.Ditto.papyrusWhite)
                     }
                     .buttonStyle(.plain)
                 }

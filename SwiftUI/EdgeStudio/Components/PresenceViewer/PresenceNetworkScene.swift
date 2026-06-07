@@ -458,8 +458,13 @@ class PresenceNetworkScene: SKScene {
         // Run the update action on the scene
         run(updateAction, withKey: "lineUpdateDuringAnimation")
 
-        // Final update after animation completes (cleanup)
-        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration + 0.1) { [weak self] in
+        // Final update after animation completes (cleanup). Structured Task so the
+        // deferred work is visible to the concurrency runtime and is skipped if the
+        // scene is torn down during the wait (weak self). Replaces a GCD
+        // `asyncAfter`, which was both redundant (the scene is already @MainActor)
+        // and uncancellable.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(animationDuration + 0.1))
             self?.updateAllConnectionPaths()
         }
     }
@@ -604,10 +609,9 @@ class PresenceNetworkScene: SKScene {
         scaleAction.timingMode = .easeOut
         camera.run(scaleAction, withKey: "scrollZoom")
 
-        // Notify via callback to update zoom UI
-        DispatchQueue.main.async { [weak self] in
-            self?.onZoomChanged?(newScale)
-        }
+        // Notify via callback to update zoom UI. `mouseScrolled` runs on the main
+        // thread and the scene is @MainActor, so call directly — no GCD hop needed.
+        onZoomChanged?(newScale)
     }
     #else
 
@@ -686,9 +690,8 @@ class PresenceNetworkScene: SKScene {
         let scaleAction = SKAction.scale(to: newScale, duration: 0.1)
         scaleAction.timingMode = .easeOut
         camera.run(scaleAction, withKey: "pinchZoom")
-        DispatchQueue.main.async { [weak self] in
-            self?.onZoomChanged?(newScale)
-        }
+        // Already on the main actor (the scene is @MainActor) — call directly.
+        onZoomChanged?(newScale)
     }
 
     // MARK: - Helper Methods
@@ -716,8 +719,13 @@ class PresenceNetworkScene: SKScene {
         super.didChangeSize(oldSize)
 
         #if os(macOS)
-        // Ensure view tracks mouse movement for hover effects
+        // Ensure view tracks mouse movement for hover effects. Remove the
+        // previous tracking area(s) first — otherwise every resize stacks a new
+        // one, each retaining the SKView, leaking memory and multiplying events.
         if let view {
+            for area in view.trackingAreas {
+                view.removeTrackingArea(area)
+            }
             let trackingArea = NSTrackingArea(
                 rect: view.bounds,
                 options: [.activeInActiveApp, .mouseMoved, .mouseEnteredAndExited],

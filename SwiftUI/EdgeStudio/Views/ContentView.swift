@@ -202,9 +202,9 @@ extension ContentView {
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "plus")
-                                    .foregroundColor(.black)
+                                    .foregroundStyle(.black)
                                 Text("Database Config")
-                                    .foregroundColor(.black)
+                                    .foregroundStyle(.black)
                                     .fontWeight(.medium)
                                 Spacer()
                             }
@@ -223,14 +223,14 @@ extension ContentView {
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "cloud")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                 Text("Ditto Portal")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .fontWeight(.medium)
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
                                     .font(.system(size: 12))
-                                    .foregroundColor(.white.opacity(0.6))
+                                    .foregroundStyle(.white.opacity(0.6))
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
@@ -243,9 +243,9 @@ extension ContentView {
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "qrcode.viewfinder")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                 Text("Import from QR Code")
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .fontWeight(.medium)
                                 Spacer()
                             }
@@ -279,7 +279,8 @@ extension ContentView {
                         idealWidth: 1000,
                         maxWidth: 1920,
                         minHeight: 700,
-                        idealHeight: 800
+                        idealHeight: 1000,
+                        maxHeight: 1400
                     )
                     .environment(appState)
                     .presentationDetents([.medium, .large])
@@ -357,10 +358,10 @@ extension ContentView {
                         FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
                         Text("No Databases")
                             .font(.title2)
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         Text("Tap + to add a database configuration.")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 32)
@@ -418,7 +419,7 @@ extension ContentView {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.black)
+                        .foregroundStyle(.black)
                         .frame(width: 56, height: 56)
                         .background(Color.dittoYellow)
                         .clipShape(Circle())
@@ -437,7 +438,7 @@ extension ContentView {
                         viewModel.showQRScanner()
                     } label: {
                         Image(systemName: "qrcode.viewfinder")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                     }
                     .accessibilityIdentifier("ImportQRCodeButton")
                 }
@@ -448,7 +449,7 @@ extension ContentView {
                         }
                     } label: {
                         Image(systemName: "cloud")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                     }
                 }
             }
@@ -461,13 +462,13 @@ extension ContentView {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
             Text("Database Storage Unavailable")
                 .font(.title2)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             Text(error.localizedDescription)
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 Task { await viewModel.loadApps(appState: appState) }
@@ -679,9 +680,13 @@ extension ContentView {
                         let fav = DittoQueryHistory(
                             id: UUID().uuidString,
                             query: item.q,
-                            createdDate: Date().ISO8601Format()
+                            createdDate: Date.now.ISO8601Format()
                         )
-                        try? await favoritesRepository.saveFavorite(fav)
+                        do {
+                            try await favoritesRepository.saveFavorite(fav)
+                        } catch {
+                            Log.warning("Failed to save imported favorite: \(error.localizedDescription)")
+                        }
                     }
                 }
             } catch {
@@ -824,8 +829,7 @@ extension ContentView {
                         in: extractedDir,
                         databaseId: config.databaseId,
                         token: config.token,
-                        authUrl: config.authUrl,
-                        websocketUrl: config.websocketUrl
+                        authUrl: config.authUrl
                     )
 
                     quickstartService.updateStatus("Configuring edge-server...")

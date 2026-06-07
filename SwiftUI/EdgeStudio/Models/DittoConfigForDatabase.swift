@@ -1,13 +1,22 @@
 import Foundation
 
+/// Database configuration model.
+///
+/// `@unchecked Sendable` contract: instances are created and any in-place
+/// mutation happens on the `@MainActor` (the editor / transport-config view
+/// models). Once a config is handed to an actor (`DittoManager`, the
+/// repositories), it is treated as a read-only snapshot — those actors only
+/// read its properties, never mutate them. The MainActor mutation phase and the
+/// actor read phase do not overlap for a given instance, so cross-actor sharing
+/// is race-free in practice even though the compiler cannot prove it for an
+/// `@Observable` reference type with mutable storage.
 @Observable
-class DittoConfigForDatabase: Codable {
+final class DittoConfigForDatabase: Codable, @unchecked Sendable {
     var _id: String
     var name: String
     var databaseId: String
     var token: String
     var authUrl: String
-    var websocketUrl: String
     var httpApiUrl: String
     var httpApiKey: String
     var mode: AuthMode
@@ -30,7 +39,6 @@ class DittoConfigForDatabase: Codable {
         databaseId: String,
         token: String,
         authUrl: String,
-        websocketUrl: String,
         httpApiUrl: String,
         httpApiKey: String,
         mode: AuthMode = .server,
@@ -48,7 +56,6 @@ class DittoConfigForDatabase: Codable {
         self.databaseId = databaseId
         self.token = token
         self.authUrl = authUrl
-        self.websocketUrl = websocketUrl
         self.httpApiUrl = httpApiUrl
         self.httpApiKey = httpApiKey
         self.mode = mode
@@ -68,7 +75,6 @@ class DittoConfigForDatabase: Codable {
         case databaseId
         case token
         case authUrl
-        case websocketUrl
         case httpApiUrl
         case httpApiKey
         case mode
@@ -89,7 +95,6 @@ class DittoConfigForDatabase: Codable {
         try container.encode(databaseId, forKey: .databaseId)
         try container.encode(token, forKey: .token)
         try container.encode(authUrl, forKey: .authUrl)
-        try container.encode(websocketUrl, forKey: .websocketUrl)
         try container.encode(httpApiUrl, forKey: .httpApiUrl)
         try container.encode(httpApiKey, forKey: .httpApiKey)
         try container.encode(mode, forKey: .mode)
@@ -110,7 +115,6 @@ class DittoConfigForDatabase: Codable {
         databaseId = try container.decode(String.self, forKey: .databaseId)
         token = try container.decode(String.self, forKey: .token)
         authUrl = try container.decode(String.self, forKey: .authUrl)
-        websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
         httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
         httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
         mode = try container.decode(AuthMode.self, forKey: .mode)
@@ -136,7 +140,6 @@ extension DittoConfigForDatabase {
             databaseId: "",
             token: "",
             authUrl: "",
-            websocketUrl: "",
             httpApiUrl: "",
             httpApiKey: "",
             mode: .server,

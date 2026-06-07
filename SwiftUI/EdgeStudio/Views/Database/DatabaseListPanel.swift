@@ -11,7 +11,7 @@ struct DatabaseListPanel: View {
                 VStack(spacing: 12) {
                     ProgressView()
                     Text("Loading...")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .font(.caption)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -23,11 +23,11 @@ struct DatabaseListPanel: View {
                 VStack(spacing: 12) {
                     FontAwesomeText(icon: DataIcon.databaseThin, size: 40, color: .secondary)
                     Text("No database configurations found")
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                     Text(
                         "Use \"+ Database Config\" button to add one.  \nNew to Ditto?  Click Help -> User Guide for \nmore information on how to get started."
                     )
-                    .foregroundColor(Color.Ditto.papyrusWhite)
+                    .foregroundStyle(Color.Ditto.papyrusWhite)
                     .font(.caption)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -86,11 +86,11 @@ struct DatabaseListPanel: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 40))
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
             Text("Database Storage Unavailable")
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             Text(error.localizedDescription)
-                .foregroundColor(Color.Ditto.papyrusWhite)
+                .foregroundStyle(Color.Ditto.papyrusWhite)
                 .font(.caption)
                 .multilineTextAlignment(.center)
             Button {
@@ -114,11 +114,11 @@ struct DatabaseListPanel: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 40))
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
             Text("Couldn't Load Databases")
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             Text(error.localizedDescription)
-                .foregroundColor(Color.Ditto.papyrusWhite)
+                .foregroundStyle(Color.Ditto.papyrusWhite)
                 .font(.caption)
                 .multilineTextAlignment(.center)
             Button {

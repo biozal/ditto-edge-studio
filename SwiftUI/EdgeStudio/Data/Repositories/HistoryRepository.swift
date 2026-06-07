@@ -30,7 +30,7 @@ actor HistoryRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onHistoryUpdate: (@MainActor ([DittoQueryHistory]) -> Void)?
+    private var onHistoryUpdate: (@MainActor @Sendable ([DittoQueryHistory]) -> Void)?
 
     private init() {}
 
@@ -70,25 +70,28 @@ actor HistoryRepository {
         }
 
         do {
-            // Check if query already exists in SQLCipher (for deduplication)
-            let existing = try await sqlCipher.getHistory(databaseId: databaseId, limit: 1000)
-
-            if let match = existing.first(where: { $0.query == history.query }) {
-                // Delete old entry (will re-insert with new timestamp)
-                try await sqlCipher.deleteHistory(id: match._id)
+            // Dedup against the in-memory cache (authoritative for the session) —
+            // avoids a full SQLCipher round-trip on every query execution.
+            if let match = cachedHistory.first(where: { $0.query == history.query }) {
+                try await sqlCipher.deleteHistory(id: match.id)
+                cachedHistory.removeAll { $0.id == match.id }
             }
 
             // Insert with current timestamp
+            let createdDate = Date.now.ISO8601Format()
             let row = SQLCipherService.HistoryRow(
                 _id: history.id,
                 databaseId: databaseId,
                 query: history.query,
-                createdDate: Date().ISO8601Format()
+                createdDate: createdDate
             )
             try await sqlCipher.insertHistory(row)
 
-            // Reload cache from SQLCipher (to maintain proper ordering)
-            cachedHistory = try await loadHistory(for: databaseId)
+            // Maintain most-recent-first ordering in memory — no DB reload needed.
+            cachedHistory.insert(
+                DittoQueryHistory(id: history.id, query: history.query, createdDate: createdDate),
+                at: 0
+            )
 
             // Notify UI
             await notifyHistoryUpdate()
@@ -165,7 +168,7 @@ actor HistoryRepository {
         self.appState = appState
     }
 
-    func setOnHistoryUpdate(_ callback: @escaping @MainActor ([DittoQueryHistory]) -> Void) {
+    func setOnHistoryUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {
         onHistoryUpdate = callback
     }
 

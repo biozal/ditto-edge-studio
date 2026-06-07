@@ -65,7 +65,6 @@ struct DatabaseRepositoryTests {
                     databaseId: "db-full-\(id)",
                     token: "my-token",
                     authUrl: "https://auth.test.com",
-                    websocketUrl: "wss://ws.test.com",
                     httpApiUrl: "https://api.test.com",
                     httpApiKey: "api-key-xyz",
                     mode: .server,
@@ -143,16 +142,16 @@ struct DatabaseRepositoryTests {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnDittoDatabaseConfigUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
                 try await repo.addDittoAppConfig(DatabaseConfigFixtures.validServerConfig())
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
     }
@@ -232,9 +231,9 @@ struct DatabaseRepositoryTests {
                 let config = DatabaseConfigFixtures.validServerConfig()
                 try await repo.addDittoAppConfig(config)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnDittoDatabaseConfigUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
                 config.name = "New Name"
 
@@ -242,7 +241,7 @@ struct DatabaseRepositoryTests {
                 try await repo.updateDittoAppConfig(config)
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
     }
@@ -327,16 +326,16 @@ struct DatabaseRepositoryTests {
                 let config = DatabaseConfigFixtures.validServerConfig()
                 try await repo.addDittoAppConfig(config)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnDittoDatabaseConfigUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
                 try await repo.deleteDittoAppConfig(config)
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
     }

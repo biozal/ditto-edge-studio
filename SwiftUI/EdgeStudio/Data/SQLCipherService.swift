@@ -300,7 +300,6 @@ actor SQLCipherService {
                     isCloudSyncEnabled INTEGER DEFAULT 1,
                     token TEXT NOT NULL DEFAULT '',
                     authUrl TEXT NOT NULL DEFAULT '',
-                    websocketUrl TEXT NOT NULL DEFAULT '',
                     httpApiUrl TEXT NOT NULL DEFAULT '',
                     httpApiKey TEXT NOT NULL DEFAULT '',
                     secretKey TEXT NOT NULL DEFAULT '',
@@ -404,7 +403,6 @@ actor SQLCipherService {
             // Add credential columns with default empty strings
             try await execute("ALTER TABLE databaseConfigs ADD COLUMN token TEXT NOT NULL DEFAULT ''")
             try await execute("ALTER TABLE databaseConfigs ADD COLUMN authUrl TEXT NOT NULL DEFAULT ''")
-            try await execute("ALTER TABLE databaseConfigs ADD COLUMN websocketUrl TEXT NOT NULL DEFAULT ''")
             try await execute("ALTER TABLE databaseConfigs ADD COLUMN httpApiUrl TEXT NOT NULL DEFAULT ''")
             try await execute("ALTER TABLE databaseConfigs ADD COLUMN httpApiKey TEXT NOT NULL DEFAULT ''")
             try await execute("ALTER TABLE databaseConfigs ADD COLUMN secretKey TEXT NOT NULL DEFAULT ''")
@@ -464,7 +462,6 @@ actor SQLCipherService {
         // Credentials (stored encrypted in SQLCipher database)
         let token: String
         let authUrl: String
-        let websocketUrl: String
         let httpApiUrl: String
         let httpApiKey: String
         let secretKey: String
@@ -477,7 +474,7 @@ actor SQLCipherService {
             _id: String, name: String, databaseId: String, mode: String,
             allowUntrustedCerts: Bool, isBluetoothLeEnabled: Bool, isLanEnabled: Bool,
             isAwdlEnabled: Bool, isCloudSyncEnabled: Bool,
-            token: String, authUrl: String, websocketUrl: String,
+            token: String, authUrl: String,
             httpApiUrl: String, httpApiKey: String, secretKey: String,
             logLevel: String, isStrictModeEnabled: Bool = false
         ) {
@@ -492,7 +489,6 @@ actor SQLCipherService {
             self.isCloudSyncEnabled = isCloudSyncEnabled
             self.token = token
             self.authUrl = authUrl
-            self.websocketUrl = websocketUrl
             self.httpApiUrl = httpApiUrl
             self.httpApiKey = httpApiKey
             self.secretKey = secretKey
@@ -505,9 +501,9 @@ actor SQLCipherService {
         let sql = """
             INSERT INTO databaseConfigs (_id, name, databaseId, mode, allowUntrustedCerts,
                 isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
+                token, authUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
                 isStrictModeEnabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         try await execute(
@@ -523,7 +519,6 @@ actor SQLCipherService {
             config.isCloudSyncEnabled ? 1 : 0,
             config.token,
             config.authUrl,
-            config.websocketUrl,
             config.httpApiUrl,
             config.httpApiKey,
             config.secretKey,
@@ -537,7 +532,7 @@ actor SQLCipherService {
             UPDATE databaseConfigs
             SET name = ?, mode = ?, allowUntrustedCerts = ?,
                 isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?,
-                token = ?, authUrl = ?, websocketUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?,
+                token = ?, authUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?,
                 logLevel = ?, isStrictModeEnabled = ?
             WHERE databaseId = ?
         """
@@ -553,7 +548,6 @@ actor SQLCipherService {
             config.isCloudSyncEnabled ? 1 : 0,
             config.token,
             config.authUrl,
-            config.websocketUrl,
             config.httpApiUrl,
             config.httpApiKey,
             config.secretKey,
@@ -577,7 +571,7 @@ actor SQLCipherService {
         let sql = """
             SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled,
                    isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
-                   token, authUrl, websocketUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
+                   token, authUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
                    isStrictModeEnabled
             FROM databaseConfigs
         """
@@ -596,12 +590,11 @@ actor SQLCipherService {
                 isCloudSyncEnabled: sqlite3_column_int(statement, 8) != 0,
                 token: String(cString: sqlite3_column_text(statement, 9)),
                 authUrl: String(cString: sqlite3_column_text(statement, 10)),
-                websocketUrl: String(cString: sqlite3_column_text(statement, 11)),
-                httpApiUrl: String(cString: sqlite3_column_text(statement, 12)),
-                httpApiKey: String(cString: sqlite3_column_text(statement, 13)),
-                secretKey: String(cString: sqlite3_column_text(statement, 14)),
-                logLevel: String(cString: sqlite3_column_text(statement, 15)),
-                isStrictModeEnabled: sqlite3_column_int(statement, 16) != 0
+                httpApiUrl: String(cString: sqlite3_column_text(statement, 11)),
+                httpApiKey: String(cString: sqlite3_column_text(statement, 12)),
+                secretKey: String(cString: sqlite3_column_text(statement, 13)),
+                logLevel: String(cString: sqlite3_column_text(statement, 14)),
+                isStrictModeEnabled: sqlite3_column_int(statement, 15) != 0
             ))
         }
 
@@ -915,7 +908,10 @@ actor SQLCipherService {
 
     // MARK: - Deinitialization
 
-    deinit {
+    /// `isolated deinit` so the actor-isolated `db` handle can be closed safely on
+    /// teardown. In practice this is a process-lifetime singleton that never
+    /// deinitializes, but the isolation keeps it Swift 6 strict-concurrency clean.
+    isolated deinit {
         if let db {
             sqlite3_close(db)
         }

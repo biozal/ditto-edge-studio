@@ -1,4 +1,6 @@
-import AVFoundation
+// AVCaptureSession is intentionally non-Sendable by Apple; @preconcurrency is the
+// sanctioned bridge for using it across the capture-session setup closures.
+@preconcurrency import AVFoundation
 import SwiftUI
 
 struct QRCodeScannerView: View {
@@ -139,7 +141,7 @@ struct QRCodeScannerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.white)
-                .foregroundColor(.black)
+                .foregroundStyle(.black)
             }
             .padding()
             .background(.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -193,7 +195,10 @@ private struct QRCameraPreview: UIViewControllerRepresentable {
         Coordinator(onScanned: onScanned, onError: onError)
     }
 
-    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
+    // Main-confined: DataScanner delegate callbacks are delivered on the main
+    // thread and `hasScanned` is only touched there, so sharing into the
+    // representable's @Sendable setup closures is safe.
+    final class Coordinator: NSObject, DataScannerViewControllerDelegate, @unchecked Sendable {
         private let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
         private let onError: (String) -> Void
         private var hasScanned = false
@@ -299,7 +304,10 @@ private struct QRCameraPreview: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+    // Main-confined: the metadata-output delegate queue is `.main` and
+    // `hasScanned` is only touched there, so sharing into the capture-setup
+    // @Sendable closures is safe.
+    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate, @unchecked Sendable {
         private let onScanned: (DittoConfigForDatabase, [FavoriteQueryItem]) -> Void
         private let onError: (String) -> Void
         private var hasScanned = false

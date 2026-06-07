@@ -16,7 +16,6 @@ private func insertHistoryParentConfig(dbId: String) async throws {
         isCloudSyncEnabled: true,
         token: "",
         authUrl: "",
-        websocketUrl: "",
         httpApiUrl: "",
         httpApiKey: "",
         secretKey: "",
@@ -404,9 +403,9 @@ struct HistoryRepositoryTests {
                 try await insertHistoryParentConfig(dbId: dbId)
                 _ = try await repo.loadHistory(for: dbId)
 
-                var callbackResult: [DittoQueryHistory] = []
+                let callbackResult = TestBox<[DittoQueryHistory]>([])
                 await repo.setOnHistoryUpdate { history in
-                    callbackResult = history
+                    callbackResult.value = history
                 }
 
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "OBS-Q", createdDate: Date().ISO8601Format())
@@ -415,8 +414,8 @@ struct HistoryRepositoryTests {
                 try await repo.saveQueryHistory(entry)
 
                 // ASSERT — callback should have been called with the new item
-                #expect(callbackResult.count == 1)
-                #expect(callbackResult[0].query == "OBS-Q")
+                #expect(callbackResult.value.count == 1)
+                #expect(callbackResult.value[0].query == "OBS-Q")
             }
         }
 
@@ -432,9 +431,9 @@ struct HistoryRepositoryTests {
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "DEL-Q", createdDate: Date().ISO8601Format())
                 try await repo.saveQueryHistory(entry)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnHistoryUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
@@ -442,7 +441,7 @@ struct HistoryRepositoryTests {
                 try await repo.deleteQueryHistory(loaded.first!.id)
 
                 // ASSERT
-                #expect(callbackCount >= 1)
+                #expect(callbackCount.value >= 1)
             }
         }
     }

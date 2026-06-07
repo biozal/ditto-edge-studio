@@ -58,7 +58,7 @@ extension MainStudioView {
             if let statusInfo = viewModel.syncVM.syncStatusItems.first {
                 Text("Last updated: \(statusInfo.formattedLastUpdate)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 10)
                     .padding(.bottom, 4)
@@ -139,7 +139,7 @@ extension MainStudioView {
 
                         Button { showInspector.toggle() } label: {
                             Image(systemName: "sidebar.right")
-                                .foregroundColor(showInspector ? .primary : .secondary)
+                                .foregroundStyle(showInspector ? .primary : .secondary)
                         }
                         .accessibilityIdentifier("Toggle Inspector")
                     }
@@ -332,7 +332,7 @@ extension MainStudioView {
                     .padding(.vertical, 12)
                     .background(.ultraThinMaterial)
                     .background(Color.green.opacity(0.2))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.green.opacity(0.4), lineWidth: 1)
@@ -404,7 +404,7 @@ extension MainStudioView {
                             // Inspector toggle
                             Button { showInspector.toggle() } label: {
                                 Image(systemName: "sidebar.right")
-                                    .foregroundColor(showInspector ? .primary : .secondary)
+                                    .foregroundStyle(showInspector ? .primary : .secondary)
                             }
                             .accessibilityIdentifier("Toggle Inspector")
                         }
@@ -591,7 +591,7 @@ extension MainStudioView {
     private func queryShowNotification(_ message: String) {
         queryCopiedDQLNotification = message
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(for: .seconds(2))
             await MainActor.run { queryCopiedDQLNotification = nil }
         }
     }
@@ -699,7 +699,7 @@ extension MainStudioView {
 
                             Button { showInspector.toggle() } label: {
                                 Image(systemName: "sidebar.right")
-                                    .foregroundColor(showInspector ? .primary : .secondary)
+                                    .foregroundStyle(showInspector ? .primary : .secondary)
                             }
                             .accessibilityIdentifier("Toggle Inspector")
                         }

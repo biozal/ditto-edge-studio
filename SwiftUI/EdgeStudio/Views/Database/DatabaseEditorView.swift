@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct DatabaseEditorView: View {
     @Environment(AppState.self) private var appState
     @Binding var isPresented: Bool
@@ -25,6 +26,17 @@ struct DatabaseEditorView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
+                #if os(macOS)
+                HStack {
+                    Text(viewModel.databaseId == "" ? "Register Database" : "Edit Database")
+                        .font(.title2.weight(.semibold))
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+                #endif
+
                 Form {
                     HStack {
                         Spacer()
@@ -74,14 +86,14 @@ struct DatabaseEditorView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
                                 .font(.system(size: 16))
 
                             Text(
                                 "This information comes from the [Ditto Portal](https://portal.ditto.live) and is required in order to register a Ditto Database."
                             )
                             .font(.callout)
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .tint(.blue)
                         }
@@ -96,34 +108,36 @@ struct DatabaseEditorView: View {
                 Spacer()
             }
             #if os(macOS)
-            .padding()
+            .padding(.leading, 16)
+            .padding(.trailing, 24)
+            .padding(.vertical, 16)
             #endif
-            .navigationTitle(viewModel.databaseId == "" ? "Register Database" : "Edit Database")
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(viewModel.databaseId == "" ? "Register Database" : "Edit Database")
+            .navigationBarTitleDisplayMode(.inline)
             #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button {
-                            attemptCancel()
-                        } label: {
-                            Label("Cancel", systemImage: "xmark")
-                        }
-                        .accessibilityIdentifier("CancelButton")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        attemptCancel()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
                     }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            Task {
-                                await viewModel.save(appState: appState)
-                                isPresented = false
-                            }
-                        }
-                        .disabled(viewModel.databaseId.isEmpty ||
-                            viewModel.name.isEmpty ||
-                            viewModel.token.isEmpty)
-                        .accessibilityIdentifier("SaveButton")
-                    }
+                    .accessibilityIdentifier("CancelButton")
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await viewModel.save(appState: appState)
+                            isPresented = false
+                        }
+                    }
+                    .disabled(viewModel.databaseId.isEmpty ||
+                        viewModel.name.isEmpty ||
+                        viewModel.token.isEmpty)
+                    .accessibilityIdentifier("SaveButton")
+                }
+            }
         }
         .onAppear {
             // Sync the host's binding with whatever the view model currently
@@ -168,7 +182,7 @@ struct DatabaseEditorView: View {
     private func authTokenField(for mode: AuthMode) -> some View {
         switch mode {
         case .server:
-            TextField("Token", text: $viewModel.token)
+            TextField("Development token", text: $viewModel.token)
             #if os(macOS)
                 .textFieldStyle(.roundedBorder)
             #endif
@@ -188,7 +202,7 @@ struct DatabaseEditorView: View {
 
             Text("Required for sync activation in Small Peers Only mode.\nObtain from https://portal.ditto.live")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
         }
     }
@@ -233,7 +247,7 @@ struct DatabaseEditorView: View {
                         "Mismatched settings across peers may cause nested fields to appear missing."
                 )
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 10)
@@ -253,27 +267,22 @@ struct DatabaseEditorView: View {
 
             Text("Optional secret key for shared key identity encryption. Leave empty if not using Shared Key.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
         }
     }
 
     private func serverInformationSection() -> some View {
+        // Ditto SDK 5.0 dropped the websocket URL requirement — only the
+        // auth URL (now just "URL") is needed.
         Section("Ditto Server (BigPeer) Information") {
-            TextField("Auth URL", text: $viewModel.authUrl)
-            #if os(macOS)
-                .textFieldStyle(.roundedBorder)
-            #endif
-                .lineLimit(1)
-                .accessibilityIdentifier("AuthUrlTextField")
-
-            TextField("Websocket URL", text: $viewModel.websocketUrl)
+            TextField("URL", text: $viewModel.authUrl)
             #if os(macOS)
                 .textFieldStyle(.roundedBorder)
             #endif
                 .lineLimit(1)
                 .padding(.bottom, 10)
-                .accessibilityIdentifier("WebsocketUrlTextField")
+                .accessibilityIdentifier("AuthUrlTextField")
         }
     }
 
@@ -304,7 +313,7 @@ struct DatabaseEditorView: View {
                     "By allowing untrusted certificates, you are bypassing SSL certificate validation entirely, which poses significant security risks. This setting should only be used in development environments and never in production."
                 )
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 10)
@@ -326,7 +335,6 @@ extension DatabaseEditorView {
         let databaseId: String
         let token: String
         let authUrl: String
-        let websocketUrl: String
         let httpApiUrl: String
         let httpApiKey: String
         let mode: AuthMode
@@ -336,6 +344,7 @@ extension DatabaseEditorView {
         let isStrictModeEnabled: Bool
     }
 
+    @MainActor
     @Observable
     class ViewModel {
         let _id: String
@@ -343,7 +352,6 @@ extension DatabaseEditorView {
         var databaseId: String
         var token: String
         var authUrl: String
-        var websocketUrl: String
         var httpApiUrl: String
         var httpApiKey: String
         var mode: AuthMode
@@ -369,7 +377,6 @@ extension DatabaseEditorView {
             databaseId = appConfig.databaseId
             token = appConfig.token
             authUrl = appConfig.authUrl
-            websocketUrl = appConfig.websocketUrl
             httpApiUrl = appConfig.httpApiUrl
             httpApiKey = appConfig.httpApiKey
             mode = appConfig.mode
@@ -387,7 +394,6 @@ extension DatabaseEditorView {
                 databaseId: appConfig.databaseId,
                 token: appConfig.token,
                 authUrl: appConfig.authUrl,
-                websocketUrl: appConfig.websocketUrl,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 mode: appConfig.mode,
@@ -413,7 +419,6 @@ extension DatabaseEditorView {
                 || databaseId != original.databaseId
                 || token != original.token
                 || authUrl != original.authUrl
-                || websocketUrl != original.websocketUrl
                 || httpApiUrl != original.httpApiUrl
                 || httpApiKey != original.httpApiKey
                 || mode != original.mode
@@ -434,7 +439,6 @@ extension DatabaseEditorView {
                     databaseId: trimmedDatabaseId,
                     token: token.trimmingCharacters(in: .whitespacesAndNewlines),
                     authUrl: authUrl,
-                    websocketUrl: websocketUrl,
                     httpApiUrl: httpApiUrl,
                     httpApiKey: httpApiKey,
                     mode: mode,
@@ -451,11 +455,18 @@ extension DatabaseEditorView {
                     try await databaseRepository.addDittoAppConfig(appConfig)
                 } else {
                     try await databaseRepository.updateDittoAppConfig(appConfig)
-                    // Apply log level immediately if this database is currently active
-                    try await DittoManager.shared.changeDittoLogLevel(logLevel, for: appConfig)
+                    // The config (incl. logLevel) is already saved above. Applying
+                    // the live SDK log level is best-effort and must NOT fail the
+                    // save or trigger the error alert + sheet dismissal — it takes
+                    // effect on next open if it throws here.
+                    do {
+                        try await DittoManager.shared.changeDittoLogLevel(logLevel, for: appConfig)
+                    } catch {
+                        Log.warning("Could not apply log level immediately: \(error.localizedDescription)")
+                    }
                 }
             } catch {
-                await appState.setError(error)
+                appState.setError(error)
             }
         }
     }
@@ -472,7 +483,7 @@ struct PasteTrimModifier: ViewModifier {
                 for provider in providers {
                     _ = provider.loadObject(ofClass: NSString.self) { string, _ in
                         if let string = string as? String {
-                            DispatchQueue.main.async {
+                            Task { @MainActor in
                                 text = string.trimmingCharacters(in: .whitespacesAndNewlines)
                             }
                         }

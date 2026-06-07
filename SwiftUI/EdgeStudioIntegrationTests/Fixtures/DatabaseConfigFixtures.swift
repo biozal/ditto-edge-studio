@@ -17,7 +17,6 @@ struct DatabaseConfigFixtures {
             databaseId: "db-\(id)",
             token: "test-token-\(id)",
             authUrl: "https://auth.test.ditto.live",
-            websocketUrl: "wss://sync.test.ditto.live",
             httpApiUrl: "https://api.test.ditto.live",
             httpApiKey: "api-key-\(id)",
             mode: .server,
@@ -41,7 +40,6 @@ struct DatabaseConfigFixtures {
             databaseId: "db-\(id)",
             token: "",
             authUrl: "",
-            websocketUrl: "",
             httpApiUrl: "",
             httpApiKey: "",
             mode: .smallPeersOnly,
@@ -65,7 +63,6 @@ struct DatabaseConfigFixtures {
             databaseId: "db-\(id)",
             token: "server-token-\(id)",
             authUrl: "https://auth2.test.ditto.live",
-            websocketUrl: "wss://sync2.test.ditto.live",
             httpApiUrl: "https://api2.test.ditto.live",
             httpApiKey: "api-key-2-\(id)",
             mode: .server,
@@ -146,7 +143,6 @@ struct DatabaseConfigFixtures {
             databaseId: "", // Empty database ID
             token: "",
             authUrl: "",
-            websocketUrl: "",
             httpApiUrl: "",
             httpApiKey: "",
             mode: .server,
@@ -171,7 +167,6 @@ struct DatabaseConfigFixtures {
     static func invalidConfigBadUrls() -> DittoConfigForDatabase {
         let config = validServerConfig()
         config.authUrl = "not-a-valid-url"
-        config.websocketUrl = "also-invalid"
         config.httpApiUrl = "still-invalid"
         return config
     }
@@ -201,7 +196,6 @@ struct DatabaseConfigFixtures {
                 databaseId: "db-1",
                 token: "token-1",
                 authUrl: "https://auth.test.ditto.live",
-                websocketUrl: "wss://sync.test.ditto.live",
                 httpApiUrl: "https://api.test.ditto.live",
                 httpApiKey: "key-1",
                 mode: .server,
@@ -219,7 +213,6 @@ struct DatabaseConfigFixtures {
                 databaseId: "db-2",
                 token: "token-2",
                 authUrl: "https://auth.test.ditto.live",
-                websocketUrl: "wss://sync.test.ditto.live",
                 httpApiUrl: "https://api.test.ditto.live",
                 httpApiKey: "key-2",
                 mode: .server,

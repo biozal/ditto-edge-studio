@@ -38,6 +38,9 @@ final class AttachmentViewModel {
     var attachmentTargetCollection: String?
     var deleteAttachmentTargetJson: String?
     var deleteAttachmentTargetCollection: String?
+    /// Attachment tokens detected when the delete sheet is staged — computed once
+    /// here rather than re-parsing the document JSON during sheet body evaluation.
+    var deleteAttachmentTokens: [AttachmentInfo] = []
 
     // MARK: - Inspector Attachment Viewer
 
@@ -88,6 +91,7 @@ final class AttachmentViewModel {
     func stageDeleteAttachment(documentJson: String, currentQuery: String) {
         deleteAttachmentTargetJson = documentJson
         deleteAttachmentTargetCollection = parseCollectionName(from: currentQuery)
+        deleteAttachmentTokens = AttachmentInfo.detectTokens(in: documentJson)
     }
 
     // MARK: - Add / Delete

@@ -34,7 +34,6 @@ struct KeychainServiceTests {
                 name: "My Test DB",
                 token: "test-token-abc",
                 authUrl: "https://auth.test.com",
-                websocketUrl: "wss://ws.test.com",
                 httpApiUrl: "https://api.test.com",
                 httpApiKey: "api-key-xyz",
                 secretKey: "secret-123"            )
@@ -49,7 +48,6 @@ struct KeychainServiceTests {
             #expect(loaded?.name == "My Test DB")
             #expect(loaded?.token == "test-token-abc")
             #expect(loaded?.authUrl == "https://auth.test.com")
-            #expect(loaded?.websocketUrl == "wss://ws.test.com")
             #expect(loaded?.httpApiUrl == "https://api.test.com")
             #expect(loaded?.httpApiKey == "api-key-xyz")
             #expect(loaded?.secretKey == "secret-123")
@@ -77,7 +75,6 @@ struct KeychainServiceTests {
                 name: "Original DB",
                 token: "token-v1",
                 authUrl: "https://v1.auth.com",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 secretKey: ""            )
@@ -87,7 +84,6 @@ struct KeychainServiceTests {
                 name: "Updated DB",
                 token: "token-v2",
                 authUrl: "https://v2.auth.com",
-                websocketUrl: "wss://v2.ws.com",
                 httpApiUrl: "https://v2.api.com",
                 httpApiKey: "new-key",
                 secretKey: "new-secret"            )
@@ -119,7 +115,6 @@ struct KeychainServiceTests {
                 name: "To Delete",
                 token: "t",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 secretKey: ""            )
@@ -154,7 +149,7 @@ struct KeychainServiceTests {
             let dbId2 = TestHelpers.uniqueTestId(prefix: "kctest-gone")
 
             let creds = KeychainService.DatabaseCredentials(
-                name: "DB", token: "t", authUrl: "", websocketUrl: "",
+                name: "DB", token: "t", authUrl: "",
                 httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: creds)
             try await service.saveDatabaseCredentials(dbId2, credentials: creds)
@@ -182,7 +177,7 @@ struct KeychainServiceTests {
             let service = KeychainService.shared
             let dbId = TestHelpers.uniqueTestId(prefix: "kctest-list")
             let creds = KeychainService.DatabaseCredentials(
-                name: "Listed DB", token: "", authUrl: "", websocketUrl: "",
+                name: "Listed DB", token: "", authUrl: "",
                 httpApiUrl: "", httpApiKey: "", secretKey: ""            )
 
             // ACT
@@ -200,7 +195,7 @@ struct KeychainServiceTests {
             let service = KeychainService.shared
             let dbId = TestHelpers.uniqueTestId(prefix: "kctest-list-del")
             let creds = KeychainService.DatabaseCredentials(
-                name: "Temp DB", token: "", authUrl: "", websocketUrl: "",
+                name: "Temp DB", token: "", authUrl: "",
                 httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId, credentials: creds)
 
@@ -239,10 +234,10 @@ struct KeychainServiceTests {
 
             let creds1 = KeychainService.DatabaseCredentials(
                 name: "DB One", token: "token-one", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             let creds2 = KeychainService.DatabaseCredentials(
                 name: "DB Two", token: "token-two", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
 
             // ACT
             try await service.saveDatabaseCredentials(dbId1, credentials: creds1)
@@ -267,13 +262,13 @@ struct KeychainServiceTests {
 
             let creds1 = KeychainService.DatabaseCredentials(
                 name: "A", token: "alpha", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: creds1)
 
             // ACT — overwrite dbId1
             let updatedCreds1 = KeychainService.DatabaseCredentials(
                 name: "A Updated", token: "alpha-v2", authUrl: "",
-                websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: ""            )
+                httpApiUrl: "", httpApiKey: "", secretKey: ""            )
             try await service.saveDatabaseCredentials(dbId1, credentials: updatedCreds1)
 
             // dbId2 was never saved — should return nil
@@ -299,7 +294,6 @@ struct KeychainServiceTests {
                 name: "",
                 token: "",
                 authUrl: "",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 secretKey: ""            )
@@ -325,7 +319,6 @@ struct KeychainServiceTests {
                 name: "Long Values DB",
                 token: longToken,
                 authUrl: "https://very-long-auth-url-that-tests-storage-limits.example.com",
-                websocketUrl: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 secretKey: ""            )

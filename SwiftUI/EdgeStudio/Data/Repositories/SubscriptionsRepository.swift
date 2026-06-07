@@ -33,7 +33,7 @@ actor SubscriptionsRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onSubscriptionsUpdate: (@MainActor ([DittoSubscription]) -> Void)?
+    private var onSubscriptionsUpdate: (@MainActor @Sendable ([DittoSubscription]) -> Void)?
 
     private init() {}
 
@@ -83,10 +83,9 @@ actor SubscriptionsRepository {
                 .registerSubscription(query: subscription.query)
             sub.syncSubscription = syncSub
 
-            // Check if already exists
-            let existing = try await sqlCipher.getSubscriptions(databaseId: databaseId)
-
-            if existing.contains(where: { $0._id == subscription.id }) {
+            // Check the in-memory cache (authoritative for the session) instead of
+            // issuing a full SQLCipher read on every save.
+            if cachedSubscriptions.contains(where: { $0.id == subscription.id }) {
                 // Already exists — persist the updated name/query to SQLCipher, then update cache
                 let row = SQLCipherService.SubscriptionRow(
                     _id: subscription.id,
@@ -171,7 +170,7 @@ actor SubscriptionsRepository {
         self.appState = appState
     }
 
-    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor ([DittoSubscription]) -> Void) {
+    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) {
         onSubscriptionsUpdate = callback
     }
 

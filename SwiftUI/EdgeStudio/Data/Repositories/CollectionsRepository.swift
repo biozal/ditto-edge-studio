@@ -9,7 +9,7 @@ actor CollectionsRepository {
     private var collectionsObserver: DittoStoreObserver?
 
     // Store the callback inside the actor
-    private var onCollectionsUpdate: (@MainActor ([DittoCollection]) -> Void)?
+    private var onCollectionsUpdate: (@MainActor @Sendable ([DittoCollection]) -> Void)?
     private let decoder = JSONDecoder()
 
     private init() {}
@@ -147,27 +147,33 @@ actor CollectionsRepository {
             throw InvalidStateError(message: "No Ditto selected app available")
         }
 
-        var countsByCollection: [String: Int] = [:]
-
-        // Execute COUNT query for each collection
-        // Note: 'count' is a reserved word in DQL, so we use 'numDocs' as the alias
-        for collection in collections {
-            let query = "SELECT COUNT(*) as numDocs FROM \(collection.name)"
-            do {
-                let results = try await ditto.store.execute(query: query, arguments: [:])
-
-                if let firstItem = results.items.first,
-                   let count = firstItem.value["numDocs"] as? Int
-                {
-                    countsByCollection[collection.name] = count
-                    firstItem.dematerialize()
+        // Execute the per-collection COUNT queries concurrently rather than
+        // serially — this previously issued N sequential SDK round-trips on every
+        // __collections change. 'count' is a reserved word in DQL, so we alias it.
+        return try await withThrowingTaskGroup(of: (String, Int?).self) { group in
+            for collection in collections {
+                group.addTask {
+                    let query = "SELECT COUNT(*) as numDocs FROM \(collection.name)"
+                    do {
+                        let results = try await ditto.store.execute(query: query, arguments: [:])
+                        if let firstItem = results.items.first {
+                            let count = firstItem.value["numDocs"] as? Int
+                            firstItem.dematerialize()
+                            return (collection.name, count)
+                        }
+                    } catch {
+                        // Continue with other collections even if one fails
+                    }
+                    return (collection.name, nil)
                 }
-            } catch {
-                // Continue with other collections even if one fails
             }
-        }
 
-        return countsByCollection
+            var countsByCollection: [String: Int] = [:]
+            for try await (name, count) in group {
+                if let count { countsByCollection[name] = count }
+            }
+            return countsByCollection
+        }
     }
 
     func refreshCollections() async throws -> [DittoCollection] {
@@ -237,7 +243,7 @@ actor CollectionsRepository {
         self.appState = appState
     }
 
-    func setOnCollectionsUpdate(_ callback: @escaping @MainActor ([DittoCollection]) -> Void) {
+    func setOnCollectionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoCollection]) -> Void) {
         onCollectionsUpdate = callback
     }
 

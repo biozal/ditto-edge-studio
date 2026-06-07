@@ -31,7 +31,7 @@ actor DatabaseRepository {
     /// Callback for UI updates. @MainActor-isolated so call sites get a
     /// compile-time guarantee they're on the main thread; matches the pattern
     /// used by HistoryRepository, FavoritesRepository, ObservableRepository.
-    private var onDittoDatabaseConfigUpdate: (@MainActor ([DittoConfigForDatabase]) -> Void)?
+    private var onDittoDatabaseConfigUpdate: (@MainActor @Sendable ([DittoConfigForDatabase]) -> Void)?
 
     private init() {}
 
@@ -52,7 +52,6 @@ actor DatabaseRepository {
                 databaseId: row.databaseId,
                 token: row.token,
                 authUrl: row.authUrl,
-                websocketUrl: row.websocketUrl,
                 httpApiUrl: row.httpApiUrl,
                 httpApiKey: row.httpApiKey,
                 mode: AuthMode(rawValue: row.mode) ?? .server,
@@ -91,7 +90,6 @@ actor DatabaseRepository {
                 isCloudSyncEnabled: appConfig.isCloudSyncEnabled,
                 token: appConfig.token,
                 authUrl: appConfig.authUrl,
-                websocketUrl: appConfig.websocketUrl,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
@@ -132,7 +130,6 @@ actor DatabaseRepository {
                 isCloudSyncEnabled: appConfig.isCloudSyncEnabled,
                 token: appConfig.token,
                 authUrl: appConfig.authUrl,
-                websocketUrl: appConfig.websocketUrl,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
@@ -206,7 +203,7 @@ actor DatabaseRepository {
         self.appState = appState
     }
 
-    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping @MainActor ([DittoConfigForDatabase]) -> Void) {
+    func setOnDittoDatabaseConfigUpdate(_ callback: @escaping @MainActor @Sendable ([DittoConfigForDatabase]) -> Void) {
         onDittoDatabaseConfigUpdate = callback
     }
 

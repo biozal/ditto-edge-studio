@@ -98,7 +98,7 @@ struct QueryViewModelTests {
 
     @Test(.tags(.fast))
     @MainActor
-    func `Local executeQuery populates latestProfile from the service`() async {
+    func `Local executeQuery populates latestProfile from the service`() async throws {
         // ARRANGE — stub the service to return a parsed profile and
         // exercise the Local branch.
         let config = DittoConfigForDatabase.new()
@@ -114,7 +114,7 @@ struct QueryViewModelTests {
         viewModel.selectedQuery = "SELECT * FROM tasks"
         viewModel.selectedExecuteMode = "Local"
 
-        let profile = try? #require(
+        let profile = try #require(
             QueryProfileParser.parseItem(QueryProfileFixtures.canonicalEnvelope)
         )
         await mocks.queryService.setStubbedLocalProfile(profile)

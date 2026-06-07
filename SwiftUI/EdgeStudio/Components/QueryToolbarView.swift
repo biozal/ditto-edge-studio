@@ -145,19 +145,19 @@ struct QueryToolbarView: View {
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
-                createdDate: Date().addingTimeInterval(-3600)
+                createdDate: Date.now.addingTimeInterval(-3600)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "2",
                 query: "SELECT * FROM users WHERE age > 21",
-                createdDate: Date().addingTimeInterval(-7200)
+                createdDate: Date.now.addingTimeInterval(-7200)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "3",
                 query: "SELECT name, price FROM products WHERE inStock = true",
-                createdDate: Date().addingTimeInterval(-86400)
+                createdDate: Date.now.addingTimeInterval(-86400)
                     .ISO8601Format()
             )
         ]),
@@ -165,19 +165,19 @@ struct QueryToolbarView: View {
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
-                createdDate: Date().addingTimeInterval(-3600)
+                createdDate: Date.now.addingTimeInterval(-3600)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "2",
                 query: "SELECT * FROM users WHERE age > 21",
-                createdDate: Date().addingTimeInterval(-7200)
+                createdDate: Date.now.addingTimeInterval(-7200)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "3",
                 query: "SELECT name, price FROM products WHERE inStock = true",
-                createdDate: Date().addingTimeInterval(-86400)
+                createdDate: Date.now.addingTimeInterval(-86400)
                     .ISO8601Format()
             )
         ]),

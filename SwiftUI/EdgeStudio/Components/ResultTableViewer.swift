@@ -54,7 +54,7 @@ struct ResultTableViewer: View {
             ProgressView()
             Text("Parsing results...")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -68,7 +68,7 @@ struct ResultTableViewer: View {
                 .font(.headline)
             Text("Execute a query to see results in table format")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

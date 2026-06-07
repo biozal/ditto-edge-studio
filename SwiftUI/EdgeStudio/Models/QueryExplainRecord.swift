@@ -12,10 +12,14 @@ struct QueryExplainRecord: Identifiable, Hashable {
         explainOutput.lowercased().contains("index")
     }
 
-    var formattedTimestamp: String {
+    private static let timestampFormatter: DateFormatter = {
         let fmt = DateFormatter()
         fmt.dateFormat = "MMM d, HH:mm:ss.SSS"
-        return fmt.string(from: timestamp)
+        return fmt
+    }()
+
+    var formattedTimestamp: String {
+        Self.timestampFormatter.string(from: timestamp)
     }
 
     var formattedExecutionTime: String {

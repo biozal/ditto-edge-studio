@@ -291,7 +291,7 @@ extension MainStudioView {
         if let error = lastError {
             viewModel.metricsPrometheusStatusMessage = "Error: \(error)"
         } else if let date = lastPush {
-            let elapsed = Int(Date().timeIntervalSince(date))
+            let elapsed = Int(Date.now.timeIntervalSince(date))
             viewModel.metricsPrometheusStatusMessage = "Last push: \(elapsed)s ago"
         } else if url != nil {
             viewModel.metricsPrometheusStatusMessage = "Configured — awaiting first push"
@@ -358,7 +358,7 @@ extension MainStudioView {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.clock, size: 12)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
@@ -377,12 +377,22 @@ extension MainStudioView {
                     .contextMenu {
                         Button("Delete") {
                             Task {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                do {
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                } catch {
+                                    Log.error("Failed to delete query history: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                         Button("Add to Favorites") {
                             Task {
-                                try await FavoritesRepository.shared.saveFavorite(query)
+                                do {
+                                    try await FavoritesRepository.shared.saveFavorite(query)
+                                } catch {
+                                    Log.error("Failed to add favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
@@ -408,7 +418,7 @@ extension MainStudioView {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.star, size: 12)
-                                .foregroundColor(.yellow)
+                                .foregroundStyle(.yellow)
                                 .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
@@ -427,7 +437,12 @@ extension MainStudioView {
                     .contextMenu {
                         Button("Remove from Favorites") {
                             Task {
-                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                do {
+                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                } catch {
+                                    Log.error("Failed to remove favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
@@ -469,7 +484,7 @@ extension MainStudioView {
                     FontAwesomeText(icon: DataIcon.code, size: 48, color: .secondary)
                     Text("Select a JSON result to view it here")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Spacer()
                 }
@@ -592,7 +607,7 @@ extension MainStudioView {
         viewModel.queryVM.selectedQuery = query
 
         // Double-check sidebar stays visible after state changes
-        DispatchQueue.main.async { [self] in
+        Task { @MainActor in
             columnVisibility = .all
         }
 

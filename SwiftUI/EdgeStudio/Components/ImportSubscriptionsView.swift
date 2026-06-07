@@ -63,7 +63,7 @@ struct ImportSubscriptionsView: View {
                 Spacer()
 
                 Text("\(viewModel.selectedCount) selected")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Button("Import Selected") {
                     Task {
@@ -139,7 +139,7 @@ struct ImportSubscriptionsView: View {
 
                         Text(subscription.query)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(2)
 
                         HStack {
@@ -148,7 +148,7 @@ struct ImportSubscriptionsView: View {
                             Text(subscription.deviceInfo)
                         }
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 4)

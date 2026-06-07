@@ -19,6 +19,11 @@ import SwiftUI
 struct WelcomeView: View {
     @AppStorage("showWelcomeOnNewDatabase") private var showWelcomeOnNewDatabase = true
 
+    // Scale the hero badge with the user's Dynamic Type setting so the icon
+    // never feels cramped relative to the surrounding scaled text.
+    @ScaledMetric(relativeTo: .largeTitle) private var heroBadgeSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 32
+
     /// Caller-provided dismiss closure. macOS uses
     /// `Environment(\.dismissWindow)`; iPadOS uses a Binding<Bool>
     /// on the presenting sheet. The view stays agnostic.
@@ -38,11 +43,11 @@ struct WelcomeView: View {
             }
             .padding(.horizontal, 40)
             .padding(.vertical, 32)
-            .frame(maxWidth: 880, alignment: .leading)
+            .frame(maxWidth: 1100)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
         #if os(macOS)
-            .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
         #endif
     }
 
@@ -52,18 +57,19 @@ struct WelcomeView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 16) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(Color.dittoYellow)
-                        .frame(width: 56, height: 56)
+                        .frame(width: heroBadgeSize, height: heroBadgeSize)
                     Image(systemName: "bolt.fill")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(.system(size: heroIconSize, weight: .bold))
                         .foregroundStyle(Color.black)
+                        .accessibilityHidden(true)
                 }
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Welcome to Ditto Edge Studio")
-                        .font(.title.weight(.semibold))
+                        .font(.largeTitle.weight(.semibold))
                     Text("A quick tour of what this app does and how to get the most out of your Ditto database.")
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -76,16 +82,16 @@ struct WelcomeView: View {
     // MARK: - What is Ditto?
 
     private var whatIsDitto: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("What is Ditto?")
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.semibold))
             Text(
                 "Ditto is a peer-to-peer, offline-first database. Apps that embed the Ditto SDK sync data " +
                     "directly with each other over Bluetooth LE, peer-to-peer Wi-Fi, and local LAN — no internet " +
                     "required. When a network is available, devices can also sync to the Ditto cloud " +
                     "(the \"Big Peer\") for durability and global reach."
             )
-            .font(.subheadline)
+            .font(.body)
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
 
@@ -104,14 +110,14 @@ struct WelcomeView: View {
     // MARK: - Features
 
     private var features: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("What this app does")
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.semibold))
             Text(
                 "Ditto Edge Studio is a control panel for your Ditto databases — inspect their live state, " +
                     "manage subscriptions, run DQL queries, and move data in and out without ever leaving the app."
             )
-            .font(.subheadline)
+            .font(.body)
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
 
@@ -157,9 +163,9 @@ struct WelcomeView: View {
     // MARK: - Get Started
 
     private var getStarted: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Get started in three steps")
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.semibold))
             VStack(alignment: .leading, spacing: 0) {
                 StepRow(
                     number: 1,
@@ -201,16 +207,16 @@ struct WelcomeView: View {
     // MARK: - User Guide
 
     private var userGuide: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Deep-dive: the User Guide")
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.semibold))
             Text(
                 "Edge Studio ships with a comprehensive in-app User Guide covering every feature in " +
                     "detail — subscriptions, DQL syntax, the presence viewer, metrics dashboards, " +
                     "logging, attachments, imports/exports, and troubleshooting. It's the reference " +
                     "manual for the rest of the app and lives one menu click away."
             )
-            .font(.subheadline)
+            .font(.body)
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
             #if os(macOS)
@@ -225,9 +231,9 @@ struct WelcomeView: View {
     // MARK: - Quickstarts
 
     private var quickstarts: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Try a quickstart in your favorite language")
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.semibold))
             QuoteBlock {
                 Text(
                     "Edge Studio can download Ditto's official quickstart projects (Swift, Kotlin, " +
@@ -252,17 +258,17 @@ struct WelcomeView: View {
     // MARK: - Learn More
 
     private var learnMore: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Divider()
             Text("Want more depth?")
-                .font(.footnote.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             HStack(spacing: 16) {
                 ExternalLink(title: "Ditto documentation", url: "https://docs.ditto.live/home/about-ditto")
                 ExternalLink(title: "DQL reference", url: "https://docs.ditto.live/dql/dql")
                 ExternalLink(title: "Mesh Presence guide", url: "https://docs.ditto.live/sdk/latest/sync/using-mesh-presence")
             }
-            .font(.caption)
+            .font(.footnote)
         }
     }
 
@@ -278,7 +284,7 @@ struct WelcomeView: View {
                 #else
                     .toggleStyle(.switch)
                 #endif
-                    .font(.caption)
+                    .font(.footnote)
                 Spacer()
                 Button("Close", action: onClose)
                     .keyboardShortcut(.defaultAction)
@@ -298,21 +304,21 @@ struct WelcomeFeature: Identifiable {
 private struct FeatureGrid: View {
     let features: [WelcomeFeature]
     private let columns = [
-        GridItem(.adaptive(minimum: 280, maximum: 420), spacing: 12)
+        GridItem(.adaptive(minimum: 300, maximum: 460), spacing: 14)
     ]
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
             ForEach(features) { feature in
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(feature.title)
-                        .font(.footnote.weight(.semibold))
+                        .font(.headline)
                     Text(feature.body)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
+                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
@@ -335,21 +341,25 @@ private struct StepRow<Trailing: View>: View {
     let details: String
     @ViewBuilder let trailing: () -> Trailing
 
+    /// Grow the number circle with Dynamic Type so the digit never clips at
+    /// large accessibility text sizes.
+    @ScaledMetric(relativeTo: .title3) private var circleSize: CGFloat = 36
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 16) {
             ZStack {
                 Circle()
                     .fill(Color.dittoYellow)
-                    .frame(width: 28, height: 28)
+                    .frame(width: circleSize, height: circleSize)
                 Text("\(number)")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.black)
             }
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                 Text(details)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 trailing()
@@ -357,7 +367,7 @@ private struct StepRow<Trailing: View>: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
     }
 }
 
@@ -372,7 +382,7 @@ private struct QuoteBlock<Content: View>: View {
                 .fill(Color.dittoYellow)
                 .frame(width: 3)
             content()
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14)
@@ -407,7 +417,7 @@ private struct ExternalLink: View {
             HStack(spacing: 4) {
                 Text(title)
                 Image(systemName: "arrow.up.right.square")
-                    .font(.caption2)
+                    .font(.footnote)
             }
             .foregroundStyle(Color.accentColor)
         }
@@ -432,13 +442,13 @@ private struct WelcomePrimaryButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: systemIcon)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
             }
             .foregroundStyle(Color.black)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.dittoYellow)

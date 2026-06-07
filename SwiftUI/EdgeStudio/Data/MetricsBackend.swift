@@ -20,7 +20,7 @@ actor InMemoryMetricsStore {
 
     func record(label: String, value: Double) {
         var list = samplesByLabel[label] ?? []
-        list.append(MetricSample(timestamp: Date(), value: value))
+        list.append(MetricSample(timestamp: Date.now, value: value))
         if list.count > maxSamples {
             list = Array(list.suffix(maxSamples))
         }
@@ -138,7 +138,7 @@ actor PrometheusExportBackend {
             if let httpResponse = response as? HTTPURLResponse,
                (200 ... 299).contains(httpResponse.statusCode)
             {
-                lastPushDate = Date()
+                lastPushDate = Date.now
                 lastPushError = nil
             } else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0

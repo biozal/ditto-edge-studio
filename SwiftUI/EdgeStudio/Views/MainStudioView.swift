@@ -154,11 +154,10 @@ struct MainStudioView: View {
             if let json = viewModel.attachmentVM.deleteAttachmentTargetJson,
                let docId = viewModel.attachmentVM.parseDocumentId(from: json)
             {
-                let attachments = AttachmentInfo.detectTokens(in: json)
                 DeleteAttachmentSheet(
                     documentId: String(describing: docId),
                     collection: viewModel.attachmentVM.deleteAttachmentTargetCollection ?? "unknown",
-                    attachments: attachments
+                    attachments: viewModel.attachmentVM.deleteAttachmentTokens
                 ) { selected in
                     Task {
                         await viewModel.attachmentVM.executeDeleteAttachment(
@@ -262,7 +261,7 @@ struct MainStudioView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.black)
+                            .foregroundStyle(.black)
                             .frame(width: 56, height: 56)
                             .background(Color.dittoYellow)
                             .clipShape(Circle())
@@ -447,7 +446,7 @@ struct MainStudioView: View {
                 showInspector.toggle()
             } label: {
                 Image(systemName: "sidebar.right")
-                    .foregroundColor(showInspector ? .primary : .secondary)
+                    .foregroundStyle(showInspector ? .primary : .secondary)
             }
             .buttonStyle(.glass)
             .clipShape(Circle())

@@ -9,6 +9,11 @@ import Network
 final class MCPSSESession: @unchecked Sendable {
     let sessionId: String
     private let connection: NWConnection
+    /// Written by `startKeepAlive()` and read/cancelled by `close()` / `deinit`,
+    /// which can run on different threads (the session-manager actor vs. ARC
+    /// release). All access is serialized through `taskLock`. `NWConnection.send`
+    /// is internally thread-safe and needs no locking.
+    private let taskLock = NSLock()
     private var keepAliveTask: Task<Void, Never>?
 
     init(sessionId: String, connection: NWConnection) {
@@ -16,10 +21,14 @@ final class MCPSSESession: @unchecked Sendable {
         self.connection = connection
     }
 
+    deinit {
+        taskLock.withLock { keepAliveTask }?.cancel()
+    }
+
     func startKeepAlive() {
-        keepAliveTask = Task.detached(priority: .background) { [weak self] in
+        let task = Task.detached(priority: .background) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                try? await Task.sleep(for: .seconds(15))
                 guard let self else { return }
                 connection.send(
                     content: Data(": keepalive\n\n".utf8),
@@ -27,6 +36,7 @@ final class MCPSSESession: @unchecked Sendable {
                 )
             }
         }
+        taskLock.withLock { keepAliveTask = task }
     }
 
     func sendEvent(_ event: String, data: String) {
@@ -35,7 +45,7 @@ final class MCPSSESession: @unchecked Sendable {
     }
 
     func close() {
-        keepAliveTask?.cancel()
+        taskLock.withLock { keepAliveTask }?.cancel()
         connection.cancel()
     }
 }
@@ -81,8 +91,11 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
     private let serverPort: UInt16
     /// Only accessed from the serialized NWConnection receive callback chain
     private var accumulatedData = Data()
-    /// Retains self until the connection finishes so the weak-self receive callback stays valid.
+    /// Retains self until the connection finishes so the weak-self receive callback
+    /// stays valid. Written from both the NWConnection callback queue and the async
+    /// request-handling Task, so all access is serialized through `stateLock`.
     private var selfRetain: MCPHTTPConnectionHandler?
+    private let stateLock = NSLock()
 
     init(connection: NWConnection, serverPort: UInt16) {
         self.connection = connection
@@ -90,8 +103,18 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
     }
 
     func start() {
-        selfRetain = self
+        holdSelfRetain()
         scheduleRead()
+    }
+
+    private func holdSelfRetain() {
+        stateLock.lock(); defer { stateLock.unlock() }
+        selfRetain = self
+    }
+
+    private func releaseSelfRetain() {
+        stateLock.lock(); defer { stateLock.unlock() }
+        selfRetain = nil
     }
 
     // MARK: Read Loop
@@ -102,6 +125,14 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
 
             if let data { accumulatedData.append(data) }
 
+            // Cap buffered request size — a client that never sends a valid HTTP
+            // boundary must not grow this unbounded (localhost-only, but defensive).
+            if accumulatedData.count > 4 * 1024 * 1024 {
+                connection.cancel()
+                releaseSelfRetain()
+                return
+            }
+
             if let request = MCPHTTPParser.tryParse(accumulatedData) {
                 Task { await self.handleRequest(request) }
                 return
@@ -109,6 +140,7 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
 
             if isComplete || error != nil {
                 connection.cancel()
+                releaseSelfRetain()
                 return
             }
 
@@ -178,7 +210,7 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
         }
 
         // Session now owns the connection; release self-retain.
-        selfRetain = nil
+        releaseSelfRetain()
     }
 
     // MARK: POST Message
@@ -218,7 +250,7 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
         response.append(body)
         connection.send(content: response, completion: .contentProcessed { [weak self] _ in
             self?.connection.cancel()
-            self?.selfRetain = nil
+            self?.releaseSelfRetain()
         })
     }
 
@@ -238,7 +270,7 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
         response.append(bodyData)
         connection.send(content: response, completion: .contentProcessed { [weak self] _ in
             self?.connection.cancel()
-            self?.selfRetain = nil
+            self?.releaseSelfRetain()
         })
     }
 
@@ -257,7 +289,7 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
             content: Data(headerLines.joined(separator: "\r\n").utf8),
             completion: .contentProcessed { [weak self] _ in
                 self?.connection.cancel()
-                self?.selfRetain = nil
+                self?.releaseSelfRetain()
             }
         )
     }

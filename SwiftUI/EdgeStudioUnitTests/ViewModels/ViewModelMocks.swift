@@ -95,7 +95,7 @@ actor MockSubscriptionsRepository: SubscriptionsRepositoryProtocol {
     private(set) var savedSubscriptions: [DittoSubscription] = []
 
     func setAppState(_: AppState) {}
-    func setOnSubscriptionsUpdate(_: @escaping @MainActor ([DittoSubscription]) -> Void) {}
+    func setOnSubscriptionsUpdate(_: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) {}
     func loadSubscriptions(for _: String) async throws -> [DittoSubscription] {
         []
     }
@@ -116,9 +116,9 @@ actor MockSystemRepository: SystemRepositoryProtocol {
 
     func setAppState(_: AppState) {}
     func setOnSyncStatusUpdate(
-        _: @escaping @MainActor ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void
+        _: @escaping @MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void
     ) {}
-    func setOnConnectionsUpdate(_: @escaping @MainActor (ConnectionsByTransport) -> Void) {}
+    func setOnConnectionsUpdate(_: @escaping @MainActor @Sendable (ConnectionsByTransport) -> Void) {}
     func registerConnectionsPresenceObserver() async throws {
         presenceObserverRegistered = true
     }
@@ -131,7 +131,7 @@ actor MockHistoryRepository: HistoryRepositoryProtocol {
     private(set) var savedQueries: [DittoQueryHistory] = []
 
     func setAppState(_: AppState) {}
-    func setOnHistoryUpdate(_: @escaping @MainActor ([DittoQueryHistory]) -> Void) {}
+    func setOnHistoryUpdate(_: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {}
     func loadHistory(for _: String) async throws -> [DittoQueryHistory] {
         []
     }
@@ -145,7 +145,7 @@ actor MockHistoryRepository: HistoryRepositoryProtocol {
 
 actor MockFavoritesRepository: FavoritesRepositoryProtocol {
     func setAppState(_: AppState) {}
-    func setOnFavoritesUpdate(_: @escaping @MainActor ([DittoQueryHistory]) -> Void) {}
+    func setOnFavoritesUpdate(_: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {}
     func loadFavorites(for _: String) async throws -> [DittoQueryHistory] {
         []
     }
@@ -158,7 +158,7 @@ actor MockObservableRepository: ObservableRepositoryProtocol {
     private(set) var savedObservables: [DittoObservable] = []
 
     func setAppState(_: AppState) {}
-    func setOnObservablesUpdate(_: @escaping @MainActor ([DittoObservable]) -> Void) {}
+    func setOnObservablesUpdate(_: @escaping @MainActor @Sendable ([DittoObservable]) -> Void) {}
     func loadObservers(for _: String) async throws -> [DittoObservable] {
         []
     }
@@ -173,7 +173,7 @@ actor MockObservableRepository: ObservableRepositoryProtocol {
 
 actor MockCollectionsRepository: CollectionsRepositoryProtocol {
     func setAppState(_: AppState) {}
-    func setOnCollectionsUpdate(_: @escaping @MainActor ([DittoCollection]) -> Void) {}
+    func setOnCollectionsUpdate(_: @escaping @MainActor @Sendable ([DittoCollection]) -> Void) {}
     func hydrateCollections() async throws -> [DittoCollection] {
         []
     }

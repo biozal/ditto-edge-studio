@@ -17,7 +17,6 @@ private func insertFavoritesParentConfig(dbId: String) async throws {
         isCloudSyncEnabled: true,
         token: "",
         authUrl: "",
-        websocketUrl: "",
         httpApiUrl: "",
         httpApiKey: "",
         secretKey: "",
@@ -332,9 +331,9 @@ struct FavoritesRepositoryTests {
                 try await insertFavoritesParentConfig(dbId: dbId)
                 _ = try await repo.loadFavorites(for: dbId)
 
-                var callbackResult: [DittoQueryHistory] = []
+                let callbackResult = TestBox<[DittoQueryHistory]>([])
                 await repo.setOnFavoritesUpdate { favorites in
-                    callbackResult = favorites
+                    callbackResult.value = favorites
                 }
 
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "OBS-FAV", createdDate: Date().ISO8601Format())
@@ -343,8 +342,8 @@ struct FavoritesRepositoryTests {
                 try await repo.saveFavorite(fav)
 
                 // ASSERT
-                #expect(callbackResult.count == 1)
-                #expect(callbackResult[0].query == "OBS-FAV")
+                #expect(callbackResult.value.count == 1)
+                #expect(callbackResult.value[0].query == "OBS-FAV")
             }
         }
 
@@ -360,9 +359,9 @@ struct FavoritesRepositoryTests {
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "DEL-FAV", createdDate: Date().ISO8601Format())
                 try await repo.saveFavorite(fav)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnFavoritesUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 let loaded = try await repo.loadFavorites(for: dbId)
@@ -371,7 +370,7 @@ struct FavoritesRepositoryTests {
                 try await repo.deleteFavorite(loaded.first!.id)
 
                 // ASSERT
-                #expect(callbackCount >= 1)
+                #expect(callbackCount.value >= 1)
             }
         }
     }

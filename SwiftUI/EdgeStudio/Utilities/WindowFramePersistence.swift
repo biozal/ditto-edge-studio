@@ -30,7 +30,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async {
+        Task { @MainActor in
             guard let window = view.window else { return }
             context.coordinator.setup(window: window)
         }
@@ -41,6 +41,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
 
     // MARK: - Coordinator
 
+    @MainActor
     final class Coordinator: NSObject {
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
@@ -109,12 +110,14 @@ struct WindowFrameRestorer: NSViewRepresentable {
         private func attachObservers(to window: NSWindow) {
             let center = NotificationCenter.default
 
+            // `queue: .main` guarantees these fire on the main thread, so it is
+            // safe to assume MainActor isolation when calling back into self.
             observers.append(center.addObserver(
                 forName: NSWindow.didResizeNotification,
                 object: window,
                 queue: .main
             ) { [weak self] _ in
-                self?.saveFrame()
+                MainActor.assumeIsolated { self?.saveFrame() }
             })
 
             observers.append(center.addObserver(
@@ -122,7 +125,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
                 object: window,
                 queue: .main
             ) { [weak self] _ in
-                self?.saveFrame()
+                MainActor.assumeIsolated { self?.saveFrame() }
             })
         }
 
@@ -134,7 +137,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
             )
         }
 
-        deinit {
+        isolated deinit {
             observers.forEach { NotificationCenter.default.removeObserver($0) }
         }
     }

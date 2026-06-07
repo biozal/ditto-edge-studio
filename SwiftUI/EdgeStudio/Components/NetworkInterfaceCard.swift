@@ -70,10 +70,10 @@ struct NetworkInterfaceCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(info.kind == .wifi ? "Wi-Fi" : "Ethernet")
                         .font(.headline).bold()
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                     Text("(\(info.interfaceName))")
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.70))
+                        .foregroundStyle(.white.opacity(0.70))
                 }
             }
 
@@ -85,7 +85,7 @@ struct NetworkInterfaceCard: View {
                     .frame(width: 7, height: 7)
                 Text(info.isActive ? "Connected" : "Not Connected")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.85))
             }
         }
     }
@@ -96,7 +96,7 @@ struct NetworkInterfaceCard: View {
             if info.kind == .wifi, let ssid = info.ssid {
                 Text(ssid)
                     .font(.subheadline).bold()
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
             }
 
             // BSSID (WiFi, requires Location)
@@ -174,7 +174,7 @@ struct NetworkInterfaceCard: View {
                 HStack {
                     Text("AWDL")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.65))
+                        .foregroundStyle(.white.opacity(0.65))
                     Spacer()
                     HStack(spacing: 4) {
                         Circle()
@@ -182,7 +182,7 @@ struct NetworkInterfaceCard: View {
                             .frame(width: 6, height: 6)
                         Text(info.awdlActive ? "Active" : "Inactive")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.80))
+                            .foregroundStyle(.white.opacity(0.80))
                     }
                 }
             }
@@ -197,10 +197,10 @@ struct NetworkInterfaceCard: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Grant Location in System Settings")
                             .font(.caption).bold()
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                         Text("to show SSID and BSSID")
                             .font(.caption2)
-                            .foregroundColor(.white.opacity(0.70))
+                            .foregroundStyle(.white.opacity(0.70))
                     }
                 }
                 .padding(.top, 2)
@@ -211,7 +211,7 @@ struct NetworkInterfaceCard: View {
     private var notConnectedView: some View {
         Text("Not Connected")
             .font(.subheadline)
-            .foregroundColor(.white.opacity(0.55))
+            .foregroundStyle(.white.opacity(0.55))
             .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
     }
 }
@@ -226,11 +226,11 @@ private struct NetInfoRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.65))
+                .foregroundStyle(.white.opacity(0.65))
             Spacer()
             Text(value)
                 .font(.caption)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.trailing)
         }

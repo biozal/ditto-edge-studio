@@ -1,6 +1,40 @@
 import Foundation
 @testable import Ditto_Edge_Studio
 
+/// Thread-safe counter for asserting how many times a `@Sendable` repository
+/// callback fired. A plain `var` captured in a `@Sendable` closure is a data
+/// race under Swift 6; this lock-backed box is `Sendable` and safe to capture.
+final class TestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+}
+
+/// Thread-safe value box for capturing a callback's payload from a `@Sendable`
+/// closure under Swift 6 without a data race.
+final class TestBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+
+    init(_ initial: Value) { stored = initial }
+
+    var value: Value {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); stored = newValue; lock.unlock() }
+    }
+}
+
 /// Common test helper functions
 enum TestHelpers {
     

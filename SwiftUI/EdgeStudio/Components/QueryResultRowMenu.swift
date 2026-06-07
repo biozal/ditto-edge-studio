@@ -16,6 +16,7 @@ import SwiftUI
 /// drop `.textSelection(.enabled)` on row cells (do fine-grained text
 /// selection in the Inspector pane instead), and share this single
 /// menu builder so both viewers stay aligned.
+@MainActor
 @ViewBuilder
 func queryResultRowMenu(
     hasAttachments: Bool,

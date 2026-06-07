@@ -32,7 +32,7 @@ actor ObservableRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onObservablesUpdate: (@MainActor ([DittoObservable]) -> Void)?
+    private var onObservablesUpdate: (@MainActor @Sendable ([DittoObservable]) -> Void)?
 
     private init() {}
 
@@ -75,10 +75,9 @@ actor ObservableRepository {
         }
 
         do {
-            // Check if already exists
-            let existing = try await sqlCipher.getObservables(databaseId: databaseId)
-
-            if existing.contains(where: { $0._id == observable.id }) {
+            // Check the in-memory cache (authoritative for the session) instead of
+            // issuing a full SQLCipher read on every save.
+            if cachedObservables.contains(where: { $0.id == observable.id }) {
                 // Update existing observable
                 let row = SQLCipherService.ObservableRow(
                     _id: observable.id,
@@ -86,7 +85,7 @@ actor ObservableRepository {
                     name: observable.name,
                     query: observable.query,
                     isActive: observable.isActive,
-                    lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
+                    lastUpdated: observable.lastUpdated ?? Date.now.ISO8601Format()
                 )
                 try await sqlCipher.updateObservable(row)
 
@@ -102,7 +101,7 @@ actor ObservableRepository {
                     name: observable.name,
                     query: observable.query,
                     isActive: observable.isActive,
-                    lastUpdated: observable.lastUpdated ?? Date().ISO8601Format()
+                    lastUpdated: observable.lastUpdated ?? Date.now.ISO8601Format()
                 )
                 try await sqlCipher.insertObservable(row)
 
@@ -168,7 +167,7 @@ actor ObservableRepository {
         self.appState = appState
     }
 
-    func setOnObservablesUpdate(_ callback: @escaping @MainActor ([DittoObservable]) -> Void) {
+    func setOnObservablesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoObservable]) -> Void) {
         onObservablesUpdate = callback
     }
 

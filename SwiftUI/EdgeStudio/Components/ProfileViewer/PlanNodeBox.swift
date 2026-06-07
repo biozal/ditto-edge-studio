@@ -112,7 +112,9 @@ struct PlanNodeBox: View {
     /// - Returns the formatted time without a percent suffix when
     ///   `planTotalExecNs <= 0` (defensive — a malformed envelope
     ///   shouldn't crash the view).
-    static func timeLabel(execNs: Int64?, planTotalExecNs: Int64) -> String? {
+    /// Pure formatter (no main-actor state) — `nonisolated` so it's callable from
+    /// any context, including non-isolated tests.
+    nonisolated static func timeLabel(execNs: Int64?, planTotalExecNs: Int64) -> String? {
         guard let execNs else { return nil }
         var label = ProfileTimeFormatter.format(ns: execNs)
         if let pct = ProfileTimeFormatter.percentOfTotal(

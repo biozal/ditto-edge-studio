@@ -13,8 +13,8 @@ struct LoggingDetailView: View {
     @State private var selectedComponent: LogComponent = .all
     @State private var searchText = ""
     @State private var isDateFilterEnabled = false
-    @State private var dateFilterStart: Date = Calendar.current.startOfDay(for: Date())
-    @State private var dateFilterEnd = Date()
+    @State private var dateFilterStart: Date = Calendar.current.startOfDay(for: Date.now)
+    @State private var dateFilterEnd = Date.now
 
     // MARK: - Import / Export State
 
@@ -31,13 +31,14 @@ struct LoggingDetailView: View {
 
     /// Source tabs visible in the current platform.
     /// The Imported tab is macOS-only because log file import uses a macOS file picker.
-    private var visibleSourceTabs: [LoggingSourceTab] {
+    /// Platform-constant — computed once rather than rebuilt on every body render.
+    private static let visibleSourceTabs: [LoggingSourceTab] = {
         #if os(macOS)
         return LoggingSourceTab.allCases
         #else
         return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
-    }
+    }()
 
     // MARK: - Footer State
 
@@ -125,8 +126,17 @@ struct LoggingDetailView: View {
                 .frame(maxWidth: 100)
                 .onChange(of: activeLogLevel) { _, newLevel in
                     Task {
-                        if let config = await DittoManager.shared.dittoSelectedAppConfig {
-                            try? await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                        do {
+                            if let config = await DittoManager.shared.dittoSelectedAppConfig {
+                                // Mutate the shared config on the MainActor (this
+                                // onChange runs on the MainActor), then hand it to
+                                // the actor only for persistence + live apply.
+                                config.logLevel = newLevel
+                                try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                            }
+                        } catch {
+                            Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
+                            appState.setError(error)
                         }
                     }
                 }
@@ -154,7 +164,7 @@ struct LoggingDetailView: View {
 
     private var sourceRow: some View {
         HStack(spacing: 0) {
-            ForEach(visibleSourceTabs, id: \.self) { tab in
+            ForEach(Self.visibleSourceTabs, id: \.self) { tab in
                 Button {
                     capture.selectedSource = tab
                 } label: {
@@ -172,7 +182,7 @@ struct LoggingDetailView: View {
                 }
                 .buttonStyle(.plain)
 
-                if tab != visibleSourceTabs.last {
+                if tab != Self.visibleSourceTabs.last {
                     Divider().frame(height: 16)
                 }
             }
@@ -298,7 +308,7 @@ struct LoggingDetailView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .onChange(of: isDateFilterEnabled) { _, enabled in
-                if enabled { dateFilterEnd = Date() }
+                if enabled { dateFilterEnd = Date.now }
             }
 
             if isDateFilterEnabled {
@@ -326,8 +336,8 @@ struct LoggingDetailView: View {
 
                 Button {
                     isDateFilterEnabled = false
-                    dateFilterStart = Calendar.current.startOfDay(for: Date())
-                    dateFilterEnd = Date()
+                    dateFilterStart = Calendar.current.startOfDay(for: Date.now)
+                    dateFilterEnd = Date.now
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -606,7 +616,6 @@ struct LoggingDetailView: View {
     }
 
     private func computeFilteredEntries() -> [LogEntry] {
-        let searchLower = searchText.isEmpty ? "" : searchText.lowercased()
         let filtered = activeSourceEntries.filter { entry in
             if isDateFilterEnabled {
                 guard LogEntry.isWithinDateRange(entry, start: dateFilterStart, end: dateFilterEnd) else { return false }
@@ -615,8 +624,10 @@ struct LoggingDetailView: View {
             if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported,
                selectedComponent != .all,
                entry.component != selectedComponent { return false }
-            if !searchLower.isEmpty {
-                guard entry.message.lowercased().contains(searchLower) else { return false }
+            if !searchText.isEmpty {
+                // Case-insensitive substring match without the per-entry
+                // `lowercased()` allocation.
+                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil else { return false }
             }
             return true
         }

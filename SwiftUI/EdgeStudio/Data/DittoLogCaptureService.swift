@@ -61,7 +61,7 @@ final class DittoLogCaptureService: DittoDelegate {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let entry = LogEntry(
-                    timestamp: Date(),
+                    timestamp: Date.now,
                     level: level,
                     message: message,
                     component: LogComponent.heuristic(from: message),
@@ -93,7 +93,9 @@ final class DittoLogCaptureService: DittoDelegate {
     private func flushPendingEntries() {
         guard !pendingLiveEntries.isEmpty else { flushTask = nil; return }
         liveEntries.append(contentsOf: pendingLiveEntries)
-        if liveEntries.count > maxLiveEntries {
+        // Trim only once we're a slack margin past the cap, so the O(n) shift is
+        // amortized over many flushes instead of running on every flush at cap.
+        if liveEntries.count > maxLiveEntries + 512 {
             liveEntries.removeFirst(liveEntries.count - maxLiveEntries)
         }
         pendingLiveEntries.removeAll()
@@ -226,7 +228,7 @@ final class DittoLogCaptureService: DittoDelegate {
     ) {
         let msg = "Transport: \(subsystem) → \(condition)"
         let entry = LogEntry(
-            timestamp: Date(),
+            timestamp: Date.now,
             level: .info,
             message: msg,
             component: .transport,
@@ -254,7 +256,7 @@ final class DittoLogCaptureService: DittoDelegate {
     private func flushTransportEntries() {
         guard !pendingTransportEntries.isEmpty else { transportFlushTask = nil; return }
         transportEntries.append(contentsOf: pendingTransportEntries)
-        if transportEntries.count > maxTransportEntries {
+        if transportEntries.count > maxTransportEntries + 512 {
             transportEntries.removeFirst(transportEntries.count - maxTransportEntries)
         }
         pendingTransportEntries.removeAll()
@@ -274,7 +276,7 @@ final class DittoLogCaptureService: DittoDelegate {
             let msg = "Connection Request | type=\(request.connectionType) | key=\(request.peerKey)" +
                 " | identity=\(identity) | meta=\(meta)"
             let entry = LogEntry(
-                timestamp: Date(),
+                timestamp: Date.now,
                 level: .info,
                 message: msg,
                 component: .auth,
@@ -315,7 +317,7 @@ final class DittoLogCaptureService: DittoDelegate {
     private func flushConnectionRequestEntries() {
         guard !pendingConnectionRequestEntries.isEmpty else { connectionRequestFlushTask = nil; return }
         connectionRequestEntries.append(contentsOf: pendingConnectionRequestEntries)
-        if connectionRequestEntries.count > maxConnectionRequestEntries {
+        if connectionRequestEntries.count > maxConnectionRequestEntries + 512 {
             connectionRequestEntries.removeFirst(connectionRequestEntries.count - maxConnectionRequestEntries)
         }
         pendingConnectionRequestEntries.removeAll()

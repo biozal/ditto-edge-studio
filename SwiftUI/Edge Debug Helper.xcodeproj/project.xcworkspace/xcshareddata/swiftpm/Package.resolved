@@ -1,5 +1,5 @@
 {
-  "originHash" : "1a12e95b9b4aa6e0df2f9b03977c5e135e1b16e69ffb071476b0ccd197c6094b",
+  "originHash" : "22e2afaa0637eb4d7f9da053b258e323896d17248331497bfeafe7505ce5b572",
   "pins" : [
     {
       "identity" : "cocoalumberjack",
@@ -11,30 +11,12 @@
       }
     },
     {
-      "identity" : "codeeditor",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ZeeZide/CodeEditor.git",
-      "state" : {
-        "revision" : "f5c076b94f4ceb05abff88ba91d75a8d57143f0c",
-        "version" : "1.2.6"
-      }
-    },
-    {
       "identity" : "dittoswiftpackage",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getditto/DittoSwiftPackage",
       "state" : {
-        "revision" : "60091ac1da98c96ffa0ed7c566650e7e08d01c74",
-        "version" : "5.0.0"
-      }
-    },
-    {
-      "identity" : "highlightr",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/helje5/Highlightr",
-      "state" : {
-        "revision" : "bd0358056ff1f12ea83833a9fc1b3b5a396a9da0",
-        "version" : "3.0.2"
+        "revision" : "8ca33bcf6f3f41500b12ee624f752bfc4845eeed",
+        "version" : "5.0.1"
       }
     },
     {

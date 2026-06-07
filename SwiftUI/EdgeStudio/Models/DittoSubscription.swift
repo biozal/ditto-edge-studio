@@ -1,7 +1,7 @@
 import DittoSwift
 import Foundation
 
-public struct DittoSubscription: Identifiable {
+public struct DittoSubscription: Identifiable, Sendable {
     public var id: String
     public var name: String
     public var query: String

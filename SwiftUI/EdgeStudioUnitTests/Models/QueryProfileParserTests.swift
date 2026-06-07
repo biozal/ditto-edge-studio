@@ -27,7 +27,7 @@ struct QueryProfileParserTests {
     @Suite("Happy path")
     struct HappyPathTests {
         @Test(.tags(.model, .fast))
-        func `Parses the canonical envelope`() {
+        func `Parses the canonical envelope`() throws {
             // ARRANGE
             let item = QueryProfileFixtures.canonicalEnvelope
 
@@ -35,15 +35,15 @@ struct QueryProfileParserTests {
             let profile = QueryProfileParser.parseItem(item)
 
             // ASSERT
-            let parsed = try? #require(profile)
-            #expect(parsed?.id == "e526fe68-04e9-4881-bf76-d0a582827e9b")
-            #expect(parsed?.appId == "f5e954d9-0092-47a0-9a79-2829e767ba7b")
-            #expect(parsed?.featureFlags == "0x3a")
-            #expect(parsed?.queryType == "select")
-            #expect(parsed?.requestType == "SDK")
-            #expect(parsed?.resultCount == 1)
-            #expect(parsed?.state == "completed")
-            #expect(parsed?.text == "PROFILE SELECT * FROM tasks LIMIT 1")
+            let parsed = try #require(profile)
+            #expect(parsed.id == "e526fe68-04e9-4881-bf76-d0a582827e9b")
+            #expect(parsed.appId == "f5e954d9-0092-47a0-9a79-2829e767ba7b")
+            #expect(parsed.featureFlags == "0x3a")
+            #expect(parsed.queryType == "select")
+            #expect(parsed.requestType == "SDK")
+            #expect(parsed.resultCount == 1)
+            #expect(parsed.state == "completed")
+            #expect(parsed.text == "PROFILE SELECT * FROM tasks LIMIT 1")
         }
 
         @Test(.tags(.model, .fast))
@@ -313,7 +313,8 @@ struct QueryProfileParserTests {
 /// with the spec — both the plan doc and this fixture model the
 /// real `~request_profile` envelope Ditto emits.
 enum QueryProfileFixtures {
-    static let canonicalEnvelope: [String: Any] = [
+    // Immutable test fixture; safe to share across concurrency domains.
+    nonisolated(unsafe) static let canonicalEnvelope: [String: Any] = [
         "~request_profile": [
             "_id": "e526fe68-04e9-4881-bf76-d0a582827e9b",
             "app_id": "f5e954d9-0092-47a0-9a79-2829e767ba7b",

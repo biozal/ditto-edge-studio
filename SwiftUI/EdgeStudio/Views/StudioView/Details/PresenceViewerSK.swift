@@ -46,6 +46,12 @@ struct PresenceViewerSK: View {
         .onAppear {
             createScene()
         }
+        .task {
+            // Start presence observation tied to the view's lifetime via
+            // structured concurrency, rather than an untracked Task in the
+            // ViewModel's init that can race view teardown on rapid tab switches.
+            await viewModel.startProductionMode()
+        }
         .onDisappear {
             // Stop the presence observer here rather than relying on
             // ViewModel ARC dealloc. The VM holds a DittoObserver that
@@ -270,6 +276,9 @@ struct SpriteKitSceneView: UIViewRepresentable {
         context.coordinator.scene = scene
     }
 
+    // @MainActor: UIKit delivers gesture actions on the main thread, and the
+    // handler touches main-actor-isolated UIKit/SpriteKit APIs.
+    @MainActor
     class Coordinator: NSObject {
         let viewModel: PresenceViewerSK.ViewModel
         weak var scene: PresenceNetworkScene?
@@ -326,30 +335,31 @@ extension PresenceViewerSK {
 
         // MARK: - Initialization
 
-        init() {
-            Task {
-                await startProductionMode()
-            }
-        }
+        init() {}
 
         // MARK: - Production Mode (Real Ditto Presence)
 
         /// Start observing real Ditto presence graph
         func startProductionMode() async {
+            // The enclosing `.task {}` is cancelled when the view disappears.
+            // Check before and after the await so a rapid appear→disappear can't
+            // register an observer that `stopProductionMode()` already ran past.
+            guard !Task.isCancelled else { return }
             guard let ditto = await DittoManager.shared.dittoSelectedApp else {
                 Log.warning("PresenceViewerViewModel: No Ditto instance available")
                 return
             }
+            guard !Task.isCancelled else { return }
 
             presenceObserver = ditto.presence.observe { [weak self] presenceGraph in
                 // Ditto presence callbacks fire on a background thread — hop to main before
                 // touching @MainActor state or any SpriteKit node tree APIs.
-                DispatchQueue.main.async { [weak self] in
+                let localPeer = presenceGraph.localPeer
+                let remotePeers = Array(presenceGraph.remotePeers)
+                Task { @MainActor [weak self] in
                     guard let self else { return }
-
-                    rawLocalPeer = presenceGraph.localPeer
-                    rawRemotePeers = Array(presenceGraph.remotePeers)
-
+                    rawLocalPeer = localPeer
+                    rawRemotePeers = remotePeers
                     updateSceneWithCurrentFilter()
                 }
             }
