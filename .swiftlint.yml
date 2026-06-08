@@ -4,13 +4,13 @@
 
 # Files to include/exclude
 included:
-  - SwiftUI/Edge Debug Helper
+  - SwiftUI/EdgeStudio
 
 excluded:
   - Pods
   - .build
   - DerivedData
-  - SwiftUI/Edge Debug Helper/Utilities/FontAwesomeIcons.swift  # Generated file
+  - SwiftUI/EdgeStudio/Utilities/FontAwesomeIcons.swift  # Generated file
   - SwiftUI/POC  # Proof-of-concept files
   - "*/Tests/*"  # Exclude test files from some rules
 

@@ -243,6 +243,12 @@ final class SubscriptionObserverViewModel {
 
         try await observableRepository.removeDittoObservable(observable)
 
+        // Capture whether the currently-selected event belongs to this observable
+        // BEFORE purging events — `selectedEventObject` resolves `selectedEventId`
+        // via an `eventStore` lookup, so checking it after the removal below would
+        // always see `nil` and leave a stale `selectedEventId`.
+        let selectedEventBelongsToObservable = selectedEventObject?.observeId == observable.id
+
         // remove events for the observable
         eventStore.remove(observerId: observable.id)
         pendingObservedEvents.removeAll { $0.observeId == observable.id }
@@ -250,7 +256,7 @@ final class SubscriptionObserverViewModel {
         if selectedObservable?.id == observable.id {
             selectedObservable = nil
         }
-        if selectedEventObject?.observeId == observable.id {
+        if selectedEventBelongsToObservable {
             selectedEventId = nil
         }
     }

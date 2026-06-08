@@ -5,18 +5,16 @@ enum DittoAppConfigLoader {
     /// Converts mode string values to AuthMode enum, supporting legacy formats
     static func parseMode(from string: String) -> AuthMode? {
         switch string.lowercased() {
-        // Current format - direct mappings
-        case "server":
-            return .server
-        case "smallpeersonly":
-            return .smallPeersOnly
-        // Legacy format mappings
-        case "onlineplayground", "online":
-            return .server
-        case "offlineplayground", "offline":
-            return .server // Deprecated mode, default to server
-        case "sharedkey":
-            return .smallPeersOnly
+        // Current (v5 portal) format
+        case "development":
+            return .development
+        case "smallpeeronly":
+            return .smallPeerOnly
+        // Legacy raw values (pre-v5 enum / older stored configs)
+        case "server", "onlineplayground", "online":
+            return .development
+        case "smallpeersonly", "sharedkey", "offlineplayground", "offline":
+            return .smallPeerOnly
         default:
             return nil
         }

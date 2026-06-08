@@ -828,16 +828,16 @@ extension ContentView {
                     quickstartService.configureEnvFiles(
                         in: extractedDir,
                         databaseId: config.databaseId,
-                        token: config.token,
-                        authUrl: config.authUrl
+                        token: config.developmentToken,
+                        authUrl: config.url
                     )
 
                     quickstartService.updateStatus("Configuring edge-server...")
                     try? quickstartService.configureEdgeServerYaml(
                         in: extractedDir,
                         databaseId: config.databaseId,
-                        token: config.token,
-                        authUrl: config.authUrl
+                        token: config.developmentToken,
+                        authUrl: config.url
                     )
                 }
 

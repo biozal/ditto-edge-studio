@@ -46,7 +46,7 @@ struct DatabaseCard: View {
                 )
                 SecureField(
                     label: "Token",
-                    value: dittoApp.token,
+                    value: dittoApp.developmentToken,
                     isRevealed: $showAuthToken
                 )
             }
@@ -86,7 +86,7 @@ struct DatabaseCard: View {
                 )
                 SecureField(
                     label: "Token",
-                    value: dittoApp.token,
+                    value: dittoApp.developmentToken,
                     isRevealed: $showAuthToken
                 )
             }

@@ -283,14 +283,13 @@ actor AttachmentService {
 
         let fileData = try Data(contentsOf: fileURL)
         var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append(Data("--\(boundary)\r\n".utf8))
         body.append(
-            "Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n"
-                .data(using: .utf8)!
+            Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n".utf8)
         )
-        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(Data("Content-Type: application/octet-stream\r\n\r\n".utf8))
         body.append(fileData)
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
         request.httpBody = body
 
         let session: URLSession = if appConfig.allowUntrustedCerts {

@@ -51,7 +51,7 @@ actor DittoManager {
         withDirectory persistenceDirectory: URL
     ) throws -> DittoConfig {
         switch appConfig.mode {
-        case .smallPeersOnly:
+        case .smallPeerOnly:
             if !appConfig.secretKey.isEmpty {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
@@ -63,9 +63,9 @@ actor DittoManager {
                     connect: .smallPeersOnly()
                 )
             }
-        case .server:
-            guard !appConfig.authUrl.isEmpty, let url = URL(string: appConfig.authUrl) else {
-                throw AppError.error(message: "Invalid configuration - malformed authUrl")
+        case .development:
+            guard !appConfig.url.isEmpty, let url = URL(string: appConfig.url) else {
+                throw AppError.error(message: "Invalid configuration - malformed url")
             }
             return DittoConfig(
                 databaseID: appConfig.databaseId,
@@ -106,11 +106,11 @@ actor DittoManager {
 
             // Validate inputs before trying to create Ditto
             guard !databaseConfig.databaseId.isEmpty,
-                  !databaseConfig.token.isEmpty else
+                  !databaseConfig.developmentToken.isEmpty else
             {
                 throw AppError.error(
                     message:
-                    "Invalid app configuration - missing databaseId or token"
+                    "Invalid app configuration - missing databaseId or developmentToken"
                 )
             }
 
@@ -137,7 +137,7 @@ actor DittoManager {
             // Capture only the values needed by the closure to avoid retaining
             // the DittoManager actor through the SDK-held expirationHandler.
             let capturedAppState = appState
-            let capturedToken = databaseConfig.token
+            let capturedToken = databaseConfig.developmentToken
             ditto.auth?.expirationHandler = { dittoAuth, secondsRemaining in
                 dittoAuth.auth?.login(
                     token: capturedToken,
@@ -153,9 +153,9 @@ actor DittoManager {
                 }
             }
 
-            // For small peers only mode, set the offline license token (using token field)
+            // For small peer only mode, set the offline license token
             if shouldSetOfflineLicenseToken(for: databaseConfig) {
-                try ditto.setOfflineOnlyLicenseToken(databaseConfig.token)
+                try ditto.setOfflineOnlyLicenseToken(databaseConfig.developmentToken)
             }
 
             // Update Device Name to show in presence graph
@@ -250,7 +250,7 @@ actor DittoManager {
     private func shouldSetOfflineLicenseToken(
         for appConfig: DittoConfigForDatabase
     ) -> Bool {
-        appConfig.mode == .smallPeersOnly && !appConfig.token.isEmpty
+        appConfig.mode == .smallPeerOnly && !appConfig.developmentToken.isEmpty
     }
 
     /// Closes the currently selected database only if it matches the given database ID.

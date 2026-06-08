@@ -355,7 +355,7 @@ enum MCPToolHandlers {
             "name": config.name,
             "databaseId": config.databaseId,
             "mode": config.mode.rawValue,
-            "authUrl": config.authUrl,
+            "url": config.url,
             "httpApiUrl": config.httpApiUrl,
             "httpApiConfigured": !config.httpApiUrl.isEmpty && !config.httpApiKey.isEmpty,
             "allowUntrustedCerts": config.allowUntrustedCerts,

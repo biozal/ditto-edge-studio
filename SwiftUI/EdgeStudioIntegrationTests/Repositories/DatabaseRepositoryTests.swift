@@ -63,11 +63,11 @@ struct DatabaseRepositoryTests {
                     id,
                     name: "Full Fields DB",
                     databaseId: "db-full-\(id)",
-                    token: "my-token",
-                    authUrl: "https://auth.test.com",
+                    developmentToken: "my-token",
+                    url: "https://auth.test.com",
                     httpApiUrl: "https://api.test.com",
                     httpApiKey: "api-key-xyz",
-                    mode: .server,
+                    mode: .development,
                     allowUntrustedCerts: false,
                     secretKey: "",
                     isBluetoothLeEnabled: true,
@@ -82,8 +82,8 @@ struct DatabaseRepositoryTests {
 
                 // ASSERT
                 #expect(loaded.count == 1)
-                #expect(loaded[0].token == "my-token")
-                #expect(loaded[0].authUrl == "https://auth.test.com")
+                #expect(loaded[0].developmentToken == "my-token")
+                #expect(loaded[0].url == "https://auth.test.com")
                 #expect(loaded[0].httpApiKey == "api-key-xyz")
                 #expect(loaded[0].isLanEnabled == false)
                 #expect(loaded[0].isCloudSyncEnabled == false)
@@ -171,7 +171,7 @@ struct DatabaseRepositoryTests {
 
                 // Mutate fields
                 original.name = "Updated Name"
-                original.token = "updated-token"
+                original.developmentToken = "updated-token"
 
                 // ACT
                 try await repo.updateDittoAppConfig(original)
@@ -180,7 +180,7 @@ struct DatabaseRepositoryTests {
                 // ASSERT
                 #expect(loaded.count == 1)
                 #expect(loaded[0].name == "Updated Name")
-                #expect(loaded[0].token == "updated-token")
+                #expect(loaded[0].developmentToken == "updated-token")
             }
         }
 

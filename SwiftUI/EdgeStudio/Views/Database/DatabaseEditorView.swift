@@ -134,7 +134,7 @@ struct DatabaseEditorView: View {
                     }
                     .disabled(viewModel.databaseId.isEmpty ||
                         viewModel.name.isEmpty ||
-                        viewModel.token.isEmpty)
+                        viewModel.developmentToken.isEmpty)
                     .accessibilityIdentifier("SaveButton")
                 }
             }
@@ -181,26 +181,26 @@ struct DatabaseEditorView: View {
     @ViewBuilder
     private func authTokenField(for mode: AuthMode) -> some View {
         switch mode {
-        case .server:
-            TextField("Development token", text: $viewModel.token)
+        case .development:
+            TextField("Development token", text: $viewModel.developmentToken)
             #if os(macOS)
                 .textFieldStyle(.roundedBorder)
             #endif
                 .lineLimit(1)
-                .trimOnPaste($viewModel.token)
+                .trimOnPaste($viewModel.developmentToken)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("TokenTextField")
-        case .smallPeersOnly:
-            TextField("Offline Token", text: $viewModel.token)
+        case .smallPeerOnly:
+            TextField("Offline Token", text: $viewModel.developmentToken)
             #if os(macOS)
                 .textFieldStyle(.roundedBorder)
             #endif
                 .lineLimit(1)
-                .trimOnPaste($viewModel.token)
+                .trimOnPaste($viewModel.developmentToken)
                 .padding(.bottom, 5)
                 .accessibilityIdentifier("TokenTextField")
 
-            Text("Required for sync activation in Small Peers Only mode.\nObtain from https://portal.ditto.live")
+            Text("Required for sync activation in Small Peer Only mode.\nObtain from https://portal.ditto.live")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
@@ -210,9 +210,9 @@ struct DatabaseEditorView: View {
     @ViewBuilder
     private func modeSpecificSections(for mode: AuthMode) -> some View {
         switch mode {
-        case .smallPeersOnly:
+        case .smallPeerOnly:
             secretKeySection()
-        case .server:
+        case .development:
             serverInformationSection()
             httpApiSection()
         }
@@ -276,13 +276,13 @@ struct DatabaseEditorView: View {
         // Ditto SDK 5.0 dropped the websocket URL requirement — only the
         // auth URL (now just "URL") is needed.
         Section("Ditto Server (BigPeer) Information") {
-            TextField("URL", text: $viewModel.authUrl)
+            TextField("URL", text: $viewModel.url)
             #if os(macOS)
                 .textFieldStyle(.roundedBorder)
             #endif
                 .lineLimit(1)
                 .padding(.bottom, 10)
-                .accessibilityIdentifier("AuthUrlTextField")
+                .accessibilityIdentifier("UrlTextField")
         }
     }
 
@@ -333,8 +333,8 @@ extension DatabaseEditorView {
     fileprivate struct OriginalSnapshot: Equatable {
         let name: String
         let databaseId: String
-        let token: String
-        let authUrl: String
+        let developmentToken: String
+        let url: String
         let httpApiUrl: String
         let httpApiKey: String
         let mode: AuthMode
@@ -350,8 +350,8 @@ extension DatabaseEditorView {
         let _id: String
         var name: String
         var databaseId: String
-        var token: String
-        var authUrl: String
+        var developmentToken: String
+        var url: String
         var httpApiUrl: String
         var httpApiKey: String
         var mode: AuthMode
@@ -375,8 +375,8 @@ extension DatabaseEditorView {
             _id = appConfig._id
             name = appConfig.name
             databaseId = appConfig.databaseId
-            token = appConfig.token
-            authUrl = appConfig.authUrl
+            developmentToken = appConfig.developmentToken
+            url = appConfig.url
             httpApiUrl = appConfig.httpApiUrl
             httpApiKey = appConfig.httpApiKey
             mode = appConfig.mode
@@ -392,8 +392,8 @@ extension DatabaseEditorView {
             original = OriginalSnapshot(
                 name: appConfig.name,
                 databaseId: appConfig.databaseId,
-                token: appConfig.token,
-                authUrl: appConfig.authUrl,
+                developmentToken: appConfig.developmentToken,
+                url: appConfig.url,
                 httpApiUrl: appConfig.httpApiUrl,
                 httpApiKey: appConfig.httpApiKey,
                 mode: appConfig.mode,
@@ -417,8 +417,8 @@ extension DatabaseEditorView {
         var hasUnsavedChanges: Bool {
             name != original.name
                 || databaseId != original.databaseId
-                || token != original.token
-                || authUrl != original.authUrl
+                || developmentToken != original.developmentToken
+                || url != original.url
                 || httpApiUrl != original.httpApiUrl
                 || httpApiKey != original.httpApiKey
                 || mode != original.mode
@@ -437,8 +437,8 @@ extension DatabaseEditorView {
                     _id,
                     name: name,
                     databaseId: trimmedDatabaseId,
-                    token: token.trimmingCharacters(in: .whitespacesAndNewlines),
-                    authUrl: authUrl,
+                    developmentToken: developmentToken.trimmingCharacters(in: .whitespacesAndNewlines),
+                    url: url,
                     httpApiUrl: httpApiUrl,
                     httpApiKey: httpApiKey,
                     mode: mode,

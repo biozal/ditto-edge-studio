@@ -21,21 +21,21 @@ struct ModelTests {
     @Suite("DittoConfigForDatabase")
     struct DittoConfigForDatabaseTests {
 
-        @Test("Default mode is server", .tags(.model, .fast))
+        @Test("Default mode is development", .tags(.model, .fast))
         func testDefaultMode() {
             // ARRANGE & ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
                 name: "Test",
                 databaseId: "db-1",
-                token: "",
-                authUrl: "",
+                developmentToken: "",
+                url: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
 
             // ASSERT
-            #expect(config.mode == .server)
+            #expect(config.mode == .development)
         }
 
         @Test("Default transport flags are all enabled", .tags(.model, .fast))
@@ -45,8 +45,8 @@ struct ModelTests {
                 UUID().uuidString,
                 name: "Test",
                 databaseId: "db-1",
-                token: "",
-                authUrl: "",
+                developmentToken: "",
+                url: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -65,8 +65,8 @@ struct ModelTests {
                 UUID().uuidString,
                 name: "Test",
                 databaseId: "db-1",
-                token: "",
-                authUrl: "",
+                developmentToken: "",
+                url: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -87,11 +87,11 @@ struct ModelTests {
                 id,
                 name: name,
                 databaseId: dbId,
-                token: "tok",
-                authUrl: "https://auth.example.com",
+                developmentToken: "tok",
+                url: "https://auth.example.com",
                 httpApiUrl: "https://api.example.com",
                 httpApiKey: "key-123",
-                mode: .smallPeersOnly,
+                mode: .smallPeerOnly,
                 allowUntrustedCerts: true,
                 secretKey: "secret",
                 isBluetoothLeEnabled: false,
@@ -105,11 +105,11 @@ struct ModelTests {
             #expect(config._id == id)
             #expect(config.name == name)
             #expect(config.databaseId == dbId)
-            #expect(config.token == "tok")
-            #expect(config.authUrl == "https://auth.example.com")
+            #expect(config.developmentToken == "tok")
+            #expect(config.url == "https://auth.example.com")
             #expect(config.httpApiUrl == "https://api.example.com")
             #expect(config.httpApiKey == "key-123")
-            #expect(config.mode == .smallPeersOnly)
+            #expect(config.mode == .smallPeerOnly)
             #expect(config.allowUntrustedCerts == true)
             #expect(config.secretKey == "secret")
             #expect(config.isBluetoothLeEnabled == false)
@@ -126,8 +126,8 @@ struct ModelTests {
                 UUID().uuidString,
                 name: "Test",
                 databaseId: "db-1",
-                token: "",
-                authUrl: "",
+                developmentToken: "",
+                url: "",
                 httpApiUrl: "",
                 httpApiKey: ""
             )
@@ -143,8 +143,8 @@ struct ModelTests {
                 UUID().uuidString,
                 name: "Strict DB",
                 databaseId: "db-strict",
-                token: "",
-                authUrl: "",
+                developmentToken: "",
+                url: "",
                 httpApiUrl: "",
                 httpApiKey: "",
                 isStrictModeEnabled: true
@@ -166,7 +166,7 @@ struct ModelTests {
                 "authUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
-                "mode": "server"
+                "mode": "development"
             }
             """
 
@@ -190,7 +190,7 @@ struct ModelTests {
                 "authUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
-                "mode": "server",
+                "mode": "development",
                 "isStrictModeEnabled": true
             }
             """
@@ -225,17 +225,17 @@ struct ModelTests {
             // ASSERT: fields are empty
             #expect(config1.name == "")
             #expect(config1.databaseId == "")
-            #expect(config1.token == "")
+            #expect(config1.developmentToken == "")
             #expect(config1.secretKey == "")
         }
 
-        @Test("new() factory defaults to server mode", .tags(.model, .fast))
+        @Test("new() factory defaults to development mode", .tags(.model, .fast))
         func testNewFactoryDefaultMode() {
             // ACT
             let config = DittoConfigForDatabase.new()
 
             // ASSERT
-            #expect(config.mode == .server)
+            #expect(config.mode == .development)
         }
 
         @Test("Decodable round-trip preserves all fields", .tags(.model, .fast))
@@ -250,7 +250,7 @@ struct ModelTests {
                 "authUrl": "https://auth.example.com",
                 "httpApiUrl": "https://api.example.com",
                 "httpApiKey": "api-key",
-                "mode": "server",
+                "mode": "development",
                 "allowUntrustedCerts": false,
                 "secretKey": "",
                 "isBluetoothLeEnabled": true,
@@ -268,8 +268,8 @@ struct ModelTests {
             #expect(decoded._id == "decode-id-1")
             #expect(decoded.name == "Decoded DB")
             #expect(decoded.databaseId == "db-decoded")
-            #expect(decoded.token == "my-token")
-            #expect(decoded.mode == .server)
+            #expect(decoded.developmentToken == "my-token")
+            #expect(decoded.mode == .development)
             #expect(decoded.allowUntrustedCerts == false)
             #expect(decoded.isBluetoothLeEnabled == true)
             #expect(decoded.isAwdlEnabled == false)
@@ -287,7 +287,7 @@ struct ModelTests {
                 "authUrl": "",
                 "httpApiUrl": "",
                 "httpApiKey": "",
-                "mode": "server"
+                "mode": "development"
             }
             """
 
@@ -309,12 +309,12 @@ struct ModelTests {
 
             // ACT
             config.name = "Updated Name"
-            config.mode = .smallPeersOnly
+            config.mode = .smallPeerOnly
             config.isBluetoothLeEnabled = false
 
             // ASSERT
             #expect(config.name == "Updated Name")
-            #expect(config.mode == .smallPeersOnly)
+            #expect(config.mode == .smallPeerOnly)
             #expect(config.isBluetoothLeEnabled == false)
         }
     }
@@ -583,26 +583,26 @@ struct ModelTests {
             #expect(AuthMode.allCases.count == 2)
         }
 
-        @Test("server raw value is 'server'", .tags(.model, .fast))
+        @Test("development raw value is 'development'", .tags(.model, .fast))
         func testServerRawValue() {
-            #expect(AuthMode.server.rawValue == "server")
+            #expect(AuthMode.development.rawValue == "development")
         }
 
-        @Test("smallPeersOnly raw value is 'smallpeersonly'", .tags(.model, .fast))
+        @Test("smallPeerOnly raw value is 'smallPeerOnly'", .tags(.model, .fast))
         func testSmallPeersOnlyRawValue() {
-            #expect(AuthMode.smallPeersOnly.rawValue == "smallpeersonly")
+            #expect(AuthMode.smallPeerOnly.rawValue == "smallPeerOnly")
         }
 
-        @Test("Raw value round-trip works for server", .tags(.model, .fast))
+        @Test("Raw value round-trip works for development", .tags(.model, .fast))
         func testRawValueRoundTripServer() {
-            let mode = AuthMode(rawValue: "server")
-            #expect(mode == .server)
+            let mode = AuthMode(rawValue: "development")
+            #expect(mode == .development)
         }
 
-        @Test("Raw value round-trip works for smallPeersOnly", .tags(.model, .fast))
+        @Test("Raw value round-trip works for smallPeerOnly", .tags(.model, .fast))
         func testRawValueRoundTripSmallPeers() {
-            let mode = AuthMode(rawValue: "smallpeersonly")
-            #expect(mode == .smallPeersOnly)
+            let mode = AuthMode(rawValue: "smallPeerOnly")
+            #expect(mode == .smallPeerOnly)
         }
 
         @Test("Invalid raw value returns nil", .tags(.model, .fast))
@@ -611,19 +611,19 @@ struct ModelTests {
             #expect(mode == nil)
         }
 
-        @Test("server displayName is Server", .tags(.model, .fast))
+        @Test("development displayName is Development", .tags(.model, .fast))
         func testServerDisplayName() {
-            #expect(AuthMode.server.displayName == "Server")
+            #expect(AuthMode.development.displayName == "Development")
         }
 
-        @Test("smallPeersOnly displayName is Small Peers Only", .tags(.model, .fast))
+        @Test("smallPeerOnly displayName is Small Peer Only", .tags(.model, .fast))
         func testSmallPeersOnlyDisplayName() {
-            #expect(AuthMode.smallPeersOnly.displayName == "Small Peers Only")
+            #expect(AuthMode.smallPeerOnly.displayName == "Small Peer Only")
         }
 
-        @Test("Default mode is server", .tags(.model, .fast))
+        @Test("Default mode is development", .tags(.model, .fast))
         func testDefaultMode() {
-            #expect(AuthMode.default == .server)
+            #expect(AuthMode.default == .development)
         }
 
         @Test("Codable encode and decode round-trip", .tags(.model, .fast))
@@ -632,14 +632,14 @@ struct ModelTests {
             struct Wrapper: Codable {
                 let mode: AuthMode
             }
-            let wrapper = Wrapper(mode: .smallPeersOnly)
+            let wrapper = Wrapper(mode: .smallPeerOnly)
 
             // ACT
             let data = try JSONEncoder().encode(wrapper)
             let decoded = try JSONDecoder().decode(Wrapper.self, from: data)
 
             // ASSERT
-            #expect(decoded.mode == .smallPeersOnly)
+            #expect(decoded.mode == .smallPeerOnly)
         }
     }
 }

@@ -4,19 +4,19 @@
 <dict>
     <key>databases</key>
     <array>
-        <!-- ONLINE PLAYGROUND EXAMPLE -->
-        <!-- Required fields: name, mode, appId, authToken, authUrl, httpApiUrl, httpApiKey -->
+        <!-- DEVELOPMENT EXAMPLE (Ditto v5 portal: "Development" mode) -->
+        <!-- Required fields: name, mode, databaseId, developmentToken, url -->
         <dict>
             <key>name</key>
-            <string>Test Online Playground</string>
+            <string>Test Development</string>
             <key>mode</key>
-            <string>onlineplayground</string>
-            <key>appId</key>
-            <string>your-app-id-here</string>
-            <key>authToken</key>
-            <string>your-auth-token-here</string>
-            <key>authUrl</key>
-            <string>https://your-auth-url-here.com</string>
+            <string>development</string>
+            <key>databaseId</key>
+            <string>your-database-id-here</string>
+            <key>developmentToken</key>
+            <string>your-development-token-here</string>
+            <key>url</key>
+            <string>https://your-url-here.com</string>
             <key>httpApiUrl</key>
             <string>https://your-http-api-url-here.com</string>
             <key>httpApiKey</key>
@@ -35,56 +35,22 @@
             <false/>
         </dict>
 
-        <!-- OFFLINE PLAYGROUND EXAMPLE -->
-        <!-- Required fields: name, mode, appId -->
-        <!-- Auth fields not required for offline mode -->
+        <!-- SMALL PEER ONLY EXAMPLE (Ditto v5 portal: "Small Peer Only" mode) -->
+        <!-- Required fields: name, mode, databaseId -->
+        <!-- url / httpApi fields are not used in small-peer-only mode. -->
+        <!-- Provide either an offline developmentToken or a secretKey. -->
         <dict>
             <key>name</key>
-            <string>Test Offline Playground</string>
+            <string>Test Small Peer Only</string>
             <key>mode</key>
-            <string>offlineplayground</string>
-            <key>appId</key>
-            <string>your-offline-app-id-here</string>
-            <!-- Auth fields can be empty for offline mode -->
-            <key>authToken</key>
+            <string>smallPeerOnly</string>
+            <key>databaseId</key>
+            <string>your-small-peer-database-id-here</string>
+            <!-- Offline license token (obtain from https://portal.ditto.live) -->
+            <key>developmentToken</key>
             <string></string>
-            <key>authUrl</key>
-            <string></string>
-            <key>httpApiUrl</key>
-            <string></string>
-            <key>httpApiKey</key>
-            <string></string>
-            <!-- Transport settings (usually all enabled for offline) -->
-            <key>isBluetoothLeEnabled</key>
-            <true/>
-            <key>isLanEnabled</key>
-            <true/>
-            <key>isAwdlEnabled</key>
-            <true/>
-            <key>isCloudSyncEnabled</key>
-            <false/>
-        </dict>
-
-        <!-- SHARED KEY EXAMPLE -->
-        <!-- Required fields: name, mode, appId, secretKey -->
-        <!-- Auth URLs not typically required for shared key -->
-        <dict>
-            <key>name</key>
-            <string>Test Shared Key</string>
-            <key>mode</key>
-            <string>sharedkey</string>
-            <key>appId</key>
-            <string>your-shared-key-app-id-here</string>
+            <!-- OR a 32-character shared secret key -->
             <key>secretKey</key>
-            <string>your-32-character-secret-key-here</string>
-            <!-- Auth fields not typically used with shared key -->
-            <key>authToken</key>
-            <string></string>
-            <key>authUrl</key>
-            <string></string>
-            <key>httpApiUrl</key>
-            <string></string>
-            <key>httpApiKey</key>
             <string></string>
             <!-- Transport settings -->
             <key>isBluetoothLeEnabled</key>
@@ -98,7 +64,7 @@
         </dict>
 
         <!-- Add more database configurations as needed -->
-        <!-- You can have multiple databases of the same or different types -->
+        <!-- You can have multiple databases of the same or different modes -->
     </array>
 </dict>
 </plist>

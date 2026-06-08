@@ -76,7 +76,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
                 return (lhsIntersect.width * lhsIntersect.height) < (rhsIntersect.width * rhsIntersect.height)
             })
 
-            if let screen = targetScreen, !screen.visibleFrame.intersection(frame).isEmpty {
+            if let screen = targetScreen, screen.visibleFrame.intersects(frame) {
                 let visible = screen.visibleFrame
 
                 // Clamp window size so it never exceeds the screen
