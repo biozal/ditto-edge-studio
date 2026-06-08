@@ -29,6 +29,11 @@ import XCTest
 /// plus a set of helpers that mirror docs/TESTING.md. Helpers that depend on
 /// real credentials or system permissions throw `XCTSkip` when those are
 /// unavailable so the suite stays green in credential-less CI.
+///
+/// `@MainActor`: the Xcode 26 SDK isolates `XCUIApplication`/`XCUIElement` to the
+/// main actor, so the whole test case (lifecycle + helpers + subclass test
+/// methods, which inherit this isolation) runs on the main actor.
+@MainActor
 class UITestBase: XCTestCase {
 
     // MARK: - Stored State
@@ -50,8 +55,11 @@ class UITestBase: XCTestCase {
 
     // MARK: - Lifecycle
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    // Launch the app fresh for each test. `@MainActor` because the whole class is
+    // main-actor isolated and these touch the `@MainActor` XCUITest APIs.
+    @MainActor
+    override func setUp() async throws {
+        try await super.setUp()
 
         // Stop on first failure within a single test method — failures past the
         // first are almost always noise from a broken precondition.
@@ -67,10 +75,17 @@ class UITestBase: XCTestCase {
         activateAppWindow()
     }
 
-    override func tearDownWithError() throws {
-        app?.terminate()
+    @MainActor
+    override func tearDown() async throws {
+        // Only terminate an app that's actually running. Calling `terminate()` on
+        // an app the system already killed (e.g. XCUITest force-quit it after a
+        // window-activation timeout) records a spurious "Failed to terminate"
+        // failure that has nothing to do with the test body.
+        if let app, app.state == .runningForeground || app.state == .runningBackground {
+            app.terminate()
+        }
         app = nil
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     // MARK: - Window Activation (macOS workaround)
@@ -168,7 +183,7 @@ class UITestBase: XCTestCase {
 
         let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
 
-        guard let databases = (plist as? [String: Any])?["databases"] as? [[String: Any]],
+        guard let databases = plist?["databases"] as? [[String: Any]],
               !databases.isEmpty
         else {
             throw XCTSkip("testDatabaseConfig.plist missing a non-empty 'databases' array.")

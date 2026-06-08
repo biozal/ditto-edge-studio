@@ -239,7 +239,7 @@
 			);
 			productName = EdgeStudioUITests;
 			productReference = 0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -773,7 +773,6 @@
 		0DD95EC32F4585430063C203 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
@@ -793,7 +792,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Debug;
@@ -801,7 +800,6 @@
 		0DD95EC42F4585430063C203 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
@@ -821,7 +819,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Release;
