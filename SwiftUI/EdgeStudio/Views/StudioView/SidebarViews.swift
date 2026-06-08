@@ -46,11 +46,7 @@ extension MainStudioView {
                         #endif
                     }
                     .buttonStyle(.plain)
-                    // Stable per-destination identifier for XCUITest. These are
-                    // real Button rows (not a segmented Picker), so XCUITest can
-                    // tap them directly by identifier — e.g. "NavItem_query" for
-                    // the Query/Collections destination. Uses the enum rawValue so
-                    // the id stays in sync with SidebarDestination.
+                    // Stable per-destination identifier for XCUITest (NavItem_query, …).
                     .accessibilityIdentifier("NavItem_\(destination.rawValue)")
                     .listRowBackground(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -212,7 +208,6 @@ extension MainStudioView {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("SubscriptionRow_\(sub.name)")
             }
             .contextMenu {
                 Button("Edit") { presentSubscriptionEditor(sub) }
@@ -298,37 +293,6 @@ extension MainStudioView {
 
     // MARK: - Observer Tree
 
-    // MARK: - Observer Actions (single source of truth)
-
-    //
-    // The sidebar toggle button, the macOS context menu, and the iOS swipe
-    // action all route through these — there is exactly ONE activate/stop/delete
-    // code path, so the affordances can never diverge.
-
-    func activateObserver(_ observer: DittoObservable) {
-        Task {
-            do {
-                try await viewModel.subObsVM.registerStoreObserver(observer)
-                viewModel.subObsVM.selectedObservable = observer
-                viewModel.selectedSidebarDestination = .observers
-            } catch { appState.setError(error) }
-        }
-    }
-
-    func stopObserver(_ observer: DittoObservable) {
-        Task {
-            do { try await viewModel.subObsVM.removeStoreObserver(observer) }
-            catch { appState.setError(error) }
-        }
-    }
-
-    func deleteObserver(_ observer: DittoObservable) {
-        Task {
-            do { try await viewModel.subObsVM.deleteObservable(observer) }
-            catch { appState.setError(error) }
-        }
-    }
-
     private func observerTreeRows() -> some View {
         ForEach(viewModel.subObsVM.observerables) { observer in
             DisclosureGroup(isExpanded: expandedObserverBinding(for: observer)) {
@@ -342,70 +306,61 @@ extension MainStudioView {
                 }
                 .padding(.leading, 4)
             } label: {
-                // Top-aligned so the play/stop button stays pinned to the first
-                // line while the name wraps beneath it in the narrow sidebar.
-                HStack(alignment: .top, spacing: 8) {
-                    // Tappable name area — takes all remaining width and wraps
-                    // vertically rather than truncating, so long names stay
-                    // fully readable even with the trailing button.
-                    HStack(alignment: .top, spacing: 8) {
+                Button {
+                    toggleObserverExpansion(observer.id)
+                    viewModel.subObsVM.selectedObservable = observer
+                    viewModel.selectedSidebarDestination = .observers
+                } label: {
+                    HStack(spacing: 8) {
                         Image(systemName: "eye")
                             .foregroundStyle(.secondary)
                         Text(observer.name)
                             .font(sidebarItemFont)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        toggleObserverExpansion(observer.id)
-                        viewModel.subObsVM.selectedObservable = observer
-                        viewModel.selectedSidebarDestination = .observers
-                    }
-                    .accessibilityIdentifier("ObserverRow_\(observer.name)")
-
-                    // Inline Activate/Stop toggle. Icon + color convey state
-                    // (green stop = active, secondary play = idle), replacing the
-                    // old text "Active" badge while adding a one-tap action that
-                    // doesn't require the right-click context menu (still kept).
-                    Button {
-                        if observer.storeObserver == nil {
-                            activateObserver(observer)
-                        } else {
-                            stopObserver(observer)
+                        Spacer()
+                        if observer.storeObserver != nil {
+                            Text("Active")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
                         }
-                    } label: {
-                        // Green = actively observing, red = idle.
-                        Image(systemName: observer.storeObserver != nil ? "stop.circle.fill" : "play.circle.fill")
-                            .foregroundStyle(observer.storeObserver != nil ? Color.green : Color.red)
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("ObserverToggle_\(observer.name)")
-                    // Expose active/idle so UI tests can read state without
-                    // guessing from the (inaccessible) SF Symbol name.
-                    .accessibilityValue(observer.storeObserver != nil ? "active" : "idle")
-                    .help(observer.storeObserver != nil ? "Stop observing" : "Activate observer")
                 }
+                .buttonStyle(.plain)
             }
             #if os(macOS)
             .contextMenu {
                 if observer.storeObserver == nil {
                     Button {
-                        activateObserver(observer)
+                        Task {
+                            do {
+                                try await viewModel.subObsVM.registerStoreObserver(observer)
+                                viewModel.subObsVM.selectedObservable = observer
+                                viewModel.selectedSidebarDestination = .observers
+                            } catch { appState.setError(error) }
+                        }
                     } label: {
                         Label("Activate", systemImage: "play.circle")
                             .labelStyle(.titleAndIcon)
                     }
                 } else {
                     Button {
-                        stopObserver(observer)
+                        Task {
+                            do {
+                                try await viewModel.subObsVM.removeStoreObserver(
+                                    observer
+                                )
+                            } catch { appState.setError(error) }
+                        }
                     } label: {
                         Label("Stop", systemImage: "stop.circle")
                             .labelStyle(.titleAndIcon)
                     }
                 }
                 Button {
-                    deleteObserver(observer)
+                    Task {
+                        do {
+                            try await viewModel.subObsVM.deleteObservable(observer)
+                        } catch { appState.setError(error) }
+                    }
                 } label: {
                     Label("Delete", systemImage: "trash")
                         .labelStyle(.titleAndIcon)
@@ -415,13 +370,25 @@ extension MainStudioView {
             .swipeActions(edge: .trailing) {
                     if observer.storeObserver == nil {
                         Button {
-                            activateObserver(observer)
+                            Task {
+                                do {
+                                    try await viewModel.subObsVM.registerStoreObserver(observer)
+                                    viewModel.subObsVM.selectedObservable = observer
+                                    viewModel.selectedSidebarDestination = .observers
+                                } catch { appState.setError(error) }
+                            }
                         } label: {
                             Label("Activate", systemImage: "play.circle")
                         }
                     } else {
                         Button {
-                            stopObserver(observer)
+                            Task {
+                                do {
+                                    try await viewModel.subObsVM.removeStoreObserver(
+                                        observer
+                                    )
+                                } catch { appState.setError(error) }
+                            }
                         } label: {
                             Label("Stop", systemImage: "stop.circle")
                         }
@@ -429,7 +396,11 @@ extension MainStudioView {
                 }
                 .swipeActions(edge: .leading) {
                     Button(role: .destructive) {
-                        deleteObserver(observer)
+                        Task {
+                            do {
+                                try await viewModel.subObsVM.deleteObservable(observer)
+                            } catch { appState.setError(error) }
+                        }
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
