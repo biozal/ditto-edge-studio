@@ -120,6 +120,13 @@ final class SubscriptionObserverViewModel {
         selectedEventId = nil
         selectedObservable = nil
 
+        // Cancel any live store observers BEFORE dropping their references.
+        // Otherwise the underlying DittoStoreObserver keeps running and its
+        // callback fires after teardown on a freed result, which traps.
+        for observable in observerables {
+            observable.storeObserver?.cancel()
+        }
+
         subscriptions = []
         observerables = []
         cancelObservedEventFlush()
@@ -296,10 +303,20 @@ final class SubscriptionObserverViewModel {
         let observer = try ditto.store.registerObserver(
             query: observable.query
         ) { [weak self] results in
+            // Defensive guard: only proceed if the view model is still alive.
+            // The callback can fire on a later emission after the observer
+            // should have stopped (teardown / orphaned observer); processing a
+            // stale result then traps. Bail instead of crashing.
+            guard self != nil else { return }
+
+            // Read the result's items ONCE — they are cursors; re-accessing or
+            // holding them across emissions is unsafe per the Ditto SDK.
+            let items = results.items
+
             // required to show the end user when the event fired
             var event = DittoObserveEvent.new(observeId: observableId)
 
-            let diff = dittoDiffer.diff(results.items)
+            let diff = dittoDiffer.diff(items)
 
             event.eventTime = Date.now.ISO8601Format()
 
@@ -314,7 +331,7 @@ final class SubscriptionObserverViewModel {
             // released within the callback. Leaving them materialized makes a
             // SUBSEQUENT emission deliver an invalid/freed result, which traps
             // in the callback — the multi-fire crash seen on activation.
-            event.data = results.items.compactMap { item -> String? in
+            event.data = items.compactMap { item -> String? in
                 let data = item.jsonData()
                 item.dematerialize()
                 return String(data: data, encoding: .utf8)
