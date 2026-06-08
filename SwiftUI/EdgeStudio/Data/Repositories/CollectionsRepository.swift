@@ -31,10 +31,12 @@ actor CollectionsRepository {
             let results = try await ditto.store.execute(query: query)
             var collections = results.items.compactMap { item in
                 do {
-                    let decodedItem = try decoder.decode(
-                        DittoCollection.self,
-                        from: item.jsonData()
-                    )
+                    // Serialize from the item's value dictionary (catchable)
+                    // instead of item.jsonData(), which traps on documents it
+                    // can't serialize.
+                    let cleaned = item.value.compactMapValues { $0 }
+                    let json = try JSONSerialization.data(withJSONObject: cleaned, options: [.fragmentsAllowed])
+                    let decodedItem = try decoder.decode(DittoCollection.self, from: json)
                     item.dematerialize()
                     return decodedItem
                 } catch {
@@ -66,10 +68,9 @@ actor CollectionsRepository {
 
                     var updatedCollections = results.items.compactMap { item -> DittoCollection? in
                         do {
-                            let decodedItem = try self.decoder.decode(
-                                DittoCollection.self,
-                                from: item.jsonData()
-                            )
+                            let cleaned = item.value.compactMapValues { $0 }
+                            let json = try JSONSerialization.data(withJSONObject: cleaned, options: [.fragmentsAllowed])
+                            let decodedItem = try self.decoder.decode(DittoCollection.self, from: json)
                             item.dematerialize()
                             return decodedItem
                         } catch {
@@ -114,10 +115,11 @@ actor CollectionsRepository {
         let results = try await ditto.store.execute(query: "SELECT * FROM system:indexes")
         var indexesByCollection: [String: [DittoIndex]] = [:]
         for item in results.items {
-            let jsonData = item.jsonData()
+            // Use the item's value dictionary directly instead of item.jsonData(),
+            // which traps on documents it can't serialize.
+            let json = item.value.compactMapValues { $0 }
             item.dematerialize()
-            guard let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let id = json["_id"] as? String,
+            guard let id = json["_id"] as? String,
                   let collection = json["collection"] as? String else
             {
                 Log.warning("Skipping index item: missing _id or collection field")
@@ -189,10 +191,9 @@ actor CollectionsRepository {
 
         var collections = results.items.compactMap { item -> DittoCollection? in
             do {
-                let decodedItem = try decoder.decode(
-                    DittoCollection.self,
-                    from: item.jsonData()
-                )
+                let cleaned = item.value.compactMapValues { $0 }
+                let json = try JSONSerialization.data(withJSONObject: cleaned, options: [.fragmentsAllowed])
+                let decodedItem = try decoder.decode(DittoCollection.self, from: json)
                 item.dematerialize()
                 return decodedItem
             } catch {
