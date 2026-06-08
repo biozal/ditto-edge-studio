@@ -298,6 +298,37 @@ extension MainStudioView {
 
     // MARK: - Observer Tree
 
+    // MARK: - Observer Actions (single source of truth)
+
+    //
+    // The sidebar toggle button, the macOS context menu, and the iOS swipe
+    // action all route through these — there is exactly ONE activate/stop/delete
+    // code path, so the affordances can never diverge.
+
+    func activateObserver(_ observer: DittoObservable) {
+        Task {
+            do {
+                try await viewModel.subObsVM.registerStoreObserver(observer)
+                viewModel.subObsVM.selectedObservable = observer
+                viewModel.selectedSidebarDestination = .observers
+            } catch { appState.setError(error) }
+        }
+    }
+
+    func stopObserver(_ observer: DittoObservable) {
+        Task {
+            do { try await viewModel.subObsVM.removeStoreObserver(observer) }
+            catch { appState.setError(error) }
+        }
+    }
+
+    func deleteObserver(_ observer: DittoObservable) {
+        Task {
+            do { try await viewModel.subObsVM.deleteObservable(observer) }
+            catch { appState.setError(error) }
+        }
+    }
+
     private func observerTreeRows() -> some View {
         ForEach(viewModel.subObsVM.observerables) { observer in
             DisclosureGroup(isExpanded: expandedObserverBinding(for: observer)) {
@@ -338,16 +369,10 @@ extension MainStudioView {
                     // old text "Active" badge while adding a one-tap action that
                     // doesn't require the right-click context menu (still kept).
                     Button {
-                        Task {
-                            do {
-                                if observer.storeObserver == nil {
-                                    try await viewModel.subObsVM.registerStoreObserver(observer)
-                                    viewModel.subObsVM.selectedObservable = observer
-                                    viewModel.selectedSidebarDestination = .observers
-                                } else {
-                                    try await viewModel.subObsVM.removeStoreObserver(observer)
-                                }
-                            } catch { appState.setError(error) }
+                        if observer.storeObserver == nil {
+                            activateObserver(observer)
+                        } else {
+                            stopObserver(observer)
                         }
                     } label: {
                         // Green = actively observing, red = idle.
@@ -366,37 +391,21 @@ extension MainStudioView {
             .contextMenu {
                 if observer.storeObserver == nil {
                     Button {
-                        Task {
-                            do {
-                                try await viewModel.subObsVM.registerStoreObserver(observer)
-                                viewModel.subObsVM.selectedObservable = observer
-                                viewModel.selectedSidebarDestination = .observers
-                            } catch { appState.setError(error) }
-                        }
+                        activateObserver(observer)
                     } label: {
                         Label("Activate", systemImage: "play.circle")
                             .labelStyle(.titleAndIcon)
                     }
                 } else {
                     Button {
-                        Task {
-                            do {
-                                try await viewModel.subObsVM.removeStoreObserver(
-                                    observer
-                                )
-                            } catch { appState.setError(error) }
-                        }
+                        stopObserver(observer)
                     } label: {
                         Label("Stop", systemImage: "stop.circle")
                             .labelStyle(.titleAndIcon)
                     }
                 }
                 Button {
-                    Task {
-                        do {
-                            try await viewModel.subObsVM.deleteObservable(observer)
-                        } catch { appState.setError(error) }
-                    }
+                    deleteObserver(observer)
                 } label: {
                     Label("Delete", systemImage: "trash")
                         .labelStyle(.titleAndIcon)
@@ -406,25 +415,13 @@ extension MainStudioView {
             .swipeActions(edge: .trailing) {
                     if observer.storeObserver == nil {
                         Button {
-                            Task {
-                                do {
-                                    try await viewModel.subObsVM.registerStoreObserver(observer)
-                                    viewModel.subObsVM.selectedObservable = observer
-                                    viewModel.selectedSidebarDestination = .observers
-                                } catch { appState.setError(error) }
-                            }
+                            activateObserver(observer)
                         } label: {
                             Label("Activate", systemImage: "play.circle")
                         }
                     } else {
                         Button {
-                            Task {
-                                do {
-                                    try await viewModel.subObsVM.removeStoreObserver(
-                                        observer
-                                    )
-                                } catch { appState.setError(error) }
-                            }
+                            stopObserver(observer)
                         } label: {
                             Label("Stop", systemImage: "stop.circle")
                         }
@@ -432,11 +429,7 @@ extension MainStudioView {
                 }
                 .swipeActions(edge: .leading) {
                     Button(role: .destructive) {
-                        Task {
-                            do {
-                                try await viewModel.subObsVM.deleteObservable(observer)
-                            } catch { appState.setError(error) }
-                        }
+                        deleteObserver(observer)
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
