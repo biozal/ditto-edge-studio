@@ -163,6 +163,19 @@ class UITestBase: XCTestCase {
         }
     }
 
+    // MARK: - Waiting
+
+    /// Waits for an element to *stop* existing. Condition-based (no `sleep()`),
+    /// per docs/TESTING.md. Used to assert a view went away after a transition
+    /// (e.g. the query editor disappearing when navigating off the Query
+    /// destination, or the inspector closing).
+    @discardableResult
+    func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     // MARK: - Loading
 
     /// Waits for the app to finish its initial load by waiting for the

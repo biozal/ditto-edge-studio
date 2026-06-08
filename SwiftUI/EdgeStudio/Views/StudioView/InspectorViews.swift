@@ -90,6 +90,11 @@ extension MainStudioView {
                 .padding()
             }
         }
+        // Container anchor so UI tests can reliably detect the inspector being
+        // open. `.contain` keeps children (history/favorites rows) individually
+        // queryable; the segmented picker alone doesn't reliably surface.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("QueryInspectorView")
     }
 
     func observeDetailInspectorView() -> some View {
