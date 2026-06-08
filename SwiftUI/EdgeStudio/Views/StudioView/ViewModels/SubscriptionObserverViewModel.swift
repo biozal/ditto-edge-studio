@@ -316,6 +316,23 @@ final class SubscriptionObserverViewModel {
             // required to show the end user when the event fired
             var event = DittoObserveEvent.new(observeId: observableId)
 
+            // Extract each document's JSON FIRST, while the cursors are fresh
+            // (the diff below may invalidate them). Use item.value +
+            // JSONSerialization, which THROWS on a value it can't serialize and
+            // is caught here — unlike item.jsonData(), which TRAPS
+            // (EXC_BREAKPOINT) inside the SDK on such a document and takes down
+            // the whole callback. A bad document is skipped instead of crashing.
+            event.data = items.compactMap { item -> String? in
+                let cleaned = item.value.compactMapValues { $0 }
+                guard let data = try? JSONSerialization.data(
+                    withJSONObject: cleaned,
+                    options: [.fragmentsAllowed, .sortedKeys, .withoutEscapingSlashes]
+                ) else {
+                    return nil
+                }
+                return String(data: data, encoding: .utf8)
+            }
+
             let diff = dittoDiffer.diff(items)
 
             event.eventTime = Date.now.ISO8601Format()
@@ -326,15 +343,9 @@ final class SubscriptionObserverViewModel {
             event.updatedIndexes = Array(diff.updates)
             event.movedIndexes = Array(diff.moves)
 
-            // Extract each item's data, then dematerialize it immediately.
-            // QueryResultItems are cursors: per the Ditto SDK they must be
-            // released within the callback. Leaving them materialized makes a
-            // SUBSEQUENT emission deliver an invalid/freed result, which traps
-            // in the callback — the multi-fire crash seen on activation.
-            event.data = items.compactMap { item -> String? in
-                let data = item.jsonData()
+            // Release the cursors now that diff + data extraction are done.
+            for item in items {
                 item.dematerialize()
-                return String(data: data, encoding: .utf8)
             }
 
             let capturedEvent = event
