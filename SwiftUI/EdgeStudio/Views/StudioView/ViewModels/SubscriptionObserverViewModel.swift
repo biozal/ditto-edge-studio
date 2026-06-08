@@ -309,8 +309,14 @@ final class SubscriptionObserverViewModel {
             event.updatedIndexes = Array(diff.updates)
             event.movedIndexes = Array(diff.moves)
 
-            event.data = results.items.compactMap {
-                let data = $0.jsonData()
+            // Extract each item's data, then dematerialize it immediately.
+            // QueryResultItems are cursors: per the Ditto SDK they must be
+            // released within the callback. Leaving them materialized makes a
+            // SUBSEQUENT emission deliver an invalid/freed result, which traps
+            // in the callback — the multi-fire crash seen on activation.
+            event.data = results.items.compactMap { item -> String? in
+                let data = item.jsonData()
+                item.dematerialize()
                 return String(data: data, encoding: .utf8)
             }
 
