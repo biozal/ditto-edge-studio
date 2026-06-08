@@ -309,9 +309,21 @@ final class SubscriptionObserverViewModel {
             event.updatedIndexes = Array(diff.updates)
             event.movedIndexes = Array(diff.moves)
 
-            event.data = results.items.compactMap {
-                let data = $0.jsonData()
-                return String(data: data, encoding: .utf8)
+            // Serialize each item the same robust way QueryService does:
+            // build JSON from the item's value dictionary inside do/catch.
+            // `item.jsonData()` traps (EXC_BREAKPOINT) on documents it can't
+            // serialize, which crashed the live-query callback on activation.
+            event.data = results.items.compactMap { item -> String? in
+                let cleanedValue = item.value.compactMapValues { $0 }
+                do {
+                    let data = try JSONSerialization.data(
+                        withJSONObject: cleanedValue,
+                        options: [.prettyPrinted, .fragmentsAllowed, .sortedKeys, .withoutEscapingSlashes]
+                    )
+                    return String(data: data, encoding: .utf8)
+                } catch {
+                    return nil
+                }
             }
 
             let capturedEvent = event

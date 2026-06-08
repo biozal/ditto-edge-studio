@@ -350,8 +350,9 @@ extension MainStudioView {
                             } catch { appState.setError(error) }
                         }
                     } label: {
-                        Image(systemName: observer.storeObserver != nil ? "stop.circle.fill" : "play.circle")
-                            .foregroundStyle(observer.storeObserver != nil ? Color.green : Color.secondary)
+                        // Green = actively observing, red = idle.
+                        Image(systemName: observer.storeObserver != nil ? "stop.circle.fill" : "play.circle.fill")
+                            .foregroundStyle(observer.storeObserver != nil ? Color.green : Color.red)
                     }
                     .buttonStyle(.borderless)
                     .accessibilityIdentifier("ObserverToggle_\(observer.name)")
