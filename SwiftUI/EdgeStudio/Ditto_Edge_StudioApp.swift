@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// True when running under XCUITest.
+///
+/// Detected via the `UI_TESTING` launch *environment variable* (NOT a launch
+/// argument). On macOS, launching a SwiftUI app with any command-line argument is
+/// treated as a non-default launch and the `WindowGroup` does not auto-open its
+/// window — which makes the app window-less under XCUITest. An environment
+/// variable avoids that, so the window opens normally. The legacy `UI-TESTING`
+/// argument is still honored for back-compat.
+func isRunningUITests() -> Bool {
+    ProcessInfo.processInfo.environment["UI_TESTING"] == "1"
+        || ProcessInfo.processInfo.arguments.contains("UI-TESTING")
+}
+
 // MARK: - Window Controller Helper
 
 class WindowController {
@@ -34,11 +47,34 @@ class WindowController {
     }
 }
 
+#if os(macOS)
+/// App delegate used ONLY to make UI testing work on macOS.
+///
+/// The window-opening fix is the `UI_TESTING` launch *environment variable*
+/// (see `isRunningUITests()`): launching with an env var rather than a
+/// command-line argument keeps it a default launch, so the `WindowGroup` opens
+/// its window normally. This delegate is the belt-and-suspenders for that —
+/// `applicationShouldHandleReopen` returning `true` lets AppKit (re)open a
+/// window if the app is activated without one. A no-op in production.
+@MainActor
+final class UITestSupportAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        true
+    }
+}
+#endif
+
 @main
 // swiftlint:disable:next type_name
 struct Ditto_Edge_StudioApp: App {
     @State private var appState = AppState()
     @Environment(\.openWindow) private var openWindow
+
+    #if os(macOS)
+    /// Foregrounds the app + forces its window on-screen when launched under
+    /// UI tests (no effect otherwise). See `UITestSupportAppDelegate`.
+    @NSApplicationDelegateAdaptor(UITestSupportAppDelegate.self) private var uiTestAppDelegate
+    #endif
 
     init() {
         // Register UserDefaults defaults so preference values are correct before the user

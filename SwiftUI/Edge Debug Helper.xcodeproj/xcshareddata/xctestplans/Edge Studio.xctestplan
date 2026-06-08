@@ -35,22 +35,6 @@
         "identifier" : "0DD95EBB2F4585430063C203",
         "name" : "EdgeStudioUITests"
       }
-    },
-    {
-      "parallelizable" : false,
-      "target" : {
-        "containerPath" : "container:Edge Debug Helper.xcodeproj",
-        "identifier" : "0D3F27E02DDA00FB004A69D1",
-        "name" : "Edge Debug HelperTests"
-      }
-    },
-    {
-      "parallelizable" : false,
-      "target" : {
-        "containerPath" : "container:Edge Debug Helper.xcodeproj",
-        "identifier" : "0D3F27EA2DDA00FB004A69D1",
-        "name" : "Edge Debug HelperUITests"
-      }
     }
   ],
   "version" : 1

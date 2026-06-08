@@ -563,7 +563,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio (Debug)";
 				INFOPLIST_KEY_CFBundleName = "Ditto Edge Studio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
@@ -584,7 +584,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = "1. ";
-				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio.debug;
 				PRODUCT_NAME = "Ditto Edge Studio";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;

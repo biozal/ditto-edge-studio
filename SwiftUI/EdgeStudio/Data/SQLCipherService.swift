@@ -161,8 +161,7 @@ actor SQLCipherService {
 
         // Singleton: detect test environment at runtime
         let isUnitTesting = NSClassFromString("XCTest") != nil
-        let args = ProcessInfo.processInfo.arguments
-        let isUITesting = args.contains("UI-TESTING")
+        let isUITesting = isRunningUITests()
 
         let cacheDir = if isUnitTesting && !isUITesting {
             // Unit tests (XCTest framework is loaded, but not UI testing)

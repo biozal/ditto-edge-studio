@@ -46,6 +46,12 @@ extension MainStudioView {
                         #endif
                     }
                     .buttonStyle(.plain)
+                    // Stable per-destination identifier for XCUITest. These are
+                    // real Button rows (not a segmented Picker), so XCUITest can
+                    // tap them directly by identifier — e.g. "NavItem_query" for
+                    // the Query/Collections destination. Uses the enum rawValue so
+                    // the id stays in sync with SidebarDestination.
+                    .accessibilityIdentifier("NavItem_\(destination.rawValue)")
                     .listRowBackground(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(isSelected ? Color.dittoYellow : Color.clear)

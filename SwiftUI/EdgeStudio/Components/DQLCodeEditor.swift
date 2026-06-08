@@ -21,6 +21,11 @@ struct DQLCodeEditor: View {
 
     var body: some View {
         DQLCodeEditorRepresentable(text: $text, isDark: colorScheme == .dark)
+            // Stable identifier for XCUITest. The representable also sets the
+            // identifier directly on the underlying NSTextView/UITextView (see
+            // makeNSView/makeUIView) because AppKit/UIKit text views do not always
+            // surface the SwiftUI-level identifier to the accessibility tree.
+            .accessibilityIdentifier("QueryEditorTextView")
     }
 }
 
@@ -66,6 +71,10 @@ private struct DQLCodeEditorRepresentable: NSViewRepresentable {
             .font: Coordinator.editorFont,
             .foregroundColor: NSColor.textColor
         ]
+        // Surface a stable identifier to XCUITest directly on the AppKit view —
+        // the SwiftUI `.accessibilityIdentifier` on the wrapper isn't reliably
+        // mirrored onto NSViewRepresentable-hosted views.
+        textView.setAccessibilityIdentifier("QueryEditorTextView")
 
         context.coordinator.textView = textView
         context.coordinator.scheduleHighlight()
@@ -185,6 +194,10 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
             .font: Coordinator.editorFont,
             .foregroundColor: UIColor.label
         ]
+        // Surface a stable identifier to XCUITest directly on the UIKit view —
+        // the SwiftUI `.accessibilityIdentifier` on the wrapper isn't reliably
+        // mirrored onto UIViewRepresentable-hosted views.
+        textView.accessibilityIdentifier = "QueryEditorTextView"
 
         context.coordinator.textView = textView
         context.coordinator.scheduleHighlight()

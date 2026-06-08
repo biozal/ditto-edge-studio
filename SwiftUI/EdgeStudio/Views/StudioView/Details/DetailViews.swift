@@ -375,6 +375,7 @@ extension MainStudioView {
                                 .accessibilityLabel("Execute Query")
                             }
                             .disabled(viewModel.queryVM.isQueryExecuting)
+                            .accessibilityIdentifier("ExecuteQueryButton")
 
                             Divider().frame(height: 18)
 
@@ -431,6 +432,7 @@ extension MainStudioView {
                                 .padding(.horizontal, 4)
                             }
                             .disabled(viewModel.queryVM.isQueryExecuting)
+                            .accessibilityIdentifier("ExecuteQueryButton")
                         }
                     }
                     appNameToolbarLabel()
@@ -521,6 +523,7 @@ extension MainStudioView {
                     .accessibilityLabel("Execute Query")
                 }
                 .disabled(viewModel.queryVM.isQueryExecuting)
+                .accessibilityIdentifier("ExecuteQueryButton")
             }
         }
         #endif

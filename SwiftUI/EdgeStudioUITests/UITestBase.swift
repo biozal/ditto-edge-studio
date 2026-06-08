@@ -41,18 +41,6 @@ class UITestBase: XCTestCase {
     /// The application under test. Launched fresh in `setUpWithError()`.
     var app: XCUIApplication!
 
-    /// Candidate bundle identifiers for the app target, tried in order when
-    /// locating `testDatabaseConfig.plist` inside the running app's bundle.
-    ///
-    /// The Xcode project currently ships `com.costoda.dittoedgestudio` as the
-    /// app target's PRODUCT_BUNDLE_IDENTIFIER, while docs/TESTING.md historically
-    /// referenced `io.ditto.EdgeStudio`. We try both so the harness keeps working
-    /// if the identifier changes again.
-    let appBundleIdentifierCandidates = [
-        "com.costoda.dittoedgestudio",
-        "io.ditto.EdgeStudio",
-    ]
-
     // MARK: - Lifecycle
 
     // Launch the app fresh for each test. `@MainActor` because the whole class is
@@ -65,14 +53,43 @@ class UITestBase: XCTestCase {
         // first are almost always noise from a broken precondition.
         continueAfterFailure = false
 
+        // Defensively dismiss OS permission dialogs (Bluetooth / Local Network)
+        // that the Ditto P2P transports can trigger on a fresh machine. Under UI
+        // testing the app force-disables those transports so the dialogs should
+        // never appear, but this monitor is cheap insurance: the dialogs come
+        // from a *separate* process (com.apple.UserNotificationCenter) and would
+        // otherwise float over the app and block element queries. Monitors only
+        // fire when the harness next interacts with the app.
+        addUIInterruptionMonitor(withDescription: "System permission dialog") { element in
+            for label in ["Allow", "OK", "Continue", "Don’t Allow", "Don't Allow"] {
+                let button = element.buttons[label]
+                if button.exists {
+                    button.tap()
+                    return true
+                }
+            }
+            return false
+        }
+
         app = XCUIApplication()
-        // The app's AppState / SQLCipherService / DittoManager all branch on this
-        // argument to use the isolated `ditto_edge_studio_test` sandbox.
-        app.launchArguments = ["UI-TESTING"]
+        // CRITICAL: pass test mode via the launch ENVIRONMENT, NOT a launch
+        // argument. On macOS, launching a SwiftUI app with ANY command-line
+        // argument is treated as a non-default launch, and the `WindowGroup` then
+        // does NOT auto-open its window — so the app comes up active but
+        // window-less and XCUITest finds nothing to drive. Keeping
+        // `launchArguments` empty + signalling via an env var means a normal
+        // default launch where the window opens. The app reads `UI_TESTING` to
+        // route to its isolated `ditto_edge_studio_test` sandbox and seed data.
+        app.launchEnvironment["UI_TESTING"] = "1"
         app.launch()
 
         // macOS window-activation workaround (see docs/TESTING.md).
         activateAppWindow()
+
+        // The app suppresses the first-run welcome window under UI testing, but
+        // dismiss it defensively in case a restored session re-opens it — it's a
+        // second window that steals focus from the studio.
+        dismissWelcomeWindowIfPresent()
     }
 
     @MainActor
@@ -109,6 +126,27 @@ class UITestBase: XCTestCase {
                 usleep(500_000) // 0.5s
                 return
             }
+        }
+    }
+
+    /// Dismisses the first-run welcome window if it is present.
+    ///
+    /// The app suppresses this window under UI testing (see
+    /// `MainStudioViewModel`), so normally there's nothing to do. But a restored
+    /// session can re-open it, and it's a *separate* window that grabs focus and
+    /// hides the studio's elements from XCUITest. Best-effort: clicks the verified
+    /// `WelcomeCloseButton`, then re-activates the main window. Never fails.
+    func dismissWelcomeWindowIfPresent() {
+        let closeButton = app.buttons["WelcomeCloseButton"].firstMatch
+        if closeButton.waitForExistence(timeout: 1) {
+            if closeButton.isHittable {
+                closeButton.click()
+            } else {
+                closeButton.tap()
+            }
+            // Give the window-close animation a beat, then refocus the studio.
+            usleep(500_000) // 0.5s
+            activateAppWindow()
         }
     }
 
@@ -150,54 +188,62 @@ class UITestBase: XCTestCase {
             }
             usleep(250_000) // 0.25s poll
         }
+        // Diagnostic: dump what XCUITest actually sees so we can tell *why* the
+        // load indicator never appeared (empty window? loading spinner? a window
+        // structure XCUITest classifies differently?).
+        logAccessibilityDiagnostics(reason: "waitForAppToFinishLoading timed out after \(timeout)s")
         return false
+    }
+
+    /// Prints the live accessibility hierarchy + element counts and attaches a
+    /// screenshot. Used when an expected element never appears, to diagnose
+    /// element-not-found vs. window-activation vs. wrong-query issues.
+    func logAccessibilityDiagnostics(reason: String) {
+        print("""
+        ===== UITest accessibility diagnostics =====
+        reason: \(reason)
+        app.state: \(app.state.rawValue)   (3=runningForeground, 4=runningBackground)
+        windows: \(app.windows.count)  buttons: \(app.buttons.count)  \
+        staticTexts: \(app.staticTexts.count)  textViews: \(app.textViews.count)  \
+        otherElements: \(app.otherElements.count)  progressIndicators: \(app.progressIndicators.count)
+        --- app.debugDescription ---
+        \(app.debugDescription)
+        ============================================
+        """)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "accessibility-diagnostics"
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     // MARK: - Database Setup From Plist
 
-    /// Adds all databases described in the app bundle's `testDatabaseConfig.plist`
-    /// by driving the Add-Database UI flow.
+    /// Ensures test databases are available to open.
     ///
-    /// Throws `XCTSkip` when the plist is absent or malformed — the credential-less
-    /// CI path. This is intentional: a missing plist means "no real credentials,"
-    /// which is a skip, not a failure.
+    /// The app self-seeds databases from its bundled `testDatabaseConfig.plist`
+    /// under the `UI-TESTING` launch argument — the XCUITest runner is a separate
+    /// process and CANNOT read the app bundle, so seeding must happen app-side.
+    /// This helper therefore just waits for the app to finish loading and confirms
+    /// a seeded database card is present.
     ///
-    /// - Throws: `XCTSkip` if the plist or its `databases` array is missing.
+    /// Throws `XCTSkip` when the app never loads (window/permission issue) or no
+    /// databases were seeded (no `testDatabaseConfig.plist` — the credential-less
+    /// CI path).
     @MainActor
     func addDatabasesFromPlist() throws {
-        let path = appBundleIdentifierCandidates
-            .compactMap { Bundle(identifier: $0) }
-            .compactMap { $0.path(forResource: "testDatabaseConfig", ofType: "plist") }
-            .first
-
-        guard let path else {
-            throw XCTSkip("testDatabaseConfig.plist not found in app bundle — no real credentials available (expected in credential-less CI).")
+        guard waitForAppToFinishLoading(timeout: 30) else {
+            throw XCTSkip("App did not finish loading — check Accessibility permission and that the app foregrounds under UI-TESTING.")
         }
 
-        let data: Data
-        do {
-            data = try Data(contentsOf: URL(fileURLWithPath: path))
-        } catch {
-            throw XCTSkip("Could not read testDatabaseConfig.plist: \(error.localizedDescription)")
-        }
+        // Already in MainStudioView (a restored prior session) — nothing to do.
+        if app.buttons["CloseButton"].firstMatch.exists { return }
 
-        let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-
-        guard let databases = plist?["databases"] as? [[String: Any]],
-              !databases.isEmpty
-        else {
-            throw XCTSkip("testDatabaseConfig.plist missing a non-empty 'databases' array.")
-        }
-
-        // Confirm we're on ContentView before driving the form. If we never see
-        // the add button, the most likely cause is missing Accessibility
-        // permission — skip rather than fail.
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not present ContentView (AddDatabaseButton) — Accessibility permissions may be missing.")
-        }
-
-        for config in databases {
-            try addSingleDatabase(config: config)
+        // Confirm the app seeded at least one database card.
+        let anyCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'AppCard_'"))
+            .firstMatch
+        guard anyCard.waitForExistence(timeout: 10) else {
+            throw XCTSkip("No seeded databases — testDatabaseConfig.plist absent or empty (credential-less path).")
         }
     }
 

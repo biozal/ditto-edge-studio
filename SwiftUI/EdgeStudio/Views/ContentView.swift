@@ -631,6 +631,13 @@ extension ContentView {
 
                 // 2. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
+
+                // Under UI testing, seed databases from the bundled
+                // testDatabaseConfig.plist BEFORE loading. The XCUITest runner is
+                // a separate process and can't read the app bundle, so the app
+                // (which can) loads its own test config here.
+                await seedTestDatabasesIfNeeded()
+
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
 
@@ -653,6 +660,50 @@ extension ContentView {
                 appState.setError(error)
             }
             isLoading = false
+        }
+
+        /// Seeds databases from the bundled `testDatabaseConfig.plist` when running
+        /// under `UI-TESTING`. Read from `Bundle.main` (the app's own bundle) since
+        /// the out-of-process XCUITest runner cannot access app-bundle resources.
+        /// Idempotent: skips databases whose `databaseId` is already stored, so
+        /// re-launches against the persisted test sandbox don't duplicate cards.
+        private func seedTestDatabasesIfNeeded() async {
+            guard isRunningUITests() else { return }
+            guard let path = Bundle.main.path(forResource: "testDatabaseConfig", ofType: "plist"),
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                  let databases = plist["databases"] as? [[String: Any]] else
+            {
+                Log.info("[UI-TESTING] No testDatabaseConfig.plist found to seed")
+                return
+            }
+
+            let existing = await (try? databaseRepository.loadDatabaseConfigs()) ?? []
+            let existingDatabaseIds = Set(existing.map(\.databaseId))
+
+            for dict in databases {
+                let databaseId = (dict["databaseId"] as? String) ?? (dict["appId"] as? String) ?? ""
+                guard !databaseId.isEmpty, !existingDatabaseIds.contains(databaseId) else { continue }
+
+                let config = DittoConfigForDatabase(
+                    UUID().uuidString,
+                    name: (dict["name"] as? String) ?? "Test DB",
+                    databaseId: databaseId,
+                    developmentToken: (dict["developmentToken"] as? String) ?? (dict["token"] as? String) ?? (dict["authToken"] as? String) ?? "",
+                    url: (dict["url"] as? String) ?? (dict["authUrl"] as? String) ?? "",
+                    httpApiUrl: (dict["httpApiUrl"] as? String) ?? "",
+                    httpApiKey: (dict["httpApiKey"] as? String) ?? "",
+                    mode: DittoAppConfigLoader.parseMode(from: (dict["mode"] as? String) ?? "development") ?? .development,
+                    allowUntrustedCerts: (dict["allowUntrustedCerts"] as? Bool) ?? false,
+                    secretKey: (dict["secretKey"] as? String) ?? "",
+                    isBluetoothLeEnabled: (dict["isBluetoothLeEnabled"] as? Bool) ?? true,
+                    isLanEnabled: (dict["isLanEnabled"] as? Bool) ?? true,
+                    isAwdlEnabled: (dict["isAwdlEnabled"] as? Bool) ?? true,
+                    isCloudSyncEnabled: (dict["isCloudSyncEnabled"] as? Bool) ?? true
+                )
+                try? await databaseRepository.addDittoAppConfig(config)
+                Log.info("[UI-TESTING] Seeded test database: \(config.name)")
+            }
         }
 
         func showAppEditor(_ dittoApp: DittoConfigForDatabase) {

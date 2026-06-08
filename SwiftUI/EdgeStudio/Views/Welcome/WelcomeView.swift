@@ -288,6 +288,7 @@ struct WelcomeView: View {
                 Spacer()
                 Button("Close", action: onClose)
                     .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("WelcomeCloseButton")
             }
         }
     }

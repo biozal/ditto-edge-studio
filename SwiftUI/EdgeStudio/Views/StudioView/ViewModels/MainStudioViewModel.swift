@@ -293,7 +293,9 @@ extension MainStudioView {
                 }
 
                 let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
-                if showWelcome {
+                // Never auto-open the welcome window under UI tests — it spawns a
+                // second window that steals focus and blocks element queries.
+                if showWelcome, !isRunningUITests() {
                     // Defer to the next runloop so MainStudioView has finished
                     // mounting before the welcome window opens; otherwise the
                     // window-open animation races the studio's mount and the

@@ -97,6 +97,7 @@ struct QueryResultsView: View {
             .controlSize(horizontalSizeClass == .compact ? .regular : .large)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .accessibilityIdentifier("ResultsViewModeToggle")
 
             Group {
                 switch selectedTab {
@@ -133,6 +134,10 @@ struct QueryResultsView: View {
         #if os(macOS)
         .background(.regularMaterial)
         #endif
+        // Stable container identifier so XCUITest can assert the results pane is
+        // present after a query runs.
+        .accessibilityIdentifier("QueryResultsView")
+        .accessibilityElement(children: .contain)
         .onChange(of: pageSize) { _, _ in
             currentPage = max(1, min(currentPage, pageCount))
         }

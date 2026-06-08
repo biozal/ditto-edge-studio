@@ -47,6 +47,7 @@ struct PaginationControls: View {
                 FontAwesomeText(icon: NavigationIcon.chevronLeft, size: 15)
             }
             .disabled(currentPage <= 1)
+            .accessibilityIdentifier("PaginationPrevButton")
 
             // "X of Y" — removed "Page " prefix
             Text("\(currentPage) of \(pageCount)")
@@ -57,6 +58,7 @@ struct PaginationControls: View {
                 FontAwesomeText(icon: NavigationIcon.chevronRight, size: 15)
             }
             .disabled(currentPage >= pageCount)
+            .accessibilityIdentifier("PaginationNextButton")
 
             // Overflow menu — only rendered when export handler is provided
             if let onExport {

@@ -64,8 +64,21 @@ actor DittoManager {
                 )
             }
         case .development:
-            guard !appConfig.url.isEmpty, let url = URL(string: appConfig.url) else {
-                throw AppError.error(message: "Invalid configuration - malformed url")
+            // A bare string with no scheme (e.g. a stray UUID) still yields a
+            // non-nil relative URL from URL(string:), which then fails opaquely
+            // inside Ditto.open(). Require an absolute http(s)/ws(s) URL with a
+            // host so bad config data fails loudly here with a clear message.
+            guard !appConfig.url.isEmpty,
+                  let url = URL(string: appConfig.url),
+                  let scheme = url.scheme?.lowercased(),
+                  ["https", "http", "wss", "ws"].contains(scheme),
+                  let host = url.host, !host.isEmpty else
+            {
+                throw AppError.error(
+                    message: "Invalid configuration for '\(appConfig.name)' — 'url' must be an "
+                        + "absolute server URL like https://<cluster>.cloud.dittolive.app "
+                        + "(got: '\(appConfig.url)')"
+                )
             }
             return DittoConfig(
                 databaseID: appConfig.databaseId,
@@ -170,11 +183,17 @@ actor DittoManager {
                     "cloudSync=\(databaseConfig.isCloudSyncEnabled)"
             )
 
+            // Under UI tests, force all peer-to-peer transports off. Enabling
+            // BLE / LAN / AWDL triggers OS permission prompts (Bluetooth, Local
+            // Network) that appear as system dialogs over the app and block the
+            // test harness on a fresh machine. The query/observer flows don't
+            // need mesh transport — cloud sync still works.
+            let p2pEnabled = !isRunningUITests()
             ditto.updateTransportConfig { config in
                 // Configure peer-to-peer transports from saved settings
-                config.peerToPeer.bluetoothLE.isEnabled = databaseConfig.isBluetoothLeEnabled
-                config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled
-                config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
+                config.peerToPeer.bluetoothLE.isEnabled = databaseConfig.isBluetoothLeEnabled && p2pEnabled
+                config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled && p2pEnabled
+                config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled && p2pEnabled
 
                 // Cloud sync (Big Peer / WebSocket) is established automatically by
                 // the SDK from the server URL passed at Ditto.open() — no manual
@@ -266,9 +285,7 @@ actor DittoManager {
     nonisolated static func localDirectoryPath(
         for databaseConfig: DittoConfigForDatabase
     ) -> URL {
-        let isUITesting = ProcessInfo.processInfo.arguments.contains(
-            "UI-TESTING"
-        )
+        let isUITesting = isRunningUITests()
         let baseComponent =
             isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
         let dbname = databaseConfig.name.trimmingCharacters(
