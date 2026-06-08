@@ -31,6 +31,7 @@ struct SubscriptionObserverEditor: View {
                 Section("Basic Information") {
                     TextField("Name", text: $name)
                         .padding(.bottom, 20)
+                        .accessibilityIdentifier("EditorNameField")
                 }
                 Section("Query") {
                     TextEditor(text: $query)
@@ -39,6 +40,7 @@ struct SubscriptionObserverEditor: View {
                         .padding(6)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("EditorQueryField")
                     Text("Ex: SELECT * FROM collectionName")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -59,6 +61,7 @@ struct SubscriptionObserverEditor: View {
                         } label: {
                             Label("Cancel", systemImage: "xmark")
                         }
+                        .accessibilityIdentifier("EditorCancelButton")
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
@@ -67,6 +70,7 @@ struct SubscriptionObserverEditor: View {
                             }
                         }
                         .disabled(name.isEmpty || query.isEmpty)
+                        .accessibilityIdentifier("EditorSaveButton")
                     }
                 }
         }

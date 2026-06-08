@@ -150,20 +150,5 @@ final class NavigationLifecycleUITests: UITestBase {
         captureScreenshot(named: "01-returned-to-list", lifetime: .deleteOnSuccess)
     }
 
-    // MARK: - Helpers
-
-    /// Launches into MainStudioView for the first seeded database, skipping
-    /// cleanly when preconditions are missing.
-    private func openStudio() throws {
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
-        }
-        try addDatabasesFromPlist()       // XCTSkip if no plist/credentials
-        try ensureMainStudioViewIsOpen()  // XCTSkip if no databases
-    }
-
-    /// Sidebar destination button for a `SidebarDestination` raw value.
-    private func navItem(_ rawValue: String) -> XCUIElement {
-        app.descendants(matching: .any)["NavItem_\(rawValue)"].firstMatch
-    }
+    // `openStudio()` and `navItem(_:)` are inherited from UITestBase.
 }

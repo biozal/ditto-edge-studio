@@ -353,6 +353,66 @@ class UITestBase: XCTestCase {
         }
     }
 
+    // MARK: - Studio / DQL Helpers
+
+    /// Launches into MainStudioView for the first seeded database, skipping
+    /// cleanly when preconditions are missing. Shared by all flow tests.
+    func openStudio() throws {
+        guard waitForAppToFinishLoading(timeout: 20) else {
+            throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
+        }
+        try addDatabasesFromPlist()       // XCTSkip if no plist/credentials
+        try ensureMainStudioViewIsOpen()  // XCTSkip if no databases
+    }
+
+    /// Sidebar destination button for a `SidebarDestination` raw value
+    /// (e.g. "query", "subscriptions", "observers").
+    func navItem(_ rawValue: String) -> XCUIElement {
+        app.descendants(matching: .any)["NavItem_\(rawValue)"].firstMatch
+    }
+
+    /// Navigates to the Query destination and runs a single DQL statement,
+    /// replacing whatever is already in the editor. Throws `XCTSkip` when the
+    /// query editor isn't reachable in this environment.
+    func runDQL(_ dql: String) throws {
+        let queryNav = navItem("query")
+        guard queryNav.waitForExistence(timeout: 10) else {
+            throw XCTSkip("NavItem_query not reachable — sidebar navigation not exposed.")
+        }
+        queryNav.tap()
+        reactivateAfterTransition()
+
+        let editor = app.descendants(matching: .any)["QueryEditorTextView"].firstMatch
+        guard editor.waitForExistence(timeout: 10) else {
+            throw XCTSkip("QueryEditorTextView not reachable.")
+        }
+        editor.tap()
+        usleep(300_000) // let focus register (macOS quirk)
+        app.typeKey("a", modifierFlags: .command) // select all
+        app.typeKey(.delete, modifierFlags: [])   // clear
+        editor.typeText(dql)
+
+        let execute = app.buttons["ExecuteQueryButton"].firstMatch
+        if execute.waitForExistence(timeout: 5) {
+            execute.tap()
+        }
+        // Re-assert focus + let the local write/query settle before the next read.
+        reactivateAfterTransition()
+    }
+
+    /// Polls until the number of elements with `identifier` exceeds `baseline`,
+    /// or the timeout elapses. Condition-based (no fixed sleep), used to detect
+    /// that a new row (e.g. an observer event) appeared after an action.
+    func waitForRowCount(identifier: String, greaterThan baseline: Int, timeout: TimeInterval = 15) -> Bool {
+        let query = app.descendants(matching: .any).matching(identifier: identifier)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if query.count > baseline { return true }
+            usleep(300_000) // 0.3s poll
+        }
+        return false
+    }
+
     // MARK: - Screenshots
 
     /// Captures a full-app screenshot and attaches it to the test result.

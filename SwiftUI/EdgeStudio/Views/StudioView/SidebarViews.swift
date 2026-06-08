@@ -212,6 +212,7 @@ extension MainStudioView {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("SubscriptionRow_\(sub.name)")
             }
             .contextMenu {
                 Button("Edit") { presentSubscriptionEditor(sub) }
@@ -310,25 +311,55 @@ extension MainStudioView {
                 }
                 .padding(.leading, 4)
             } label: {
-                Button {
-                    toggleObserverExpansion(observer.id)
-                    viewModel.subObsVM.selectedObservable = observer
-                    viewModel.selectedSidebarDestination = .observers
-                } label: {
-                    HStack(spacing: 8) {
+                // Top-aligned so the play/stop button stays pinned to the first
+                // line while the name wraps beneath it in the narrow sidebar.
+                HStack(alignment: .top, spacing: 8) {
+                    // Tappable name area — takes all remaining width and wraps
+                    // vertically rather than truncating, so long names stay
+                    // fully readable even with the trailing button.
+                    HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "eye")
                             .foregroundStyle(.secondary)
                         Text(observer.name)
                             .font(sidebarItemFont)
-                        Spacer()
-                        if observer.storeObserver != nil {
-                            Text("Active")
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-                        }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        toggleObserverExpansion(observer.id)
+                        viewModel.subObsVM.selectedObservable = observer
+                        viewModel.selectedSidebarDestination = .observers
+                    }
+                    .accessibilityIdentifier("ObserverRow_\(observer.name)")
+
+                    // Inline Activate/Stop toggle. Icon + color convey state
+                    // (green stop = active, secondary play = idle), replacing the
+                    // old text "Active" badge while adding a one-tap action that
+                    // doesn't require the right-click context menu (still kept).
+                    Button {
+                        Task {
+                            do {
+                                if observer.storeObserver == nil {
+                                    try await viewModel.subObsVM.registerStoreObserver(observer)
+                                    viewModel.subObsVM.selectedObservable = observer
+                                    viewModel.selectedSidebarDestination = .observers
+                                } else {
+                                    try await viewModel.subObsVM.removeStoreObserver(observer)
+                                }
+                            } catch { appState.setError(error) }
+                        }
+                    } label: {
+                        Image(systemName: observer.storeObserver != nil ? "stop.circle.fill" : "play.circle")
+                            .foregroundStyle(observer.storeObserver != nil ? Color.green : Color.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("ObserverToggle_\(observer.name)")
+                    // Expose active/idle so UI tests can read state without
+                    // guessing from the (inaccessible) SF Symbol name.
+                    .accessibilityValue(observer.storeObserver != nil ? "active" : "idle")
+                    .help(observer.storeObserver != nil ? "Stop observing" : "Activate observer")
                 }
-                .buttonStyle(.plain)
             }
             #if os(macOS)
             .contextMenu {

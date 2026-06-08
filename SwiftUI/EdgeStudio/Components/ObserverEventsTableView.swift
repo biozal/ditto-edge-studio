@@ -58,6 +58,7 @@ struct ObserverEventsTableView: View {
                             .onTapGesture {
                                 selectedEventId = isSelected ? nil : event.id
                             }
+                            .accessibilityIdentifier("ObserverEventRow")
                         }
                     } header: {
                         HStack(spacing: 0) {
@@ -116,6 +117,7 @@ struct ObserverEventsTableView: View {
                             .onTapGesture {
                                 selectedEventId = isSelected ? nil : event.id
                             }
+                            .accessibilityIdentifier("ObserverEventRow")
                         }
                     } header: {
                         HStack(spacing: 0) {
