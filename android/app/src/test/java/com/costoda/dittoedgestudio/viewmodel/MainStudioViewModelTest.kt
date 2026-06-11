@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -123,7 +124,7 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository)
+        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository, ioDispatcher = testDispatcher)
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
@@ -223,7 +224,7 @@ class MainStudioViewModelTest {
         coVerify { databaseRepository.save(any()) }
     }
 
-    private fun createViewModel() = MainStudioViewModel(
+    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()) = MainStudioViewModel(
         databaseId = 1L,
         databaseRepository = databaseRepository,
         dittoManager = dittoManager,
@@ -234,6 +235,7 @@ class MainStudioViewModelTest {
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
         ioDispatcher = testDispatcher,
+        savedStateHandle = savedStateHandle,
     )
 
     @Test
@@ -281,5 +283,37 @@ class MainStudioViewModelTest {
 
         coVerify { observableRepository.removeObservable(5) }
         assertTrue(vm.observers.value.isEmpty())
+    }
+
+    @Test
+    fun `state initializes from a pre-populated SavedStateHandle`() = runTest {
+        val handle = SavedStateHandle(
+            mapOf(
+                "selectedNavItem" to StudioNavItem.QUERY.name,
+                "dataPanelVisible" to false,
+                "inspectorVisible" to true,
+            )
+        )
+
+        val vm = createViewModel(savedStateHandle = handle)
+        // No need to advance — these are read directly from the handle, not from a coroutine
+
+        assertEquals(StudioNavItem.QUERY, vm.selectedNavItem)
+        assertEquals(false, vm.dataPanelVisible)
+        assertEquals(true, vm.inspectorVisible)
+    }
+
+    @Test
+    fun `mutations write back to the SavedStateHandle`() = runTest {
+        val handle = SavedStateHandle()
+        val vm = createViewModel(savedStateHandle = handle)
+
+        vm.selectedNavItem = StudioNavItem.OBSERVERS
+        vm.dataPanelVisible = false
+        vm.inspectorVisible = true
+
+        assertEquals(StudioNavItem.OBSERVERS.name, handle.get<String>("selectedNavItem"))
+        assertEquals(false, handle.get<Boolean>("dataPanelVisible"))
+        assertEquals(true, handle.get<Boolean>("inspectorVisible"))
     }
 }

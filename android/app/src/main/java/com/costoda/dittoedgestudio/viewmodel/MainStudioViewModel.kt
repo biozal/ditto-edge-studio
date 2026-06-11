@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
@@ -78,6 +79,10 @@ sealed class PeersUiState {
 
 private const val TAG = "MainStudioViewModel"
 
+private const val KEY_SELECTED_NAV = "selectedNavItem"
+private const val KEY_DATA_PANEL_VISIBLE = "dataPanelVisible"
+private const val KEY_INSPECTOR_VISIBLE = "inspectorVisible"
+
 class MainStudioViewModel(
     private val databaseId: Long,
     private val databaseRepository: DatabaseRepository,
@@ -89,11 +94,22 @@ class MainStudioViewModel(
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
-    var selectedNavItem by mutableStateOf(StudioNavItem.SUBSCRIPTIONS)
-    var dataPanelVisible by mutableStateOf(true)
-    var inspectorVisible by mutableStateOf(false)
+    var selectedNavItem: StudioNavItem
+        get() = StudioNavItem.valueOf(
+            savedStateHandle.get<String>(KEY_SELECTED_NAV) ?: StudioNavItem.SUBSCRIPTIONS.name
+        )
+        set(value) { savedStateHandle[KEY_SELECTED_NAV] = value.name }
+
+    var dataPanelVisible: Boolean
+        get() = savedStateHandle.get<Boolean>(KEY_DATA_PANEL_VISIBLE) ?: true
+        set(value) { savedStateHandle[KEY_DATA_PANEL_VISIBLE] = value }
+
+    var inspectorVisible: Boolean
+        get() = savedStateHandle.get<Boolean>(KEY_INSPECTOR_VISIBLE) ?: false
+        set(value) { savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
     var syncEnabled by mutableStateOf(false)
     var bottomBarExpanded by mutableStateOf(true)
     var transportConfigVisible by mutableStateOf(false)

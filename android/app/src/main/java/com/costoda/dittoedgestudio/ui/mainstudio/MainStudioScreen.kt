@@ -85,6 +85,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -719,7 +720,7 @@ private fun ContentPlaceholder(
     queryEditorViewModel: QueryEditorViewModel?,
     modifier: Modifier = Modifier,
 ) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val peersUiState by viewModel.peersUiState.collectAsStateWithLifecycle()
     val networkInterfaces by viewModel.networkInterfaces.collectAsStateWithLifecycle()
     val p2pTransports by viewModel.p2pTransports.collectAsStateWithLifecycle()
