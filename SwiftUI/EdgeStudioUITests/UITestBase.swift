@@ -375,6 +375,16 @@ class UITestBase: XCTestCase {
     /// replacing whatever is already in the editor. Throws `XCTSkip` when the
     /// query editor isn't reachable in this environment.
     func runDQL(_ dql: String) throws {
+        // Dismiss a leftover error alert (a SwiftUI .alert is modal and disables
+        // the editor). Scope STRICTLY to an alert/dialog/sheet and tap its OK —
+        // never a bare app button (an earlier version matched the app's "Close"
+        // database button and closed the database).
+        for modal in [app.alerts.firstMatch, app.dialogs.firstMatch, app.sheets.firstMatch] where modal.exists {
+            let ok = modal.buttons["OK"].firstMatch
+            if ok.exists { ok.tap() }
+            break
+        }
+
         let queryNav = navItem("query")
         guard queryNav.waitForExistence(timeout: 10) else {
             throw XCTSkip("NavItem_query not reachable — sidebar navigation not exposed.")
@@ -382,15 +392,38 @@ class UITestBase: XCTestCase {
         queryNav.tap()
         reactivateAfterTransition()
 
-        let editor = app.descendants(matching: .any)["QueryEditorTextView"].firstMatch
+        // Target the TEXT VIEW specifically. The id is on both the NSTextView and
+        // its enclosing NSScrollView; `.firstMatch` of "any" resolved to the
+        // scroll view, whose center sits on the divider between the editor and
+        // the results toggle — tapping there never focuses the text view, so
+        // typed characters go nowhere (and the rejected keystrokes beep). The
+        // `.textViews` query selects the editable text view directly.
+        let editor = app.textViews["QueryEditorTextView"].firstMatch
         guard editor.waitForExistence(timeout: 10) else {
-            throw XCTSkip("QueryEditorTextView not reachable.")
+            throw XCTSkip("QueryEditorTextView (text view) not reachable.")
         }
         editor.tap()
         usleep(300_000) // let focus register (macOS quirk)
-        app.typeKey("a", modifierFlags: .command) // select all
-        app.typeKey(.delete, modifierFlags: [])   // clear
+        // Clear by selecting all in the editor, then typing — the new text
+        // REPLACES the selection. Sent to the editor element (not app-wide) so
+        // the key events reach the focused NSTextView instead of being rejected
+        // (rejected app-wide ⌘A/delete events trigger the macOS system beep).
+        editor.typeKey("a", modifierFlags: .command)
         editor.typeText(dql)
+
+        // Diagnostic: the code editor has historically dropped/truncated
+        // programmatic input. Read back what actually landed and attach a
+        // mismatch so a failure shows the real editor contents, not a guess.
+        let landed = (app.textViews["QueryEditorTextView"].firstMatch.value as? String)
+            ?? (app.textViews.firstMatch.value as? String)
+            ?? (editor.value as? String)
+            ?? ""
+        if !landed.contains(String(dql.prefix(15))) {
+            let snapshot = XCTAttachment(string: "EXPECTED query:\n\(dql)\n\nEDITOR ACTUALLY CONTAINS:\n\(landed.isEmpty ? "<empty / unreadable>" : landed)")
+            snapshot.name = "editor-content-mismatch"
+            snapshot.lifetime = .keepAlways
+            add(snapshot)
+        }
 
         let execute = app.buttons["ExecuteQueryButton"].firstMatch
         if execute.waitForExistence(timeout: 5) {

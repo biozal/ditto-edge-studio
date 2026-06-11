@@ -46,10 +46,12 @@ final class QueryExecutionUITests: UITestBase {
         queryNav.tap()
         reactivateAfterTransition()
 
-        let editor = app.descendants(matching: .any)["QueryEditorTextView"].firstMatch
+        // Target the editable TEXT VIEW, not the enclosing scroll view (whose
+        // center is on the divider, so tapping it never focuses the editor).
+        let editor = app.textViews["QueryEditorTextView"].firstMatch
         guard editor.waitForExistence(timeout: 10) else {
             captureScreenshot(named: "SKIP-no-query-editor", lifetime: .keepAlways)
-            throw XCTSkip("QueryEditorTextView not found in this environment.")
+            throw XCTSkip("QueryEditorTextView (text view) not found in this environment.")
         }
 
         // Unique per-run token so residue from earlier runs can't satisfy or

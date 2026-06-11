@@ -53,6 +53,8 @@ struct PaginationControls: View {
             Text("\(currentPage) of \(pageCount)")
                 .font(.subheadline)
                 .frame(minWidth: 80)
+                .accessibilityIdentifier("PaginationPageIndicator")
+                .accessibilityValue("\(currentPage) of \(pageCount)")
 
             Button { onPageChange(currentPage + 1) } label: {
                 FontAwesomeText(icon: NavigationIcon.chevronRight, size: 15)

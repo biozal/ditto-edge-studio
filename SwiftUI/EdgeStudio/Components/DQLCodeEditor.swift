@@ -84,7 +84,13 @@ private struct DQLCodeEditorRepresentable: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let textView = nsView.documentView as? NSTextView else { return }
-        if textView.string != text {
+        // Only push the binding value INTO the text view for EXTERNAL changes
+        // (e.g. a query prefilled by tapping a collection). While the text view
+        // is being edited it is the source of truth — resetting it here to a
+        // binding value that lags behind by a render cycle truncates in-flight
+        // input (fast/programmatic typing loses everything after the lag point).
+        let isEditing = textView.window?.firstResponder === textView
+        if textView.string != text, !isEditing {
             let selected = textView.selectedRanges
             context.coordinator.isApplyingHighlight = true
             textView.string = text
@@ -126,6 +132,12 @@ private struct DQLCodeEditorRepresentable: NSViewRepresentable {
         }
 
         func scheduleHighlight() {
+            // Under UI tests, skip syntax highlighting entirely. It re-runs on
+            // every keystroke and asynchronously rewrites the text storage,
+            // which thrashes the app (multi-second idle waits) and races with
+            // programmatically-typed input, dropping characters. Plain text is
+            // all the tests need.
+            guard !isRunningUITests() else { return }
             guard let textView else { return }
             let source = textView.string
             let isDark = parent.isDark

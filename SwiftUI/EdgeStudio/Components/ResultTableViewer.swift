@@ -42,6 +42,10 @@ struct ResultTableViewer: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Container anchor so UI tests can assert the Table view is showing.
+        // `.contain` keeps the cell texts individually queryable.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ResultTableView")
         .task(id: pagedItems) {
             await loadTableData()
         }

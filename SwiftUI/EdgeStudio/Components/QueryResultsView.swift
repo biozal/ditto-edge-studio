@@ -89,7 +89,12 @@ struct QueryResultsView: View {
         VStack(spacing: 0) {
             Picker("Result View", selection: $selectedTab) {
                 ForEach(ResultViewTab.allCases, id: \.self) { tab in
-                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                    Label(tab.rawValue, systemImage: tab.icon)
+                        .tag(tab)
+                        // Per-segment identifier so UI tests can address an
+                        // individual segment (e.g. "ResultViewMode_Table"),
+                        // independent of how the segmented control surfaces.
+                        .accessibilityIdentifier("ResultViewMode_\(tab.rawValue)")
                 }
             }
             .labelsHidden()
@@ -98,6 +103,18 @@ struct QueryResultsView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .accessibilityIdentifier("ResultsViewModeToggle")
+            .background {
+                // ⌘1 / ⌘2 / ⌘3 switch the result view (Raw / Table / Profile)
+                // from the keyboard — nicer for power users, and lets UI tests
+                // switch views without clicking the segmented control.
+                ForEach(Array(ResultViewTab.allCases.enumerated()), id: \.element) { index, tab in
+                    Button("Show \(tab.rawValue)") { selectedTab = tab }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+                }
+            }
 
             Group {
                 switch selectedTab {
