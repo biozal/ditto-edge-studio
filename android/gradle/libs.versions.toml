@@ -24,7 +24,6 @@ room = "2.7.0"
 koinBom = "4.1.1"
 coroutines = "1.10.2"
 mockk = "1.13.14"
-navigationCompose = "2.8.9"
 nav3 = "1.0.0"
 timber = "5.0.1"
 orgJson = "20231013"
@@ -71,7 +70,6 @@ koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compos
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 # Navigation
-androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "nav3" }
 androidx-navigation3-ui = { group = "androidx.navigation3", name = "navigation3-ui", version.ref = "nav3" }
 # Testing
