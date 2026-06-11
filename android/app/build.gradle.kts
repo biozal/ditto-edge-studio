@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -10,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.costoda.dittoedgestudio"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.costoda.dittoedgestudio"
@@ -41,11 +40,6 @@ android {
     testOptions {
         unitTests {
             isReturnDefaultValues = true
-        }
-    }
-    sourceSets {
-        getByName("main") {
-            assets.srcDirs("src/main/assets")
         }
     }
 }
