@@ -344,4 +344,44 @@ class MainStudioViewModelTest {
         assertEquals(true, vm.dataPanelVisible)
         assertEquals(false, vm.inspectorVisible)
     }
+
+    // ── Fix 1: ephemeral UI state survives section switch (shared session) ────
+
+    @Test
+    fun `selectedObserver set via VM A is visible via VM B sharing the same session`() = runTest {
+        val sharedSession = createSession()
+        val vmA = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+
+        val observer = DittoObservable(id = 42, databaseId = "test-db-id", name = "Obs", query = "SELECT * FROM c")
+        vmA.selectedObserver = observer
+
+        // VM B reads the same session.uiState — value must be the one VM A wrote.
+        assertEquals(observer, vmB.selectedObserver)
+    }
+
+    @Test
+    fun `eventCurrentPage set via VM A is visible via VM B sharing the same session`() = runTest {
+        val sharedSession = createSession()
+        val vmA = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+
+        vmA.eventCurrentPage = 3
+
+        assertEquals(3, vmB.eventCurrentPage)
+    }
+
+    @Test
+    fun `ephemeral state in session is independent from another session`() = runTest {
+        val sessionA = createSession(databaseId = 1L)
+        val sessionB = createSession(databaseId = 1L) // separate instance
+        val vmA = MainStudioViewModel(session = sessionA, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(session = sessionB, savedStateHandle = SavedStateHandle())
+
+        val observer = DittoObservable(id = 7, databaseId = "test-db-id", name = "X", query = "SELECT * FROM t")
+        vmA.selectedObserver = observer
+
+        // Different session instance — vmB must not see vmA's state.
+        assertEquals(null, vmB.selectedObserver)
+    }
 }

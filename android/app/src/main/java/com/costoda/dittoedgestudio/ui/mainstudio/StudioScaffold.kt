@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.MenuOpen
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Menu
@@ -36,10 +35,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -77,9 +73,12 @@ fun StudioScaffold(
     onSectionSelect: (StudioNavItem) -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val expandedLayout = studioWindowSizeClass().showsRail
-    val inspectorDefault = studioWindowSizeClass().inspectorDefaultVisible
-    var inspectorVisible by rememberSaveable { mutableStateOf(inspectorDefault) }
+    val windowSizeClass = studioWindowSizeClass()
+    val expandedLayout = windowSizeClass.showsRail
+    val inspectorDefault = windowSizeClass.inspectorDefaultVisible
+    // Use the session-scoped inspectorVisible so the user's choice persists across rail-section
+    // switches. On first access (null) fall back to the window-size-class default.
+    val inspectorVisible: Boolean = session.uiState.inspectorVisible ?: inspectorDefault
     val syncEnabled by session.syncEnabled.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -107,15 +106,6 @@ fun StudioScaffold(
             Column(modifier = Modifier.weight(1f)) {
                 TopAppBar(
                     title = { Text(currentSection.label) },
-                    navigationIcon = {
-                        // Reserved for future "toggle data panel" when sections supply one.
-                        IconButton(onClick = { /* no-op for now in scene-driven sections */ }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.MenuOpen,
-                                contentDescription = "Menu",
-                            )
-                        }
-                    },
                     actions = {
                         IconButton(onClick = { session.toggleSync() }) {
                             Icon(
@@ -131,7 +121,7 @@ fun StudioScaffold(
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }
-                        IconButton(onClick = { inspectorVisible = !inspectorVisible }) {
+                        IconButton(onClick = { session.uiState.inspectorVisible = !inspectorVisible }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Outlined.ViewSidebar,
                                 contentDescription = "Toggle inspector",

@@ -99,21 +99,45 @@ class MainStudioViewModel(
         get() = _inspectorVisible
         set(value) { _inspectorVisible = value; savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
 
-    // ── Pure UI state (sheets, panels, transient pickers) ────────────────────
-    var bottomBarExpanded by mutableStateOf(true)
-    var transportConfigVisible by mutableStateOf(false)
-    var fabMenuExpanded by mutableStateOf(false)
-    var connectionPopupVisible by mutableStateOf(false)
-    var showAddIndex by mutableStateOf(false)
-
-    var editingSubscription by mutableStateOf<DittoSubscription?>(null)
-    var editingObserver by mutableStateOf<DittoObservable?>(null)
-
-    var selectedObserver by mutableStateOf<DittoObservable?>(null)
-    var selectedEvent by mutableStateOf<DittoObserveEvent?>(null)
-    var eventFilterMode by mutableStateOf(EventFilterMode.ALL)
-    var eventPageSize by mutableStateOf(25)
-    var eventCurrentPage by mutableStateOf(0)
+    // ── Pure UI state delegated to session.uiState (survives rail-section switches) ──────────
+    // Delegating vars: get/set forward to the session-scoped StudioUiState so these properties
+    // survive per-entry VM recreation. All existing call sites compile unchanged.
+    var bottomBarExpanded: Boolean
+        get() = session.uiState.bottomBarExpanded
+        set(value) { session.uiState.bottomBarExpanded = value }
+    var transportConfigVisible: Boolean
+        get() = session.uiState.transportConfigVisible
+        set(value) { session.uiState.transportConfigVisible = value }
+    var fabMenuExpanded: Boolean
+        get() = session.uiState.fabMenuExpanded
+        set(value) { session.uiState.fabMenuExpanded = value }
+    var connectionPopupVisible: Boolean
+        get() = session.uiState.connectionPopupVisible
+        set(value) { session.uiState.connectionPopupVisible = value }
+    var showAddIndex: Boolean
+        get() = session.uiState.showAddIndex
+        set(value) { session.uiState.showAddIndex = value }
+    var editingSubscription: DittoSubscription?
+        get() = session.uiState.editingSubscription
+        set(value) { session.uiState.editingSubscription = value }
+    var editingObserver: DittoObservable?
+        get() = session.uiState.editingObserver
+        set(value) { session.uiState.editingObserver = value }
+    var selectedObserver: DittoObservable?
+        get() = session.uiState.selectedObserver
+        set(value) { session.uiState.selectedObserver = value }
+    var selectedEvent: DittoObserveEvent?
+        get() = session.uiState.selectedEvent
+        set(value) { session.uiState.selectedEvent = value }
+    var eventFilterMode: EventFilterMode
+        get() = session.uiState.eventFilterMode
+        set(value) { session.uiState.eventFilterMode = value }
+    var eventPageSize: Int
+        get() = session.uiState.eventPageSize
+        set(value) { session.uiState.eventPageSize = value }
+    var eventCurrentPage: Int
+        get() = session.uiState.eventCurrentPage
+        set(value) { session.uiState.eventCurrentPage = value }
 
     // ── Session passthroughs (keep call sites stable) ─────────────────────────
 

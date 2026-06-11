@@ -70,6 +70,13 @@ class StudioSession(
 
     private val closed = AtomicBoolean(false)
 
+    // ── Session-scoped ephemeral UI state ─────────────────────────────────────
+    /**
+     * Ephemeral UI state that must survive rail-section switches. Compose snapshot state so
+     * any composable reading these fields recomposes automatically on change.
+     */
+    val uiState = StudioUiState()
+
     // ── Hydration / database state ────────────────────────────────────────────
     var hydrateError: String? = null
         private set

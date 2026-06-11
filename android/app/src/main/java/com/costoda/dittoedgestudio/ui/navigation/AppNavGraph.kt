@@ -9,7 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -184,7 +183,9 @@ private fun StudioSectionContainer(
     content: @Composable (MainStudioViewModel) -> Unit,
 ) {
     val viewModel = rememberStudioViewModel(databaseId)
-    LaunchedEffect(section) { viewModel.selectedNavItem = section }
+    // Set selectedNavItem synchronously during composition (not via LaunchedEffect) so the
+    // correct section is active on the first frame — avoids a one-frame flash of SUBSCRIPTIONS.
+    remember(viewModel, section) { viewModel.selectedNavItem = section }
 
     StudioScaffold(
         currentSection = section,
@@ -220,7 +221,9 @@ private fun LegacyStudioSectionEntry(
     key: StudioSectionKey,
 ) {
     val viewModel = rememberStudioViewModel(key.databaseId)
-    LaunchedEffect(key) { viewModel.selectedNavItem = key.navItem }
+    // Set selectedNavItem synchronously during composition so the correct section is active
+    // on the first frame — no LaunchedEffect delay, no one-frame SUBSCRIPTIONS flash.
+    remember(viewModel, key) { viewModel.selectedNavItem = key.navItem }
 
     MainStudioScreen(
         databaseId = key.databaseId,
