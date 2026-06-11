@@ -13,13 +13,13 @@ import com.ditto.kotlin.DittoConnectionType
 import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
-import com.ditto.kotlin.serialization.DittoCborSerializable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class SystemRepositoryImpl(
     private val coroutineScope: CoroutineScope,
@@ -66,14 +66,14 @@ class SystemRepositoryImpl(
 
     private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
         // 1. Query sync metrics — graceful degradation on failure
-        val syncMetrics = mutableMapOf<String, DittoCborSerializable.Dictionary>()
+        val syncMetrics = mutableMapOf<String, JSONObject>()
         runCatching {
-            val result = ditto.store.execute("SELECT * FROM system:data_sync_info")
-            for (item in result.items) {
-                val dict = item.value
-                val peerId = dict["_id"].stringOrNull ?: continue
-                syncMetrics[peerId] = dict
-                item.dematerialize()
+            ditto.store.execute("SELECT * FROM system:data_sync_info") { result ->
+                for (item in result.items) {
+                    val json = runCatching { JSONObject(item.jsonString()) }.getOrNull() ?: continue
+                    val peerId = json.optString("_id").takeIf { it.isNotBlank() } ?: continue
+                    syncMetrics[peerId] = json
+                }
             }
         }.onFailure { e ->
             Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
@@ -107,10 +107,9 @@ class SystemRepositoryImpl(
         // 4. Add Cloud Server peers from DQL not in presence graph
         for ((peerId, metrics) in syncMetrics) {
             if (peerId in processedIds) continue
-            val isDittoServer = metrics[FIELD_IS_DITTO_SERVER].booleanOrNull ?: false
-            if (!isDittoServer) continue
-            val docs = metrics[FIELD_DOCUMENTS].dictionaryOrNull
-            val status = docs?.get(FIELD_SYNC_SESSION_STATUS)?.stringOrNull
+            if (!metrics.optBoolean(FIELD_IS_DITTO_SERVER, false)) continue
+            val docs = metrics.optJSONObject(FIELD_DOCUMENTS)
+            val status = docs?.optString(FIELD_SYNC_SESSION_STATUS)
             if (status == SYNC_STATUS_NOT_CONNECTED) continue
             remotePeers.add(
                 SyncStatusInfo(
@@ -119,8 +118,8 @@ class SystemRepositoryImpl(
                     deviceName = null,
                     osInfo = PeerOS.Unknown,
                     dittoSdkVersion = null,
-                    syncedUpToLocalCommitId = docs?.get(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID)?.longOrNull,
-                    lastUpdateReceivedTime = docs?.get(FIELD_LAST_UPDATE_RECEIVED_TIME)?.longOrNull?.toDouble(),
+                    syncedUpToLocalCommitId = docs?.optLongOrNull(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID),
+                    lastUpdateReceivedTime = docs?.optLongOrNull(FIELD_LAST_UPDATE_RECEIVED_TIME)?.toDouble(),
                 )
             )
         }
@@ -138,13 +137,13 @@ class SystemRepositoryImpl(
     }
 
     private fun DittoPeer.toSyncStatusInfo(
-        metrics: DittoCborSerializable.Dictionary? = null,
+        metrics: JSONObject? = null,
         localPeerKey: String,
     ): SyncStatusInfo {
-        val docs = metrics?.get(FIELD_DOCUMENTS)?.dictionaryOrNull
+        val docs = metrics?.optJSONObject(FIELD_DOCUMENTS)
         return SyncStatusInfo(
             peerId = peerKey,
-            isDittoServer = metrics?.get(FIELD_IS_DITTO_SERVER)?.booleanOrNull ?: false,
+            isDittoServer = metrics?.optBoolean(FIELD_IS_DITTO_SERVER, false) ?: false,
             deviceName = deviceName?.takeIf { it.isNotBlank() },
             osInfo = os?.toPeerOS() ?: PeerOS.Unknown,
             dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
@@ -163,10 +162,13 @@ class SystemRepositoryImpl(
             identityServiceMetadata = identityServiceMetadata
                 ?.takeIf { !it.isNull }
                 ?.toString(),
-            syncedUpToLocalCommitId = docs?.get(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID)?.longOrNull,
-            lastUpdateReceivedTime = docs?.get(FIELD_LAST_UPDATE_RECEIVED_TIME)?.longOrNull?.toDouble(),
+            syncedUpToLocalCommitId = docs?.optLongOrNull(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID),
+            lastUpdateReceivedTime = docs?.optLongOrNull(FIELD_LAST_UPDATE_RECEIVED_TIME)?.toDouble(),
         )
     }
+
+    private fun JSONObject.optLongOrNull(key: String): Long? =
+        if (has(key) && !isNull(key)) optLong(key) else null
 
     private fun DittoPeerOs.toPeerOS(): PeerOS = when (this) {
         DittoPeerOs.Ios, DittoPeerOs.Tvos -> PeerOS.iOS

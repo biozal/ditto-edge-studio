@@ -8,6 +8,7 @@ import com.costoda.dittoedgestudio.domain.model.CollectionStorageInfo
 import com.ditto.kotlin.Ditto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.LinkedList
@@ -100,29 +101,31 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
 
     private suspend fun computeCollectionBreakdown(ditto: Ditto): List<CollectionStorageInfo> {
         return try {
-            val colResult = ditto.store.execute("SELECT * FROM system:collections")
-            val names = colResult.items.mapNotNull { item ->
-                (item.value["name"] as? String).also { item.dematerialize() }
+            val names = ditto.store.execute("SELECT * FROM system:collections") { colResult ->
+                colResult.items.mapNotNull { item ->
+                    runCatching { JSONObject(item.jsonString()).optString("name") }
+                        .getOrNull()
+                        ?.takeIf { it.isNotBlank() }
+                }
             }
-            colResult.close()
 
             val breakdown = names.mapNotNull { name ->
                 try {
                     val escaped = name.replace("`", "``")
-                    val docResult = ditto.store.execute("SELECT * FROM `$escaped`")
-                    var jsonBytes = 0L
-                    var docCount = 0
-                    docResult.items.forEach { item ->
-                        jsonBytes += item.jsonString().toByteArray(Charsets.UTF_8).size.toLong()
-                        docCount++
-                        item.dematerialize()
+                    ditto.store.execute("SELECT * FROM `$escaped`") { docResult ->
+                        var jsonBytes = 0L
+                        var docCount = 0
+                        docResult.items.forEach { item ->
+                            jsonBytes += item.jsonString().toByteArray(Charsets.UTF_8).size.toLong()
+                            docCount++
+                            item.dematerialize()
+                        }
+                        CollectionStorageInfo(
+                            collectionName = name,
+                            documentCount = docCount,
+                            estimatedBytes = jsonBytes,
+                        )
                     }
-                    docResult.close()
-                    CollectionStorageInfo(
-                        collectionName = name,
-                        documentCount = docCount,
-                        estimatedBytes = jsonBytes,
-                    )
                 } catch (e: Exception) {
                     null
                 }

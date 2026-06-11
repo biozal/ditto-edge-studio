@@ -12,13 +12,13 @@ class QueryExecutionService(private val dittoManager: DittoManager) {
         val ditto = dittoManager.currentInstance()
             ?: error("No active Ditto instance")
         val start = System.currentTimeMillis()
-        val result = ditto.store.execute(query)
-        val elapsed = System.currentTimeMillis() - start
-        val documents = result.items.map { item ->
-            runCatching { parseJsonToMap(JSONObject(item.jsonString())) }
-                .getOrDefault(emptyMap())
+        val documents = ditto.store.execute(query) { result ->
+            result.items.map { item ->
+                runCatching { parseJsonToMap(JSONObject(item.jsonString())) }
+                    .getOrDefault(emptyMap<String, Any?>())
+            }
         }
-        result.close()
+        val elapsed = System.currentTimeMillis() - start
         QueryResult(
             documents = documents,
             totalCount = documents.size,

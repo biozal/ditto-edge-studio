@@ -69,14 +69,13 @@ class CollectionsRepositoryImpl(
     private suspend fun fetchCollections(ditto: Ditto): List<DittoCollection> {
         // 1. Fetch collection names
         val rawNames = runCatching {
-            val result = ditto.store.execute(QUERY_COLLECTIONS)
-            val names = result.items.mapNotNull { item ->
-                runCatching { JSONObject(item.jsonString()).optString("_id") }
-                    .getOrNull()
-                    ?.takeIf { it.isNotBlank() && !it.startsWith("__") }
+            ditto.store.execute(QUERY_COLLECTIONS) { result ->
+                result.items.mapNotNull { item ->
+                    runCatching { JSONObject(item.jsonString()).optString("_id") }
+                        .getOrNull()
+                        ?.takeIf { it.isNotBlank() && !it.startsWith("__") }
+                }
             }
-            result.close()
-            names
         }.getOrDefault(emptyList())
 
         // 2. Fetch all indexes in one query
@@ -98,26 +97,26 @@ class CollectionsRepositoryImpl(
     private suspend fun fetchIndexes(ditto: Ditto): Map<String, List<DittoIndex>> {
         val map = mutableMapOf<String, MutableList<DittoIndex>>()
         runCatching {
-            val result = ditto.store.execute(QUERY_INDEXES)
-            for (item in result.items) {
-                runCatching {
-                    val json = JSONObject(item.jsonString())
-                    val id = json.optString("_id").takeIf { it.isNotBlank() } ?: return@runCatching
-                    val collection = json.optString("collection").takeIf { it.isNotBlank() } ?: return@runCatching
-                    val fieldsJson = json.optJSONArray("fields")
-                    val fields = buildList {
-                        if (fieldsJson != null) {
-                            for (i in 0 until fieldsJson.length()) {
-                                fieldsJson.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
+            ditto.store.execute(QUERY_INDEXES) { result ->
+                for (item in result.items) {
+                    runCatching {
+                        val json = JSONObject(item.jsonString())
+                        val id = json.optString("_id").takeIf { it.isNotBlank() } ?: return@runCatching
+                        val collection = json.optString("collection").takeIf { it.isNotBlank() } ?: return@runCatching
+                        val fieldsJson = json.optJSONArray("fields")
+                        val fields = buildList {
+                            if (fieldsJson != null) {
+                                for (i in 0 until fieldsJson.length()) {
+                                    fieldsJson.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
+                                }
                             }
                         }
+                        map.getOrPut(collection) { mutableListOf() }
+                            .add(DittoIndex(id = id, collection = collection, fields = fields))
                     }
-                    map.getOrPut(collection) { mutableListOf() }
-                        .add(DittoIndex(id = id, collection = collection, fields = fields))
+                    item.dematerialize()
                 }
-                item.dematerialize()
             }
-            result.close()
         }
         return map
     }
@@ -126,11 +125,11 @@ class CollectionsRepositoryImpl(
         val counts = mutableMapOf<String, Int>()
         for (name in names) {
             runCatching {
-                val result = ditto.store.execute(QUERY_COUNT_TMPL.format(name))
-                val count = result.items.firstOrNull()?.let {
-                    JSONObject(it.jsonString()).optInt("numDocs", 0)
-                } ?: 0
-                result.close()
+                val count = ditto.store.execute(QUERY_COUNT_TMPL.format(name)) { result ->
+                    result.items.firstOrNull()?.let {
+                        JSONObject(it.jsonString()).optInt("numDocs", 0)
+                    } ?: 0
+                }
                 counts[name] = count
             }
             // One failing collection doesn't block others
