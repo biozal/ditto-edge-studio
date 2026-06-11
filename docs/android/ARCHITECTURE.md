@@ -184,6 +184,22 @@ private fun DittoQueryHistory.toEntity() = HistoryEntity(
 
 ---
 
+## UI Layout Anatomy
+
+The main studio screen (`ui/mainstudio/MainStudioScreen.kt`) is a four-region tablet layout. These are the canonical names used in all docs, plans, and task descriptions:
+
+| Term | Code | Description |
+|------|------|-------------|
+| **Rail** | `NavigationRail` (column 1) | Vertical strip of navigation icons (`StudioNavItem`) |
+| **Data Panel** | `DataPanel` (column 2, 200dp) | Feature/info menu for the selected Rail item; slides in from the start edge |
+| **Content Pane** | content `Column` (column 3, `weight(1f)`) | Main working area: query editor, results, observers, etc. |
+| **Inspector** | `InspectorPanel` (column 4, 300dp) | Trailing slide-out side sheet; slides in from the end edge |
+| **Nav Drawer** | `ModalNavigationDrawer` | Phone-mode collapse of Rail + Data Panel |
+
+See [`UI_TERMINOLOGY.md`](UI_TERMINOLOGY.md) for the full cheat sheet, including the comparison with the SwiftUI (macOS/iPadOS) app's three-column layout.
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests (`app/src/test/`)

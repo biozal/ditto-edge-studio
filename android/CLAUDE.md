@@ -138,6 +138,20 @@ app/src/main/java/com/costoda/dittoedgestudio/
 - Use `StateFlow` for UI state, `Flow` for streams
 - All DAO calls wrapped in `withContext(Dispatchers.IO)` in repository impls
 
+## UI Layout Terminology
+
+The main studio screen (`ui/mainstudio/MainStudioScreen.kt`) uses a four-column tablet layout. These are the **canonical terms** for each region — when a task references one of these terms, it means exactly this region:
+
+| Term | Code | Description | iOS (SwiftUI app) equivalent |
+|------|------|-------------|------------------------------|
+| **Rail** | `NavigationRail` (column 1) | Vertical strip of navigation icons (`StudioNavItem` entries) | Sidebar segmented picker |
+| **Data Panel** | `DataPanel` (column 2, 200dp) | Feature/info menu for the selected Rail item; toggleable, slides in from the start edge | Sidebar content list |
+| **Content Pane** | content `Column` (column 3, `weight(1f)`) | The main working area (query editor, results, observers, etc.) | MainView / detail area |
+| **Inspector** | `InspectorPanel` (column 4, 300dp) | Trailing slide-out panel (a Material "side sheet"); toggleable, slides in from the end edge | Inspector |
+| **Nav Drawer** | `ModalNavigationDrawer` / `PhoneDrawerContent` | Phone-mode collapse of Rail + Data Panel into a modal drawer | — |
+
+Material/Android mapping for reference: Rail = Navigation Rail, Data Panel = list pane (of a list-detail layout), Content Pane = detail pane, Inspector = side sheet / supporting pane.
+
 ## Dependency Catalog
 
 All versions and dependencies are declared in `gradle/libs.versions.toml`. Never hardcode version strings in `build.gradle.kts` files — always add entries to the TOML catalog first.
