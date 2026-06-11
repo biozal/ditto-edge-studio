@@ -94,22 +94,33 @@ class MainStudioViewModel(
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    var selectedNavItem: StudioNavItem
-        get() = StudioNavItem.valueOf(
+    // Backing Compose state initialised from the handle so Compose can observe changes,
+    // with write-through to the handle so values survive process death.
+    private var _selectedNavItem by mutableStateOf(
+        StudioNavItem.valueOf(
             savedStateHandle.get<String>(KEY_SELECTED_NAV) ?: StudioNavItem.SUBSCRIPTIONS.name
         )
-        set(value) { savedStateHandle[KEY_SELECTED_NAV] = value.name }
+    )
+    var selectedNavItem: StudioNavItem
+        get() = _selectedNavItem
+        set(value) { _selectedNavItem = value; savedStateHandle[KEY_SELECTED_NAV] = value.name }
 
+    private var _dataPanelVisible by mutableStateOf(
+        savedStateHandle.get<Boolean>(KEY_DATA_PANEL_VISIBLE) ?: true
+    )
     var dataPanelVisible: Boolean
-        get() = savedStateHandle.get<Boolean>(KEY_DATA_PANEL_VISIBLE) ?: true
-        set(value) { savedStateHandle[KEY_DATA_PANEL_VISIBLE] = value }
+        get() = _dataPanelVisible
+        set(value) { _dataPanelVisible = value; savedStateHandle[KEY_DATA_PANEL_VISIBLE] = value }
 
+    private var _inspectorVisible by mutableStateOf(
+        savedStateHandle.get<Boolean>(KEY_INSPECTOR_VISIBLE) ?: false
+    )
     var inspectorVisible: Boolean
-        get() = savedStateHandle.get<Boolean>(KEY_INSPECTOR_VISIBLE) ?: false
-        set(value) { savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
+        get() = _inspectorVisible
+        set(value) { _inspectorVisible = value; savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
     var syncEnabled by mutableStateOf(false)
     var bottomBarExpanded by mutableStateOf(true)
     var transportConfigVisible by mutableStateOf(false)

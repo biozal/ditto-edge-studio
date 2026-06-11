@@ -124,7 +124,7 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository, ioDispatcher = testDispatcher)
+        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository, ioDispatcher = testDispatcher, savedStateHandle = SavedStateHandle())
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
