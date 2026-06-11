@@ -9,8 +9,8 @@ Edge Studio for Android is a Jetpack Compose application for querying and managi
 - **Package:** `com.costoda.dittoedgestudio`
 - **Module:** `app` (single-module project)
 - **Min SDK:** 28 (Android 9 Pie)
-- **Target/Compile SDK:** 36
-- **Language:** Kotlin 2.1.20
+- **Target SDK:** 36 / **Compile SDK:** 37
+- **Language:** Kotlin 2.3.21 (AGP built-in Kotlin)
 - **UI framework:** Jetpack Compose (Material3)
 
 ## Repository Conventions
@@ -160,9 +160,9 @@ All versions and dependencies are declared in `gradle/libs.versions.toml`. Never
 
 | Dependency | Version |
 |-----------|---------|
-| Android Gradle Plugin | 8.9.0 |
-| Kotlin | 2.1.20 |
-| KSP | 2.1.20-1.0.32 |
+| Android Gradle Plugin | 9.2.1 (built-in Kotlin — no kotlin-android plugin) |
+| Kotlin | 2.3.21 |
+| KSP | 2.3.9 |
 | Compose BOM | 2025.12.00 |
 | Core KTX | 1.16.0 |
 | Activity Compose | 1.10.1 |
@@ -242,7 +242,8 @@ Always use these named tokens — never hardcode hex values in UI code.
 
 - Single activity: `MainActivity` (launcher)
 - `windowSoftInputMode="adjustResize"` — keyboard pushes content up
-- `configChanges="orientation|screenSize"` — activity handles rotation without recreation
+- `resizeableActivity="true"` — required for Android 16 desktop windowing / connected displays
+- `configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density"` — activity handles rotation and window-resize/density changes (monitor plug/unplug) without recreation
 
 ## QR Code Import & Export
 
@@ -296,5 +297,5 @@ The **QR display** (export) is triggered from the `DatabaseCard` context menu �
 
 Set in `gradle.properties`:
 - `org.gradle.jvmargs=-Xmx2048m` — increase if large builds OOM
-- `android.suppressUnsupportedCompileSdk=36` — suppress SDK 36 preview warnings
+- `android.suppressUnsupportedCompileSdk=37` — suppress SDK 37 warnings until AGP officially supports it
 - `kotlin.code.style=official`
