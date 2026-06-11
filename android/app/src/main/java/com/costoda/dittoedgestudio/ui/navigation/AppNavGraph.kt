@@ -1,85 +1,82 @@
 package com.costoda.dittoedgestudio.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import com.costoda.dittoedgestudio.ui.database.DatabaseEditorScreen
 import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.MainStudioScreen
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 
-sealed class Screen(val route: String) {
-    object DatabaseList : Screen("database_list")
-    object DatabaseEditor : Screen("database_editor?id={id}") {
-        fun createRoute(id: Long = -1L) = "database_editor?id=$id"
-    }
-    object MainStudio : Screen("main_studio/{databaseId}") {
-        fun createRoute(databaseId: Long) = "main_studio/$databaseId"
-    }
-    object QrScanner : Screen("qr_scanner")
-}
-
+/**
+ * Root navigation graph built on Navigation 3 (`NavDisplay` + `rememberNavBackStack`).
+ *
+ * Routes:
+ *  - [DatabaseListKey]   — start destination, list of saved databases.
+ *  - [DatabaseEditorKey] — create/edit a database; `id == -1L` means "new".
+ *  - [QrScannerKey]      — camera-based QR code import.
+ *  - [StudioKey]         — main studio for the selected database.
+ *
+ * Decorators applied to every entry:
+ *  - `rememberSaveableStateHolderNavEntryDecorator()` — preserves Compose
+ *    `rememberSaveable` state across navigation.
+ *  - `rememberViewModelStoreNavEntryDecorator()` — scopes ViewModels (including
+ *    Koin `koinViewModel(...)`) to the entry so they live for the lifetime of
+ *    that destination on the back stack.
+ *
+ * System back is wired through `NavDisplay.onBack`, which pops the last entry.
+ */
 @Composable
 fun AppNavGraph() {
-    val navController = rememberNavController()
+    val backStack = rememberNavBackStack(DatabaseListKey)
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.DatabaseList.route,
-    ) {
-        composable(Screen.DatabaseList.route) {
-            DatabaseListScreen(
-                onAddDatabase = {
-                    navController.navigate(Screen.DatabaseEditor.createRoute())
-                },
-                onEditDatabase = { database ->
-                    navController.navigate(Screen.DatabaseEditor.createRoute(database.id))
-                },
-                onOpenDatabase = { database ->
-                    navController.navigate(Screen.MainStudio.createRoute(database.id))
-                },
-                onScanQrCode = {
-                    navController.navigate(Screen.QrScanner.route)
-                },
-            )
-        }
+    NavDisplay(
+        backStack = backStack,
+        onBack = { backStack.removeLastOrNull() },
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
+        entryProvider = entryProvider {
+            entry<DatabaseListKey> {
+                DatabaseListScreen(
+                    onAddDatabase = {
+                        backStack.add(DatabaseEditorKey())
+                    },
+                    onEditDatabase = { database ->
+                        backStack.add(DatabaseEditorKey(id = database.id))
+                    },
+                    onOpenDatabase = { database ->
+                        backStack.add(StudioKey(databaseId = database.id))
+                    },
+                    onScanQrCode = {
+                        backStack.add(QrScannerKey)
+                    },
+                )
+            }
 
-        composable(
-            route = Screen.DatabaseEditor.route,
-            arguments = listOf(
-                navArgument("id") {
-                    type = NavType.LongType
-                    defaultValue = -1L
-                },
-            ),
-        ) { backStackEntry ->
-            val id = backStackEntry.arguments?.getLong("id") ?: -1L
-            DatabaseEditorScreen(
-                databaseId = id,
-                onDismiss = { navController.popBackStack() },
-            )
-        }
+            entry<DatabaseEditorKey> { key ->
+                DatabaseEditorScreen(
+                    databaseId = key.id,
+                    onDismiss = { backStack.removeLastOrNull() },
+                )
+            }
 
-        composable(
-            route = Screen.MainStudio.route,
-            arguments = listOf(
-                navArgument("databaseId") { type = NavType.LongType },
-            ),
-        ) { backStackEntry ->
-            val dbId = backStackEntry.arguments?.getLong("databaseId") ?: -1L
-            MainStudioScreen(
-                databaseId = dbId,
-                onBack = { navController.popBackStack() },
-            )
-        }
+            entry<StudioKey> { key ->
+                MainStudioScreen(
+                    databaseId = key.databaseId,
+                    onBack = { backStack.removeLastOrNull() },
+                )
+            }
 
-        composable(Screen.QrScanner.route) {
-            QrScannerScreen(
-                onNavigateBack = { navController.popBackStack() },
-            )
-        }
-    }
+            entry<QrScannerKey> {
+                QrScannerScreen(
+                    onNavigateBack = { backStack.removeLastOrNull() },
+                )
+            }
+        },
+    )
 }
