@@ -78,7 +78,8 @@ val dataModule = module {
     // Studio session scope — one StudioSession instance per scope id ("studio:<databaseId>").
     // The session is *not* a ViewModel: Koin scopes don't drive `onCleared`, they fire
     // `onClose` when the scope itself is closed. We rely on that to tear down Ditto exactly
-    // once when the StudioKey nav entry leaves the back stack (see AppNavGraph).
+    // once when no studio rail-section entry for the databaseId remains on the back stack
+    // (driven by StudioScopeManager in AppNavGraph).
     scope(named(StudioSession.SCOPE_QUALIFIER)) {
         scoped { (databaseId: Long) ->
             StudioSession(

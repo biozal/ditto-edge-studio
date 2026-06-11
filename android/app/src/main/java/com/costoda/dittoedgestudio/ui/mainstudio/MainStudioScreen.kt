@@ -126,6 +126,14 @@ fun MainStudioScreen(
     databaseId: Long,
     session: com.costoda.dittoedgestudio.data.session.StudioSession,
     onBack: () -> Unit,
+    /**
+     * Optional override for rail / drawer item selection. When supplied (used by the
+     * scene-driven shell in Task 4.3 bridge mode), rail clicks call this callback instead of
+     * directly mutating [MainStudioViewModel.selectedNavItem]. This lets the caller turn the
+     * click into a back-stack push of the corresponding [com.costoda.dittoedgestudio.ui.navigation.StudioSectionKey].
+     * When null, the legacy behaviour (mutate the VM) is preserved.
+     */
+    onNavItemSelected: ((StudioNavItem) -> Unit)? = null,
 ) {
     val viewModel: MainStudioViewModel = koinViewModel(
         key = "MainStudioViewModel:$databaseId",
@@ -137,10 +145,26 @@ fun MainStudioScreen(
         koinViewModel(parameters = { parametersOf(currentDittoId) })
     } else null
 
+    // Rail/drawer click handler: bridge mode pushes a new nav entry, legacy mode mutates the VM.
+    val onItemClick: (StudioNavItem) -> Unit = { item ->
+        if (onNavItemSelected != null) onNavItemSelected(item)
+        else viewModel.selectedNavItem = item
+    }
+
     if (expandedLayout) {
-        TabletLayout(viewModel = viewModel, queryEditorViewModel = queryEditorViewModel, onBack = onBack)
+        TabletLayout(
+            viewModel = viewModel,
+            queryEditorViewModel = queryEditorViewModel,
+            onBack = onBack,
+            onNavItemClick = onItemClick,
+        )
     } else {
-        PhoneLayout(viewModel = viewModel, queryEditorViewModel = queryEditorViewModel, onBack = onBack)
+        PhoneLayout(
+            viewModel = viewModel,
+            queryEditorViewModel = queryEditorViewModel,
+            onBack = onBack,
+            onNavItemClick = onItemClick,
+        )
     }
 }
 
@@ -151,6 +175,7 @@ private fun PhoneLayout(
     viewModel: MainStudioViewModel,
     queryEditorViewModel: QueryEditorViewModel?,
     onBack: () -> Unit,
+    onNavItemClick: (StudioNavItem) -> Unit,
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -163,6 +188,10 @@ private fun PhoneLayout(
                     viewModel = viewModel,
                     onItemSelected = { scope.launch { drawerState.close() } },
                     onClose = { scope.launch { drawerState.close() } },
+                    onNavItemClick = { item ->
+                        onNavItemClick(item)
+                        scope.launch { drawerState.close() }
+                    },
                 )
             }
         },
@@ -253,6 +282,7 @@ private fun TabletLayout(
     viewModel: MainStudioViewModel,
     queryEditorViewModel: QueryEditorViewModel?,
     onBack: () -> Unit,
+    onNavItemClick: (StudioNavItem) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         // Column 1: Navigation Rail — nav items only, no FAB
@@ -260,7 +290,7 @@ private fun TabletLayout(
             StudioNavItem.entries.forEach { item ->
                 NavigationRailItem(
                     selected = viewModel.selectedNavItem == item,
-                    onClick = { viewModel.selectedNavItem = item },
+                    onClick = { onNavItemClick(item) },
                     icon = { Icon(item.icon, contentDescription = item.label) },
                     colors = NavigationRailItemDefaults.colors(
                         indicatorColor = SulfurYellow,
@@ -280,6 +310,7 @@ private fun TabletLayout(
             Row {
                 DataPanel(
                     viewModel = viewModel,
+                    onNavItemClick = onNavItemClick,
                     modifier = Modifier
                         .width(200.dp)
                         .fillMaxHeight(),
@@ -458,6 +489,7 @@ private fun PhoneDrawerContent(
     viewModel: MainStudioViewModel,
     onItemSelected: () -> Unit,
     onClose: () -> Unit,
+    onNavItemClick: (StudioNavItem) -> Unit,
 ) {
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
     val collections by viewModel.collections.collectAsStateWithLifecycle()
@@ -499,7 +531,7 @@ private fun PhoneDrawerContent(
                 label = { Text(item.label) },
                 selected = viewModel.selectedNavItem == item,
                 onClick = {
-                    viewModel.selectedNavItem = item
+                    onNavItemClick(item)
                     onItemSelected()
                 },
                 modifier = Modifier.padding(horizontal = 12.dp),
@@ -571,7 +603,7 @@ private fun PhoneDrawerContent(
                     isActive = viewModel.isObserverActive(observer),
                     onSelect = {
                         viewModel.selectObserver(observer)
-                        viewModel.selectedNavItem = StudioNavItem.OBSERVERS
+                        onNavItemClick(StudioNavItem.OBSERVERS)
                     },
                     onActivate = { viewModel.activateObserver(observer) },
                     onDeactivate = { viewModel.deactivateObserver(observer) },
@@ -613,7 +645,11 @@ private fun PhoneDrawerContent(
 }
 
 @Composable
-private fun DataPanel(viewModel: MainStudioViewModel, modifier: Modifier = Modifier) {
+private fun DataPanel(
+    viewModel: MainStudioViewModel,
+    onNavItemClick: (StudioNavItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
     val collections by viewModel.collections.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()

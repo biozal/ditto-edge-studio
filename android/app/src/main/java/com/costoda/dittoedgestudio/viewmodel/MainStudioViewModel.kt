@@ -222,8 +222,9 @@ class MainStudioViewModel(
     }
 
     // NOTE: We intentionally do NOT close the StudioSession from onCleared(). The session
-    // outlives this ViewModel — when rail sections become separate NavKey entries (Task 4.x)
-    // each section will instantiate its own VM, and clearing one must not tear the session
-    // down. Session teardown is driven by the Koin `studio` scope's `onClose` hook, fired
-    // from a DisposableEffect on the StudioKey entry in AppNavGraph.
+    // outlives this ViewModel — each studio rail section is its own NavKey entry (Task 4.3),
+    // and clearing the VM for one entry must not tear the session down. Session teardown is
+    // driven by the Koin `studio` scope's `onClose` hook, fired by the StudioScopeManager
+    // composable in AppNavGraph when no studio entry for the databaseId remains on the back
+    // stack.
 }
