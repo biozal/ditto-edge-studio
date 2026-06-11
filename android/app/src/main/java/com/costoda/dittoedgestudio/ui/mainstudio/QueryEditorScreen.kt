@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 
@@ -14,11 +14,11 @@ fun QueryEditorScreen(
     viewModel: QueryEditorViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val queryText by viewModel.queryText.collectAsState()
-    val isExecuting by viewModel.isExecuting.collectAsState()
-    val executionError by viewModel.executionError.collectAsState()
-    val queryResult by viewModel.queryResult.collectAsState()
-    val displayedDocuments by viewModel.displayedDocuments.collectAsState()
+    val queryText by viewModel.queryText.collectAsStateWithLifecycle()
+    val isExecuting by viewModel.isExecuting.collectAsStateWithLifecycle()
+    val executionError by viewModel.executionError.collectAsStateWithLifecycle()
+    val queryResult by viewModel.queryResult.collectAsStateWithLifecycle()
+    val displayedDocuments by viewModel.displayedDocuments.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         QueryEditorView(

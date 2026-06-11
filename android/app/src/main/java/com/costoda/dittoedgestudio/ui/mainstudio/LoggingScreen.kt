@@ -46,8 +46,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -82,13 +82,13 @@ fun LoggingScreen(
     val listState = rememberLazyListState()
 
     // ── StateFlow collectors ────────────────────────────────────────────────
-    val liveEntries by captureService.liveEntries.collectAsState()
-    val historicalEntries by captureService.historicalEntries.collectAsState()
-    val appEntries by captureService.appEntries.collectAsState()
-    val isLoading by captureService.isLoading.collectAsState()
-    val pendingCount by captureService.pendingNewEntriesCount.collectAsState()
-    val bufferNearlyFull by captureService.bufferNearlyFull.collectAsState()
-    val entriesDropped by captureService.entriesDropped.collectAsState()
+    val liveEntries by captureService.liveEntries.collectAsStateWithLifecycle()
+    val historicalEntries by captureService.historicalEntries.collectAsStateWithLifecycle()
+    val appEntries by captureService.appEntries.collectAsStateWithLifecycle()
+    val isLoading by captureService.isLoading.collectAsStateWithLifecycle()
+    val pendingCount by captureService.pendingNewEntriesCount.collectAsStateWithLifecycle()
+    val bufferNearlyFull by captureService.bufferNearlyFull.collectAsStateWithLifecycle()
+    val entriesDropped by captureService.entriesDropped.collectAsStateWithLifecycle()
 
     // ── Filter state ────────────────────────────────────────────────────────
     var selectedTabIndex by remember { mutableIntStateOf(0) }

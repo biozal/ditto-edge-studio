@@ -15,8 +15,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -28,11 +28,11 @@ fun QueryInspectorView(
     viewModel: QueryEditorViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val selectedTab by viewModel.selectedInspectorTab.collectAsState()
-    val history by viewModel.history.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
-    val selectedDocument by viewModel.selectedDocument.collectAsState()
-    val metrics by viewModel.queryMetrics.collectAsState()
+    val selectedTab by viewModel.selectedInspectorTab.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val selectedDocument by viewModel.selectedDocument.collectAsStateWithLifecycle()
+    val metrics by viewModel.queryMetrics.collectAsStateWithLifecycle()
 
     val tabs = QueryInspectorTab.entries
 

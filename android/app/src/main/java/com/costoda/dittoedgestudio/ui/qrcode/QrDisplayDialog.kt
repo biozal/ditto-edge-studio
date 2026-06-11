@@ -16,8 +16,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
@@ -35,8 +35,8 @@ fun QrDisplayDialog(
     onDismiss: () -> Unit,
     viewModel: QrDisplayViewModel = koinViewModel(parameters = { parametersOf(database) }),
 ) {
-    val bitmap by viewModel.bitmap.collectAsState()
-    val isError by viewModel.isError.collectAsState()
+    val bitmap by viewModel.bitmap.collectAsStateWithLifecycle()
+    val isError by viewModel.isError.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState()
 
     ModalBottomSheet(

@@ -33,8 +33,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,18 +73,18 @@ fun DatabaseEditorScreen(
         parameters = { parametersOf(databaseId) },
     ),
 ) {
-    val name by viewModel.name.collectAsState()
-    val dbId by viewModel.databaseId.collectAsState()
-    val token by viewModel.token.collectAsState()
-    val authUrl by viewModel.authUrl.collectAsState()
-    val httpApiUrl by viewModel.httpApiUrl.collectAsState()
-    val httpApiKey by viewModel.httpApiKey.collectAsState()
-    val mode by viewModel.mode.collectAsState()
-    val allowUntrustedCerts by viewModel.allowUntrustedCerts.collectAsState()
-    val secretKey by viewModel.secretKey.collectAsState()
-    val logLevel by viewModel.logLevel.collectAsState()
-    val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsState()
-    val canSave by viewModel.canSave.collectAsState()
+    val name by viewModel.name.collectAsStateWithLifecycle()
+    val dbId by viewModel.databaseId.collectAsStateWithLifecycle()
+    val token by viewModel.token.collectAsStateWithLifecycle()
+    val authUrl by viewModel.authUrl.collectAsStateWithLifecycle()
+    val httpApiUrl by viewModel.httpApiUrl.collectAsStateWithLifecycle()
+    val httpApiKey by viewModel.httpApiKey.collectAsStateWithLifecycle()
+    val mode by viewModel.mode.collectAsStateWithLifecycle()
+    val allowUntrustedCerts by viewModel.allowUntrustedCerts.collectAsStateWithLifecycle()
+    val secretKey by viewModel.secretKey.collectAsStateWithLifecycle()
+    val logLevel by viewModel.logLevel.collectAsStateWithLifecycle()
+    val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsStateWithLifecycle()
+    val canSave by viewModel.canSave.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
 

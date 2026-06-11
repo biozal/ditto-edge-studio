@@ -24,8 +24,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,9 +39,9 @@ fun AppMetricsScreen(
     viewModel: AppMetricsViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val metrics by viewModel.metrics.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val lastUpdated by viewModel.lastUpdatedText.collectAsState()
+    val metrics by viewModel.metrics.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val lastUpdated by viewModel.lastUpdatedText.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { viewModel.startAutoRefresh() }

@@ -110,7 +110,7 @@ import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 import com.costoda.dittoedgestudio.ui.theme.TrafficBlack
 import com.costoda.dittoedgestudio.ui.theme.TrafficWhite
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -360,7 +360,7 @@ private fun TabletLayout(
     ObserverEditorSheetIfNeeded(viewModel)
 
     if (viewModel.showAddIndex) {
-        val collections by viewModel.collections.collectAsState()
+        val collections by viewModel.collections.collectAsStateWithLifecycle()
         AddIndexSheet(
             collections = collections,
             onAdd = { collection, field -> viewModel.addIndex(collection, field) },
@@ -428,7 +428,7 @@ private fun StudioTopBar(
 
 @Composable
 private fun QueryTopBarControls(viewModel: QueryEditorViewModel) {
-    val isExecuting by viewModel.isExecuting.collectAsState()
+    val isExecuting by viewModel.isExecuting.collectAsStateWithLifecycle()
 
     IconButton(
         onClick = { viewModel.executeQuery() },
@@ -455,8 +455,8 @@ private fun PhoneDrawerContent(
     onItemSelected: () -> Unit,
     onClose: () -> Unit,
 ) {
-    val subscriptions by viewModel.subscriptions.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
+    val collections by viewModel.collections.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     Column(
@@ -551,7 +551,7 @@ private fun PhoneDrawerContent(
             trailingIcon = Icons.Filled.Add,
             onTrailingClick = { viewModel.editingObserver = DittoObservable() },
         )
-        val observers by viewModel.observers.collectAsState()
+        val observers by viewModel.observers.collectAsStateWithLifecycle()
         if (observers.isEmpty()) {
             Text(
                 text = "No Observers",
@@ -610,8 +610,8 @@ private fun PhoneDrawerContent(
 
 @Composable
 private fun DataPanel(viewModel: MainStudioViewModel, modifier: Modifier = Modifier) {
-    val subscriptions by viewModel.subscriptions.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
+    val collections by viewModel.collections.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     Box(modifier = modifier) {
@@ -666,7 +666,7 @@ private fun DataPanel(viewModel: MainStudioViewModel, modifier: Modifier = Modif
                 trailingIcon = Icons.Filled.Add,
                 onTrailingClick = { viewModel.editingObserver = DittoObservable() },
             )
-            val observers by viewModel.observers.collectAsState()
+            val observers by viewModel.observers.collectAsStateWithLifecycle()
             if (observers.isEmpty()) {
                 Text(
                     text = "No Observers",
@@ -720,9 +720,9 @@ private fun ContentPlaceholder(
     modifier: Modifier = Modifier,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val peersUiState by viewModel.peersUiState.collectAsState()
-    val networkInterfaces by viewModel.networkInterfaces.collectAsState()
-    val p2pTransports by viewModel.p2pTransports.collectAsState()
+    val peersUiState by viewModel.peersUiState.collectAsStateWithLifecycle()
+    val networkInterfaces by viewModel.networkInterfaces.collectAsStateWithLifecycle()
+    val p2pTransports by viewModel.p2pTransports.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         if (viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS) {
@@ -829,7 +829,7 @@ private fun ContentPlaceholder(
 
 @Composable
 private fun StudioBottomBar(viewModel: MainStudioViewModel, modifier: Modifier = Modifier) {
-    val connections by viewModel.connectionsByTransport.collectAsState()
+    val connections by viewModel.connectionsByTransport.collectAsStateWithLifecycle()
 
     Surface(
         modifier = modifier,
@@ -894,11 +894,11 @@ private fun QueryBottomBar(
     mainViewModel: MainStudioViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val connections by mainViewModel.connectionsByTransport.collectAsState()
-    val queryResult by viewModel.queryResult.collectAsState()
-    val currentPage by viewModel.currentPage.collectAsState()
-    val pageSize by viewModel.pageSize.collectAsState()
-    val pageSizeOptions by viewModel.pageSizeOptions.collectAsState()
+    val connections by mainViewModel.connectionsByTransport.collectAsStateWithLifecycle()
+    val queryResult by viewModel.queryResult.collectAsStateWithLifecycle()
+    val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
+    val pageSize by viewModel.pageSize.collectAsStateWithLifecycle()
+    val pageSizeOptions by viewModel.pageSizeOptions.collectAsStateWithLifecycle()
 
     var connectionsExpanded by remember { mutableStateOf(false) }
     var overflowExpanded by remember { mutableStateOf(false) }
