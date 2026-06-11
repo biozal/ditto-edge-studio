@@ -289,9 +289,9 @@ class MainStudioViewModelTest {
     fun `state initializes from a pre-populated SavedStateHandle`() = runTest {
         val handle = SavedStateHandle(
             mapOf(
-                "selectedNavItem" to StudioNavItem.QUERY.name,
-                "dataPanelVisible" to false,
-                "inspectorVisible" to true,
+                MainStudioViewModel.KEY_SELECTED_NAV to StudioNavItem.QUERY.name,
+                MainStudioViewModel.KEY_DATA_PANEL_VISIBLE to false,
+                MainStudioViewModel.KEY_INSPECTOR_VISIBLE to true,
             )
         )
 
@@ -312,8 +312,26 @@ class MainStudioViewModelTest {
         vm.dataPanelVisible = false
         vm.inspectorVisible = true
 
-        assertEquals(StudioNavItem.OBSERVERS.name, handle.get<String>("selectedNavItem"))
-        assertEquals(false, handle.get<Boolean>("dataPanelVisible"))
-        assertEquals(true, handle.get<Boolean>("inspectorVisible"))
+        assertEquals(StudioNavItem.OBSERVERS.name, handle.get<String>(MainStudioViewModel.KEY_SELECTED_NAV))
+        assertEquals(false, handle.get<Boolean>(MainStudioViewModel.KEY_DATA_PANEL_VISIBLE))
+        assertEquals(true, handle.get<Boolean>(MainStudioViewModel.KEY_INSPECTOR_VISIBLE))
+    }
+
+    @Test
+    fun `stale saved state with nonexistent nav item falls back to SUBSCRIPTIONS without crashing`() = runTest {
+        val handle = SavedStateHandle(
+            mapOf(
+                MainStudioViewModel.KEY_SELECTED_NAV to "NONEXISTENT_SECTION",
+                MainStudioViewModel.KEY_DATA_PANEL_VISIBLE to true,
+                MainStudioViewModel.KEY_INSPECTOR_VISIBLE to false,
+            )
+        )
+
+        val vm = createViewModel(savedStateHandle = handle)
+        // Should not throw IllegalArgumentException from valueOf()
+
+        assertEquals(StudioNavItem.SUBSCRIPTIONS, vm.selectedNavItem)
+        assertEquals(true, vm.dataPanelVisible)
+        assertEquals(false, vm.inspectorVisible)
     }
 }

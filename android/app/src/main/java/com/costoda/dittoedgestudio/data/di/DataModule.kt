@@ -72,6 +72,7 @@ val dataModule = module {
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
+    // Koin resolves SavedStateHandle from CreationExtras for viewModel {} factories
     viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get(), get(), savedStateHandle = get()) }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
     viewModel { DiskUsageViewModel(androidContext(), get(), get()) }

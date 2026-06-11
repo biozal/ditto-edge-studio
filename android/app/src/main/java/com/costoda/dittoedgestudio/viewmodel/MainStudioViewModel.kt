@@ -79,10 +79,6 @@ sealed class PeersUiState {
 
 private const val TAG = "MainStudioViewModel"
 
-private const val KEY_SELECTED_NAV = "selectedNavItem"
-private const val KEY_DATA_PANEL_VISIBLE = "dataPanelVisible"
-private const val KEY_INSPECTOR_VISIBLE = "inspectorVisible"
-
 class MainStudioViewModel(
     private val databaseId: Long,
     private val databaseRepository: DatabaseRepository,
@@ -97,12 +93,18 @@ class MainStudioViewModel(
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
+    companion object {
+        internal const val KEY_SELECTED_NAV = "selectedNavItem"
+        internal const val KEY_DATA_PANEL_VISIBLE = "dataPanelVisible"
+        internal const val KEY_INSPECTOR_VISIBLE = "inspectorVisible"
+    }
+
     // Backing Compose state initialised from the handle so Compose can observe changes,
     // with write-through to the handle so values survive process death.
     private var _selectedNavItem by mutableStateOf(
-        StudioNavItem.valueOf(
-            savedStateHandle.get<String>(KEY_SELECTED_NAV) ?: StudioNavItem.SUBSCRIPTIONS.name
-        )
+        savedStateHandle.get<String>(KEY_SELECTED_NAV)
+            ?.let { saved -> StudioNavItem.entries.firstOrNull { it.name == saved } }
+            ?: StudioNavItem.SUBSCRIPTIONS
     )
     var selectedNavItem: StudioNavItem
         get() = _selectedNavItem
