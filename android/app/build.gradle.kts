@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.androidx.window.core)
     implementation(libs.material3.adaptive)
     implementation(libs.material3.adaptive.layout)
+    implementation(libs.material3.adaptive.navigation3)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
 
