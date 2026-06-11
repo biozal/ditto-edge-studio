@@ -172,7 +172,7 @@ private fun PhoneLayout(
 
                     viewModel = viewModel,
                     queryEditorViewModel = queryEditorViewModel,
-                    isTablet = false,
+                    expandedLayout = false,
                     onBack = onBack,
                     onNavigationClick = { scope.launch { drawerState.open() } },
                 )
@@ -290,7 +290,7 @@ private fun TabletLayout(
         // Column 3: Content (takes remaining width)
         Column(modifier = Modifier.weight(1f)) {
             StudioTopBar(
-                isTablet = true,
+                expandedLayout = true,
                 viewModel = viewModel,
                 queryEditorViewModel = queryEditorViewModel,
                 onBack = onBack,
@@ -375,7 +375,7 @@ private fun TabletLayout(
 
 @Composable
 private fun StudioTopBar(
-    isTablet: Boolean,
+    expandedLayout: Boolean,
     viewModel: MainStudioViewModel,
     queryEditorViewModel: QueryEditorViewModel?,
     onBack: () -> Unit,
@@ -386,12 +386,12 @@ private fun StudioTopBar(
         navigationIcon = {
             IconButton(onClick = onNavigationClick) {
                 Icon(
-                    imageVector = if (isTablet) {
+                    imageVector = if (expandedLayout) {
                         Icons.AutoMirrored.Outlined.MenuOpen
                     } else {
                         Icons.Outlined.Menu
                     },
-                    contentDescription = if (isTablet) "Toggle data panel" else "Open menu",
+                    contentDescription = if (expandedLayout) "Toggle data panel" else "Open menu",
                 )
             }
         },
