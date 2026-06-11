@@ -92,7 +92,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -118,6 +117,8 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.viewmodel.PeersUiState
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
+import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -129,13 +130,13 @@ fun MainStudioScreen(
     onBack: () -> Unit,
 ) {
     val viewModel: MainStudioViewModel = koinViewModel(parameters = { parametersOf(databaseId) })
-    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val expandedLayout = studioWindowSizeClass().showsRail
     val currentDittoId = viewModel.currentDittoId
     val queryEditorViewModel: QueryEditorViewModel? = if (currentDittoId != null) {
         koinViewModel(parameters = { parametersOf(currentDittoId) })
     } else null
 
-    if (isTablet) {
+    if (expandedLayout) {
         TabletLayout(viewModel = viewModel, queryEditorViewModel = queryEditorViewModel, onBack = onBack)
     } else {
         PhoneLayout(viewModel = viewModel, queryEditorViewModel = queryEditorViewModel, onBack = onBack)
@@ -774,7 +775,6 @@ private fun ContentPlaceholder(
                     LoggingScreen(captureService = viewModel.loggingCaptureService)
                 }
                 viewModel.selectedNavItem == StudioNavItem.QUERY && queryEditorViewModel != null -> {
-                    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
                     QueryEditorScreen(
                         viewModel = queryEditorViewModel,
 

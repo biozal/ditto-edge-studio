@@ -54,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayDialog
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
@@ -79,12 +80,12 @@ fun DatabaseListScreen(
     viewModel: DatabaseListViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val expandedLayout = studioWindowSizeClass().showsRail
     var tabletEditorId by remember { mutableStateOf<Long?>(null) }
     var tabletEditorSession by remember { mutableStateOf(0) }
     var showQrDialogFor by remember { mutableStateOf<DittoDatabase?>(null) }
 
-    if (screenWidthDp >= 600) {
+    if (expandedLayout) {
         TabletDatabaseListLayout(
             uiState = uiState,
             onAddDatabase = { tabletEditorId = -1L; tabletEditorSession++ },

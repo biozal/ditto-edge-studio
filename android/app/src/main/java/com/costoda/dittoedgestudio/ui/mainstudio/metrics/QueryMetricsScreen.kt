@@ -31,12 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
+import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -50,7 +51,7 @@ fun QueryMetricsScreen(
     val scope = rememberCoroutineScope()
     var records by remember { mutableStateOf<List<QueryMetrics>>(emptyList()) }
     var selectedRecord by remember { mutableStateOf<QueryMetrics?>(null) }
-    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val expandedLayout = studioWindowSizeClass().showsRail
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -110,7 +111,7 @@ fun QueryMetricsScreen(
             return@Column
         }
 
-        if (isTablet) {
+        if (expandedLayout) {
             Row(Modifier.fillMaxSize()) {
                 QueryMetricsList(
                     records = records,
