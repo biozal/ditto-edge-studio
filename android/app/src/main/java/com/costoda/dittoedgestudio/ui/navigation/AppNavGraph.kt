@@ -28,6 +28,8 @@ import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
  *    that destination on the back stack.
  *
  * System back is wired through `NavDisplay.onBack`, which pops the last entry.
+ * The root entry is never popped — emptying the back stack would leave
+ * NavDisplay rendering nothing instead of letting the system finish the activity.
  */
 @Composable
 fun AppNavGraph() {
@@ -35,7 +37,7 @@ fun AppNavGraph() {
 
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
