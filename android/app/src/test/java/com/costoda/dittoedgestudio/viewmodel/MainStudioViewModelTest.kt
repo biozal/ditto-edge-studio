@@ -9,6 +9,8 @@ import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
+import com.costoda.dittoedgestudio.data.session.PeersUiState
+import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
@@ -124,7 +126,10 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository, ioDispatcher = testDispatcher, savedStateHandle = SavedStateHandle())
+        val vm = MainStudioViewModel(
+            session = createSession(databaseId = 99L),
+            savedStateHandle = SavedStateHandle(),
+        )
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
@@ -224,8 +229,8 @@ class MainStudioViewModelTest {
         coVerify { databaseRepository.save(any()) }
     }
 
-    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()) = MainStudioViewModel(
-        databaseId = 1L,
+    private fun createSession(databaseId: Long = 1L): StudioSession = StudioSession(
+        databaseId = databaseId,
         databaseRepository = databaseRepository,
         dittoManager = dittoManager,
         systemRepository = systemRepository,
@@ -235,8 +240,13 @@ class MainStudioViewModelTest {
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
         ioDispatcher = testDispatcher,
-        savedStateHandle = savedStateHandle,
     )
+
+    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()) =
+        MainStudioViewModel(
+            session = createSession(),
+            savedStateHandle = savedStateHandle,
+        )
 
     @Test
     fun `hydrate loads observers from repository`() = runTest {

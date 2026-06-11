@@ -1,7 +1,5 @@
 package com.costoda.dittoedgestudio.viewmodel
 
-import android.content.Context
-import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.outlined.DataUsage
@@ -16,38 +14,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
-import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
-import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
-import com.costoda.dittoedgestudio.data.repository.ObservableRepository
-import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
-import com.costoda.dittoedgestudio.data.repository.SystemRepository
-import com.costoda.dittoedgestudio.domain.model.DittoCollection
+import com.costoda.dittoedgestudio.data.session.PeersUiState
+import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
-import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
-import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
-import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
-import com.ditto.kotlin.DittoStoreObserver
-import com.ditto.kotlin.DittoSyncSubscription
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("Subscriptions", Icons.Outlined.Sync),
@@ -69,27 +48,23 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
     }
 }
 
-sealed class PeersUiState {
-    object Initializing : PeersUiState()
-    data class Active(
-        val localPeer: LocalPeerInfo?,
-        val remotePeers: List<SyncStatusInfo>,
-    ) : PeersUiState()
-}
+// PeersUiState was moved to com.costoda.dittoedgestudio.data.session.PeersUiState
+// so it can live alongside the StudioSession that owns the underlying flow. Call sites
+// should `import com.costoda.dittoedgestudio.data.session.PeersUiState` directly.
 
-private const val TAG = "MainStudioViewModel"
-
+/**
+ * Studio UI coordinator. Owns purely visual / panel / picker state (selectedNavItem,
+ * dataPanelVisible, inspectorVisible, sheet toggles, paging cursors for the observer events
+ * list, etc.) and delegates everything Ditto-session-related to [StudioSession].
+ *
+ * The session is supplied by the UI via `parametersOf` after looking up / creating the
+ * Koin `studio` scope keyed by databaseId — see [com.costoda.dittoedgestudio.ui.navigation.AppNavGraph].
+ *
+ * Public surface intentionally mirrors the pre-extraction shape so [MainStudioScreen]
+ * call sites stay stable.
+ */
 class MainStudioViewModel(
-    private val databaseId: Long,
-    private val databaseRepository: DatabaseRepository,
-    private val dittoManager: DittoManager,
-    private val systemRepository: SystemRepository,
-    private val networkRepo: NetworkDiagnosticsRepository,
-    private val subscriptionsRepository: SubscriptionsRepository,
-    val collectionsRepository: CollectionsRepository,
-    val loggingCaptureService: DittoLogCaptureService,
-    private val observableRepository: ObservableRepository,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    val session: StudioSession,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -123,40 +98,16 @@ class MainStudioViewModel(
     var inspectorVisible: Boolean
         get() = _inspectorVisible
         set(value) { _inspectorVisible = value; savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
-    var syncEnabled by mutableStateOf(false)
+
+    // ── Pure UI state (sheets, panels, transient pickers) ────────────────────
     var bottomBarExpanded by mutableStateOf(true)
     var transportConfigVisible by mutableStateOf(false)
     var fabMenuExpanded by mutableStateOf(false)
     var connectionPopupVisible by mutableStateOf(false)
-    var hydrateError by mutableStateOf<String?>(null)
     var showAddIndex by mutableStateOf(false)
 
-    var currentDittoId by mutableStateOf<String?>(null)
-        private set
-
-    val collections: StateFlow<List<DittoCollection>> = collectionsRepository.collections
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // Persisted subscription metadata — drives the sidebar list
-    private val _subscriptions = MutableStateFlow<List<DittoSubscription>>(emptyList())
-    val subscriptions: StateFlow<List<DittoSubscription>> = _subscriptions.asStateFlow()
-
-    // Sheet control — null = closed, non-null = editing (new entry has id=0L)
     var editingSubscription by mutableStateOf<DittoSubscription?>(null)
-
-    // In-memory live SDK handles keyed by Room subscription id
-    private val activeHandles = mutableMapOf<Long, DittoSyncSubscription>()
-
-    // ── Observer state ──────────────────────────────────────────────
-    private val _observers = MutableStateFlow<List<DittoObservable>>(emptyList())
-    val observers: StateFlow<List<DittoObservable>> = _observers.asStateFlow()
-
     var editingObserver by mutableStateOf<DittoObservable?>(null)
-
-    private val activeObserverHandles = mutableMapOf<Long, DittoStoreObserver>()
-
-    private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
-    val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
 
     var selectedObserver by mutableStateOf<DittoObservable?>(null)
     var selectedEvent by mutableStateOf<DittoObserveEvent?>(null)
@@ -164,230 +115,85 @@ class MainStudioViewModel(
     var eventPageSize by mutableStateOf(25)
     var eventCurrentPage by mutableStateOf(0)
 
-    var transportBluetoothEnabled by mutableStateOf(true)
-    var transportLanEnabled by mutableStateOf(true)
-    var transportWifiAwareEnabled by mutableStateOf(false)
-    var transportCloudSyncEnabled by mutableStateOf(true)
-    var isApplyingTransport by mutableStateOf(false)
+    // ── Session passthroughs (keep call sites stable) ─────────────────────────
 
-    private var currentDatabase: DittoDatabase? = null
+    val loggingCaptureService: DittoLogCaptureService get() = session.loggingCaptureService
+    val collectionsRepository: CollectionsRepository get() = session.collectionsRepository
+    val collections: StateFlow<List<DittoCollection>> get() = session.collections
+    val subscriptions: StateFlow<List<DittoSubscription>> get() = session.subscriptions
+    val observers: StateFlow<List<DittoObservable>> get() = session.observers
+    val observerEvents: StateFlow<List<DittoObserveEvent>> get() = session.observerEvents
+    val peersUiState: StateFlow<PeersUiState> get() = session.peersUiState
+    val connectionsByTransport: StateFlow<ConnectionsByTransport> get() = session.connectionsByTransport
+    val networkInterfaces: StateFlow<List<NetworkInterfaceInfo>> get() = session.networkInterfaces
+    val p2pTransports: StateFlow<List<P2PTransportInfo>> get() = session.p2pTransports
 
-    val peersUiState: StateFlow<PeersUiState> = combine(
-        systemRepository.localPeer,
-        systemRepository.peers,
-    ) { local, remote ->
-        PeersUiState.Active(localPeer = local, remotePeers = remote)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PeersUiState.Initializing)
+    val currentDittoId: String? get() = session.currentDittoId
+    val hydrateError: String? get() = session.hydrateError
+    val hasNetworkPermission: Boolean get() = session.hasNetworkPermission
 
-    val connectionsByTransport: StateFlow<ConnectionsByTransport> =
-        systemRepository.connectionsByTransport
-            .stateIn(
-                viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
-                ConnectionsByTransport.Empty,
-            )
+    // Reactive flags — exposed as StateFlow so the screen's `collectAsStateWithLifecycle`
+    // recomposes when sync starts/stops or transport-apply finishes.
+    val syncEnabledFlow: StateFlow<Boolean> get() = session.syncEnabled
+    val isApplyingTransportFlow: StateFlow<Boolean> get() = session.isApplyingTransport
 
-    private val _networkInterfaces = MutableStateFlow<List<NetworkInterfaceInfo>>(emptyList())
-    val networkInterfaces: StateFlow<List<NetworkInterfaceInfo>> = _networkInterfaces.asStateFlow()
-
-    private val _p2pTransports = MutableStateFlow<List<P2PTransportInfo>>(emptyList())
-    val p2pTransports: StateFlow<List<P2PTransportInfo>> = _p2pTransports.asStateFlow()
-
-    val hasNetworkPermission: Boolean
-        get() = networkRepo.hasLocationOrNearbyPermission()
+    // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`
+    // inside the transport-config sheet, and for non-Compose readers (tests).
+    val syncEnabled: Boolean get() = session.syncEnabled.value
+    val isApplyingTransport: Boolean get() = session.isApplyingTransport.value
+    val transportBluetoothEnabled: Boolean get() = session.transportBluetoothEnabled.value
+    val transportLanEnabled: Boolean get() = session.transportLanEnabled.value
+    val transportWifiAwareEnabled: Boolean get() = session.transportWifiAwareEnabled.value
+    val transportCloudSyncEnabled: Boolean get() = session.transportCloudSyncEnabled.value
 
     init {
-        hydrate()
-    }
-
-    private fun hydrate() {
-        viewModelScope.launch {
-            hydrateError = null
-            runCatching {
-                val database = databaseRepository.getById(databaseId)
-                    ?: error("Database not found: $databaseId")
-                currentDatabase = database
-                currentDittoId = database.databaseId
-                transportBluetoothEnabled = database.isBluetoothLeEnabled
-                transportLanEnabled = database.isLanEnabled
-                transportWifiAwareEnabled = database.isAwdlEnabled
-                transportCloudSyncEnabled = database.isCloudSyncEnabled
-
-                val ditto = dittoManager.hydrate(database)
-                systemRepository.startObserving(ditto)
-                collectionsRepository.startObserving(ditto)
-                syncEnabled = true
-                val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
-
-                saved.forEach { sub ->
-                    runCatching {
-                        val handle = ditto.sync.registerSubscription(sub.query)
-                        activeHandles[sub.id] = handle
-                    }
-                }
-                _subscriptions.value = saved
-                val savedObservers = observableRepository.loadObservables(database.databaseId)
-                _observers.value = savedObservers
-            }.onFailure { e ->
-                hydrateError = e.message
-            }
+        // Idempotent — StudioSession.hydrate is safe to invoke on first VM creation only,
+        // which mirrors prior behaviour where the ViewModel's `init` called `hydrate()`.
+        // Scope-level construction guarantees this VM is created at most once per studio
+        // session; subsequent rail-section navigations reuse the same scope.
+        if (session.currentDittoId == null && session.hydrateError == null) {
+            session.hydrate()
         }
     }
 
-    fun loadNetworkDiagnostics() {
-        viewModelScope.launch {
-            _networkInterfaces.value = networkRepo.fetchInterfaces()
-            _p2pTransports.value = networkRepo.fetchP2PTransports()
-        }
-    }
+    // ── Thin facades to keep MainStudioScreen call sites unchanged ────────────
 
-    fun toggleSync() {
-        val ditto = dittoManager.currentInstance() ?: return
-        viewModelScope.launch(ioDispatcher) {
-            runCatching {
-                if (ditto.sync.isActive) {
-                    ditto.sync.stop()
-                    syncEnabled = false
-                } else {
-                    ditto.sync.start()
-                    syncEnabled = true
-                }
-            }
-        }
-    }
-
+    fun loadNetworkDiagnostics() = session.loadNetworkDiagnostics()
+    fun toggleSync() = session.toggleSync()
     fun addSubscription(name: String, query: String) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        viewModelScope.launch {
-            runCatching {
-                val sub = DittoSubscription(databaseId = db.databaseId, name = name, query = query)
-                val id = subscriptionsRepository.saveSubscription(sub)
-                val handle = ditto.sync.registerSubscription(query)
-                activeHandles[id] = handle
-                _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
-            editingSubscription = null
-        }
+        session.addSubscription(name, query)
+        editingSubscription = null
     }
-
     fun updateSubscription(subscription: DittoSubscription) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        viewModelScope.launch {
-            runCatching {
-                activeHandles.remove(subscription.id)?.close()
-                subscriptionsRepository.updateSubscription(subscription)
-                val handle = ditto.sync.registerSubscription(subscription.query)
-                activeHandles[subscription.id] = handle
-                _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
-            editingSubscription = null
-        }
+        session.updateSubscription(subscription)
+        editingSubscription = null
     }
-
-    fun removeSubscription(id: Long) {
-        val db = currentDatabase ?: return
-        viewModelScope.launch(ioDispatcher) {
-            activeHandles.remove(id)?.close()
-            subscriptionsRepository.removeSubscription(id)
-            _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
-        }
-    }
-
-    // ── Observer CRUD ───────────────────────────────────────────────
+    fun removeSubscription(id: Long) = session.removeSubscription(id)
 
     fun addObserver(name: String, query: String) {
-        val db = currentDatabase ?: return
-        viewModelScope.launch(ioDispatcher) {
-            runCatching {
-                val obs = DittoObservable(databaseId = db.databaseId, name = name, query = query)
-                observableRepository.saveObservable(obs)
-                _observers.value = observableRepository.loadObservables(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
-            editingObserver = null
-        }
+        session.addObserver(name, query)
+        editingObserver = null
     }
-
     fun updateObserver(observer: DittoObservable, name: String, query: String) {
-        val db = currentDatabase ?: return
-        viewModelScope.launch(ioDispatcher) {
-            runCatching {
-                activeObserverHandles.remove(observer.id)?.close()
-                _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
-                val updated = observer.copy(name = name, query = query, isActive = false)
-                observableRepository.updateObservable(updated)
-                _observers.value = observableRepository.loadObservables(db.databaseId)
-                if (selectedObserver?.id == observer.id) selectedObserver = updated
-            }.onFailure { e -> hydrateError = e.message }
-            editingObserver = null
-        }
+        session.updateObserver(observer, name, query)
+        editingObserver = null
     }
-
     fun removeObserver(observer: DittoObservable) {
-        val db = currentDatabase ?: return
-        viewModelScope.launch(ioDispatcher) {
-            activeObserverHandles.remove(observer.id)?.close()
-            observableRepository.removeObservable(observer.id)
-            _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
-            _observers.value = observableRepository.loadObservables(db.databaseId)
-            if (selectedObserver?.id == observer.id) {
-                selectedObserver = null
-                selectedEvent = null
-            }
+        session.removeObserver(observer)
+        if (selectedObserver?.id == observer.id) {
+            selectedObserver = null
+            selectedEvent = null
         }
     }
-
-    // ── Observer lifecycle ───────────────────────────────────────────
-
-    fun activateObserver(observer: DittoObservable) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        if (activeObserverHandles.containsKey(observer.id)) return
-
-        val handle = ditto.store.registerObserver(observer.query) { queryResult, diff ->
-            val docs = queryResult.items.map { it.jsonString() }
-
-            val event = DittoObserveEvent(
-                observeId = observer.id.toString(),
-                data = docs,
-                insertIndexes = diff.insertions.toList(),
-                updatedIndexes = diff.updates.toList(),
-                deletedIndexes = diff.deletions.toList(),
-                movedIndexes = diff.moves.map { it.from to it.to },
-                eventTime = java.time.Instant.now().toString(),
-            )
-
-            _observerEvents.update { it + event }
-        }
-
-        activeObserverHandles[observer.id] = handle
-        viewModelScope.launch(ioDispatcher) {
-            val updated = observer.copy(isActive = true, lastUpdated = System.currentTimeMillis())
-            observableRepository.updateObservable(updated)
-            _observers.value = observableRepository.loadObservables(db.databaseId)
-        }
-    }
-
+    fun activateObserver(observer: DittoObservable) = session.activateObserver(observer)
     fun deactivateObserver(observer: DittoObservable) {
-        val db = currentDatabase ?: return
-        activeObserverHandles.remove(observer.id)?.close()
-        _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
-
-        viewModelScope.launch(ioDispatcher) {
-            val updated = observer.copy(isActive = false)
-            observableRepository.updateObservable(updated)
-            _observers.value = observableRepository.loadObservables(db.databaseId)
-        }
-
+        session.deactivateObserver(observer)
         if (selectedObserver?.id == observer.id) {
             selectedEvent = null
             eventCurrentPage = 0
         }
     }
-
-    fun isObserverActive(observer: DittoObservable): Boolean =
-        activeObserverHandles.containsKey(observer.id)
+    fun isObserverActive(observer: DittoObservable): Boolean = session.isObserverActive(observer)
 
     fun selectObserver(observer: DittoObservable) {
         selectedObserver = observer
@@ -401,68 +207,23 @@ class MainStudioViewModel(
     }
 
     fun selectedObserverEvents(): List<DittoObserveEvent> {
-        val obsId = selectedObserver?.id?.toString() ?: return emptyList()
-        return _observerEvents.value.filter { it.observeId == obsId }
+        val obsId = selectedObserver?.id ?: return emptyList()
+        return session.observerEventsFor(obsId)
     }
 
     fun addIndex(collection: String, fieldName: String) {
-        viewModelScope.launch(ioDispatcher) {
-            runCatching {
-                collectionsRepository.createIndex(collection, fieldName)
-            }.onFailure { e ->
-                hydrateError = e.message
-            }
-            showAddIndex = false
-        }
+        session.addIndex(collection, fieldName)
+        showAddIndex = false
     }
 
     fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        viewModelScope.launch(ioDispatcher) {
-            isApplyingTransport = true
-            runCatching {
-                // 1. Stop sync and observers
-                ditto.sync.stop()
-                systemRepository.stopObserving()
-
-                // 2. Apply new transport config to live Ditto instance
-                val updatedDb = db.copy(
-                    isBluetoothLeEnabled = bt,
-                    isLanEnabled = lan,
-                    isAwdlEnabled = wifiAware,
-                )
-                dittoManager.applyTransportConfig(ditto, updatedDb)
-
-                // 3. Persist to Room so settings survive app restart
-                databaseRepository.save(updatedDb)
-                currentDatabase = updatedDb
-
-                // 4. Restart sync and re-register observers
-                ditto.sync.start()
-                systemRepository.startObserving(ditto)
-            }.onFailure { e ->
-                Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
-            }
-            transportBluetoothEnabled = bt
-            transportLanEnabled = lan
-            transportWifiAwareEnabled = wifiAware
-            isApplyingTransport = false
-            transportConfigVisible = false
-        }
+        session.applyTransportSettings(bt, lan, wifiAware)
+        transportConfigVisible = false
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        systemRepository.stopObserving()
-        collectionsRepository.stopObserving()
-        activeHandles.values.forEach { it.close() }
-        activeHandles.clear()
-        _subscriptions.value = emptyList()
-        activeObserverHandles.values.forEach { it.close() }
-        activeObserverHandles.clear()
-        _observers.value = emptyList()
-        _observerEvents.value = emptyList()
-        viewModelScope.launch { dittoManager.close() }
-    }
+    // NOTE: We intentionally do NOT close the StudioSession from onCleared(). The session
+    // outlives this ViewModel — when rail sections become separate NavKey entries (Task 4.x)
+    // each section will instantiate its own VM, and clearing one must not tear the session
+    // down. Session teardown is driven by the Koin `studio` scope's `onClose` hook, fired
+    // from a DisposableEffect on the StudioKey entry in AppNavGraph.
 }

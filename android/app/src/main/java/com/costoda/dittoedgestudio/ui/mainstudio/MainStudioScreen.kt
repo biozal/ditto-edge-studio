@@ -94,7 +94,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.InspectorContentView
@@ -105,7 +104,6 @@ import com.costoda.dittoedgestudio.ui.mainstudio.metrics.QueryMetricsScreen
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 import org.koin.compose.koinInject
-import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 import com.costoda.dittoedgestudio.ui.theme.TrafficBlack
@@ -115,7 +113,6 @@ import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
-import com.costoda.dittoedgestudio.viewmodel.PeersUiState
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.ui.adaptive.showsRail
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
@@ -127,9 +124,13 @@ import org.koin.core.parameter.parametersOf
 @Composable
 fun MainStudioScreen(
     databaseId: Long,
+    session: com.costoda.dittoedgestudio.data.session.StudioSession,
     onBack: () -> Unit,
 ) {
-    val viewModel: MainStudioViewModel = koinViewModel(parameters = { parametersOf(databaseId) })
+    val viewModel: MainStudioViewModel = koinViewModel(
+        key = "MainStudioViewModel:$databaseId",
+        parameters = { parametersOf(session) },
+    )
     val expandedLayout = studioWindowSizeClass().showsRail
     val currentDittoId = viewModel.currentDittoId
     val queryEditorViewModel: QueryEditorViewModel? = if (currentDittoId != null) {
@@ -381,6 +382,7 @@ private fun StudioTopBar(
     onBack: () -> Unit,
     onNavigationClick: () -> Unit,
 ) {
+    val syncEnabled by viewModel.syncEnabledFlow.collectAsStateWithLifecycle()
     TopAppBar(
         title = { Text("Edge Studio") },
         navigationIcon = {
@@ -404,7 +406,7 @@ private fun StudioTopBar(
                 Icon(
                     imageVector = Icons.Outlined.Sync,
                     contentDescription = "Toggle sync",
-                    tint = if (viewModel.syncEnabled) {
+                    tint = if (syncEnabled) {
                         Color(0xFF34C759)
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -1139,6 +1141,7 @@ private fun TransportConfigContent(viewModel: MainStudioViewModel) {
     var bluetoothEnabled by remember { mutableStateOf(viewModel.transportBluetoothEnabled) }
     var lanEnabled by remember { mutableStateOf(viewModel.transportLanEnabled) }
     var wifiAwareEnabled by remember { mutableStateOf(viewModel.transportWifiAwareEnabled) }
+    val isApplyingTransport by viewModel.isApplyingTransportFlow.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -1201,10 +1204,10 @@ private fun TransportConfigContent(viewModel: MainStudioViewModel) {
 
         Button(
             onClick = { viewModel.applyTransportSettings(bluetoothEnabled, lanEnabled, wifiAwareEnabled) },
-            enabled = !viewModel.isApplyingTransport,
+            enabled = !isApplyingTransport,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            if (viewModel.isApplyingTransport) {
+            if (isApplyingTransport) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     color = MaterialTheme.colorScheme.onPrimary,
@@ -1212,7 +1215,7 @@ private fun TransportConfigContent(viewModel: MainStudioViewModel) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
-            Text(if (viewModel.isApplyingTransport) "Applying…" else "Apply Transport Settings")
+            Text(if (isApplyingTransport) "Applying…" else "Apply Transport Settings")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1478,10 +1481,6 @@ private fun SubscriptionListItem(
 
 // ─── Preview ──────────────────────────────────────────────────────────────────
 
-@Preview(showBackground = true)
-@Composable
-private fun MainStudioScreenPreview() {
-    EdgeStudioTheme {
-        MainStudioScreen(databaseId = 1L, onBack = {})
-    }
-}
+// NOTE: No `@Preview` for MainStudioScreen — it requires a live StudioSession
+// (resolved from a Koin "studio" scope), which can't be constructed in preview mode.
+// Use the running app to inspect this screen.

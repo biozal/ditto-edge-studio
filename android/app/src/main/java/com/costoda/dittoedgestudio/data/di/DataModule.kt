@@ -26,6 +26,7 @@ import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepositoryImpl
+import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayViewModel
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
@@ -42,7 +43,9 @@ import androidx.lifecycle.SavedStateHandle
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import org.koin.dsl.onClose
 
 val dataModule = module {
     // App-level CoroutineScope for Ditto operations
@@ -72,8 +75,31 @@ val dataModule = module {
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
-    // Koin resolves SavedStateHandle from CreationExtras for viewModel {} factories
-    viewModel { (id: Long) -> MainStudioViewModel(id, get(), get(), get(), get(), get(), get(), get(), get(), savedStateHandle = get()) }
+    // Studio session scope — one StudioSession instance per scope id ("studio:<databaseId>").
+    // The session is *not* a ViewModel: Koin scopes don't drive `onCleared`, they fire
+    // `onClose` when the scope itself is closed. We rely on that to tear down Ditto exactly
+    // once when the StudioKey nav entry leaves the back stack (see AppNavGraph).
+    scope(named(StudioSession.SCOPE_QUALIFIER)) {
+        scoped { (databaseId: Long) ->
+            StudioSession(
+                databaseId = databaseId,
+                databaseRepository = get(),
+                dittoManager = get(),
+                systemRepository = get(),
+                networkRepo = get(),
+                subscriptionsRepository = get(),
+                collectionsRepository = get(),
+                loggingCaptureService = get(),
+                observableRepository = get(),
+            )
+        } onClose { it?.close() }
+    }
+    // The session is supplied by the UI via parametersOf(session) after resolving it from
+    // the studio scope; the VM stays plain so unit tests don't need a Koin scope.
+    // Koin resolves SavedStateHandle from CreationExtras for viewModel {} factories.
+    viewModel { (session: StudioSession) ->
+        MainStudioViewModel(session = session, savedStateHandle = get())
+    }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
     viewModel { DiskUsageViewModel(androidContext(), get(), get()) }
     viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get(), get()) }
