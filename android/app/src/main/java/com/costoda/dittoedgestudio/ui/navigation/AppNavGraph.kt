@@ -22,6 +22,9 @@ import androidx.navigation3.ui.NavDisplay
 import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.ui.database.DatabaseEditorScreen
 import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
+import com.costoda.dittoedgestudio.ui.mainstudio.AppMetricsSection
+import com.costoda.dittoedgestudio.ui.mainstudio.DiskUsageSection
+import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
 import com.costoda.dittoedgestudio.ui.mainstudio.MainStudioScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
@@ -56,14 +59,16 @@ import org.koin.core.qualifier.named
  *  - [ObserversKey] (list pane) + [ObserverEventsKey] (detail pane) via Material adaptive
  *    [ListDetailSceneStrategy]. Selecting an observer pushes [ObserverEventsKey]; the strategy
  *    automatically renders the two side-by-side at ≥600dp and as a normal drill-in below.
+ *  - [LoggingKey] — single-pane Log Analyzer (Task 4.3b).
+ *  - [AppMetricsKey] — single-pane App Metrics (Task 4.3b).
+ *  - [DiskUsageKey] — single-pane Database Metrics (Task 4.3b).
  *
  * **Sections still routed through the legacy monolith** ([MainStudioScreen]) via a bridge
- * entry each: [SubscriptionsKey], [QueryKey], [LoggingKey], [AppMetricsKey], [QueryMetricsKey],
- * [DiskUsageKey]. Each bridge entry creates / reuses the MainStudioViewModel for the database,
+ * entry each: [SubscriptionsKey], [QueryKey], [QueryMetricsKey].
+ * Each bridge entry creates / reuses the MainStudioViewModel for the database,
  * forces `selectedNavItem` to the entry's [StudioNavItem], and intercepts rail / drawer clicks
  * via the new `onNavItemSelected` callback to replace the top of the back stack with the
- * target section's key. This keeps all 7 sections functional while only Observers ships the
- * new scene treatment in this task.
+ * target section's key.
  */
 @Composable
 fun AppNavGraph() {
@@ -152,13 +157,31 @@ fun AppNavGraph() {
                 }
             }
 
-            // ── Legacy bridge: the other 6 rail sections ─────────────────────────
+            // ── Scene-driven section: Log Analyzer ───────────────────────────────
+            entry<LoggingKey> { key ->
+                StudioSectionContainer(backStack, key.databaseId, StudioNavItem.LOGGING) { viewModel ->
+                    LoggingSection(viewModel = viewModel)
+                }
+            }
+
+            // ── Scene-driven section: App Metrics ────────────────────────────────
+            entry<AppMetricsKey> { key ->
+                StudioSectionContainer(backStack, key.databaseId, StudioNavItem.APP_METRICS) {
+                    AppMetricsSection()
+                }
+            }
+
+            // ── Scene-driven section: Database Metrics ───────────────────────────
+            entry<DiskUsageKey> { key ->
+                StudioSectionContainer(backStack, key.databaseId, StudioNavItem.DISK_USAGE) {
+                    DiskUsageSection()
+                }
+            }
+
+            // ── Legacy bridge: remaining 3 rail sections ──────────────────────────
             entry<SubscriptionsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
             entry<QueryKey> { key -> LegacyStudioSectionEntry(backStack, key) }
-            entry<LoggingKey> { key -> LegacyStudioSectionEntry(backStack, key) }
-            entry<AppMetricsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
             entry<QueryMetricsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
-            entry<DiskUsageKey> { key -> LegacyStudioSectionEntry(backStack, key) }
         },
     )
 }
