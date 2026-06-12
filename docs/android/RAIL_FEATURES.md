@@ -19,13 +19,13 @@ docs, plans, and conversation; code names are what you'll grep for.
 
 | # | Canonical Name | Code Enum | Code Label | Material Icon | Data Panel |
 |---|---|---|---|---|---|
-| 1 | **Presence** | `SUBSCRIPTIONS` | "Subscriptions" | `Icons.Outlined.Sync` | Yes |
-| 2 | **Query Workbench** | `QUERY` | "Query" | `Icons.Outlined.Storage` | Yes |
-| 3 | **Observation** | `OBSERVERS` | "Observers" | `Icons.Outlined.Visibility` | Yes |
-| 4 | **Log Analyzer** | `LOGGING` | "Logging" | `Icons.Outlined.Description` | No — full-width Content Pane |
+| 1 | **Presence** | `SUBSCRIPTIONS` | "Presence" | `Icons.Outlined.Sync` | Yes |
+| 2 | **Query Workbench** | `QUERY` | "Query Workbench" | `Icons.Outlined.Storage` | Yes |
+| 3 | **Observation** | `OBSERVERS` | "Observation" | `Icons.Outlined.Visibility` | Yes |
+| 4 | **Log Analyzer** | `LOGGING` | "Log Analyzer" | `Icons.Outlined.Description` | No — full-width Content Pane |
 | 5 | **App Metrics** | `APP_METRICS` | "App Metrics" | `Icons.Outlined.Memory` | No — full-width Content Pane |
 | 6 | **Query Metrics** | `QUERY_METRICS` | "Query Metrics" | `Icons.AutoMirrored.Outlined.ManageSearch` | Yes — executed-query list |
-| 7 | **Database Metrics** | `DISK_USAGE` | "Disk Usage" | `Icons.Outlined.DataUsage` | No — full-width Content Pane |
+| 7 | **Database Metrics** | `DISK_USAGE` | "Database Metrics" | `Icons.Outlined.DataUsage` | No — full-width Content Pane |
 
 Every rail item exposes feature documentation in the Inspector, rendered from a
 Markdown file sourced from `docs/help/` (synced to `assets/help/` by
@@ -188,7 +188,7 @@ What the Ditto database costs on disk. No Data Panel — full-width Content Pane
 | Item | Gap |
 |---|---|
 | Presence | **Presence Graph** view not implemented — Presence Viewer tab is a "Coming Soon" placeholder alongside the Connected Peers tab. |
-| Naming | Code enum/labels (`SUBSCRIPTIONS`/"Subscriptions", `DISK_USAGE`/"Disk Usage", "Logging", "Observers") predate the canonical names (Presence, Database Metrics, Log Analyzer, Observation). Use canonical names in docs and UI copy going forward; code identifiers may lag. |
+| Naming | UI labels now use the canonical names (`StudioNavItem.label`); only the code enum constants (`SUBSCRIPTIONS`, `DISK_USAGE`, `LOGGING`, `OBSERVERS`) retain legacy names — they are stable identifiers (persisted in SavedStateHandle) and intentionally unchanged. |
 
 ---
 

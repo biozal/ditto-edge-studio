@@ -30,12 +30,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("Presence", Icons.Outlined.Sync),
-    QUERY("Query", Icons.Outlined.Storage),
-    OBSERVERS("Observers", Icons.Outlined.Visibility),
-    LOGGING("Logging", Icons.Outlined.Description),
+    QUERY("Query Workbench", Icons.Outlined.Storage),
+    OBSERVERS("Observation", Icons.Outlined.Visibility),
+    LOGGING("Log Analyzer", Icons.Outlined.Description),
     APP_METRICS("App Metrics", Icons.Outlined.Memory),
     QUERY_METRICS("Query Metrics", Icons.AutoMirrored.Outlined.ManageSearch),
-    DISK_USAGE("Disk Usage", Icons.Outlined.DataUsage);
+    DISK_USAGE("Database Metrics", Icons.Outlined.DataUsage);
 
     val helpFileName: String get() = when (this) {
         SUBSCRIPTIONS -> "subscription.md"
