@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -37,14 +38,18 @@ fun DittoConnectedButtonGroup(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // IntrinsicSize.Max + equal weights: every segment gets the width of the WIDEST
+    // label — uniform like a segmented control — while the group wraps its content
+    // instead of stretching to fill the row.
     Row(
-        modifier = modifier,
+        modifier = modifier.width(IntrinsicSize.Max),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         options.forEachIndexed { index, label ->
             ToggleButton(
                 checked = index == selectedIndex,
                 onCheckedChange = { onSelect(index) },
+                modifier = Modifier.weight(1f),
                 shapes = when (index) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                     options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()

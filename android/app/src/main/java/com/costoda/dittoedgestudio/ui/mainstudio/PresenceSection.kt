@@ -3,6 +3,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -112,8 +113,8 @@ fun PresenceContentSection(
                 options = listOf("Peers List", "Presence Viewer"),
                 selectedIndex = selectedTabIndex,
                 onSelect = { selectedTabIndex = it },
-                modifier = Modifier.weight(1f),
             )
+            Spacer(modifier = Modifier.weight(1f))
             IconButton(onClick = { viewModel.transportConfigVisible = true }) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
