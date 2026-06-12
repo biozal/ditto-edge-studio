@@ -7,11 +7,12 @@ import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
 import com.costoda.dittoedgestudio.domain.model.QueryResult
+import androidx.lifecycle.viewModelScope
 import io.mockk.coEvery
 import io.mockk.mockk
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -192,42 +192,49 @@ class QueryEditorViewModelTest {
      * must reset [QueryWorkbenchState.isExecuting] to false, so the next VM instance (sharing
      * the same session-scoped workbench) does not render a permanently stuck spinner.
      *
-     * We simulate the scenario using a [TestScope] backed by [UnconfinedTestDispatcher] in place
-     * of the real [viewModelScope]. The test coroutine body mirrors [executeQuery] exactly —
-     * `isExecuting = true`, suspend on a [CompletableDeferred] gate (simulating a long-running
-     * query), `isExecuting = false` in the finally. Cancelling the scope before the gate
-     * completes exercises the fix. With [UnconfinedTestDispatcher] the CancellationException
-     * propagates and the finally runs synchronously on the cancelling thread.
+     * This test exercises the REAL [QueryEditorViewModel.executeQuery] code path:
+     * - The [QueryExecutionService] mock suspends forever via [awaitCancellation], keeping the
+     *   VM's coroutine alive at the suspension point inside executeQuery.
+     * - Cancelling [viewModelScope] (which is what Nav3 entry disposal does) must trigger the
+     *   `finally` block in executeQuery, resetting isExecuting to false.
+     *
+     * If the `finally { workbench.isExecuting.value = false }` is removed from executeQuery,
+     * this test will fail — proving it guards against regressions, unlike the previous version
+     * that replicated the try/finally pattern independently of the production code.
      */
     @Test
-    fun `isExecuting reset to false when viewModelScope is cancelled mid-query`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val sharedWorkbench = QueryWorkbenchState()
-            val gate = CompletableDeferred<Nothing>()
+    fun `isExecuting reset to false when viewModelScope is cancelled mid-query`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState()
 
-            // Launch a coroutine that replicates the try/finally pattern in executeQuery.
-            val job = launch {
-                sharedWorkbench.isExecuting.value = true
-                try {
-                    gate.await()
-                } finally {
-                    sharedWorkbench.isExecuting.value = false
-                }
-            }
+        // Make the service suspend indefinitely — simulates a long-running query in flight.
+        coEvery { queryExecutionService.execute(any()) } coAnswers { awaitCancellation() }
 
-            // With UnconfinedTestDispatcher the coroutine runs eagerly to gate.await().
-            assertEquals(true, sharedWorkbench.isExecuting.value)
+        val viewModel = createVm(sharedWorkbench)
+        viewModel.onQueryTextChange("SELECT * FROM movies")
 
-            // Cancel the job (simulates viewModelScope being cancelled on rail-switch).
-            job.cancel()
-            // Joining ensures the finally block has finished before we assert.
-            job.join()
+        // Call the real executeQuery — it launches a coroutine on viewModelScope.
+        viewModel.executeQuery()
 
-            assertFalse(
-                "isExecuting must be reset to false after scope cancellation",
-                sharedWorkbench.isExecuting.value,
-            )
-        }
+        // Drive the dispatcher until the coroutine reaches the awaitCancellation() suspension
+        // point inside queryExecutionService.execute(). At this point isExecuting must be true.
+        advanceUntilIdle()
+        assertEquals(
+            "isExecuting must be true while the query is suspended",
+            true,
+            sharedWorkbench.isExecuting.value,
+        )
+
+        // Cancel viewModelScope — this is what Nav3 does when the entry is disposed.
+        viewModel.viewModelScope.cancel()
+
+        // Process cancellation so the finally block in executeQuery has a chance to run.
+        advanceUntilIdle()
+
+        assertFalse(
+            "isExecuting must be reset to false after scope cancellation",
+            sharedWorkbench.isExecuting.value,
+        )
+    }
 
     @Test
     fun `clearResults wipes session-scoped state and is visible to a sibling VM`() = runTest {
