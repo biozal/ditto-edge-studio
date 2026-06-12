@@ -429,24 +429,24 @@ class StudioSession(
             // NonCancellable: even if the registry's job is cancelled by something exotic, the
             // native Ditto release must complete to free the persistence-directory lock.
             withContext(NonCancellable) {
-                val result = withTimeoutOrNull(CLOSE_WARN_TIMEOUT_MS) {
+                // dittoManager.close() must be invoked exactly ONCE — a timed-out native close
+                // keeps running, so retrying would race two concurrent closes on one handle.
+                // The timeout therefore wraps a join() on a child job (cancelling a join never
+                // cancels the job), giving us the slow-close warning without a second close.
+                val closeJob = launch {
                     runCatching { dittoManager.close() }
+                        .onFailure { e ->
+                            Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
+                        }
                 }
-                if (result == null) {
+                val completedInTime = withTimeoutOrNull(CLOSE_WARN_TIMEOUT_MS) { closeJob.join() }
+                if (completedInTime == null) {
                     Log.w(
                         TAG,
                         "Ditto close exceeded ${CLOSE_WARN_TIMEOUT_MS}ms for databaseId=$databaseId; " +
                             "continuing to wait without abandoning the close.",
                     )
-                    // Still complete the close — DO NOT abandon it; the persistence lock must release.
-                    runCatching { dittoManager.close() }
-                        .onFailure { e ->
-                            Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
-                        }
-                } else {
-                    result.onFailure { e ->
-                        Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
-                    }
+                    closeJob.join()
                 }
             }
         }
