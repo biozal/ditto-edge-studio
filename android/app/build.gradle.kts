@@ -66,6 +66,30 @@ tasks.named("preBuild") {
     dependsOn(syncHelpDocs)
 }
 
+val forbidNonAdaptiveSizeApis by tasks.registering {
+    group = "verification"
+    description = "Fails if Configuration.screenWidthDp-style APIs are used outside ui/adaptive/"
+    val srcDir = layout.projectDirectory.dir("src/main/java")
+    inputs.dir(srcDir)
+    doLast {
+        val forbidden = Regex("""screenWidthDp|smallestScreenWidthDp""")
+        val offenders = srcDir.asFileTree.matching {
+            include("**/*.kt")
+            exclude("**/ui/adaptive/**")
+        }
+            .filter { it.readText().contains(forbidden) }
+            .map { it.relativeTo(srcDir.asFile) }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Non-adaptive size APIs found (use ui/adaptive/WindowSize.kt instead):\n" +
+                    offenders.joinToString("\n")
+            )
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(forbidNonAdaptiveSizeApis) }
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
