@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.costoda.dittoedgestudio.ui.mainstudio
 
 import androidx.compose.foundation.layout.Box
@@ -7,11 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.QueryResult
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 
 @Composable
 fun QueryResultsView(
@@ -35,19 +31,13 @@ fun QueryResultsView(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier) {
-        // ── Tab row ──────────────────────────────────────────────────────────
-        SecondaryTabRow(selectedTabIndex = selectedTabIndex) {
-            Tab(
-                selected = selectedTabIndex == 0,
-                onClick = { selectedTabIndex = 0 },
-                text = { Text("JSON") },
-            )
-            Tab(
-                selected = selectedTabIndex == 1,
-                onClick = { selectedTabIndex = 1 },
-                text = { Text("TABLE") },
-            )
-        }
+        // ── View switcher ─────────────────────────────────────────────────────
+        DittoConnectedButtonGroup(
+            options = listOf("JSON", "TABLE"),
+            selectedIndex = selectedTabIndex,
+            onSelect = { selectedTabIndex = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
         if (isExecuting) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())

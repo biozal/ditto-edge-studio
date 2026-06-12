@@ -16,6 +16,7 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
 import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
@@ -71,6 +72,62 @@ fun DittoConnectedButtonGroup(
                     Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
                 }
                 Text(label)
+            }
+        }
+    }
+}
+
+/**
+ * Icon-only variant of [DittoConnectedButtonGroup] for narrow spaces (e.g. the 300-400dp
+ * inspector column).  Each segment shows a single icon; selection is communicated by the
+ * SulfurYellow container + M3 shape morph alone — no checkmark overlay is added, as placing
+ * two icons in one segment adds visual noise.
+ *
+ * @param icons              One [ImageVector] per segment; must be the same size as
+ *                           [contentDescriptions].
+ * @param contentDescriptions Accessibility label for each icon (used as the node's content
+ *                           description in UI tests via [onNodeWithContentDescription]).
+ * @param selectedIndex      Zero-based index of the currently selected segment.
+ * @param onSelect           Callback invoked with the tapped segment index.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun DittoConnectedIconButtonGroup(
+    icons: List<ImageVector>,
+    contentDescriptions: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    require(icons.size == contentDescriptions.size) {
+        "icons and contentDescriptions must have the same size"
+    }
+    Row(
+        modifier = modifier.width(IntrinsicSize.Max),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        icons.forEachIndexed { index, icon ->
+            ToggleButton(
+                checked = index == selectedIndex,
+                onCheckedChange = { onSelect(index) },
+                modifier = Modifier.weight(1f),
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    icons.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                colors = ToggleButtonDefaults.toggleButtonColors(
+                    containerColor = JetBlack,
+                    contentColor = TrafficWhite,
+                    checkedContainerColor = SulfurYellow,
+                    checkedContentColor = JetBlack,
+                ),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescriptions[index],
+                    modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+                )
             }
         }
     }

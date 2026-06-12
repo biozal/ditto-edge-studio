@@ -25,10 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -48,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.AuthMode
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import kotlinx.coroutines.launch
@@ -125,16 +124,12 @@ fun DatabaseEditorScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             // --- Mode selector ---
-            SecondaryTabRow(selectedTabIndex = mode.ordinal) {
-                AuthMode.entries.forEachIndexed { index, authMode ->
-                    Tab(
-                        selected = mode.ordinal == index,
-                        onClick = { viewModel.switchMode(authMode) },
-                        text = { Text(authMode.displayName) },
-                        modifier = Modifier.testTag("Tab_${authMode.name}"),
-                    )
-                }
-            }
+            DittoConnectedButtonGroup(
+                options = AuthMode.entries.map { it.displayName },
+                selectedIndex = mode.ordinal,
+                onSelect = { viewModel.switchMode(AuthMode.entries[it]) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 // --- Basic Information ---

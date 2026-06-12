@@ -1,27 +1,36 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.costoda.dittoedgestudio.ui.mainstudio.inspector
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedIconButtonGroup
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
+
+private val INSPECTOR_TAB_ICONS: List<ImageVector> = listOf(
+    Icons.Outlined.History,
+    Icons.Outlined.BookmarkBorder,
+    Icons.Outlined.Code,
+    Icons.Outlined.Analytics,
+)
+
+private val INSPECTOR_TAB_DESCRIPTIONS: List<String> = listOf(
+    "History",
+    "Favorites",
+    "JSON",
+    "Metrics",
+)
 
 @Composable
 fun QueryInspectorView(
@@ -34,25 +43,16 @@ fun QueryInspectorView(
     val selectedDocument by viewModel.selectedDocument.collectAsStateWithLifecycle()
     val metrics by viewModel.queryMetrics.collectAsStateWithLifecycle()
 
-    val tabs = QueryInspectorTab.entries
-
     Column(modifier = modifier.fillMaxSize()) {
-        SecondaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-            tabs.forEach { tab ->
-                val (icon, label) = tabIcon(tab)
-                Tab(
-                    selected = selectedTab == tab,
-                    onClick = { viewModel.setInspectorTab(tab) },
-                    icon = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                )
-            }
-        }
+        // Icon-only connected button group — fits the narrow 300-400dp inspector column
+        // without wrapping; selection is conveyed by SulfurYellow container + shape morph.
+        DittoConnectedIconButtonGroup(
+            icons = INSPECTOR_TAB_ICONS,
+            contentDescriptions = INSPECTOR_TAB_DESCRIPTIONS,
+            selectedIndex = selectedTab.ordinal,
+            onSelect = { viewModel.setInspectorTab(QueryInspectorTab.entries[it]) },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
         when (selectedTab) {
             QueryInspectorTab.HISTORY -> QueryHistoryInspector(
@@ -75,11 +75,4 @@ fun QueryInspectorView(
             )
         }
     }
-}
-
-private fun tabIcon(tab: QueryInspectorTab): Pair<ImageVector, String> = when (tab) {
-    QueryInspectorTab.HISTORY -> Pair(Icons.Outlined.History, "History")
-    QueryInspectorTab.FAVORITES -> Pair(Icons.Outlined.BookmarkBorder, "Favorites")
-    QueryInspectorTab.JSON -> Pair(Icons.Outlined.Code, "JSON")
-    QueryInspectorTab.METRICS -> Pair(Icons.Outlined.Analytics, "Metrics")
 }
