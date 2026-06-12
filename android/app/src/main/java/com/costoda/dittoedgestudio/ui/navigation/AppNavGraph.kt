@@ -196,6 +196,7 @@ fun AppNavGraph() {
                         // Resolve databaseId from the SubscriptionsKey currently on the stack.
                         // The listPane detailPlaceholder is only composed in expanded layouts
                         // where SubscriptionsKey is always present on the back stack.
+                        // rememberNavBackStack serializes/restores the entire stack, so PresenceContentKey can never be restored without SubscriptionsKey beneath it; the null-guard is purely defensive.
                         val databaseId = backStack
                             .filterIsInstance<SubscriptionsKey>()
                             .lastOrNull()

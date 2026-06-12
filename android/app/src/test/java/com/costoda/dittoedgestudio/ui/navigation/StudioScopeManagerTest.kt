@@ -97,4 +97,15 @@ class StudioScopeManagerTest {
         )
         assertEquals(setOf(2L), activeStudioDatabaseIds(stack))
     }
+
+    @Test
+    fun `drill-in detail key keeps the parent studio scope active`() {
+        // Drill-in via PresenceContentKey on top of SubscriptionsKey maintains scope.
+        val stack = listOf(
+            DatabaseListKey,
+            SubscriptionsKey(databaseId = 7L),
+            PresenceContentKey(databaseId = 7L),
+        )
+        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
+    }
 }
