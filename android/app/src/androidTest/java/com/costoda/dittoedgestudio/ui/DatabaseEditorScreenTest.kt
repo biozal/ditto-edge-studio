@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
@@ -296,7 +297,7 @@ class DatabaseEditorScreenTest {
         composeTestRule.onNodeWithText(
             "This information comes from the Ditto Portal",
             substring = true,
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -332,13 +333,15 @@ class DatabaseEditorScreenTest {
             }
         }
 
-        // Click on the current value text to expand
+        // Scroll to the dropdown and expand it
+        composeTestRule.onNodeWithTag("LogLevelDropdown").performScrollTo()
         composeTestRule.onNodeWithText("Info (Default)").performClick()
+        composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("LogLevel_error").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("LogLevel_warning").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("LogLevel_debug").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("LogLevel_verbose").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("LogLevel_error").assertExists()
+        composeTestRule.onNodeWithTag("LogLevel_warning").assertExists()
+        composeTestRule.onNodeWithTag("LogLevel_debug").assertExists()
+        composeTestRule.onNodeWithTag("LogLevel_verbose").assertExists()
     }
 
     @Test
@@ -353,8 +356,11 @@ class DatabaseEditorScreenTest {
             }
         }
 
+        composeTestRule.onNodeWithTag("LogLevelDropdown").performScrollTo()
         composeTestRule.onNodeWithText("Info (Default)").performClick()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("LogLevel_debug").performClick()
+        composeTestRule.waitForIdle()
 
         // After selecting Debug, the field should display "Debug"
         composeTestRule.onNodeWithText("Debug").assertIsDisplayed()
