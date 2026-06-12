@@ -2,6 +2,8 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import android.view.MotionEvent
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,19 +14,30 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 private const val CELL_MIN_WIDTH_DP = 120
 private const val CELL_PADDING_DP = 8
@@ -88,35 +101,100 @@ fun ResultTableView(
         // Data rows
         LazyColumn {
             itemsIndexed(documents) { index, doc ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (index % 2 == 0) MaterialTheme.colorScheme.surface
-                            else MaterialTheme.colorScheme.surfaceContainerLowest,
-                        )
-                        .horizontalScroll(scrollState),
-                ) {
-                    columns.forEach { col ->
-                        val value = doc[col]?.toString() ?: ""
-                        Text(
-                            text = value,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .widthIn(min = CELL_MIN_WIDTH_DP.dp)
-                                .padding(CELL_PADDING_DP.dp),
-                        )
-                    }
-                }
+                TableDataRow(
+                    doc = doc,
+                    columns = columns,
+                    index = index,
+                    scrollState = scrollState,
+                )
                 HorizontalDivider(thickness = 0.5.dp)
             }
         }
     }
 }
 
+/**
+ * A single data row in the results table with right-click (secondary-button) context
+ * menu support for desktop windowing.
+ *
+ * Right-clicking the row shows a "Copy JSON" item that copies the full row document as
+ * pretty-printed JSON to the system clipboard. The menu is implemented with [DropdownMenu]
+ * which is consistent with the right-click menus in [ResultJsonView] and elsewhere in the app.
+ */
+@Composable
+private fun TableDataRow(
+    doc: Map<String, Any?>,
+    columns: List<String>,
+    index: Int,
+    scrollState: ScrollState,
+) {
+    var showContextMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    val jsonString = remember(doc) { formatDocJson(doc) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    if (index % 2 == 0) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.surfaceContainerLowest,
+                )
+                .horizontalScroll(scrollState)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val event = awaitPointerEvent()
+                        val motionEvent = event.motionEvent
+                        if (motionEvent != null &&
+                            motionEvent.action == MotionEvent.ACTION_DOWN &&
+                            (motionEvent.buttonState and MotionEvent.BUTTON_SECONDARY) != 0
+                        ) {
+                            showContextMenu = true
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                },
+        ) {
+            columns.forEach { col ->
+                val value = doc[col]?.toString() ?: ""
+                Text(
+                    text = value,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .widthIn(min = CELL_MIN_WIDTH_DP.dp)
+                        .padding(CELL_PADDING_DP.dp),
+                )
+            }
+        }
+
+        // Right-click context menu — "Copy JSON" copies the row document as JSON.
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Copy JSON") },
+                onClick = {
+                    showContextMenu = false
+                    scope.launch {
+                        clipboardManager.setText(AnnotatedString(jsonString))
+                    }
+                },
+            )
+        }
+    }
+}
+
+private fun formatDocJson(doc: Map<String, Any?>): String =
+    runCatching {
+        JSONObject(doc as Map<*, *>).toString(2)
+    }.getOrElse {
+        doc.entries.joinToString(",\n") { (k, v) -> "  \"$k\": $v" }.let { "{\n$it\n}" }
+    }

@@ -5,6 +5,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.data.session.StudioSession
@@ -93,8 +97,26 @@ fun StudioScaffold(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
 
+    // Ctrl+1..7 section-switch shortcut modifier — shared by both layout branches.
+    // onPreviewKeyEvent on the outermost focusable container intercepts the event before any
+    // descendant (rail items, text fields) can consume it. The container is made focusable()
+    // so it participates in focus traversal and can receive key events when nothing inside it
+    // holds focus.
+    val railShortcutModifier = Modifier
+        .onPreviewKeyEvent { event ->
+            if (event.type == KeyEventType.KeyDown) {
+                val target = studioShortcutFor(event)
+                if (target != null) {
+                    onSectionSelect(target)
+                    return@onPreviewKeyEvent true
+                }
+            }
+            false
+        }
+        .focusable()
+
     if (expandedLayout) {
-        Row(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+        Row(modifier = Modifier.fillMaxSize().safeDrawingPadding().then(railShortcutModifier)) {
             // Rail
             NavigationRail {
                 StudioNavItem.entries.forEach { item ->
@@ -165,6 +187,8 @@ fun StudioScaffold(
     } else {
         // Compact: ModalNavigationDrawer wraps rail items as a list.
         val inspectorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        // Apply rail-section shortcuts to the compact root so they work regardless of layout.
+        Box(modifier = Modifier.fillMaxSize().then(railShortcutModifier)) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -247,6 +271,7 @@ fun StudioScaffold(
                 }
             }
         }
+        } // end railShortcutModifier Box (compact layout)
     }
 }
 

@@ -24,6 +24,8 @@ fun QueryEditorScreen(
         QueryEditorView(
             queryText = queryText,
             onQueryTextChange = { viewModel.onQueryTextChange(it) },
+            // Ctrl+Enter / Cmd+Enter runs the query; disabled while a query is executing.
+            onRunQuery = if (!isExecuting) viewModel::executeQuery else null,
             modifier = Modifier.weight(0.4f),
         )
         HorizontalDivider()
