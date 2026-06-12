@@ -25,7 +25,6 @@ import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.AppMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.DiskUsageSection
 import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
-import com.costoda.dittoedgestudio.ui.mainstudio.MainStudioScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
@@ -56,16 +55,12 @@ import org.koin.core.qualifier.named
  *  - [QrScannerKey]      — camera-based QR code import.
  *  - [StudioSectionKey]  — seven sibling rail-section entries (one per studio section).
  *  - [ObserverEventsKey] — detail drill-in pushed on top of [ObserversKey].
- *  - [StudioKey]         — legacy single-entry studio key, retained only for transitional
- *                          back-stack compatibility; no entry is registered for it.
  *
  * **Studio scope ownership** is handled by [StudioScopeManager] over the back stack: a Koin
  * `studio` scope (and its [StudioSession]) is kept open while any studio entry for that
  * databaseId is on the stack, and closed when all studio entries for that id leave the stack.
- * This replaces the previous per-entry `DisposableEffect` on [StudioKey] — necessary because
- * with sibling section entries no single entry outlives the studio.
  *
- * **Sections that have been migrated to the scene-driven shell:**
+ * **All seven rail sections run on the scene-driven shell:**
  *  - [ObserversKey] (list pane) + [ObserverEventsKey] (detail pane) via Material adaptive
  *    [ListDetailSceneStrategy]. Selecting an observer pushes [ObserverEventsKey]; the strategy
  *    automatically renders the two side-by-side at ≥600dp and as a normal drill-in below.
@@ -93,9 +88,6 @@ import org.koin.core.qualifier.named
  *    [com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView] (History /
  *    Favorites / JSON document viewer / Metrics tabs) threaded through the scaffold's new
  *    `inspectorContent` slot. (Task 4.3e)
- *
- * All seven rail sections are now scene-driven; [MainStudioScreen] and [LegacyStudioSectionEntry]
- * are retained only for the back-stack transition and can be deleted in a follow-up cleanup.
  */
 @Composable
 fun AppNavGraph() {
@@ -429,42 +421,6 @@ private fun StudioSectionContainer(
     ) {
         content(viewModel)
     }
-}
-
-/**
- * Bridge composable for the 6 sections we have not yet migrated to the scene-driven shell.
- * Renders the legacy [MainStudioScreen] with [section]-equivalent forced selection, and
- * intercepts rail/drawer clicks so they drive the back stack instead of mutating the VM
- * directly. From the user's perspective, navigation between any two sections (migrated or
- * not) goes through the same code path: a back-stack replace-top.
- */
-@Composable
-private fun LegacyStudioSectionEntry(
-    backStack: NavBackStack<NavKey>,
-    key: StudioSectionKey,
-) {
-    val viewModel = rememberStudioViewModel(key.databaseId)
-    // Set selectedNavItem synchronously during composition so the correct section is active
-    // on the first frame — no LaunchedEffect delay, no one-frame SUBSCRIPTIONS flash.
-    remember(viewModel, key) { viewModel.selectedNavItem = key.navItem }
-
-    MainStudioScreen(
-        databaseId = key.databaseId,
-        session = viewModel.session,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
-        onNavItemSelected = { newItem ->
-            backStack.removeIf { it is ObserverEventsKey }
-            backStack.removeIf { it is PresenceContentKey }
-            backStack.removeIf { it is QueryMetricDetailKey }
-            backStack.removeIf { it is QueryContentKey }
-            val newKey = newItem.toSectionKey(key.databaseId)
-            if (backStack.isNotEmpty()) {
-                backStack[backStack.lastIndex] = newKey
-            } else {
-                backStack.add(newKey)
-            }
-        },
-    )
 }
 
 /**

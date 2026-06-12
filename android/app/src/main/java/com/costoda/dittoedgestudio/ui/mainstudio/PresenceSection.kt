@@ -95,14 +95,14 @@ fun PresenceListSection(
  * selector plus [ConnectedPeersScreen].
  *
  * Mirrors the `viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS` branch in the
- * legacy [ContentPlaceholder] exactly:
+ * legacy content-placeholder layout exactly:
  *  - [SecondaryTabRow] with "Peers List" (tab 0) and "Presence Viewer" (tab 1)
  *  - Settings gear → transport-config sheet
  *  - [DittoPermissionHandler] + [ConnectedPeersScreen] on tab 0
  *  - Tab 1: placeholder (Presence Graph is a future feature, not yet implemented in legacy)
  *
  * Tab selection is persisted with [rememberSaveable] (matches legacy `rememberSaveable` in
- * [ContentPlaceholder]).
+ * legacy content-placeholder layout).
  *
  * The transport-config [ModalBottomSheet] is surfaced here because this composable owns
  * the gear button that triggers it, keeping the sheet co-located with its trigger.

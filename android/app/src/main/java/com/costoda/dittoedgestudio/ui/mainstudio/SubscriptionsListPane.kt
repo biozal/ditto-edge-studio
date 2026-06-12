@@ -40,8 +40,8 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
  * List pane for the Presence (Subscriptions) section (Task 4.3c scene-driven shell).
  *
  * Renders the registered DQL subscriptions as a vertical scrollable list, extracted
- * faithfully from the [DataPanel] / [PhoneDrawerContent] SUBSCRIPTIONS block in the
- * legacy [MainStudioScreen]:
+ * faithfully from the SUBSCRIPTIONS block of the legacy data-panel / phone-drawer layout
+ * in MainStudioScreen:
  *  - empty state label
  *  - per-subscription row with edit and delete actions
  *  - FAB to add a new subscription (opens [SubscriptionEditorSheet] via the VM)

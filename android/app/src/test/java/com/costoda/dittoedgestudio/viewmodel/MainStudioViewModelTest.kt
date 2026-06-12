@@ -300,8 +300,6 @@ class MainStudioViewModelTest {
         val handle = SavedStateHandle(
             mapOf(
                 MainStudioViewModel.KEY_SELECTED_NAV to StudioNavItem.QUERY.name,
-                MainStudioViewModel.KEY_DATA_PANEL_VISIBLE to false,
-                MainStudioViewModel.KEY_INSPECTOR_VISIBLE to true,
             )
         )
 
@@ -309,8 +307,6 @@ class MainStudioViewModelTest {
         // No need to advance — these are read directly from the handle, not from a coroutine
 
         assertEquals(StudioNavItem.QUERY, vm.selectedNavItem)
-        assertEquals(false, vm.dataPanelVisible)
-        assertEquals(true, vm.inspectorVisible)
     }
 
     @Test
@@ -319,12 +315,8 @@ class MainStudioViewModelTest {
         val vm = createViewModel(savedStateHandle = handle)
 
         vm.selectedNavItem = StudioNavItem.OBSERVERS
-        vm.dataPanelVisible = false
-        vm.inspectorVisible = true
 
         assertEquals(StudioNavItem.OBSERVERS.name, handle.get<String>(MainStudioViewModel.KEY_SELECTED_NAV))
-        assertEquals(false, handle.get<Boolean>(MainStudioViewModel.KEY_DATA_PANEL_VISIBLE))
-        assertEquals(true, handle.get<Boolean>(MainStudioViewModel.KEY_INSPECTOR_VISIBLE))
     }
 
     @Test
@@ -332,8 +324,6 @@ class MainStudioViewModelTest {
         val handle = SavedStateHandle(
             mapOf(
                 MainStudioViewModel.KEY_SELECTED_NAV to "NONEXISTENT_SECTION",
-                MainStudioViewModel.KEY_DATA_PANEL_VISIBLE to true,
-                MainStudioViewModel.KEY_INSPECTOR_VISIBLE to false,
             )
         )
 
@@ -341,8 +331,6 @@ class MainStudioViewModelTest {
         // Should not throw IllegalArgumentException from valueOf()
 
         assertEquals(StudioNavItem.SUBSCRIPTIONS, vm.selectedNavItem)
-        assertEquals(true, vm.dataPanelVisible)
-        assertEquals(false, vm.inspectorVisible)
     }
 
     // ── Fix 1: ephemeral UI state survives section switch (shared session) ────

@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  *
  * Renders the database's collections (with expandable indexes) as a vertical scrollable
  * list, extracted faithfully from the COLLECTIONS section of the legacy
- * [DataPanel] / [PhoneDrawerContent] in [MainStudioScreen]:
+ * data-panel / phone-drawer layout in the legacy MainStudioScreen:
  *  - per-collection expandable row (delegated to existing [CollectionListItem])
  *  - section header with refresh icon (refreshes the [CollectionsRepository] cache)
  *  - "Add index" FAB at the bottom — opens the legacy [AddIndexSheet] via the VM's

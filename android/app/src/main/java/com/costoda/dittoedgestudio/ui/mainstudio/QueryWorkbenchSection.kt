@@ -54,7 +54,7 @@ import org.koin.core.parameter.parametersOf
  *                                     `entry<QueryContentKey>` (compact).
  *
  * Compact-landing design (closest-to-legacy):
- *  - Legacy phone PhoneLayout showed the editor as the primary content surface, with
+ *  - The legacy phone layout showed the editor as the primary content surface, with
  *    collections accessible via the navigation drawer's COLLECTIONS section.
  *  - In the scene shell the rail drawer is sections-only, so we replicate "editor first"
  *    by having the AppNavGraph push [com.costoda.dittoedgestudio.ui.navigation.QueryContentKey]

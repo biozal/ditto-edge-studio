@@ -38,13 +38,6 @@ class StudioScopeManagerTest {
     }
 
     @Test
-    fun `legacy StudioKey is treated as an active studio entry`() {
-        // Bridge for the 6 unmigrated rail sections — still drives scope ownership.
-        val stack = listOf(DatabaseListKey, StudioKey(databaseId = 7L))
-        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
-    }
-
-    @Test
     fun `ObserverEventsKey on top of ObserversKey keeps the same databaseId active`() {
         // Compact-width drill-in: ObserversKey -> ObserverEventsKey.
         val stack = listOf(

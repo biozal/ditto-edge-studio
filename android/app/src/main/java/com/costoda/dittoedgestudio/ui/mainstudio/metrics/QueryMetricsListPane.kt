@@ -41,7 +41,7 @@ import java.util.Locale
  * Data Panel (list pane) for the Query Metrics scene-driven section (Task 4.3d).
  *
  * Renders the executed-query list previously hand-rolled inside the self-contained
- * [QueryMetricsScreen]. Extracted so the [ListDetailSceneStrategy] can provide the two
+ * QueryMetricsScreen. Extracted so the [ListDetailSceneStrategy] can provide the two
  * panes (list + detail) at the navigation level rather than inside a single composable.
  *
  * Responsibilities:

@@ -53,15 +53,12 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
 // should `import com.costoda.dittoedgestudio.data.session.PeersUiState` directly.
 
 /**
- * Studio UI coordinator. Owns purely visual / panel / picker state (selectedNavItem,
- * dataPanelVisible, inspectorVisible, sheet toggles, paging cursors for the observer events
- * list, etc.) and delegates everything Ditto-session-related to [StudioSession].
+ * Studio UI coordinator. Owns purely visual / panel / picker state (selectedNavItem, sheet
+ * toggles, paging cursors for the observer events list, etc.) and delegates everything
+ * Ditto-session-related to [StudioSession].
  *
  * The session is supplied by the UI via `parametersOf` after looking up / creating the
  * Koin `studio` scope keyed by databaseId — see [com.costoda.dittoedgestudio.ui.navigation.AppNavGraph].
- *
- * Public surface intentionally mirrors the pre-extraction shape so [MainStudioScreen]
- * call sites stay stable.
  */
 class MainStudioViewModel(
     val session: StudioSession,
@@ -70,8 +67,6 @@ class MainStudioViewModel(
 
     companion object {
         internal const val KEY_SELECTED_NAV = "selectedNavItem"
-        internal const val KEY_DATA_PANEL_VISIBLE = "dataPanelVisible"
-        internal const val KEY_INSPECTOR_VISIBLE = "inspectorVisible"
     }
 
     // Backing Compose state initialised from the handle so Compose can observe changes,
@@ -85,35 +80,12 @@ class MainStudioViewModel(
         get() = _selectedNavItem
         set(value) { _selectedNavItem = value; savedStateHandle[KEY_SELECTED_NAV] = value.name }
 
-    private var _dataPanelVisible by mutableStateOf(
-        savedStateHandle.get<Boolean>(KEY_DATA_PANEL_VISIBLE) ?: true
-    )
-    var dataPanelVisible: Boolean
-        get() = _dataPanelVisible
-        set(value) { _dataPanelVisible = value; savedStateHandle[KEY_DATA_PANEL_VISIBLE] = value }
-
-    private var _inspectorVisible by mutableStateOf(
-        savedStateHandle.get<Boolean>(KEY_INSPECTOR_VISIBLE) ?: false
-    )
-    var inspectorVisible: Boolean
-        get() = _inspectorVisible
-        set(value) { _inspectorVisible = value; savedStateHandle[KEY_INSPECTOR_VISIBLE] = value }
-
     // ── Pure UI state delegated to session.uiState (survives rail-section switches) ──────────
     // Delegating vars: get/set forward to the session-scoped StudioUiState so these properties
     // survive per-entry VM recreation. All existing call sites compile unchanged.
-    var bottomBarExpanded: Boolean
-        get() = session.uiState.bottomBarExpanded
-        set(value) { session.uiState.bottomBarExpanded = value }
     var transportConfigVisible: Boolean
         get() = session.uiState.transportConfigVisible
         set(value) { session.uiState.transportConfigVisible = value }
-    var fabMenuExpanded: Boolean
-        get() = session.uiState.fabMenuExpanded
-        set(value) { session.uiState.fabMenuExpanded = value }
-    var connectionPopupVisible: Boolean
-        get() = session.uiState.connectionPopupVisible
-        set(value) { session.uiState.connectionPopupVisible = value }
     var showAddIndex: Boolean
         get() = session.uiState.showAddIndex
         set(value) { session.uiState.showAddIndex = value }
@@ -180,7 +152,7 @@ class MainStudioViewModel(
         }
     }
 
-    // ── Thin facades to keep MainStudioScreen call sites unchanged ────────────
+    // ── Thin facades over StudioSession ──────────────────────────────────────
 
     fun loadNetworkDiagnostics() = session.loadNetworkDiagnostics()
     fun toggleSync() = session.toggleSync()

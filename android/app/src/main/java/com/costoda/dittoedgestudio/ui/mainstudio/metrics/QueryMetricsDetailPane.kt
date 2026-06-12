@@ -31,7 +31,7 @@ import com.costoda.dittoedgestudio.domain.model.QueryMetrics
  *
  * Fetches the [QueryMetrics] for [historyId] from [metricsRepository] and renders
  * the DQL statement, execution stats, and EXPLAIN output — the same content as the
- * `QueryMetricsDetail` private composable in the legacy self-contained [QueryMetricsScreen].
+ * `QueryMetricsDetail` private composable in the legacy self-contained QueryMetricsScreen.
  *
  * Handles the metric-gone-after-clear-all case: if the metric is not found (null) after
  * loading it shows an empty-state message identical to the no-selection placeholder.

@@ -12,8 +12,7 @@ import kotlinx.serialization.Serializable
  * changes via `rememberNavBackStack`.
  *
  * `id` and `databaseId` are `Long` to match the Room auto-increment primary key
- * type used by `DittoDatabase` and consumed by `DatabaseEditorScreen` /
- * `MainStudioScreen`.
+ * type used by `DittoDatabase` and consumed by `DatabaseEditorScreen`.
  */
 @Serializable
 data object DatabaseListKey : NavKey
@@ -23,9 +22,6 @@ data class DatabaseEditorKey(val id: Long = -1L) : NavKey
 
 @Serializable
 data object QrScannerKey : NavKey
-
-@Serializable
-data class StudioKey(val databaseId: Long) : NavKey
 
 // ---------------------------------------------------------------------------
 // Studio rail section keys

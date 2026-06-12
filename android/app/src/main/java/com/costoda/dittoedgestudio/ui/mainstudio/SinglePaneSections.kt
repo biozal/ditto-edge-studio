@@ -16,7 +16,7 @@ import org.koin.androidx.compose.koinViewModel
  *
  * Each composable is the `content` lambda passed to [StudioSectionContainer] in
  * [com.costoda.dittoedgestudio.ui.navigation.AppNavGraph]. They resolve their
- * dependencies exactly as the legacy [MainStudioScreen] ContentPlaceholder `when`
+ * dependencies exactly as the legacy MainStudioScreen content-placeholder `when`
  * branches did — no internals of the leaf screens are changed.
  */
 
@@ -41,7 +41,7 @@ fun LoggingSection(
  * App Metrics section content.
  *
  * [AppMetricsViewModel] is resolved via [koinViewModel] with no parameters — identical to
- * `koinViewModel()` in the legacy ContentPlaceholder branch.
+ * `koinViewModel()` in the legacy content-placeholder branch.
  */
 @Composable
 fun AppMetricsSection(
@@ -58,7 +58,7 @@ fun AppMetricsSection(
  * Database Metrics section content (canonical name for the Disk Usage rail item).
  *
  * [DiskUsageViewModel] is resolved via [koinViewModel] with no parameters — identical to
- * `koinViewModel()` in the legacy ContentPlaceholder branch.
+ * `koinViewModel()` in the legacy content-placeholder branch.
  */
 @Composable
 fun DiskUsageSection(

@@ -30,7 +30,7 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
  * List pane for the Observers section (Task 4.3 scene-driven shell).
  *
  * Renders the registered observers as a vertical list, mirroring the per-observer
- * UI from [DataPanel] / [PhoneDrawerContent] in the legacy [MainStudioScreen]:
+ * UI from the legacy data-panel / phone-drawer layout in MainStudioScreen:
  *  - active-state indicator
  *  - long-press action menu (activate / deactivate, edit, delete)
  *  - tap to select (drives the detail pane / pushes the events key)

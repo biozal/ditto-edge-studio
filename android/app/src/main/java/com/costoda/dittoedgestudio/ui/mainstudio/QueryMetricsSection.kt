@@ -21,7 +21,7 @@ import org.koin.compose.koinInject
  *
  * [QueryMetricsRepository] is injected via Koin (no session scope — it is a singleton
  * repository backed by the global Room database, identical to how the legacy
- * [com.costoda.dittoedgestudio.ui.mainstudio.metrics.QueryMetricsScreen] obtained it).
+ * the legacy QueryMetricsScreen obtained it).
  */
 
 /**
