@@ -430,10 +430,7 @@ private fun StudioSectionContainer(
         onSectionSelect = { newItem ->
             // Replace top so the new section becomes the visible entry. Strip any dangling
             // detail-pane keys so leaving their parent section doesn't leave a stale pane.
-            backStack.removeIf { it is ObserverEventsKey }
-            backStack.removeIf { it is PresenceContentKey }
-            backStack.removeIf { it is QueryMetricDetailKey }
-            backStack.removeIf { it is QueryContentKey }
+            backStack.removeIf { it is StudioChildKey }
             val newKey = newItem.toSectionKey(databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey

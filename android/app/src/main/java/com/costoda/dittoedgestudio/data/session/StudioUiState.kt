@@ -41,10 +41,7 @@ class StudioUiState {
     var eventFilterMode by mutableStateOf(EventFilterMode.ALL)
     var eventPageSize by mutableStateOf(25)
     var eventCurrentPage by mutableStateOf(0)
-    var bottomBarExpanded by mutableStateOf(true)
     var transportConfigVisible by mutableStateOf(false)
-    var fabMenuExpanded by mutableStateOf(false)
-    var connectionPopupVisible by mutableStateOf(false)
     var showAddIndex by mutableStateOf(false)
 
     /**

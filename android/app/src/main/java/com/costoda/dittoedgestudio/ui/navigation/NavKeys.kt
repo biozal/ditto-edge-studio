@@ -41,9 +41,23 @@ sealed interface StudioSectionKey : NavKey {
 @Serializable data class QueryMetricsKey(override val databaseId: Long) : StudioSectionKey    // Query Metrics
 @Serializable data class DiskUsageKey(override val databaseId: Long) : StudioSectionKey       // Database Metrics
 
+// ---------------------------------------------------------------------------
+// Studio child keys (compact-width drill-ins)
+// ---------------------------------------------------------------------------
+
+/**
+ * Marker for the four compact-width drill-in keys that belong to the studio but are NOT rail
+ * section keys. Every instance carries a [databaseId] so [StudioScopeManager] can keep the
+ * Koin scope alive, and [AppNavGraph.StudioSectionContainer] can strip them all in one
+ * `removeIf` call on rail switches.
+ */
+sealed interface StudioChildKey : NavKey {
+    val databaseId: Long
+}
+
 /** Compact-width drill-in: observer events for one observable (pushed entry so system back pops it).
  *  [observerId] matches [com.costoda.dittoedgestudio.domain.model.DittoObservable.id] (Long). */
-@Serializable data class ObserverEventsKey(val databaseId: Long, val observerId: Long) : NavKey
+@Serializable data class ObserverEventsKey(override val databaseId: Long, val observerId: Long) : StudioChildKey
 
 /**
  * Compact-width drill-in: the EXPLAIN / stats detail for a single executed query.
@@ -55,7 +69,7 @@ sealed interface StudioSectionKey : NavKey {
  *
  * [historyId] matches [com.costoda.dittoedgestudio.domain.model.QueryMetrics.historyId] (Long).
  */
-@Serializable data class QueryMetricDetailKey(val databaseId: Long, val historyId: Long) : NavKey
+@Serializable data class QueryMetricDetailKey(override val databaseId: Long, val historyId: Long) : StudioChildKey
 
 /**
  * Compact-width drill-in: the Presence content pane (Connected Peers tabs).
@@ -65,7 +79,7 @@ sealed interface StudioSectionKey : NavKey {
  * top of [SubscriptionsKey] so the user reaches "Peers List / Presence Viewer" via a
  * normal back-stack drill-in from the subscriptions list.
  */
-@Serializable data class PresenceContentKey(val databaseId: Long) : NavKey
+@Serializable data class PresenceContentKey(override val databaseId: Long) : StudioChildKey
 
 /**
  * Compact-width drill-in: the Query Workbench content pane (DQL editor + results).
@@ -80,7 +94,7 @@ sealed interface StudioSectionKey : NavKey {
  * surface and collections lived in the rail drawer. Tapping system back from the editor
  * returns to the collections list (one-tap-away from anything in the editor).
  */
-@Serializable data class QueryContentKey(val databaseId: Long) : NavKey
+@Serializable data class QueryContentKey(override val databaseId: Long) : StudioChildKey
 
 // ---------------------------------------------------------------------------
 // Mapping helpers between StudioNavItem enum and StudioSectionKey

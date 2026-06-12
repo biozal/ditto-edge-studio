@@ -80,6 +80,27 @@ class StudioScopeManagerTest {
     }
 
     @Test
+    fun `every StudioChildKey subtype contributes its databaseId to the active set`() {
+        // Regression guard: if a new StudioChildKey subtype is added, this test catches it
+        // before a strip-site or scope-manager site is missed. List all four subtypes explicitly
+        // (no reflection) so the test fails to compile if a constructor signature changes.
+        val databaseId = 42L
+        val subtypes: List<StudioChildKey> = listOf(
+            ObserverEventsKey(databaseId = databaseId, observerId = 1L),
+            PresenceContentKey(databaseId = databaseId),
+            QueryMetricDetailKey(databaseId = databaseId, historyId = 1L),
+            QueryContentKey(databaseId = databaseId),
+        )
+        subtypes.forEach { childKey ->
+            assertEquals(
+                "StudioChildKey subtype ${childKey::class.simpleName} not recognized by activeStudioDatabaseIds",
+                setOf(databaseId),
+                activeStudioDatabaseIds(listOf(childKey)),
+            )
+        }
+    }
+
+    @Test
     fun `unknown nav keys are ignored`() {
         // QrScannerKey / DatabaseEditorKey must never contribute to scope ownership.
         val stack = listOf(

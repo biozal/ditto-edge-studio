@@ -54,10 +54,7 @@ fun StudioScopeManager(backStack: List<NavKey>) {
  * Pure function (unit-testable) that extracts the set of databaseIds for which a Koin studio
  * scope must be alive, given the current back stack. A scope is required if the stack contains:
  *  - any [StudioSectionKey] for that databaseId, or
- *  - an [ObserverEventsKey] for that databaseId (compact-width detail drill-in).
- *  - a [PresenceContentKey] for that databaseId (compact-width Presence detail drill-in).
- *  - a [QueryMetricDetailKey] for that databaseId (compact-width Query Metrics detail drill-in).
- *  - a [QueryContentKey] for that databaseId (compact-width Query Workbench editor drill-in).
+ *  - any [StudioChildKey] for that databaseId (compact-width drill-in detail keys).
  *
  * Iteration order is deterministic (insertion order of the resulting [LinkedHashSet]) so tests
  * can assert against a stable sequence.
@@ -67,10 +64,7 @@ fun activeStudioDatabaseIds(backStack: List<NavKey>): Set<Long> {
     for (k in backStack) {
         when (k) {
             is StudioSectionKey -> out += k.databaseId
-            is ObserverEventsKey -> out += k.databaseId
-            is PresenceContentKey -> out += k.databaseId
-            is QueryMetricDetailKey -> out += k.databaseId
-            is QueryContentKey -> out += k.databaseId
+            is StudioChildKey -> out += k.databaseId
             else -> Unit
         }
     }
