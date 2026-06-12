@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationRail
@@ -33,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -160,6 +162,7 @@ fun StudioScaffold(
         }
     } else {
         // Compact: ModalNavigationDrawer wraps rail items as a list.
+        val inspectorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -208,6 +211,12 @@ fun StudioScaffold(
                                     tint = MaterialTheme.colorScheme.error,
                                 )
                             }
+                            IconButton(onClick = { session.uiState.inspectorVisible = !inspectorVisible }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.ViewSidebar,
+                                    contentDescription = "Toggle inspector",
+                                )
+                            }
                         },
                     )
                 },
@@ -217,6 +226,23 @@ fun StudioScaffold(
                         .fillMaxSize()
                         .padding(padding),
                 ) { content() }
+            }
+        }
+
+        // Inspector bottom sheet for compact layout.
+        if (inspectorVisible) {
+            ModalBottomSheet(
+                onDismissRequest = { session.uiState.inspectorVisible = false },
+                sheetState = inspectorSheetState,
+            ) {
+                if (inspectorContent != null) {
+                    inspectorContent()
+                } else {
+                    InspectorContentView(
+                        selectedNavItem = currentSection,
+                        modifier = Modifier.fillMaxHeight(),
+                    )
+                }
             }
         }
     }

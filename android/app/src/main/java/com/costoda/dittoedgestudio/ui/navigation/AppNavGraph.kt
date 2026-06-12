@@ -337,6 +337,8 @@ fun AppNavGraph() {
                 LaunchedEffect(key.databaseId, expandedLayout) {
                     if (!expandedLayout && backStack.none { it is QueryContentKey }) {
                         backStack.add(QueryContentKey(databaseId = key.databaseId))
+                    } else if (expandedLayout) {
+                        backStack.removeIf { it is QueryContentKey }
                     }
                 }
                 StudioSectionContainer(

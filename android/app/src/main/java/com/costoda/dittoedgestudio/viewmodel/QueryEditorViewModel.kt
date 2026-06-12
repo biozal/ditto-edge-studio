@@ -104,32 +104,35 @@ class QueryEditorViewModel(
         viewModelScope.launch {
             workbench.isExecuting.value = true
             workbench.executionError.value = null
-            runCatching {
-                val result = queryExecutionService.execute(query)
-                workbench.queryResult.value = result
-                workbench.currentPage.value = 0
-                // Save to history and record metrics
-                val historyId = historyRepository.addToHistory(databaseId, query)
-                workbench.lastHistoryId = historyId
-                val metrics = QueryMetrics(
-                    historyId = historyId,
-                    executionTimeMs = result.executionTimeMs,
-                    docsExamined = result.totalCount,
-                    docsReturned = result.totalCount,
-                    indexesUsed = emptyList(),
-                    bytesRead = 0L,
-                    explainPlan = result.explainPlan,
-                    capturedAt = System.currentTimeMillis(),
-                    queryText = query,
-                )
-                metricsRepository.save(metrics)
-                workbench.queryMetrics.value = metrics
-                appMetricsRepository.incrementQueryCount()
-                appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
-            }.onFailure { e ->
-                workbench.executionError.value = e.message ?: "Unknown error"
+            try {
+                runCatching {
+                    val result = queryExecutionService.execute(query)
+                    workbench.queryResult.value = result
+                    workbench.currentPage.value = 0
+                    // Save to history and record metrics
+                    val historyId = historyRepository.addToHistory(databaseId, query)
+                    workbench.lastHistoryId = historyId
+                    val metrics = QueryMetrics(
+                        historyId = historyId,
+                        executionTimeMs = result.executionTimeMs,
+                        docsExamined = result.totalCount,
+                        docsReturned = result.totalCount,
+                        indexesUsed = emptyList(),
+                        bytesRead = 0L,
+                        explainPlan = result.explainPlan,
+                        capturedAt = System.currentTimeMillis(),
+                        queryText = query,
+                    )
+                    metricsRepository.save(metrics)
+                    workbench.queryMetrics.value = metrics
+                    appMetricsRepository.incrementQueryCount()
+                    appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
+                }.onFailure { e ->
+                    workbench.executionError.value = e.message ?: "Unknown error"
+                }
+            } finally {
+                workbench.isExecuting.value = false
             }
-            workbench.isExecuting.value = false
         }
     }
 
@@ -139,32 +142,35 @@ class QueryEditorViewModel(
         viewModelScope.launch {
             workbench.isExecuting.value = true
             workbench.executionError.value = null
-            runCatching {
-                val result = queryExecutionService.explain(query)
-                workbench.queryResult.value = result
-                workbench.currentPage.value = 0
-                val historyId = historyRepository.addToHistory(databaseId, "EXPLAIN $query")
-                workbench.lastHistoryId = historyId
-                val metrics = QueryMetrics(
-                    historyId = historyId,
-                    executionTimeMs = result.executionTimeMs,
-                    docsExamined = result.totalCount,
-                    docsReturned = result.totalCount,
-                    indexesUsed = emptyList(),
-                    bytesRead = 0L,
-                    explainPlan = result.explainPlan,
-                    capturedAt = System.currentTimeMillis(),
-                    queryText = query,
-                )
-                metricsRepository.save(metrics)
-                workbench.queryMetrics.value = metrics
-                appMetricsRepository.incrementQueryCount()
-                appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
-                workbench.selectedInspectorTab.value = QueryInspectorTab.METRICS
-            }.onFailure { e ->
-                workbench.executionError.value = e.message ?: "Unknown error"
+            try {
+                runCatching {
+                    val result = queryExecutionService.explain(query)
+                    workbench.queryResult.value = result
+                    workbench.currentPage.value = 0
+                    val historyId = historyRepository.addToHistory(databaseId, "EXPLAIN $query")
+                    workbench.lastHistoryId = historyId
+                    val metrics = QueryMetrics(
+                        historyId = historyId,
+                        executionTimeMs = result.executionTimeMs,
+                        docsExamined = result.totalCount,
+                        docsReturned = result.totalCount,
+                        indexesUsed = emptyList(),
+                        bytesRead = 0L,
+                        explainPlan = result.explainPlan,
+                        capturedAt = System.currentTimeMillis(),
+                        queryText = query,
+                    )
+                    metricsRepository.save(metrics)
+                    workbench.queryMetrics.value = metrics
+                    appMetricsRepository.incrementQueryCount()
+                    appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
+                    workbench.selectedInspectorTab.value = QueryInspectorTab.METRICS
+                }.onFailure { e ->
+                    workbench.executionError.value = e.message ?: "Unknown error"
+                }
+            } finally {
+                workbench.isExecuting.value = false
             }
-            workbench.isExecuting.value = false
         }
     }
 
