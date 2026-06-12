@@ -1,6 +1,5 @@
 package com.costoda.dittoedgestudio.ui.mainstudio
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -92,23 +91,11 @@ fun SubscriptionsListPane(
                 HorizontalDivider()
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = "Subscriptions",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = "${subscriptions.size}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = "Subscriptions",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
 
             if (subscriptions.isEmpty()) {
                 Box(
