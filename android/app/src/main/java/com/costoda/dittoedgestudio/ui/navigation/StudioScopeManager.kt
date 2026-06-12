@@ -58,6 +58,7 @@ fun StudioScopeManager(backStack: List<NavKey>) {
  *  - any [StudioSectionKey] for that databaseId, or
  *  - the legacy [StudioKey] for that databaseId (bridge during the multi-task migration), or
  *  - an [ObserverEventsKey] for that databaseId (compact-width detail drill-in).
+ *  - a [PresenceContentKey] for that databaseId (compact-width Presence detail drill-in).
  *
  * Iteration order is deterministic (insertion order of the resulting [LinkedHashSet]) so tests
  * can assert against a stable sequence.
@@ -69,6 +70,7 @@ fun activeStudioDatabaseIds(backStack: List<NavKey>): Set<Long> {
             is StudioSectionKey -> out += k.databaseId
             is StudioKey -> out += k.databaseId
             is ObserverEventsKey -> out += k.databaseId
+            is PresenceContentKey -> out += k.databaseId
             else -> Unit
         }
     }

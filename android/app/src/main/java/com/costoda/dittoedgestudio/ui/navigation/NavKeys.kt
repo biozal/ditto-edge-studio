@@ -49,6 +49,16 @@ sealed interface StudioSectionKey : NavKey {
  *  [observerId] matches [com.costoda.dittoedgestudio.domain.model.DittoObservable.id] (Long). */
 @Serializable data class ObserverEventsKey(val databaseId: Long, val observerId: Long) : NavKey
 
+/**
+ * Compact-width drill-in: the Presence content pane (Connected Peers tabs).
+ *
+ * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.listPane] detail
+ * placeholder and never pushed onto the back stack. At compact widths it is pushed on
+ * top of [SubscriptionsKey] so the user reaches "Peers List / Presence Viewer" via a
+ * normal back-stack drill-in from the subscriptions list.
+ */
+@Serializable data class PresenceContentKey(val databaseId: Long) : NavKey
+
 // ---------------------------------------------------------------------------
 // Mapping helpers between StudioNavItem enum and StudioSectionKey
 // ---------------------------------------------------------------------------

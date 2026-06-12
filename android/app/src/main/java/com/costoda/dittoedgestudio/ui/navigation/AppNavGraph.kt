@@ -28,6 +28,8 @@ import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
 import com.costoda.dittoedgestudio.ui.mainstudio.MainStudioScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
+import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
+import com.costoda.dittoedgestudio.ui.mainstudio.PresenceListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -62,9 +64,15 @@ import org.koin.core.qualifier.named
  *  - [LoggingKey] — single-pane Log Analyzer (Task 4.3b).
  *  - [AppMetricsKey] — single-pane App Metrics (Task 4.3b).
  *  - [DiskUsageKey] — single-pane Database Metrics (Task 4.3b).
+ *  - [SubscriptionsKey] (list pane) + [PresenceContentKey] (detail pane) via
+ *    [ListDetailSceneStrategy]. Unlike Observers, the content (Connected Peers tabs) is
+ *    NOT selection-driven; it is always relevant. The detail placeholder renders
+ *    [PresenceContentSection] directly so at ≥600dp both panes are always visible. At
+ *    compact widths the list pane is shown first (subscriptions list) and the user taps
+ *    "View Peers" to drill into [PresenceContentKey]. (Task 4.3c)
  *
  * **Sections still routed through the legacy monolith** ([MainStudioScreen]) via a bridge
- * entry each: [SubscriptionsKey], [QueryKey], [QueryMetricsKey].
+ * entry each: [QueryKey], [QueryMetricsKey].
  * Each bridge entry creates / reuses the MainStudioViewModel for the database,
  * forces `selectedNavItem` to the entry's [StudioNavItem], and intercepts rail / drawer clicks
  * via the new `onNavItemSelected` callback to replace the top of the back stack with the
@@ -178,8 +186,56 @@ fun AppNavGraph() {
                 }
             }
 
-            // ── Legacy bridge: remaining 3 rail sections ──────────────────────────
-            entry<SubscriptionsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
+            // ── Scene-driven section: Presence (Subscriptions) ───────────────────
+            // The detail placeholder renders the Connected Peers content pane at ≥600dp
+            // so both panes are always visible side-by-side. At compact widths the list
+            // pane is shown first and the user taps "View Peers" to push PresenceContentKey.
+            entry<SubscriptionsKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        // Resolve databaseId from the SubscriptionsKey currently on the stack.
+                        // The listPane detailPlaceholder is only composed in expanded layouts
+                        // where SubscriptionsKey is always present on the back stack.
+                        val databaseId = backStack
+                            .filterIsInstance<SubscriptionsKey>()
+                            .lastOrNull()
+                            ?.databaseId
+                        if (databaseId != null) {
+                            val viewModel = rememberStudioViewModel(databaseId)
+                            remember(viewModel) { viewModel.selectedNavItem = StudioNavItem.SUBSCRIPTIONS }
+                            PresenceContentSection(viewModel = viewModel)
+                        }
+                    },
+                ),
+            ) { key ->
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.SUBSCRIPTIONS,
+                ) { viewModel ->
+                    PresenceListSection(
+                        viewModel = viewModel,
+                        onViewPeers = {
+                            backStack.removeIf { it is PresenceContentKey }
+                            backStack.add(PresenceContentKey(databaseId = key.databaseId))
+                        },
+                    )
+                }
+            }
+
+            entry<PresenceContentKey>(
+                metadata = ListDetailSceneStrategy.detailPane(),
+            ) { key ->
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.SUBSCRIPTIONS,
+                ) { viewModel ->
+                    PresenceContentSection(viewModel = viewModel)
+                }
+            }
+
+            // ── Legacy bridge: remaining 2 rail sections ──────────────────────────
             entry<QueryKey> { key -> LegacyStudioSectionEntry(backStack, key) }
             entry<QueryMetricsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
         },
@@ -215,10 +271,10 @@ private fun StudioSectionContainer(
         session = viewModel.session,
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         onSectionSelect = { newItem ->
-            // Replace top so the new section becomes the visible entry. Always strip any
-            // dangling ObserverEventsKey so leaving Observers doesn't leave a stale detail
-            // pane keyed to a section we no longer show.
+            // Replace top so the new section becomes the visible entry. Strip any dangling
+            // detail-pane keys so leaving their parent section doesn't leave a stale pane.
             backStack.removeIf { it is ObserverEventsKey }
+            backStack.removeIf { it is PresenceContentKey }
             val newKey = newItem.toSectionKey(databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey
@@ -254,6 +310,7 @@ private fun LegacyStudioSectionEntry(
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         onNavItemSelected = { newItem ->
             backStack.removeIf { it is ObserverEventsKey }
+            backStack.removeIf { it is PresenceContentKey }
             val newKey = newItem.toSectionKey(key.databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey

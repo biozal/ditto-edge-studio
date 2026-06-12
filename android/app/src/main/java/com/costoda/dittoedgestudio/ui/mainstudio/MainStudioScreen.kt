@@ -1173,7 +1173,7 @@ private fun ObserverEditorSheetIfNeeded(viewModel: MainStudioViewModel) {
 }
 
 @Composable
-private fun TransportConfigContent(viewModel: MainStudioViewModel) {
+internal fun TransportConfigContent(viewModel: MainStudioViewModel) {
     var bluetoothEnabled by remember { mutableStateOf(viewModel.transportBluetoothEnabled) }
     var lanEnabled by remember { mutableStateOf(viewModel.transportLanEnabled) }
     var wifiAwareEnabled by remember { mutableStateOf(viewModel.transportWifiAwareEnabled) }
