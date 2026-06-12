@@ -60,6 +60,7 @@ fun StudioScopeManager(backStack: List<NavKey>) {
  *  - an [ObserverEventsKey] for that databaseId (compact-width detail drill-in).
  *  - a [PresenceContentKey] for that databaseId (compact-width Presence detail drill-in).
  *  - a [QueryMetricDetailKey] for that databaseId (compact-width Query Metrics detail drill-in).
+ *  - a [QueryContentKey] for that databaseId (compact-width Query Workbench editor drill-in).
  *
  * Iteration order is deterministic (insertion order of the resulting [LinkedHashSet]) so tests
  * can assert against a stable sequence.
@@ -73,6 +74,7 @@ fun activeStudioDatabaseIds(backStack: List<NavKey>): Set<Long> {
             is ObserverEventsKey -> out += k.databaseId
             is PresenceContentKey -> out += k.databaseId
             is QueryMetricDetailKey -> out += k.databaseId
+            is QueryContentKey -> out += k.databaseId
             else -> Unit
         }
     }

@@ -119,4 +119,15 @@ class StudioScopeManagerTest {
         )
         assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
     }
+
+    @Test
+    fun `QueryContentKey on top of QueryKey keeps the same databaseId active`() {
+        // Compact-width drill-in: QueryKey -> QueryContentKey (the editor).
+        val stack = listOf(
+            DatabaseListKey,
+            QueryKey(databaseId = 7L),
+            QueryContentKey(databaseId = 7L),
+        )
+        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
+    }
 }

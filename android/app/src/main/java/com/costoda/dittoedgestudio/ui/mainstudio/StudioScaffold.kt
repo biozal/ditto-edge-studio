@@ -52,18 +52,22 @@ import kotlinx.coroutines.launch
  * UI chrome shared by every scene-migrated studio section (Task 4.3+).
  *
  * Layout:
- *  - Expanded (≥600dp): [NavigationRail] on the start edge, optional [InspectorContentView]
- *    column on the end edge (default-visible at Large widths), content slot in between.
+ *  - Expanded (≥600dp): [NavigationRail] on the start edge, optional inspector column on the
+ *    end edge (default-visible at Large widths), content slot in between.
  *  - Compact (<600dp): rail collapses into a [ModalNavigationDrawer]; inspector is reachable
  *    via the top-bar toggle (rendered as a side column for now — bottom-sheet variant comes
  *    later if user feedback demands it).
  *
  * The scaffold does NOT own session state; it takes a [StudioSession] purely for the sync-toggle
  * top-bar button (so the new shell behaves identically to the legacy one for sections we have
- * already migrated). Inspector help content keys off [currentSection] (selectedNavItem-equivalent).
+ * already migrated).
  *
- * Currently used by the [ObserversKey] / [ObserverEventsKey] entries. Subsequent task waves will
- * extend it to host more migrated sections.
+ * The inspector column normally renders [InspectorContentView] keyed off [currentSection] (help
+ * content). Sections that need a richer inspector (e.g. Query Workbench with History /
+ * Favorites / JSON / Metrics tabs) pass [inspectorContent] to override the default; the override
+ * is responsible for surfacing the help content itself if desired (the Query inspector exposes
+ * help as one of its tabs — see [com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView]
+ * usage in [com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchSection]).
  */
 @Composable
 fun StudioScaffold(
@@ -71,6 +75,7 @@ fun StudioScaffold(
     session: StudioSession,
     onBack: () -> Unit,
     onSectionSelect: (StudioNavItem) -> Unit,
+    inspectorContent: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val windowSizeClass = studioWindowSizeClass()
@@ -140,10 +145,16 @@ fun StudioScaffold(
             ) {
                 Row(modifier = Modifier.width(300.dp).fillMaxHeight()) {
                     VerticalDivider()
-                    InspectorContentView(
-                        selectedNavItem = currentSection,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        if (inspectorContent != null) {
+                            inspectorContent()
+                        } else {
+                            InspectorContentView(
+                                selectedNavItem = currentSection,
+                                modifier = Modifier.fillMaxHeight(),
+                            )
+                        }
+                    }
                 }
             }
         }

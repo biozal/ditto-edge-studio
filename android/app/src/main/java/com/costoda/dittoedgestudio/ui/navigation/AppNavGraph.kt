@@ -32,7 +32,13 @@ import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryMetricsDetailSection
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryMetricsListSection
+import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchContentSection
+import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchInspector
+import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
+import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
+import androidx.compose.runtime.LaunchedEffect
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
@@ -76,13 +82,20 @@ import org.koin.core.qualifier.named
  *    [ListDetailSceneStrategy]. Selecting a row pushes [QueryMetricDetailKey]; at ≥600dp
  *    the strategy renders both panes side-by-side. Clear-all strips [QueryMetricDetailKey]
  *    from the stack. (Task 4.3d)
+ *  - [QueryKey] (list pane) + [QueryContentKey] (detail pane / compact drill-in) via
+ *    [ListDetailSceneStrategy]. The list pane is the COLLECTIONS list (with add-index FAB);
+ *    the detail pane is the DQL editor + paginated results + floating Run / pagination /
+ *    overflow bar. At ≥600dp both panes are visible side-by-side via the listPane's
+ *    `detailPlaceholder`. At compact widths the list pane is shown first, and a one-shot
+ *    LaunchedEffect on the QueryKey entry auto-pushes [QueryContentKey] so the user lands
+ *    on the editor (matching legacy phone UX where the editor was the primary surface).
+ *    Tapping system back returns to the collections list. The Query inspector is the rich
+ *    [com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView] (History /
+ *    Favorites / JSON document viewer / Metrics tabs) threaded through the scaffold's new
+ *    `inspectorContent` slot. (Task 4.3e)
  *
- * **Sections still routed through the legacy monolith** ([MainStudioScreen]) via a bridge
- * entry each: [QueryKey].
- * The bridge entry creates / reuses the MainStudioViewModel for the database,
- * forces `selectedNavItem` to the entry's [StudioNavItem], and intercepts rail / drawer clicks
- * via the new `onNavItemSelected` callback to replace the top of the back stack with the
- * target section's key.
+ * All seven rail sections are now scene-driven; [MainStudioScreen] and [LegacyStudioSectionEntry]
+ * are retained only for the back-stack transition and can be deleted in a follow-up cleanup.
  */
 @Composable
 fun AppNavGraph() {
@@ -291,8 +304,78 @@ fun AppNavGraph() {
                 }
             }
 
-            // ── Legacy bridge: remaining 1 rail section ───────────────────────────
-            entry<QueryKey> { key -> LegacyStudioSectionEntry(backStack, key) }
+            // ── Scene-driven section: Query Workbench ────────────────────────────
+            // List pane = COLLECTIONS list (with add-index FAB); detail placeholder =
+            // editor + results. At ≥600dp both panes are always visible side-by-side. At
+            // compact widths the list pane shows first, but a one-shot auto-push of
+            // QueryContentKey makes the user land on the editor (mirrors legacy phone UX
+            // where the editor was the primary surface and collections lived in the
+            // sidebar drawer). The Query inspector is the rich QueryInspectorView, threaded
+            // into the scaffold via inspectorContent.
+            entry<QueryKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        val databaseId = backStack
+                            .filterIsInstance<QueryKey>()
+                            .lastOrNull()
+                            ?.databaseId
+                        if (databaseId != null) {
+                            val viewModel = rememberStudioViewModel(databaseId)
+                            remember(viewModel) { viewModel.selectedNavItem = StudioNavItem.QUERY }
+                            QueryWorkbenchContentSection(viewModel = viewModel)
+                        }
+                    },
+                ),
+            ) { key ->
+                // Compact-only: auto-push QueryContentKey so the user lands on the editor
+                // (matches legacy phone UX). At ≥600dp the detail placeholder renders the
+                // editor inline so no push is needed. The pushed key contributes to the
+                // back stack so system-back returns to the collections list, and the
+                // StudioScopeManager treats it as a studio entry so the session survives
+                // the drill-in.
+                val expandedLayout = studioWindowSizeClass().showsRail
+                LaunchedEffect(key.databaseId, expandedLayout) {
+                    if (!expandedLayout && backStack.none { it is QueryContentKey }) {
+                        backStack.add(QueryContentKey(databaseId = key.databaseId))
+                    }
+                }
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.QUERY,
+                    inspectorContent = { viewModel ->
+                        QueryWorkbenchInspector(viewModel = viewModel)
+                    },
+                ) { viewModel ->
+                    QueryWorkbenchListSection(
+                        viewModel = viewModel,
+                        // "Open Editor" affordance — compact only. At ≥600dp the editor
+                        // is already visible as the detail placeholder so hide the button.
+                        onOpenEditor = if (!expandedLayout) {
+                            {
+                                if (backStack.none { it is QueryContentKey }) {
+                                    backStack.add(QueryContentKey(databaseId = key.databaseId))
+                                }
+                            }
+                        } else null,
+                    )
+                }
+            }
+
+            entry<QueryContentKey>(
+                metadata = ListDetailSceneStrategy.detailPane(),
+            ) { key ->
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.QUERY,
+                    inspectorContent = { viewModel ->
+                        QueryWorkbenchInspector(viewModel = viewModel)
+                    },
+                ) { viewModel ->
+                    QueryWorkbenchContentSection(viewModel = viewModel)
+                }
+            }
         },
     )
 }
@@ -314,6 +397,7 @@ private fun StudioSectionContainer(
     backStack: NavBackStack<NavKey>,
     databaseId: Long,
     section: StudioNavItem,
+    inspectorContent: (@Composable (MainStudioViewModel) -> Unit)? = null,
     content: @Composable (MainStudioViewModel) -> Unit,
 ) {
     val viewModel = rememberStudioViewModel(databaseId)
@@ -331,6 +415,7 @@ private fun StudioSectionContainer(
             backStack.removeIf { it is ObserverEventsKey }
             backStack.removeIf { it is PresenceContentKey }
             backStack.removeIf { it is QueryMetricDetailKey }
+            backStack.removeIf { it is QueryContentKey }
             val newKey = newItem.toSectionKey(databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey
@@ -338,6 +423,7 @@ private fun StudioSectionContainer(
                 backStack.add(newKey)
             }
         },
+        inspectorContent = inspectorContent?.let { ic -> { ic(viewModel) } },
     ) {
         content(viewModel)
     }
@@ -368,6 +454,7 @@ private fun LegacyStudioSectionEntry(
             backStack.removeIf { it is ObserverEventsKey }
             backStack.removeIf { it is PresenceContentKey }
             backStack.removeIf { it is QueryMetricDetailKey }
+            backStack.removeIf { it is QueryContentKey }
             val newKey = newItem.toSectionKey(key.databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey

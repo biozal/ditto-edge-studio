@@ -7,10 +7,10 @@ import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
+import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
 import com.costoda.dittoedgestudio.domain.model.DittoQueryHistory
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
 import com.costoda.dittoedgestudio.domain.model.QueryResult
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,8 +20,25 @@ import kotlinx.coroutines.launch
 
 enum class QueryInspectorTab { HISTORY, FAVORITES, JSON, METRICS }
 
+/**
+ * ViewModel for the Query Workbench (Task 4.3e).
+ *
+ * Editor draft, results, pagination, and inspector state are owned by [workbench] — a
+ * session-scoped [QueryWorkbenchState] living on [com.costoda.dittoedgestudio.data.session.StudioUiState].
+ * This VM exposes those flows verbatim so any number of VM instances sharing the same
+ * session (e.g. recreated each time the user navigates to `QueryKey`) see identical state.
+ *
+ * Repository-backed flows (history, favorites) are derived from the repositories themselves —
+ * they re-share inside this VM's [viewModelScope] but the underlying source-of-truth is Room,
+ * not VM-local state, so a new VM instance reproduces the same flows from the same data.
+ *
+ * Derived flows ([displayedDocuments], [pageSizeOptions]) `combine` session-scoped state flows
+ * and re-share in [viewModelScope]; the upstream state lives in [workbench] so re-derivation
+ * is trivial.
+ */
 class QueryEditorViewModel(
     private val databaseId: String,
+    private val workbench: QueryWorkbenchState,
     private val queryExecutionService: QueryExecutionService,
     private val historyRepository: HistoryRepository,
     private val favoritesRepository: FavoritesRepository,
@@ -29,28 +46,18 @@ class QueryEditorViewModel(
     private val appMetricsRepository: AppMetricsRepository,
 ) : ViewModel() {
 
-    // ── Editor state ─────────────────────────────────────────────────────────
-    private val _queryText = MutableStateFlow("")
-    val queryText: StateFlow<String> = _queryText.asStateFlow()
+    // ── Editor state (session-backed) ─────────────────────────────────────────
+    val queryText: StateFlow<String> = workbench.queryText.asStateFlow()
+    val isExecuting: StateFlow<Boolean> = workbench.isExecuting.asStateFlow()
+    val executionError: StateFlow<String?> = workbench.executionError.asStateFlow()
 
-    private val _isExecuting = MutableStateFlow(false)
-    val isExecuting: StateFlow<Boolean> = _isExecuting.asStateFlow()
-
-    private val _executionError = MutableStateFlow<String?>(null)
-    val executionError: StateFlow<String?> = _executionError.asStateFlow()
-
-    // ── Results state ─────────────────────────────────────────────────────────
-    private val _queryResult = MutableStateFlow<QueryResult?>(null)
-    val queryResult: StateFlow<QueryResult?> = _queryResult.asStateFlow()
-
-    private val _currentPage = MutableStateFlow(0)
-    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
-
-    private val _pageSize = MutableStateFlow(25)
-    val pageSize: StateFlow<Int> = _pageSize.asStateFlow()
+    // ── Results state (session-backed) ────────────────────────────────────────
+    val queryResult: StateFlow<QueryResult?> = workbench.queryResult.asStateFlow()
+    val currentPage: StateFlow<Int> = workbench.currentPage.asStateFlow()
+    val pageSize: StateFlow<Int> = workbench.pageSize.asStateFlow()
 
     val displayedDocuments: StateFlow<List<Map<String, Any?>>> =
-        combine(_queryResult, _currentPage, _pageSize) { result, page, size ->
+        combine(workbench.queryResult, workbench.currentPage, workbench.pageSize) { result, page, size ->
             val docs = result?.documents ?: return@combine emptyList()
             val from = page * size
             val to = minOf(from + size, docs.size)
@@ -58,31 +65,22 @@ class QueryEditorViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val pageSizeOptions: StateFlow<List<Int>> =
-        _queryResult.combine(_queryResult) { r, _ -> r }.let { flow ->
-            combine(_queryResult, _queryResult) { r, _ ->
-                val total = r?.totalCount ?: 0
-                buildList {
-                    add(10)
-                    if (total > 10) add(25)
-                    if (total > 25) add(50)
-                    if (total > 50) add(100)
-                    if (total > 100) add(200)
-                }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), listOf(10, 25, 50))
-        }
+        combine(workbench.queryResult, workbench.queryResult) { r, _ ->
+            val total = r?.totalCount ?: 0
+            buildList {
+                add(10)
+                if (total > 10) add(25)
+                if (total > 25) add(50)
+                if (total > 50) add(100)
+                if (total > 100) add(200)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), listOf(10, 25, 50))
 
-    // ── Inspector state ───────────────────────────────────────────────────────
-    private val _selectedInspectorTab = MutableStateFlow(QueryInspectorTab.HISTORY)
-    val selectedInspectorTab: StateFlow<QueryInspectorTab> = _selectedInspectorTab.asStateFlow()
-
-    private val _selectedDocument = MutableStateFlow<Map<String, Any?>?>(null)
-    val selectedDocument: StateFlow<Map<String, Any?>?> = _selectedDocument.asStateFlow()
-
-    private val _queryMetrics = MutableStateFlow<QueryMetrics?>(null)
-    val queryMetrics: StateFlow<QueryMetrics?> = _queryMetrics.asStateFlow()
-
-    private val _isFavorited = MutableStateFlow(false)
-    val isFavorited: StateFlow<Boolean> = _isFavorited.asStateFlow()
+    // ── Inspector state (session-backed) ──────────────────────────────────────
+    val selectedInspectorTab: StateFlow<QueryInspectorTab> = workbench.selectedInspectorTab.asStateFlow()
+    val selectedDocument: StateFlow<Map<String, Any?>?> = workbench.selectedDocument.asStateFlow()
+    val queryMetrics: StateFlow<QueryMetrics?> = workbench.queryMetrics.asStateFlow()
+    val isFavorited: StateFlow<Boolean> = workbench.isFavorited.asStateFlow()
 
     // ── History / favorites ───────────────────────────────────────────────────
     val history: StateFlow<List<DittoQueryHistory>> =
@@ -93,29 +91,26 @@ class QueryEditorViewModel(
         favoritesRepository.observeFavorites(databaseId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // ── Last saved history ID (for linking metrics) ───────────────────────────
-    private var lastHistoryId: Long = -1L
-
     // ── Public API ────────────────────────────────────────────────────────────
 
     fun onQueryTextChange(text: String) {
-        _queryText.value = text
+        workbench.queryText.value = text
         checkFavorited(text)
     }
 
     fun executeQuery() {
-        val query = _queryText.value.trim()
+        val query = workbench.queryText.value.trim()
         if (query.isBlank()) return
         viewModelScope.launch {
-            _isExecuting.value = true
-            _executionError.value = null
+            workbench.isExecuting.value = true
+            workbench.executionError.value = null
             runCatching {
                 val result = queryExecutionService.execute(query)
-                _queryResult.value = result
-                _currentPage.value = 0
+                workbench.queryResult.value = result
+                workbench.currentPage.value = 0
                 // Save to history and record metrics
                 val historyId = historyRepository.addToHistory(databaseId, query)
-                lastHistoryId = historyId
+                workbench.lastHistoryId = historyId
                 val metrics = QueryMetrics(
                     historyId = historyId,
                     executionTimeMs = result.executionTimeMs,
@@ -128,28 +123,28 @@ class QueryEditorViewModel(
                     queryText = query,
                 )
                 metricsRepository.save(metrics)
-                _queryMetrics.value = metrics
+                workbench.queryMetrics.value = metrics
                 appMetricsRepository.incrementQueryCount()
                 appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
             }.onFailure { e ->
-                _executionError.value = e.message ?: "Unknown error"
+                workbench.executionError.value = e.message ?: "Unknown error"
             }
-            _isExecuting.value = false
+            workbench.isExecuting.value = false
         }
     }
 
     fun explainQuery() {
-        val query = _queryText.value.trim()
+        val query = workbench.queryText.value.trim()
         if (query.isBlank()) return
         viewModelScope.launch {
-            _isExecuting.value = true
-            _executionError.value = null
+            workbench.isExecuting.value = true
+            workbench.executionError.value = null
             runCatching {
                 val result = queryExecutionService.explain(query)
-                _queryResult.value = result
-                _currentPage.value = 0
+                workbench.queryResult.value = result
+                workbench.currentPage.value = 0
                 val historyId = historyRepository.addToHistory(databaseId, "EXPLAIN $query")
-                lastHistoryId = historyId
+                workbench.lastHistoryId = historyId
                 val metrics = QueryMetrics(
                     historyId = historyId,
                     executionTimeMs = result.executionTimeMs,
@@ -162,46 +157,46 @@ class QueryEditorViewModel(
                     queryText = query,
                 )
                 metricsRepository.save(metrics)
-                _queryMetrics.value = metrics
+                workbench.queryMetrics.value = metrics
                 appMetricsRepository.incrementQueryCount()
                 appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
-                _selectedInspectorTab.value = QueryInspectorTab.METRICS
+                workbench.selectedInspectorTab.value = QueryInspectorTab.METRICS
             }.onFailure { e ->
-                _executionError.value = e.message ?: "Unknown error"
+                workbench.executionError.value = e.message ?: "Unknown error"
             }
-            _isExecuting.value = false
+            workbench.isExecuting.value = false
         }
     }
 
     fun clearResults() {
-        _queryResult.value = null
-        _executionError.value = null
-        _selectedDocument.value = null
-        _currentPage.value = 0
+        workbench.queryResult.value = null
+        workbench.executionError.value = null
+        workbench.selectedDocument.value = null
+        workbench.currentPage.value = 0
     }
 
     fun setPage(page: Int) {
-        val result = _queryResult.value ?: return
+        val result = workbench.queryResult.value ?: return
         val maxPage = if (result.totalCount == 0) 0
-        else (result.totalCount - 1) / _pageSize.value
-        _currentPage.value = page.coerceIn(0, maxPage)
+        else (result.totalCount - 1) / workbench.pageSize.value
+        workbench.currentPage.value = page.coerceIn(0, maxPage)
     }
 
     fun setPageSize(size: Int) {
-        _pageSize.value = size
-        _currentPage.value = 0
+        workbench.pageSize.value = size
+        workbench.currentPage.value = 0
     }
 
     fun selectDocument(doc: Map<String, Any?>) {
-        _selectedDocument.value = doc
-        _selectedInspectorTab.value = QueryInspectorTab.JSON
+        workbench.selectedDocument.value = doc
+        workbench.selectedInspectorTab.value = QueryInspectorTab.JSON
     }
 
     fun toggleFavorite() {
-        val query = _queryText.value.trim()
+        val query = workbench.queryText.value.trim()
         if (query.isBlank()) return
         viewModelScope.launch {
-            if (_isFavorited.value) {
+            if (workbench.isFavorited.value) {
                 val fav = favorites.value.firstOrNull { it.query == query }
                 if (fav != null) favoritesRepository.removeFavorite(fav.id)
             } else {
@@ -214,7 +209,7 @@ class QueryEditorViewModel(
     fun addHistoryToFavorites(query: String) {
         viewModelScope.launch {
             favoritesRepository.saveFavorite(databaseId, query)
-            checkFavorited(_queryText.value.trim())
+            checkFavorited(workbench.queryText.value.trim())
         }
     }
 
@@ -227,12 +222,12 @@ class QueryEditorViewModel(
     }
 
     fun restoreQuery(text: String) {
-        _queryText.value = text
+        workbench.queryText.value = text
         checkFavorited(text)
     }
 
     fun setInspectorTab(tab: QueryInspectorTab) {
-        _selectedInspectorTab.value = tab
+        workbench.selectedInspectorTab.value = tab
     }
 
     fun clearHistory() {
@@ -240,6 +235,6 @@ class QueryEditorViewModel(
     }
 
     private fun checkFavorited(query: String) {
-        _isFavorited.value = favorites.value.any { it.query == query }
+        workbench.isFavorited.value = favorites.value.any { it.query == query }
     }
 }

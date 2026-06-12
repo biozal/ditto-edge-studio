@@ -103,7 +103,13 @@ val dataModule = module {
     }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
     viewModel { DiskUsageViewModel(androidContext(), get(), get()) }
-    viewModel { (databaseId: String) -> QueryEditorViewModel(databaseId, get(), get(), get(), get(), get()) }
+    // QueryEditorViewModel is parameterised on (databaseId, workbench). The workbench state
+    // holder lives on the StudioSession's uiState so the editor draft, results, pagination,
+    // and inspector tab survive rail-section switches that destroy/recreate this VM. See
+    // [com.costoda.dittoedgestudio.data.session.QueryWorkbenchState].
+    viewModel { (databaseId: String, workbench: com.costoda.dittoedgestudio.data.session.QueryWorkbenchState) ->
+        QueryEditorViewModel(databaseId, workbench, get(), get(), get(), get(), get())
+    }
     viewModelOf(::QrScannerViewModel)
     viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }
 }

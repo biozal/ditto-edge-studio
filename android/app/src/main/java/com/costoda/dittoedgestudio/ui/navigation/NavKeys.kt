@@ -71,6 +71,21 @@ sealed interface StudioSectionKey : NavKey {
  */
 @Serializable data class PresenceContentKey(val databaseId: Long) : NavKey
 
+/**
+ * Compact-width drill-in: the Query Workbench content pane (DQL editor + results).
+ *
+ * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.listPane] detail
+ * placeholder and never pushed onto the back stack — the editor is always visible
+ * side-by-side with the collections list.
+ *
+ * At compact widths the user lands on [QueryKey] (collections list) by default, but a
+ * one-frame LaunchedEffect pushes this key automatically so the *effective* compact
+ * landing is the editor — matching legacy phone UX where the editor was the primary
+ * surface and collections lived in the rail drawer. Tapping system back from the editor
+ * returns to the collections list (one-tap-away from anything in the editor).
+ */
+@Serializable data class QueryContentKey(val databaseId: Long) : NavKey
+
 // ---------------------------------------------------------------------------
 // Mapping helpers between StudioNavItem enum and StudioSectionKey
 // ---------------------------------------------------------------------------

@@ -142,7 +142,9 @@ fun MainStudioScreen(
     val expandedLayout = studioWindowSizeClass().showsRail
     val currentDittoId = viewModel.currentDittoId
     val queryEditorViewModel: QueryEditorViewModel? = if (currentDittoId != null) {
-        koinViewModel(parameters = { parametersOf(currentDittoId) })
+        // The Query VM is parameterised on (databaseId, workbench) so its editor state
+        // survives rail-section switches via the session-scoped QueryWorkbenchState.
+        koinViewModel(parameters = { parametersOf(currentDittoId, viewModel.session.uiState.queryWorkbench) })
     } else null
 
     // Rail/drawer click handler: bridge mode pushes a new nav entry, legacy mode mutates the VM.
