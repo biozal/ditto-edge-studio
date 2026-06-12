@@ -8,25 +8,31 @@ import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
+import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
+import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import io.mockk.coVerify
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -66,10 +72,13 @@ class StudioSessionTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        // Drain any leftover teardown jobs across tests to keep the process-wide registry clean.
+        DittoTeardownRegistry.inFlightJob(42L)?.cancel()
+        DittoTeardownRegistry.inFlightJob(7L)?.cancel()
     }
 
-    private fun newSession(): StudioSession = StudioSession(
-        databaseId = 42L,
+    private fun newSession(databaseId: Long = 42L): StudioSession = StudioSession(
+        databaseId = databaseId,
         databaseRepository = databaseRepository,
         dittoManager = dittoManager,
         systemRepository = systemRepository,
@@ -79,6 +88,7 @@ class StudioSessionTest {
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
         ioDispatcher = testDispatcher,
+        teardownDispatcher = testDispatcher,
     )
 
     @Test
@@ -93,6 +103,9 @@ class StudioSessionTest {
         // Subsequent closes are no-ops
         session.close()
         session.close()
+
+        // Teardown is dispatched to the testDispatcher; drive it to completion.
+        advanceUntilIdle()
 
         // Verify Ditto was closed exactly once across all three calls
         coVerify(exactly = 1) { dittoManager.close() }
@@ -133,5 +146,65 @@ class StudioSessionTest {
         val session = newSession()
         session.close()
         assertTrue(session.isClosed())
+    }
+
+    @Test
+    fun `close does not block the calling thread`() = runTest {
+        val session = newSession()
+        val gate = CompletableDeferred<Unit>()
+        coEvery { dittoManager.close() } coAnswers { gate.await() }
+
+        // Call close(); it must RETURN even though dittoManager.close() is still suspended on the gate.
+        session.close()
+
+        // The session is marked closed synchronously, and the teardown job is registered.
+        assertTrue(session.isClosed())
+        val teardownJob = DittoTeardownRegistry.inFlightJob(42L)
+        assertNotNull("teardown job should be registered", teardownJob)
+        // Drive the dispatcher just enough to actually invoke dittoManager.close() — it must
+        // suspend on the gate, NOT complete.
+        runCurrent()
+        assertTrue("teardown should still be suspended on the gate", teardownJob!!.isActive)
+
+        // Release the gate; teardown completes; registry clears the entry.
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue("teardown should have completed", teardownJob.isCompleted)
+        assertNull(DittoTeardownRegistry.inFlightJob(42L))
+        coVerify(exactly = 1) { dittoManager.close() }
+    }
+
+    @Test
+    fun `hydrate awaits in-flight close for the same database`() = runTest {
+        // Session A: arrange a close that suspends indefinitely on a gate.
+        val sessionA = newSession(databaseId = 42L)
+        val gate = CompletableDeferred<Unit>()
+        coEvery { dittoManager.close() } coAnswers { gate.await() }
+
+        sessionA.close()
+        runCurrent()
+        assertTrue(DittoTeardownRegistry.inFlightJob(42L)?.isActive == true)
+
+        // Session B for the same databaseId: hydrate should suspend until A's close finishes.
+        // Reset close mock so the new session's close() (if any) does not deadlock subsequent tests;
+        // hydrate() itself only calls dittoManager.hydrate().
+        val sessionB = newSession(databaseId = 42L)
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns mockk(relaxed = true)
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        sessionB.hydrate()
+        // Pump pending coroutines; B must be parked on the registry await — hydrate must NOT have opened yet.
+        advanceUntilIdle()
+        coVerify(exactly = 0) { dittoManager.hydrate(any()) }
+
+        // Release A's close; B's hydrate is now free to proceed and call dittoManager.hydrate().
+        gate.complete(Unit)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { dittoManager.hydrate(any()) }
     }
 }

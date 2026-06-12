@@ -21,10 +21,13 @@ import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import com.ditto.kotlin.DittoStoreObserver
 import com.ditto.kotlin.DittoSyncSubscription
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +38,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Studio "session" — owns the Ditto instance lifecycle (hydration, sync, subscription handles,
@@ -60,6 +64,7 @@ class StudioSession(
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val teardownDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 
     /**
@@ -159,6 +164,12 @@ class StudioSession(
         sessionScope.launch {
             hydrateError = null
             runCatching {
+                // If a previous session for this databaseId is still closing Ditto on the
+                // teardown scope, wait for it to finish before opening the same persistence
+                // directory. Opening while the old instance still holds the file lock will
+                // fail; this guarantees reopen-after-close safety even with rapid re-entry.
+                DittoTeardownRegistry.awaitCloseFor(databaseId)
+
                 val database = databaseRepository.getById(databaseId)
                     ?: error("Database not found: $databaseId")
                 currentDatabase = database
@@ -384,9 +395,13 @@ class StudioSession(
      * Tear down the session. Closes Ditto exactly once (subsequent calls are no-ops) and
      * cancels the session's own coroutine scope.
      *
-     * Safe to call from non-suspending contexts (e.g. Koin's `onClose`): the underlying
-     * `dittoManager.close()` is suspend, so we drive it via `runBlocking` on the session's
-     * dispatcher — acceptable here because this runs once at session teardown.
+     * Safe to call from the main thread (e.g. Koin's `onClose` fired from
+     * `DisposableEffect.onDispose`): the fast synchronous portion (handle releases,
+     * StateFlow resets) runs inline, but the suspending `dittoManager.close()` is dispatched
+     * to [DittoTeardownRegistry] on [teardownDispatcher] — a process-wide supervisor scope
+     * that survives this session's own scope cancellation. The resulting [Job] is registered
+     * by [databaseId] so that a subsequent `hydrate()` for the same database can `join()` it
+     * before opening, eliminating the file-lock race on rapid re-entry.
      */
     fun close() {
         if (!closed.compareAndSet(false, true)) return
@@ -405,12 +420,39 @@ class StudioSession(
         _observers.value = emptyList()
         _observerEvents.value = emptyList()
 
-        // Close the Ditto instance. `dittoManager.close()` is `suspend`, but it is called
-        // exactly once here under the AtomicBoolean guard, so a brief blocking wait is fine.
-        runCatching { runBlocking { dittoManager.close() } }
-            .onFailure { e -> Log.w(TAG, "Error closing Ditto on session close: ${e.message}") }
+        // Dispatch the suspending Ditto close to the teardown registry. We MUST NOT run it on
+        // `sessionScope` (cancelled below) or block the calling (main) thread (ANR risk).
+        DittoTeardownRegistry.launchClose(
+            databaseId = databaseId,
+            dispatcher = teardownDispatcher,
+        ) {
+            // NonCancellable: even if the registry's job is cancelled by something exotic, the
+            // native Ditto release must complete to free the persistence-directory lock.
+            withContext(NonCancellable) {
+                val result = withTimeoutOrNull(CLOSE_WARN_TIMEOUT_MS) {
+                    runCatching { dittoManager.close() }
+                }
+                if (result == null) {
+                    Log.w(
+                        TAG,
+                        "Ditto close exceeded ${CLOSE_WARN_TIMEOUT_MS}ms for databaseId=$databaseId; " +
+                            "continuing to wait without abandoning the close.",
+                    )
+                    // Still complete the close — DO NOT abandon it; the persistence lock must release.
+                    runCatching { dittoManager.close() }
+                        .onFailure { e ->
+                            Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
+                        }
+                } else {
+                    result.onFailure { e ->
+                        Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
+                    }
+                }
+            }
+        }
 
-        // Finally cancel the session scope so any in-flight launches are stopped.
+        // Finally cancel the session scope so any in-flight launches are stopped. The teardown
+        // job lives on its own supervisor scope and is unaffected by this cancellation.
         sessionScope.cancel()
     }
 
@@ -420,12 +462,61 @@ class StudioSession(
     companion object {
         private const val TAG = "StudioSession"
 
+        /** WARN threshold for slow Ditto teardown; we still wait for completion past this. */
+        private const val CLOSE_WARN_TIMEOUT_MS: Long = 5_000L
+
         /** Koin scope qualifier — see [com.costoda.dittoedgestudio.data.di.dataModule]. */
         const val SCOPE_QUALIFIER = "studio"
 
         /** Build the scope id used to look up / create the studio scope for a database. */
         fun scopeId(databaseId: Long): String = "studio:$databaseId"
     }
+}
+
+/**
+ * Process-wide registry of in-flight Ditto teardown jobs, keyed by databaseId.
+ *
+ * Why a registry: when the user exits the studio, Koin's scope `onClose` fires on the main
+ * thread from `DisposableEffect.onDispose`. The native `Ditto.close()` call must NOT block
+ * that thread (ANR risk) and must NOT run on the session's own scope (which we cancel in the
+ * same call). But the user can immediately re-enter the same database — a fresh
+ * [StudioSession] will then try to open the same persistence directory while the previous
+ * native instance is still releasing its file lock. This registry lets the new session
+ * `await()` the in-flight close for its databaseId before opening, eliminating the race
+ * without re-introducing a blocking call on the main thread.
+ *
+ * The registry uses an internal `SupervisorJob` so a failed teardown doesn't poison sibling
+ * databaseId teardowns, and `Dispatchers.IO` for the close work itself (overridable per-call
+ * for tests via the [dispatcher] parameter to [launchClose]).
+ */
+internal object DittoTeardownRegistry {
+    private val supervisor = SupervisorJob()
+    private val inFlight = ConcurrentHashMap<Long, Job>()
+
+    /**
+     * Launch a teardown [block] for [databaseId] on a scope that survives any caller-scope
+     * cancellation. The returned [Job] is registered (and auto-removed on completion) so
+     * [awaitCloseFor] can join it from a fresh session's hydrate path.
+     */
+    fun launchClose(
+        databaseId: Long,
+        dispatcher: CoroutineDispatcher,
+        block: suspend () -> Unit,
+    ): Job {
+        val scope = CoroutineScope(supervisor + dispatcher)
+        val job = scope.launch { block() }
+        inFlight[databaseId] = job
+        job.invokeOnCompletion { inFlight.remove(databaseId, job) }
+        return job
+    }
+
+    /** Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise. */
+    suspend fun awaitCloseFor(databaseId: Long) {
+        inFlight[databaseId]?.join()
+    }
+
+    /** Visible for tests — exposes the in-flight job for direct assertions. */
+    internal fun inFlightJob(databaseId: Long): Job? = inFlight[databaseId]
 }
 
 /**
