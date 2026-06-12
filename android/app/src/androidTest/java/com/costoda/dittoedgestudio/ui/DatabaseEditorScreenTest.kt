@@ -228,9 +228,9 @@ class DatabaseEditorScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithTag("NameField").performTextInput("My DB")
-        composeTestRule.onNodeWithTag("DatabaseIdField").performTextInput("db-id-123")
-        composeTestRule.onNodeWithTag("TokenField").performTextInput("token-abc")
+        composeTestRule.onNodeWithTag("NameField").performScrollTo().performTextInput("My DB")
+        composeTestRule.onNodeWithTag("DatabaseIdField").performScrollTo().performTextInput("db-id-123")
+        composeTestRule.onNodeWithTag("TokenField").performScrollTo().performTextInput("token-abc")
 
         composeTestRule.onNodeWithTag("SaveButton").assertIsEnabled()
     }
@@ -248,9 +248,9 @@ class DatabaseEditorScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithTag("NameField").performTextInput("New DB")
-        composeTestRule.onNodeWithTag("DatabaseIdField").performTextInput("new-db-id")
-        composeTestRule.onNodeWithTag("TokenField").performTextInput("new-token")
+        composeTestRule.onNodeWithTag("NameField").performScrollTo().performTextInput("New DB")
+        composeTestRule.onNodeWithTag("DatabaseIdField").performScrollTo().performTextInput("new-db-id")
+        composeTestRule.onNodeWithTag("TokenField").performScrollTo().performTextInput("new-token")
         composeTestRule.onNodeWithTag("SaveButton").performClick()
 
         composeTestRule.waitForIdle()
@@ -271,9 +271,9 @@ class DatabaseEditorScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithTag("NameField").performTextInput("Saved DB")
-        composeTestRule.onNodeWithTag("DatabaseIdField").performTextInput("saved-db-id")
-        composeTestRule.onNodeWithTag("TokenField").performTextInput("saved-token")
+        composeTestRule.onNodeWithTag("NameField").performScrollTo().performTextInput("Saved DB")
+        composeTestRule.onNodeWithTag("DatabaseIdField").performScrollTo().performTextInput("saved-db-id")
+        composeTestRule.onNodeWithTag("TokenField").performScrollTo().performTextInput("saved-token")
         composeTestRule.onNodeWithTag("SaveButton").performClick()
 
         composeTestRule.waitForIdle()
