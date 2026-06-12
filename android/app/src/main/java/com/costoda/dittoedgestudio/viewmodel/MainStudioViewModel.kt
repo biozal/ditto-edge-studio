@@ -29,7 +29,7 @@ import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import kotlinx.coroutines.flow.StateFlow
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
-    SUBSCRIPTIONS("Subscriptions", Icons.Outlined.Sync),
+    SUBSCRIPTIONS("Presence", Icons.Outlined.Sync),
     QUERY("Query", Icons.Outlined.Storage),
     OBSERVERS("Observers", Icons.Outlined.Visibility),
     LOGGING("Logging", Icons.Outlined.Description),

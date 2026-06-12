@@ -68,10 +68,6 @@ fun ObserversListPane(
                 Text(
                     text = "Observers",
                     style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = "${observers.size}",
-                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

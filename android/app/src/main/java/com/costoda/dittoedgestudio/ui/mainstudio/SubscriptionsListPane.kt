@@ -68,6 +68,7 @@ fun SubscriptionsListPane(
             Text(
                 text = "Subscriptions",
                 style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
 
@@ -155,6 +156,7 @@ private fun PresenceSubscriptionRow(
             Icon(
                 imageVector = Icons.Outlined.Edit,
                 contentDescription = "Edit subscription",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .height(16.dp)
                     .width(16.dp),
@@ -164,6 +166,7 @@ private fun PresenceSubscriptionRow(
             Icon(
                 imageVector = Icons.Outlined.Delete,
                 contentDescription = "Delete subscription",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .height(16.dp)
                     .width(16.dp),
