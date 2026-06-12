@@ -30,6 +30,8 @@ import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceListSection
+import com.costoda.dittoedgestudio.ui.mainstudio.QueryMetricsDetailSection
+import com.costoda.dittoedgestudio.ui.mainstudio.QueryMetricsListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -70,10 +72,14 @@ import org.koin.core.qualifier.named
  *    [PresenceContentSection] directly so at ≥600dp both panes are always visible. At
  *    compact widths the list pane is shown first (subscriptions list) and the user taps
  *    "View Peers" to drill into [PresenceContentKey]. (Task 4.3c)
+ *  - [QueryMetricsKey] (list pane) + [QueryMetricDetailKey] (detail pane) via
+ *    [ListDetailSceneStrategy]. Selecting a row pushes [QueryMetricDetailKey]; at ≥600dp
+ *    the strategy renders both panes side-by-side. Clear-all strips [QueryMetricDetailKey]
+ *    from the stack. (Task 4.3d)
  *
  * **Sections still routed through the legacy monolith** ([MainStudioScreen]) via a bridge
- * entry each: [QueryKey], [QueryMetricsKey].
- * Each bridge entry creates / reuses the MainStudioViewModel for the database,
+ * entry each: [QueryKey].
+ * The bridge entry creates / reuses the MainStudioViewModel for the database,
  * forces `selectedNavItem` to the entry's [StudioNavItem], and intercepts rail / drawer clicks
  * via the new `onNavItemSelected` callback to replace the top of the back stack with the
  * target section's key.
@@ -236,9 +242,57 @@ fun AppNavGraph() {
                 }
             }
 
-            // ── Legacy bridge: remaining 2 rail sections ──────────────────────────
+            // ── Scene-driven section: Query Metrics ──────────────────────────────
+            entry<QueryMetricsKey>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { QueryMetricsDetailPlaceholder() },
+                ),
+            ) { key ->
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.QUERY_METRICS,
+                ) { _ ->
+                    // Derive selectedHistoryId from any QueryMetricDetailKey on the stack.
+                    val selectedHistoryId = backStack
+                        .filterIsInstance<QueryMetricDetailKey>()
+                        .lastOrNull()
+                        ?.historyId
+                    QueryMetricsListSection(
+                        selectedHistoryId = selectedHistoryId,
+                        onMetricPicked = { metric ->
+                            // Remove any existing detail before pushing so only one detail
+                            // pane exists at a time — mirrors ObserverEventsKey pattern.
+                            backStack.removeIf { it is QueryMetricDetailKey }
+                            backStack.add(
+                                QueryMetricDetailKey(
+                                    databaseId = key.databaseId,
+                                    historyId = metric.historyId,
+                                ),
+                            )
+                        },
+                        onClearAll = {
+                            // Strip the stale detail key after delete-all.
+                            backStack.removeIf { it is QueryMetricDetailKey }
+                        },
+                    )
+                }
+            }
+
+            entry<QueryMetricDetailKey>(
+                metadata = ListDetailSceneStrategy.detailPane(),
+            ) { key ->
+                StudioSectionContainer(
+                    backStack = backStack,
+                    databaseId = key.databaseId,
+                    section = StudioNavItem.QUERY_METRICS,
+                ) { _ ->
+                    QueryMetricsDetailSection(historyId = key.historyId)
+                }
+            }
+
+            // ── Legacy bridge: remaining 1 rail section ───────────────────────────
             entry<QueryKey> { key -> LegacyStudioSectionEntry(backStack, key) }
-            entry<QueryMetricsKey> { key -> LegacyStudioSectionEntry(backStack, key) }
         },
     )
 }
@@ -276,6 +330,7 @@ private fun StudioSectionContainer(
             // detail-pane keys so leaving their parent section doesn't leave a stale pane.
             backStack.removeIf { it is ObserverEventsKey }
             backStack.removeIf { it is PresenceContentKey }
+            backStack.removeIf { it is QueryMetricDetailKey }
             val newKey = newItem.toSectionKey(databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey
@@ -312,6 +367,7 @@ private fun LegacyStudioSectionEntry(
         onNavItemSelected = { newItem ->
             backStack.removeIf { it is ObserverEventsKey }
             backStack.removeIf { it is PresenceContentKey }
+            backStack.removeIf { it is QueryMetricDetailKey }
             val newKey = newItem.toSectionKey(key.databaseId)
             if (backStack.isNotEmpty()) {
                 backStack[backStack.lastIndex] = newKey
@@ -358,6 +414,23 @@ private fun ObserverEventsPlaceholder() {
     ) {
         Text(
             text = "Select an observer to see its events",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Placeholder shown by [ListDetailSceneStrategy.listPane] in the detail-pane area when no
+ * query metric has been selected yet (expanded widths).
+ */
+@Composable
+private fun QueryMetricsDetailPlaceholder() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "Select a query to view details",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

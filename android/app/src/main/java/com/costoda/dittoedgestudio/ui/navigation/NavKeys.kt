@@ -50,6 +50,18 @@ sealed interface StudioSectionKey : NavKey {
 @Serializable data class ObserverEventsKey(val databaseId: Long, val observerId: Long) : NavKey
 
 /**
+ * Compact-width drill-in: the EXPLAIN / stats detail for a single executed query.
+ *
+ * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.detailPane] and the
+ * ListDetailSceneStrategy places it side-by-side with [QueryMetricsKey]; no back-stack push
+ * occurs. At compact widths it is pushed on top of [QueryMetricsKey] so the user reaches the
+ * detail via a normal drill-in.
+ *
+ * [historyId] matches [com.costoda.dittoedgestudio.domain.model.QueryMetrics.historyId] (Long).
+ */
+@Serializable data class QueryMetricDetailKey(val databaseId: Long, val historyId: Long) : NavKey
+
+/**
  * Compact-width drill-in: the Presence content pane (Connected Peers tabs).
  *
  * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.listPane] detail

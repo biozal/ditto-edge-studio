@@ -108,4 +108,15 @@ class StudioScopeManagerTest {
         )
         assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
     }
+
+    @Test
+    fun `QueryMetricDetailKey on top of QueryMetricsKey keeps the same databaseId active`() {
+        // Compact-width drill-in: QueryMetricsKey -> QueryMetricDetailKey.
+        val stack = listOf(
+            DatabaseListKey,
+            QueryMetricsKey(databaseId = 7L),
+            QueryMetricDetailKey(databaseId = 7L, historyId = 42L),
+        )
+        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
+    }
 }
