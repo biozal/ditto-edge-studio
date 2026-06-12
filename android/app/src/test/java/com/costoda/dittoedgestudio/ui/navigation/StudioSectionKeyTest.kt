@@ -71,4 +71,32 @@ class StudioSectionKeyTest {
         assertEquals(42L, decoded.databaseId)
         assertEquals(7L, decoded.observerId)
     }
+
+    // -----------------------------------------------------------------------
+    // StudioChildKey.parentNavItem — drives chrome hoisting in AppNavGraph
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `ObserverEventsKey parentNavItem maps to OBSERVERS`() {
+        val key: StudioChildKey = ObserverEventsKey(databaseId = 1L, observerId = 1L)
+        assertEquals(StudioNavItem.OBSERVERS, key.parentNavItem)
+    }
+
+    @Test
+    fun `PresenceContentKey parentNavItem maps to SUBSCRIPTIONS`() {
+        val key: StudioChildKey = PresenceContentKey(databaseId = 1L)
+        assertEquals(StudioNavItem.SUBSCRIPTIONS, key.parentNavItem)
+    }
+
+    @Test
+    fun `QueryMetricDetailKey parentNavItem maps to QUERY_METRICS`() {
+        val key: StudioChildKey = QueryMetricDetailKey(databaseId = 1L, historyId = 9L)
+        assertEquals(StudioNavItem.QUERY_METRICS, key.parentNavItem)
+    }
+
+    @Test
+    fun `QueryContentKey parentNavItem maps to QUERY`() {
+        val key: StudioChildKey = QueryContentKey(databaseId = 1L)
+        assertEquals(StudioNavItem.QUERY, key.parentNavItem)
+    }
 }

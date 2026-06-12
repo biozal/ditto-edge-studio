@@ -124,3 +124,18 @@ val StudioSectionKey.navItem: StudioNavItem get() = when (this) {
     is QueryMetricsKey  -> StudioNavItem.QUERY_METRICS
     is DiskUsageKey     -> StudioNavItem.DISK_USAGE
 }
+
+/**
+ * Reverse mapping: recover the parent rail section's [StudioNavItem] from any [StudioChildKey].
+ *
+ * Used by [AppNavGraph] to derive the active studio context (which rail section's chrome to
+ * render) when the back-stack top is a compact-width drill-in detail key rather than a
+ * section key. Exhaustive `when` — adding a new child key without updating this property is
+ * a compile error.
+ */
+val StudioChildKey.parentNavItem: StudioNavItem get() = when (this) {
+    is ObserverEventsKey      -> StudioNavItem.OBSERVERS
+    is PresenceContentKey     -> StudioNavItem.SUBSCRIPTIONS
+    is QueryMetricDetailKey   -> StudioNavItem.QUERY_METRICS
+    is QueryContentKey        -> StudioNavItem.QUERY
+}
