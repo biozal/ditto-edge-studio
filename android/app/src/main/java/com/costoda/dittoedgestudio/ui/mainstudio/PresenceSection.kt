@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -12,8 +13,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -23,7 +22,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 
 /**
@@ -77,7 +78,7 @@ fun PresenceListSection(
  *
  * Mirrors the `viewModel.selectedNavItem == StudioNavItem.SUBSCRIPTIONS` branch in the
  * legacy content-placeholder layout exactly:
- *  - [SecondaryTabRow] with "Peers List" (tab 0) and "Presence Viewer" (tab 1)
+ *  - [DittoConnectedButtonGroup] view switcher: "Peers List" (0) and "Presence Viewer" (1)
  *  - Settings gear → transport-config sheet
  *  - [DittoPermissionHandler] + [ConnectedPeersScreen] on tab 0
  *  - Tab 1: placeholder (Presence Graph is a future feature, not yet implemented in legacy)
@@ -100,26 +101,19 @@ fun PresenceContentSection(
     val p2pTransports by viewModel.p2pTransports.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Tab row + transport-config gear
+        // Connected button group (view switcher) + transport-config gear
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            SecondaryTabRow(
-                selectedTabIndex = selectedTabIndex,
+            DittoConnectedButtonGroup(
+                options = listOf("Peers List", "Presence Viewer"),
+                selectedIndex = selectedTabIndex,
+                onSelect = { selectedTabIndex = it },
                 modifier = Modifier.weight(1f),
-            ) {
-                Tab(
-                    selected = selectedTabIndex == 0,
-                    onClick = { selectedTabIndex = 0 },
-                    text = { Text("Peers List") },
-                )
-                Tab(
-                    selected = selectedTabIndex == 1,
-                    onClick = { selectedTabIndex = 1 },
-                    text = { Text("Presence Viewer") },
-                )
-            }
+            )
             IconButton(onClick = { viewModel.transportConfigVisible = true }) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
