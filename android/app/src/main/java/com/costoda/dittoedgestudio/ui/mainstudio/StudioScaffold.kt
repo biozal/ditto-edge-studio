@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
+import com.costoda.dittoedgestudio.ui.adaptive.inspectorWidth
 import com.costoda.dittoedgestudio.ui.adaptive.showsRail
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.InspectorContentView
@@ -83,6 +84,7 @@ fun StudioScaffold(
     val windowSizeClass = studioWindowSizeClass()
     val expandedLayout = windowSizeClass.showsRail
     val inspectorDefault = windowSizeClass.inspectorDefaultVisible
+    val inspectorColumnWidth = windowSizeClass.inspectorWidth
     // Use the session-scoped inspectorVisible so the user's choice persists across rail-section
     // switches. On first access (null) fall back to the window-size-class default.
     val inspectorVisible: Boolean = session.uiState.inspectorVisible ?: inspectorDefault
@@ -145,7 +147,7 @@ fun StudioScaffold(
                 enter = slideInHorizontally { it },
                 exit = slideOutHorizontally { it },
             ) {
-                Row(modifier = Modifier.width(300.dp).fillMaxHeight()) {
+                Row(modifier = Modifier.width(inspectorColumnWidth).fillMaxHeight()) {
                     VerticalDivider()
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                         if (inspectorContent != null) {

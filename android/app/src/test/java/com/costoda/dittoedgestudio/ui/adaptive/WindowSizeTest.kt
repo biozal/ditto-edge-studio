@@ -1,6 +1,8 @@
 package com.costoda.dittoedgestudio.ui.adaptive
 
+import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -115,5 +117,44 @@ class WindowSizeTest {
         assertTrue(wsc.showsRail)
         assertTrue(wsc.dataPanelDefaultVisible)
         assertTrue(wsc.inspectorDefaultVisible)
+    }
+
+    // ---------------------------------------------------------------------------
+    // inspectorWidth — 300dp below Large, 360dp at Large, 400dp at XL (1600dp)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `inspectorWidth is 300dp below large boundary (1199dp)`() {
+        assertEquals(300.dp, wsc(1199).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 360dp at large boundary (1200dp)`() {
+        assertEquals(360.dp, wsc(1200).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 360dp in large range (1400dp)`() {
+        assertEquals(360.dp, wsc(1400).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 360dp just below XL boundary (1599dp)`() {
+        assertEquals(360.dp, wsc(1599).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 400dp at XL boundary (1600dp)`() {
+        assertEquals(400.dp, wsc(1600).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 400dp above XL boundary (1920dp)`() {
+        assertEquals(400.dp, wsc(1920).inspectorWidth)
+    }
+
+    @Test
+    fun `inspectorWidth is 300dp for compact window (400dp)`() {
+        assertEquals(300.dp, wsc(400).inspectorWidth)
     }
 }

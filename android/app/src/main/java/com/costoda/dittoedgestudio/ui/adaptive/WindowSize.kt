@@ -2,8 +2,11 @@ package com.costoda.dittoedgestudio.ui.adaptive
 
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
+import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXTRA_LARGE_LOWER_BOUND
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_LARGE_LOWER_BOUND
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_MEDIUM_LOWER_BOUND
 
@@ -29,6 +32,25 @@ val WindowSizeClass.showsRail: Boolean
 val WindowSizeClass.dataPanelDefaultVisible: Boolean
     get() = isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
-/** Large and up (external monitor / desktop window): Inspector defaults to visible. */
+/** Large and up (≥1200dp, external monitor / desktop window): Inspector defaults to visible. */
 val WindowSizeClass.inspectorDefaultVisible: Boolean
     get() = isWidthAtLeastBreakpoint(WIDTH_DP_LARGE_LOWER_BOUND)
+
+/**
+ * Inspector column width, scaled to the window size class.
+ *
+ * Breakpoints (window-core 1.5.1 / BREAKPOINTS_V2):
+ *  - Below Large (<1200dp): 300dp — standard side-sheet width
+ *  - Large (1200–1599dp): 360dp — desktop window / external monitor
+ *  - XL (≥1600dp): 400dp — wide external display, plenty of room
+ *
+ * Rationale: at Large+ widths the inspector is always visible by default
+ * ([inspectorDefaultVisible]), so giving it more room improves readability
+ * of help content, history, and query JSON without squeezing the detail pane.
+ */
+val WindowSizeClass.inspectorWidth: Dp
+    get() = when {
+        isWidthAtLeastBreakpoint(WIDTH_DP_EXTRA_LARGE_LOWER_BOUND) -> 400.dp
+        isWidthAtLeastBreakpoint(WIDTH_DP_LARGE_LOWER_BOUND) -> 360.dp
+        else -> 300.dp
+    }

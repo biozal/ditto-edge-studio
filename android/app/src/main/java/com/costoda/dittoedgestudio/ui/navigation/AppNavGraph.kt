@@ -6,12 +6,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
@@ -35,6 +38,7 @@ import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchContentSection
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchInspector
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
+import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
 import com.costoda.dittoedgestudio.ui.adaptive.showsRail
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
@@ -92,7 +96,27 @@ import org.koin.core.qualifier.named
 @Composable
 fun AppNavGraph() {
     val backStack = rememberNavBackStack(DatabaseListKey)
-    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
+
+    // At Large+ widths (≥1200dp) we cap the list pane's preferred width to 320dp so the
+    // detail/editor pane receives the surplus space. Below Large the strategy's own default
+    // (360dp from PaneScaffoldDirective.DefaultPreferredWidth) is used.
+    //
+    // API evidence (material3-adaptive 1.3.0-beta02, adaptive-layout AAR):
+    //   rememberListDetailSceneStrategy accepts a `directive: PaneScaffoldDirective` param.
+    //   PaneScaffoldDirective exposes `defaultPanePreferredWidth` (Dp) and a `copy()` overload.
+    //   calculatePaneScaffoldDirective(windowAdaptiveInfo) derives the base directive from the
+    //   current window info, then we narrow `defaultPanePreferredWidth` at Large+ so the list
+    //   pane doesn't consume more than ~320dp when three panes are side-by-side.
+    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
+    val windowSizeClass = windowAdaptiveInfo.windowSizeClass
+    val baseDirective = calculatePaneScaffoldDirective(windowAdaptiveInfo)
+    val listDetailDirective = if (windowSizeClass.inspectorDefaultVisible) {
+        // Large/XL: cap list-pane preferred width to leave room for detail + inspector.
+        baseDirective.copy(defaultPanePreferredWidth = 320.dp)
+    } else {
+        baseDirective
+    }
+    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = listDetailDirective)
 
     // Drive the Koin scope lifecycle from the current back stack contents. Must be inside
     // the composition so the underlying derivedStateOf reads tracked snapshot state.
