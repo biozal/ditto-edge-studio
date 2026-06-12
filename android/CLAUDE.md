@@ -158,11 +158,11 @@ The studio is implemented in `ui/mainstudio/StudioScaffold.kt` (chrome) hosting 
 
 | Term | Code | Description | iOS (SwiftUI app) equivalent |
 |------|------|-------------|------------------------------|
-| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem` entries); visible at ≥600dp (Medium+); selection = the current `StudioSectionKey` on the Nav3 back stack (replace-top on switch; back exits the studio) | Sidebar segmented picker |
-| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; default-visible at ≥840dp (Expanded+) | Sidebar content list |
-| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area (query editor, results, observers, etc.) | MainView / detail area |
-| **Inspector** | Inspector column in `StudioScaffold`; width: 300dp (<1200dp), 360dp (≥1200dp), 400dp (≥1600dp); default-visible at ≥1200dp (Large+); `ModalBottomSheet` at compact | Trailing slide-out panel; toggleable | Inspector |
-| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Compact-width (<600dp) collapse of Rail into a modal drawer | — |
+| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem` entries); visible as a column at ≥840dp; folded into the Nav Drawer below 840dp; selection = the current `StudioSectionKey` on the Nav3 back stack (replace-top on switch; back exits the studio) | Sidebar segmented picker |
+| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; visible side-by-side at ≥840dp; below 840dp lives inside the Nav Drawer alongside the rail items | Sidebar content list |
+| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area (query editor, results, observers, etc.). **Default view at every width** (full-width below 840dp) | MainView / detail area |
+| **Inspector** | Inspector column in `StudioScaffold`; width: 300dp (<1200dp), 360dp (≥1200dp), 400dp (≥1600dp); default-visible at ≥1200dp (Large+); `ModalBottomSheet` below 840dp | Trailing slide-out panel; toggleable | Inspector |
+| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Below 840dp: holds Rail items + the section's Data Panel (rail items at top, divider, Data Panel below); selecting any item closes the drawer | — |
 
 Material/Android mapping for reference: Rail = Navigation Rail, Data Panel = list pane (of a list-detail layout), Content Pane = detail pane, Inspector = side sheet / supporting pane.
 

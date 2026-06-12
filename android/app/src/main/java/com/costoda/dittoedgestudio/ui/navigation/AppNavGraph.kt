@@ -39,9 +39,8 @@ import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchInspector
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
-import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
-import androidx.compose.runtime.LaunchedEffect
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
@@ -58,38 +57,34 @@ import org.koin.core.qualifier.named
  *  - [DatabaseEditorKey] — create/edit a database; `id == -1L` means "new".
  *  - [QrScannerKey]      — camera-based QR code import.
  *  - [StudioSectionKey]  — seven sibling rail-section entries (one per studio section).
- *  - [StudioChildKey]    — compact/detail drill-ins; pushed onto the active section.
+ *  - [StudioChildKey]    — drill-ins; pushed onto the active section.
  *
  * **Studio scope ownership** is handled by [StudioScopeManager] over the back stack: a Koin
  * `studio` scope (and its [StudioSession]) is kept open while any studio entry for that
  * databaseId is on the stack, and closed when all studio entries for that id leave the stack.
  *
- * ## Chrome hoisting (Layout fix — release-1.0b5)
+ * ## Layout adaptation
+ *
+ * The studio adapts at the **840dp** breakpoint (see
+ * [com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane]):
+ *
+ *  - **≥840dp (multi-pane)**: scene-driven layout. Each section renders its `listPane` +
+ *    `detailPane` (or `detailPlaceholder`) side-by-side via [ListDetailSceneStrategy] under a
+ *    single [StudioScaffold] (Rail + top bar + Inspector).
+ *  - **<840dp (drawer mode)**: no rail column. Each section entry renders ONLY its content
+ *    pane as the body; the rail items AND the section's Data Panel (list pane) live inside
+ *    the modal Nav Drawer attached to the top-bar hamburger. The Content Pane is the
+ *    default view at every section.
+ *
+ * ## Chrome hoisting
  *
  * The studio chrome ([StudioScaffold]: Rail + top bar + Inspector) is rendered EXACTLY ONCE,
  * wrapping the entire [NavDisplay] — never per-entry. Wrapping it per-entry causes the
- * [ListDetailSceneStrategy] to compose two scaffolds side-by-side (one in the list pane, one
- * in the detail pane), which makes the Inspector column swallow the Data Panel at ≥1200dp and
- * inverts the visual ordering (Inspector renders to the LEFT of content).
- *
- * The chrome is rendered only when the back stack top is a studio key (section or child).
- * Non-studio destinations (database list, editor, QR scanner) render the [NavDisplay] alone
- * without the studio chrome.
+ * [ListDetailSceneStrategy] to compose two scaffolds side-by-side. The chrome is rendered
+ * only when the back stack top is a studio key (section or child).
  *
  * The [NavDisplay] is wrapped in [movableContentOf] so that moving it between the bare and
- * scaffolded branches preserves its composition state — scene strategy, entry providers, and
- * any in-flight transitions stay intact across the move.
- *
- * **All seven rail sections run on the scene-driven shell:**
- *  - [ObserversKey] (list pane) + [ObserverEventsKey] (detail pane) via Material adaptive
- *    [ListDetailSceneStrategy]. Selecting an observer pushes [ObserverEventsKey]; the strategy
- *    automatically renders the two side-by-side at ≥600dp and as a normal drill-in below.
- *  - [LoggingKey] — single-pane Log Analyzer.
- *  - [AppMetricsKey] — single-pane App Metrics.
- *  - [DiskUsageKey] — single-pane Database Metrics.
- *  - [SubscriptionsKey] (list pane) + [PresenceContentKey] (detail pane).
- *  - [QueryMetricsKey] (list pane) + [QueryMetricDetailKey] (detail pane).
- *  - [QueryKey] (list pane) + [QueryContentKey] (detail pane / compact drill-in).
+ * scaffolded branches preserves its composition state.
  */
 @Composable
 fun AppNavGraph() {
@@ -115,8 +110,7 @@ fun AppNavGraph() {
 
     // The NavDisplay itself — wrapped in movableContentOf so it preserves composition state
     // whether it ends up inside the StudioScaffold (studio destinations) or bare (database
-    // list, editor, QR scanner). Without movableContentOf the NavDisplay would be torn down
-    // and re-created every time we transition between studio and non-studio destinations.
+    // list, editor, QR scanner).
     val navDisplay = remember(listDetailStrategy) {
         movableContentOf {
             NavDisplay(
@@ -161,22 +155,30 @@ fun AppNavGraph() {
                             databaseId = key.databaseId,
                             section = StudioNavItem.OBSERVERS,
                         ) { viewModel ->
-                            ObserversListSection(
-                                viewModel = viewModel,
-                                onObserverPicked = { observer ->
-                                    // Push the detail key. At ≥600dp the ListDetailSceneStrategy
-                                    // composes the result as the side-by-side detail pane; below
-                                    // 600dp it becomes a normal drill-in. Remove any existing
-                                    // detail before pushing so only one detail pane exists at a time.
-                                    backStack.removeIf { it is ObserverEventsKey }
-                                    backStack.add(
-                                        ObserverEventsKey(
-                                            databaseId = key.databaseId,
-                                            observerId = observer.id,
-                                        ),
-                                    )
-                                },
-                            )
+                            // Below 840dp: section entry renders the CONTENT pane (observer
+                            // events for the currently selected observer; "select an observer"
+                            // empty state when none).
+                            // ≥840dp: section entry renders the LIST pane; selection pushes
+                            // ObserverEventsKey which the scene strategy places side-by-side.
+                            if (studioWindowSizeClass().studioMultiPane) {
+                                ObserversListSection(
+                                    viewModel = viewModel,
+                                    onObserverPicked = { observer ->
+                                        // Remove any existing detail before pushing so only
+                                        // one detail pane exists at a time.
+                                        backStack.removeIf { it is ObserverEventsKey }
+                                        backStack.add(
+                                            ObserverEventsKey(
+                                                databaseId = key.databaseId,
+                                                observerId = observer.id,
+                                            ),
+                                        )
+                                    },
+                                )
+                            } else {
+                                // Drawer-mode: events content is the default view.
+                                ObserverEventsSection(viewModel = viewModel)
+                            }
                         }
                     }
 
@@ -228,34 +230,18 @@ fun AppNavGraph() {
                             },
                         ),
                     ) { key ->
-                        // "View Peers" is a compact-only drill-in — at ≥600dp the peers
-                        // content is already visible as the detail placeholder (mirrors
-                        // the Query section's onOpenEditor gating).
-                        val expandedLayout = studioWindowSizeClass().showsRail
                         StudioSectionContainer(
                             databaseId = key.databaseId,
                             section = StudioNavItem.SUBSCRIPTIONS,
                         ) { viewModel ->
-                            PresenceListSection(
-                                viewModel = viewModel,
-                                onViewPeers = if (!expandedLayout) {
-                                    {
-                                        backStack.removeIf { it is PresenceContentKey }
-                                        backStack.add(PresenceContentKey(databaseId = key.databaseId))
-                                    }
-                                } else null,
-                            )
-                        }
-                    }
-
-                    entry<PresenceContentKey>(
-                        metadata = ListDetailSceneStrategy.detailPane(),
-                    ) { key ->
-                        StudioSectionContainer(
-                            databaseId = key.databaseId,
-                            section = StudioNavItem.SUBSCRIPTIONS,
-                        ) { viewModel ->
-                            PresenceContentSection(viewModel = viewModel)
+                            // ≥840dp: scene shows list (subscriptions) + detail placeholder
+                            // (peers). Below 840dp: the section body renders the CONTENT pane
+                            // (peers) as the default; the subscriptions list lives in the drawer.
+                            if (studioWindowSizeClass().studioMultiPane) {
+                                PresenceListSection(viewModel = viewModel)
+                            } else {
+                                PresenceContentSection(viewModel = viewModel)
+                            }
                         }
                     }
 
@@ -273,21 +259,32 @@ fun AppNavGraph() {
                                 .filterIsInstance<QueryMetricDetailKey>()
                                 .lastOrNull()
                                 ?.historyId
-                            QueryMetricsListSection(
-                                selectedHistoryId = selectedHistoryId,
-                                onMetricPicked = { metric ->
-                                    backStack.removeIf { it is QueryMetricDetailKey }
-                                    backStack.add(
-                                        QueryMetricDetailKey(
-                                            databaseId = key.databaseId,
-                                            historyId = metric.historyId,
-                                        ),
-                                    )
-                                },
-                                onClearAll = {
-                                    backStack.removeIf { it is QueryMetricDetailKey }
-                                },
-                            )
+                            // ≥840dp: list pane; selection pushes detail key.
+                            // <840dp: section body shows the selected detail (or placeholder).
+                            // The list lives in the drawer; tapping a row closes the drawer.
+                            if (studioWindowSizeClass().studioMultiPane) {
+                                QueryMetricsListSection(
+                                    selectedHistoryId = selectedHistoryId,
+                                    onMetricPicked = { metric ->
+                                        backStack.removeIf { it is QueryMetricDetailKey }
+                                        backStack.add(
+                                            QueryMetricDetailKey(
+                                                databaseId = key.databaseId,
+                                                historyId = metric.historyId,
+                                            ),
+                                        )
+                                    },
+                                    onClearAll = {
+                                        backStack.removeIf { it is QueryMetricDetailKey }
+                                    },
+                                )
+                            } else {
+                                if (selectedHistoryId != null) {
+                                    QueryMetricsDetailSection(historyId = selectedHistoryId)
+                                } else {
+                                    QueryMetricsDetailPlaceholder()
+                                }
+                            }
                         }
                     }
 
@@ -299,6 +296,33 @@ fun AppNavGraph() {
                             section = StudioNavItem.QUERY_METRICS,
                         ) { _ ->
                             QueryMetricsDetailSection(historyId = key.historyId)
+                        }
+                    }
+
+                    // Legacy detail keys kept for back-stack restore compatibility. These
+                    // are never pushed in the current code path (drawer mode shows content
+                    // by default; multi-pane uses list-pane + detail-placeholder), but we
+                    // keep the entries so any persisted stack from a previous build still
+                    // resolves to something sensible.
+                    entry<PresenceContentKey>(
+                        metadata = ListDetailSceneStrategy.detailPane(),
+                    ) { key ->
+                        StudioSectionContainer(
+                            databaseId = key.databaseId,
+                            section = StudioNavItem.SUBSCRIPTIONS,
+                        ) { viewModel ->
+                            PresenceContentSection(viewModel = viewModel)
+                        }
+                    }
+
+                    entry<QueryContentKey>(
+                        metadata = ListDetailSceneStrategy.detailPane(),
+                    ) { key ->
+                        StudioSectionContainer(
+                            databaseId = key.databaseId,
+                            section = StudioNavItem.QUERY,
+                        ) { viewModel ->
+                            QueryWorkbenchContentSection(viewModel = viewModel)
                         }
                     }
 
@@ -318,42 +342,17 @@ fun AppNavGraph() {
                             },
                         ),
                     ) { key ->
-                        // Compact-only: auto-push QueryContentKey so the user lands on the editor
-                        // (matches legacy phone UX). At ≥600dp the detail placeholder renders the
-                        // editor inline so no push is needed.
-                        val expandedLayout = studioWindowSizeClass().showsRail
-                        LaunchedEffect(key.databaseId, expandedLayout) {
-                            if (!expandedLayout && backStack.none { it is QueryContentKey }) {
-                                backStack.add(QueryContentKey(databaseId = key.databaseId))
-                            } else if (expandedLayout) {
-                                backStack.removeIf { it is QueryContentKey }
+                        StudioSectionContainer(
+                            databaseId = key.databaseId,
+                            section = StudioNavItem.QUERY,
+                        ) { viewModel ->
+                            // ≥840dp: scene shows collections list + editor detail-placeholder.
+                            // <840dp: editor is the default view; collections live in the drawer.
+                            if (studioWindowSizeClass().studioMultiPane) {
+                                QueryWorkbenchListSection(viewModel = viewModel)
+                            } else {
+                                QueryWorkbenchContentSection(viewModel = viewModel)
                             }
-                        }
-                        StudioSectionContainer(
-                            databaseId = key.databaseId,
-                            section = StudioNavItem.QUERY,
-                        ) { viewModel ->
-                            QueryWorkbenchListSection(
-                                viewModel = viewModel,
-                                onOpenEditor = if (!expandedLayout) {
-                                    {
-                                        if (backStack.none { it is QueryContentKey }) {
-                                            backStack.add(QueryContentKey(databaseId = key.databaseId))
-                                        }
-                                    }
-                                } else null,
-                            )
-                        }
-                    }
-
-                    entry<QueryContentKey>(
-                        metadata = ListDetailSceneStrategy.detailPane(),
-                    ) { key ->
-                        StudioSectionContainer(
-                            databaseId = key.databaseId,
-                            section = StudioNavItem.QUERY,
-                        ) { viewModel ->
-                            QueryWorkbenchContentSection(viewModel = viewModel)
                         }
                     }
                 },
@@ -379,14 +378,67 @@ fun AppNavGraph() {
         // correct section is active on the first frame — avoids a one-frame flash.
         remember(viewModel, section) { viewModel.selectedNavItem = section }
 
+        // Below 840dp the section's Data Panel goes inside the modal Nav Drawer; build
+        // the slot here so the drawer-aware variant (with closeDrawer plumbed through) is
+        // available to the scaffold. Sections without a list pane (Logging / AppMetrics /
+        // DiskUsage) pass null.
+        val dataPanelSlot: (@Composable (closeDrawer: () -> Unit) -> Unit)? = when (section) {
+            StudioNavItem.SUBSCRIPTIONS -> { closeDrawer ->
+                PresenceListSection(
+                    viewModel = viewModel,
+                    onAfterAddOrEditTriggered = closeDrawer,
+                )
+            }
+            StudioNavItem.QUERY -> { closeDrawer ->
+                QueryWorkbenchListSection(
+                    viewModel = viewModel,
+                    onAfterTriggerAddIndex = closeDrawer,
+                )
+            }
+            StudioNavItem.OBSERVERS -> { closeDrawer ->
+                ObserversListSection(
+                    viewModel = viewModel,
+                    onObserverPicked = { observer ->
+                        viewModel.selectObserver(observer)
+                        closeDrawer()
+                    },
+                    onAfterAddTriggered = closeDrawer,
+                )
+            }
+            StudioNavItem.QUERY_METRICS -> { closeDrawer ->
+                val selectedHistoryId = backStack
+                    .filterIsInstance<QueryMetricDetailKey>()
+                    .lastOrNull()
+                    ?.historyId
+                QueryMetricsListSection(
+                    selectedHistoryId = selectedHistoryId,
+                    onMetricPicked = { metric ->
+                        backStack.removeIf { it is QueryMetricDetailKey }
+                        backStack.add(
+                            QueryMetricDetailKey(
+                                databaseId = databaseId,
+                                historyId = metric.historyId,
+                            ),
+                        )
+                        closeDrawer()
+                    },
+                    onClearAll = {
+                        backStack.removeIf { it is QueryMetricDetailKey }
+                    },
+                )
+            }
+            // Single-pane sections (no Data Panel).
+            StudioNavItem.LOGGING,
+            StudioNavItem.APP_METRICS,
+            StudioNavItem.DISK_USAGE -> null
+        }
+
         StudioScaffold(
             currentSection = section,
             session = viewModel.session,
             // Close button (top-bar X): exit the studio entirely. Pop every studio entry
             // (sections + children) for this databaseId so we land back on whatever
-            // non-studio key precedes them (typically DatabaseListKey). Matches legacy
-            // Close-button semantics — system back continues to pop one entry at a time
-            // via the NavDisplay's own onBack.
+            // non-studio key precedes them (typically DatabaseListKey).
             onBack = {
                 backStack.removeAll { key ->
                     (key is StudioSectionKey && key.databaseId == databaseId) ||
@@ -408,6 +460,7 @@ fun AppNavGraph() {
             inspectorContent = if (section == StudioNavItem.QUERY) {
                 { QueryWorkbenchInspector(viewModel = viewModel) }
             } else null,
+            dataPanelContent = dataPanelSlot,
         ) {
             navDisplay()
         }
@@ -422,9 +475,7 @@ fun AppNavGraph() {
  * it (inspector help content, etc.) keeps working.
  *
  * **Does NOT render [StudioScaffold]** — the chrome is rendered exactly once at the
- * [AppNavGraph] level, wrapping the entire [NavDisplay]. Each entry's content is rendered
- * bare so the [ListDetailSceneStrategy] can compose list + detail panes side-by-side under
- * a single scaffold (one Rail, one top bar, one Inspector on the trailing edge).
+ * [AppNavGraph] level, wrapping the entire [NavDisplay].
  */
 @Composable
 private fun StudioSectionContainer(
@@ -463,7 +514,7 @@ private fun rememberStudioViewModel(databaseId: Long): MainStudioViewModel {
 
 /**
  * Placeholder shown by [ListDetailSceneStrategy.listPane] in the detail-pane area when no
- * observer has been selected yet (expanded widths). Mirrors the empty state in
+ * observer has been selected yet (multi-pane widths). Mirrors the empty state in
  * [com.costoda.dittoedgestudio.ui.mainstudio.ObserverDetailScreen].
  */
 @Composable
@@ -481,7 +532,7 @@ private fun ObserverEventsPlaceholder() {
 
 /**
  * Placeholder shown by [ListDetailSceneStrategy.listPane] in the detail-pane area when no
- * query metric has been selected yet (expanded widths).
+ * query metric has been selected yet (multi-pane widths).
  */
 @Composable
 private fun QueryMetricsDetailPlaceholder() {

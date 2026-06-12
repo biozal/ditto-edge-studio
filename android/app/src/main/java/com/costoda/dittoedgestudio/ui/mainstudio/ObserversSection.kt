@@ -25,26 +25,16 @@ fun ObserversListSection(
     viewModel: MainStudioViewModel,
     onObserverPicked: (DittoObservable) -> Unit,
     modifier: Modifier = Modifier,
+    onAfterAddTriggered: (() -> Unit)? = null,
 ) {
-    // The list pane and any open observer-editor sheet must live in the same composition
-    // so the sheet appears as a child of this pane regardless of layout breakpoint.
+    // The observer-editor sheet is hoisted into [ObserverEventsSection] (the always-composed
+    // body) so it survives drawer dismiss below 840dp.
     ObserversListPane(
         viewModel = viewModel,
         onSelectObserver = onObserverPicked,
         modifier = modifier,
+        onAfterAddTriggered = onAfterAddTriggered,
     )
-
-    // Editor sheet: opens whenever editingObserver is non-null. Reuses the existing sheet.
-    viewModel.editingObserver?.let { observer ->
-        ObserverEditorSheet(
-            initial = observer,
-            onSave = { name, query ->
-                if (observer.id == 0L) viewModel.addObserver(name, query)
-                else viewModel.updateObserver(observer, name, query)
-            },
-            onDismiss = { viewModel.editingObserver = null },
-        )
-    }
 }
 
 /**
@@ -52,6 +42,9 @@ fun ObserversListSection(
  * (events table + event detail + change-type filter), wired through the shared
  * [MainStudioViewModel]. The list-pane "select observer" call already toggled the VM's
  * [MainStudioViewModel.selectedObserver], so this composable does not need any per-call args.
+ *
+ * Hosts the observer-editor [ObserverEditorSheet] so the sheet remains in composition even
+ * when the list pane leaves it (e.g. when the Nav Drawer dismisses below 840dp).
  */
 @Composable
 fun ObserverEventsSection(
@@ -67,4 +60,16 @@ fun ObserverEventsSection(
         onFilterChange = { viewModel.eventFilterMode = it },
         modifier = modifier,
     )
+
+    // Editor sheet — hoisted here so it survives drawer dismiss below 840dp.
+    viewModel.editingObserver?.let { observer ->
+        ObserverEditorSheet(
+            initial = observer,
+            onSave = { name, query ->
+                if (observer.id == 0L) viewModel.addObserver(name, query)
+                else viewModel.updateObserver(observer, name, query)
+            },
+            onDismiss = { viewModel.editingObserver = null },
+        )
+    }
 }

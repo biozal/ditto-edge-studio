@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,10 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,29 +31,33 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import kotlinx.coroutines.launch
 
 /**
- * List pane for the Query Workbench section (Task 4.3e scene-driven shell).
+ * List pane for the Query Workbench section.
  *
  * Renders the database's collections (with expandable indexes) as a vertical scrollable
  * list, extracted faithfully from the COLLECTIONS section of the legacy
  * data-panel / phone-drawer layout in the legacy MainStudioScreen:
  *  - per-collection expandable row (delegated to existing [CollectionListItem])
  *  - section header with refresh icon (refreshes the [CollectionsRepository] cache)
- *  - "Add index" FAB at the bottom — opens the legacy [AddIndexSheet] via the VM's
- *    `showAddIndex` flag (session-scoped state so the sheet survives rail switches)
+ *  - "Add index" FAB at the bottom — sets `viewModel.showAddIndex = true` so the
+ *    [AddIndexSheet] hoisted in [QueryWorkbenchContentSection] opens
  *
  * Index CRUD is wired through [MainStudioViewModel.addIndex] (which delegates to
  * [com.costoda.dittoedgestudio.data.session.StudioSession.addIndex] →
  * [com.costoda.dittoedgestudio.data.repository.CollectionsRepository.createIndex]).
  *
- * @param onOpenEditor When non-null an "Open Editor" affordance is shown at the top of the
- *   list (compact-width only). At expanded widths the detail placeholder already shows
- *   the editor and this callback should be null so the button is hidden.
+ * The [AddIndexSheet] itself is rendered by [QueryWorkbenchContentSection] so that the
+ * sheet remains in composition even when this list pane is closed (e.g. when the Nav Drawer
+ * dismisses after the user taps a section item below 840dp).
+ *
+ * @param onAfterTriggerAddIndex Invoked after the FAB sets `showAddIndex = true`. Used by
+ *   the drawer-mode caller to close the drawer so the sheet appears over the Content Pane.
+ *   Null in multi-pane mode where the FAB lives inline next to the editor.
  */
 @Composable
 fun CollectionsListPane(
     viewModel: MainStudioViewModel,
-    onOpenEditor: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onAfterTriggerAddIndex: (() -> Unit)? = null,
 ) {
     val collections by viewModel.collections.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -69,25 +69,6 @@ fun CollectionsListPane(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 88.dp),
         ) {
-            // "Open Editor" affordance — shown at compact widths so users can reach the
-            // editor/results content pane from the list pane.
-            if (onOpenEditor != null) {
-                FilledTonalButton(
-                    onClick = onOpenEditor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Storage,
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Open Editor")
-                }
-                HorizontalDivider()
-            }
-
             // Section header with refresh action.
             Row(
                 modifier = Modifier
@@ -132,10 +113,14 @@ fun CollectionsListPane(
             }
         }
 
-        // Add-index FAB — opens the legacy AddIndexSheet via session-scoped uiState.showAddIndex,
-        // identical to the legacy DataPanel "Add Index" FAB menu item path.
+        // Add-index FAB — opens the AddIndexSheet via session-scoped uiState.showAddIndex.
+        // The sheet itself is rendered by QueryWorkbenchContentSection so it survives even
+        // when this list pane leaves composition (e.g. drawer dismiss in drawer-mode).
         FloatingActionButton(
-            onClick = { viewModel.showAddIndex = true },
+            onClick = {
+                viewModel.showAddIndex = true
+                onAfterTriggerAddIndex?.invoke()
+            },
             containerColor = SulfurYellow,
             contentColor = JetBlack,
             modifier = Modifier
@@ -145,16 +130,6 @@ fun CollectionsListPane(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = "Add index",
-            )
-        }
-
-        // Add-index sheet hoisted here so it appears as a child of this pane regardless of
-        // layout breakpoint (mirrors how SubscriptionEditorSheet is hoisted in PresenceListSection).
-        if (viewModel.showAddIndex) {
-            AddIndexSheet(
-                collections = collections,
-                onAdd = { collection, field -> viewModel.addIndex(collection, field) },
-                onDismiss = { viewModel.showAddIndex = false },
             )
         }
     }

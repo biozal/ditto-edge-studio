@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,25 +50,31 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorWidth
-import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.mainstudio.inspector.InspectorContentView
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 import kotlinx.coroutines.launch
 
 /**
- * UI chrome shared by every scene-migrated studio section (Task 4.3+).
+ * UI chrome shared by every scene-migrated studio section.
  *
  * Layout:
- *  - Expanded (≥600dp): [NavigationRail] on the start edge, optional inspector column on the
- *    end edge (default-visible at Large widths), content slot in between.
- *  - Compact (<600dp): rail collapses into a [ModalNavigationDrawer]; inspector is reachable
- *    via the top-bar toggle (rendered as a side column for now — bottom-sheet variant comes
- *    later if user feedback demands it).
+ *  - **≥840dp (Expanded+)**: [NavigationRail] on the start edge, optional inspector column
+ *    on the end edge (default-visible at Large widths), `content` slot in between (which
+ *    hosts the scene-driven `listPane | detailPane` layout).
+ *  - **<840dp (drawer mode — Compact AND Medium)**: rail collapses into a
+ *    [ModalNavigationDrawer] that contains BOTH the rail items (section nav) AND the current
+ *    section's Data Panel (e.g. Subscriptions list, Collections list, Observers list,
+ *    executed queries list) — rail items at top, divider, Data Panel below. Sections without
+ *    a Data Panel (Logging / AppMetrics / DiskUsage) show rail items only. The Content Pane
+ *    is the DEFAULT view (peers tabs, query editor+results, observer events, EXPLAIN
+ *    detail). Selecting anything in the drawer closes it. Inspector renders as a
+ *    [ModalBottomSheet].
  *
- * The scaffold does NOT own session state; it takes a [StudioSession] purely for the sync-toggle
- * top-bar button (so the new shell behaves identically to the legacy one for sections we have
- * already migrated).
+ * The scaffold does NOT own session state; it takes a [StudioSession] purely for the
+ * sync-toggle top-bar button (so the new shell behaves identically to the legacy one for
+ * sections we have already migrated).
  *
  * The inspector column normally renders [InspectorContentView] keyed off [currentSection] (help
  * content). Sections that need a richer inspector (e.g. Query Workbench with History /
@@ -75,6 +82,12 @@ import kotlinx.coroutines.launch
  * is responsible for surfacing the help content itself if desired (the Query inspector exposes
  * help as one of its tabs — see [com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView]
  * usage in [com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchSection]).
+ *
+ * @param dataPanelContent Below 840dp, the Data Panel (section list) is rendered inside the
+ *   drawer below the rail items. The lambda receives a `closeDrawer` callback that the list
+ *   content should invoke when the user picks an item so the drawer closes and the chosen
+ *   item drives the Content Pane. Pass null for sections without a Data Panel (Logging,
+ *   AppMetrics, DiskUsage). Ignored at ≥840dp (the scene strategy provides the listPane).
  */
 @Composable
 fun StudioScaffold(
@@ -83,10 +96,11 @@ fun StudioScaffold(
     onBack: () -> Unit,
     onSectionSelect: (StudioNavItem) -> Unit,
     inspectorContent: (@Composable () -> Unit)? = null,
+    dataPanelContent: (@Composable (closeDrawer: () -> Unit) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val windowSizeClass = studioWindowSizeClass()
-    val expandedLayout = windowSizeClass.showsRail
+    val multiPaneLayout = windowSizeClass.studioMultiPane
     val inspectorDefault = windowSizeClass.inspectorDefaultVisible
     val inspectorColumnWidth = windowSizeClass.inspectorWidth
     // Use the session-scoped inspectorVisible so the user's choice persists across rail-section
@@ -115,7 +129,7 @@ fun StudioScaffold(
         }
         .focusable()
 
-    if (expandedLayout) {
+    if (multiPaneLayout) {
         Row(modifier = Modifier.fillMaxSize().safeDrawingPadding().then(railShortcutModifier)) {
             // Rail
             NavigationRail {
@@ -185,93 +199,109 @@ fun StudioScaffold(
             }
         }
     } else {
-        // Compact: ModalNavigationDrawer wraps rail items as a list.
+        // Drawer mode (<840dp): the drawer holds BOTH the rail items (section nav) AND the
+        // current section's Data Panel. The top bar exposes a hamburger to open it. The
+        // Content Pane is the default view in the body.
         val inspectorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val closeDrawer: () -> Unit = { coroutineScope.launch { drawerState.close() } }
         // Apply rail-section shortcuts to the compact root so they work regardless of layout.
         Box(modifier = Modifier.fillMaxSize().then(railShortcutModifier)) {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet {
-                    Column {
-                        StudioNavItem.entries.forEach { item ->
-                            androidx.compose.material3.NavigationDrawerItem(
-                                icon = { Icon(item.icon, contentDescription = item.label) },
-                                label = { Text(item.label) },
-                                selected = currentSection == item,
-                                onClick = {
-                                    onSectionSelect(item)
-                                    coroutineScope.launch { drawerState.close() }
-                                },
-                                modifier = Modifier.padding(horizontal = 12.dp),
-                            )
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Section nav (rail items). The list of rail items is short and
+                            // doesn't need its own scroll container.
+                            StudioNavItem.entries.forEach { item ->
+                                androidx.compose.material3.NavigationDrawerItem(
+                                    icon = { Icon(item.icon, contentDescription = item.label) },
+                                    label = { Text(item.label) },
+                                    selected = currentSection == item,
+                                    onClick = {
+                                        onSectionSelect(item)
+                                        closeDrawer()
+                                    },
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                )
+                            }
+
+                            // Data Panel for the current section (when present). Hosted in a
+                            // weighted Box so the data panel receives a bounded height — its
+                            // own `fillMaxSize().verticalScroll(...)` provides scrolling.
+                            if (dataPanelContent != null) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                                    dataPanelContent(closeDrawer)
+                                }
+                            }
                         }
                     }
-                }
-            },
-        ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text(currentSection.label) },
-                        navigationIcon = {
-                            IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Menu,
-                                    contentDescription = "Open menu",
-                                )
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { session.toggleSync() }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Sync,
-                                    contentDescription = "Toggle sync",
-                                    tint = if (syncEnabled) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            IconButton(onClick = onBack) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                            IconButton(onClick = { session.uiState.inspectorVisible = !inspectorVisible }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.ViewSidebar,
-                                    contentDescription = "Toggle inspector",
-                                )
-                            }
-                        },
-                    )
                 },
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                ) { content() }
-            }
-        }
-
-        // Inspector bottom sheet for compact layout.
-        if (inspectorVisible) {
-            ModalBottomSheet(
-                onDismissRequest = { session.uiState.inspectorVisible = false },
-                sheetState = inspectorSheetState,
             ) {
-                if (inspectorContent != null) {
-                    inspectorContent()
-                } else {
-                    InspectorContentView(
-                        selectedNavItem = currentSection,
-                        modifier = Modifier.fillMaxHeight(),
-                    )
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = { Text(currentSection.label) },
+                            navigationIcon = {
+                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Menu,
+                                        contentDescription = "Open menu",
+                                    )
+                                }
+                            },
+                            actions = {
+                                IconButton(onClick = { session.toggleSync() }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Sync,
+                                        contentDescription = "Toggle sync",
+                                        tint = if (syncEnabled) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = onBack) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Close",
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                IconButton(onClick = { session.uiState.inspectorVisible = !inspectorVisible }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Outlined.ViewSidebar,
+                                        contentDescription = "Toggle inspector",
+                                    )
+                                }
+                            },
+                        )
+                    },
+                ) { padding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                    ) { content() }
                 }
             }
-        }
-        } // end railShortcutModifier Box (compact layout)
+
+            // Inspector bottom sheet for drawer-mode layout.
+            if (inspectorVisible) {
+                ModalBottomSheet(
+                    onDismissRequest = { session.uiState.inspectorVisible = false },
+                    sheetState = inspectorSheetState,
+                ) {
+                    if (inspectorContent != null) {
+                        inspectorContent()
+                    } else {
+                        InspectorContentView(
+                            selectedNavItem = currentSection,
+                            modifier = Modifier.fillMaxHeight(),
+                        )
+                    }
+                }
+            }
+        } // end railShortcutModifier Box (drawer-mode layout)
     }
 }
-

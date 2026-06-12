@@ -190,11 +190,11 @@ The studio is implemented in `ui/mainstudio/StudioScaffold.kt` (chrome) hosting 
 
 | Term | Code | Description |
 |------|------|-------------|
-| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem`); visible at ≥600dp; selection = current `StudioSectionKey` on the Nav3 back stack |
-| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; default-visible at ≥840dp |
-| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area: query editor, results, observers, etc. |
-| **Inspector** | Inspector column in `StudioScaffold` (300dp <1200dp / 360dp ≥1200dp / 400dp ≥1600dp); `ModalBottomSheet` at compact widths | Trailing slide-out panel; default-visible at ≥1200dp |
-| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Compact-width (<600dp) collapse of Rail into a modal drawer |
+| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem`); visible as a column at ≥840dp; folded into the Nav Drawer below 840dp |
+| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; visible side-by-side at ≥840dp; below 840dp lives inside the Nav Drawer alongside the rail items |
+| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area: query editor, results, observers, etc. **Default view at every width** (full-width below 840dp). |
+| **Inspector** | Inspector column in `StudioScaffold` (300dp <1200dp / 360dp ≥1200dp / 400dp ≥1600dp); `ModalBottomSheet` below 840dp | Trailing slide-out panel; default-visible at ≥1200dp |
+| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Below 840dp: holds Rail items AND the section's Data Panel (rail items at top, divider, Data Panel below). Sections without a Data Panel show rail items only. Selecting any item closes the drawer. |
 
 See [`UI_TERMINOLOGY.md`](UI_TERMINOLOGY.md) for the full cheat sheet, including the comparison with the SwiftUI (macOS/iPadOS) app's three-column layout.
 

@@ -32,23 +32,19 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
  *
  * Two entry-point variants:
  *  - [PresenceListSection]    — list-pane content (subscriptions list + FAB + editor sheet).
- *                               Used by `entry<SubscriptionsKey>` as the list pane.
+ *                               Used by `entry<SubscriptionsKey>` as the list pane at ≥840dp,
+ *                               and rendered inside the modal Nav Drawer below 840dp.
  *  - [PresenceContentSection] — content/detail pane: Peers List / Presence Viewer tabs +
  *                               transport-config gear button. Used as both the
- *                               `detailPlaceholder` (expanded) and the pushed
- *                               `entry<PresenceContentKey>` (compact).
+ *                               `detailPlaceholder` (≥840dp) and the section-entry content
+ *                               below 840dp (Content Pane is the default view).
  *
- * Design rationale (vs. pure Observers list-detail):
- * The content pane (Connected Peers) is NOT driven by list-item selection — it shows peer
- * state for the entire mesh and is always relevant. At ≥600dp both panes are visible
- * side-by-side via [ListDetailSceneStrategy.listPane] with a `detailPlaceholder` that
- * renders [PresenceContentSection] directly. At compact widths the user starts on the
- * content pane (peers are the primary view) and reaches the subscriptions list via a
- * pushed entry ([PresenceContentKey] → back-stack push of the list pane is not needed
- * because the scaffold's compact drawer already exposes the list pane via the rail drawer
- * — but this section is entry<SubscriptionsKey> with the list pane as the primary, so
- * compact users see the list first with the peers view as the pushed detail — matching
- * today's phone behavior where the drawer holds the list and content shows peers).
+ * Design rationale: the content pane (Connected Peers) is NOT driven by list-item selection
+ * — it shows peer state for the entire mesh and is always relevant, so it is the default
+ * view at every width. At ≥840dp both panes are visible side-by-side via
+ * [ListDetailSceneStrategy.listPane] + `detailPlaceholder`. Below 840dp the user sees the
+ * peers content immediately on entering Presence; the subscriptions list lives in the drawer
+ * (Rail + Data Panel) and tapping an item closes the drawer.
  */
 
 // ── List-pane entry-point ─────────────────────────────────────────────────────
@@ -56,36 +52,21 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 /**
  * List-pane content for the Presence section.
  *
- * Renders [SubscriptionsListPane] and hoists the [SubscriptionEditorSheet] so the sheet
- * appears as a child of this pane regardless of layout breakpoint.
- *
- * @param onViewPeers Called when the user taps "View Peers" (compact-width only). The
- *   caller pushes [PresenceContentKey] onto the back stack. At expanded widths the detail
- *   placeholder already shows [PresenceContentSection] and this callback is never needed.
+ * Renders [SubscriptionsListPane]. The [SubscriptionEditorSheet] is hoisted into
+ * [PresenceContentSection] (the always-composed body) so it survives drawer dismiss
+ * below 840dp.
  */
 @Composable
 fun PresenceListSection(
     viewModel: MainStudioViewModel,
-    onViewPeers: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onAfterAddOrEditTriggered: (() -> Unit)? = null,
 ) {
     SubscriptionsListPane(
         viewModel = viewModel,
-        onViewPeers = onViewPeers,
         modifier = modifier,
+        onAfterAddOrEditTriggered = onAfterAddOrEditTriggered,
     )
-
-    // Editor sheet: opens whenever editingSubscription is non-null. Reuses the existing sheet.
-    viewModel.editingSubscription?.let { sub ->
-        SubscriptionEditorSheet(
-            initial = sub,
-            onSave = { name, query ->
-                if (sub.id == 0L) viewModel.addSubscription(name, query)
-                else viewModel.updateSubscription(sub.copy(name = name, query = query))
-            },
-            onDismiss = { viewModel.editingSubscription = null },
-        )
-    }
 }
 
 // ── Content/detail-pane entry-point ──────────────────────────────────────────
@@ -183,5 +164,19 @@ fun PresenceContentSection(
         ) {
             TransportConfigContent(viewModel = viewModel)
         }
+    }
+
+    // Subscription editor sheet — hoisted here (out of PresenceListSection) so the bottom
+    // sheet remains in composition even when the list pane leaves it (e.g. when the Nav
+    // Drawer dismisses below 840dp after the user taps the FAB or an edit button).
+    viewModel.editingSubscription?.let { sub ->
+        SubscriptionEditorSheet(
+            initial = sub,
+            onSave = { name, query ->
+                if (sub.id == 0L) viewModel.addSubscription(name, query)
+                else viewModel.updateSubscription(sub.copy(name = name, query = query))
+            },
+            onDismiss = { viewModel.editingSubscription = null },
+        )
     }
 }

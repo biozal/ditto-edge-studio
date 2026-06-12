@@ -3,7 +3,6 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,10 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.People
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +32,7 @@ import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 
 /**
- * List pane for the Presence (Subscriptions) section (Task 4.3c scene-driven shell).
+ * List pane for the Presence (Subscriptions) section.
  *
  * Renders the registered DQL subscriptions as a vertical scrollable list, extracted
  * faithfully from the SUBSCRIPTIONS block of the legacy data-panel / phone-drawer layout
@@ -50,18 +46,15 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
  * the correct composition scope regardless of layout breakpoint.
  *
  * This pane is the *list* side of the Presence entry. The *content* side (Connected
- * Peers tabs) is always visible in expanded layouts as the detail placeholder, and
- * reachable as a pushed key in compact layout via the "View Peers" button.
- *
- * @param onViewPeers When non-null a "View Peers" affordance is shown at the top of the
- *   list (compact-width only). At expanded widths the detail placeholder is always
- *   visible and this callback should be null so the button is hidden.
+ * Peers tabs) is the default view; at ≥840dp the scene strategy renders both side-by-side,
+ * and below 840dp the list pane lives inside the modal Nav Drawer (the drawer holds Rail +
+ * Data Panel; tapping an item closes the drawer).
  */
 @Composable
 fun SubscriptionsListPane(
     viewModel: MainStudioViewModel,
-    onViewPeers: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onAfterAddOrEditTriggered: (() -> Unit)? = null,
 ) {
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
 
@@ -72,25 +65,6 @@ fun SubscriptionsListPane(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 88.dp),
         ) {
-            // "View Peers" affordance — shown at compact widths so users can reach the
-            // content pane (Connected Peers) from the list pane.
-            if (onViewPeers != null) {
-                FilledTonalButton(
-                    onClick = onViewPeers,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.People,
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("View Peers")
-                }
-                HorizontalDivider()
-            }
-
             Text(
                 text = "Subscriptions",
                 style = MaterialTheme.typography.titleSmall,
@@ -114,7 +88,10 @@ fun SubscriptionsListPane(
                 subscriptions.forEach { sub ->
                     PresenceSubscriptionRow(
                         subscription = sub,
-                        onEdit = { viewModel.editingSubscription = sub },
+                        onEdit = {
+                            viewModel.editingSubscription = sub
+                            onAfterAddOrEditTriggered?.invoke()
+                        },
                         onDelete = { viewModel.removeSubscription(sub.id) },
                     )
                 }
@@ -122,9 +99,12 @@ fun SubscriptionsListPane(
         }
 
         // Add-subscription FAB: sets editingSubscription to a fresh DittoSubscription so the
-        // SubscriptionEditorSheet hoisted in PresenceListSection triggers.
+        // SubscriptionEditorSheet hoisted in PresenceContentSection triggers.
         FloatingActionButton(
-            onClick = { viewModel.editingSubscription = DittoSubscription() },
+            onClick = {
+                viewModel.editingSubscription = DittoSubscription()
+                onAfterAddOrEditTriggered?.invoke()
+            },
             containerColor = SulfurYellow,
             contentColor = JetBlack,
             modifier = Modifier

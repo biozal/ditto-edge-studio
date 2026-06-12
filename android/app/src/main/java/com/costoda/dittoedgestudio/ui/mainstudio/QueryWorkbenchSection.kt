@@ -42,36 +42,25 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 /**
- * Scene-driven section composables for the Query Workbench (canonical: Query) section
- * (Task 4.3e).
+ * Scene-driven section composables for the Query Workbench (canonical: Query) section.
  *
  * Two entry-point variants — analogous to [PresenceSection]:
  *  - [QueryWorkbenchListSection]    — list-pane content (collections list + index FAB).
- *                                     Used by `entry<QueryKey>` as the list pane.
+ *                                     Used by `entry<QueryKey>` as the list pane at ≥840dp,
+ *                                     and rendered inside the modal Nav Drawer below 840dp.
  *  - [QueryWorkbenchContentSection] — content/detail pane: DQL editor + results +
- *                                     paginated query bottom bar. Used as both the
- *                                     `detailPlaceholder` (expanded) and the pushed
- *                                     `entry<QueryContentKey>` (compact).
- *
- * Compact-landing design (closest-to-legacy):
- *  - The legacy phone layout showed the editor as the primary content surface, with
- *    collections accessible via the navigation drawer's COLLECTIONS section.
- *  - In the scene shell the rail drawer is sections-only, so we replicate "editor first"
- *    by having the AppNavGraph push [com.costoda.dittoedgestudio.ui.navigation.QueryContentKey]
- *    on top of [com.costoda.dittoedgestudio.ui.navigation.QueryKey] when entering at
- *    compact widths. The user's effective landing is the editor; system-back returns to the
- *    collections list (one-tap-away). At ≥600dp the editor is rendered as the listPane
- *    detail placeholder and is always visible side-by-side with the collections list, so
- *    no auto-push is needed.
+ *                                     paginated query bottom bar. Default view at every
+ *                                     width (the editor is the primary surface, matching
+ *                                     legacy phone UX and the iPad MainView semantics).
  *
  * Draft-survival design:
  *  - Editor draft, results, pagination, inspector tab, and selected document live on the
  *    session-scoped [com.costoda.dittoedgestudio.data.session.QueryWorkbenchState] (a
  *    sub-object of [com.costoda.dittoedgestudio.data.session.StudioUiState]).
- *  - Each `QueryKey` (or `QueryContentKey`) entry composition creates a fresh
- *    [QueryEditorViewModel] via Koin; the VM is parameterised on `(databaseId, workbench)`
- *    so all VM instances share the same flows. Switching rail sections destroys/recreates
- *    the VM but the user's draft and results are preserved on the session.
+ *  - Each entry composition creates a fresh [QueryEditorViewModel] via Koin; the VM is
+ *    parameterised on `(databaseId, workbench)` so all VM instances share the same flows.
+ *    Switching rail sections destroys/recreates the VM but the user's draft and results
+ *    are preserved on the session.
  */
 
 /**
@@ -96,22 +85,20 @@ private fun rememberQueryEditorViewModelOrNull(
  * List-pane content for the Query Workbench section: the COLLECTIONS list with the
  * "add index" FAB.
  *
- * @param onOpenEditor Called when the user taps the compact-width "Open Editor" affordance
- *   in [CollectionsListPane]. The caller pushes
- *   [com.costoda.dittoedgestudio.ui.navigation.QueryContentKey] onto the back stack so the
- *   user can reach the editor. At expanded widths the detail placeholder already shows
- *   the editor and this callback should be null so the button is hidden.
+ * @param onAfterTriggerAddIndex Optional drawer-aware callback fired after the FAB sets
+ *   `viewModel.showAddIndex = true`. Used by drawer-mode callers to close the drawer so
+ *   the sheet (hoisted in [QueryWorkbenchContentSection]) appears over the Content Pane.
  */
 @Composable
 fun QueryWorkbenchListSection(
     viewModel: MainStudioViewModel,
-    onOpenEditor: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onAfterTriggerAddIndex: (() -> Unit)? = null,
 ) {
     CollectionsListPane(
         viewModel = viewModel,
-        onOpenEditor = onOpenEditor,
         modifier = modifier,
+        onAfterTriggerAddIndex = onAfterTriggerAddIndex,
     )
 }
 
@@ -130,6 +117,7 @@ fun QueryWorkbenchContentSection(
     modifier: Modifier = Modifier,
 ) {
     val queryVm = rememberQueryEditorViewModelOrNull(viewModel)
+    val collections by viewModel.collections.collectAsStateWithLifecycle()
     Box(modifier = modifier.fillMaxSize()) {
         if (queryVm == null) {
             // Session has not finished hydrating yet (no currentDittoId). Render a small
@@ -153,6 +141,18 @@ fun QueryWorkbenchContentSection(
                     .padding(8.dp),
             )
         }
+    }
+
+    // Add-index sheet — hoisted here (out of CollectionsListPane) so the bottom sheet
+    // remains in composition even when the list pane leaves it (e.g. when the Nav Drawer
+    // dismisses below 840dp). Triggered by `viewModel.showAddIndex` which the CollectionsListPane
+    // FAB flips on.
+    if (viewModel.showAddIndex) {
+        AddIndexSheet(
+            collections = collections,
+            onAdd = { collection, field -> viewModel.addIndex(collection, field) },
+            onDismiss = { viewModel.showAddIndex = false },
+        )
     }
 }
 

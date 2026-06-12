@@ -46,6 +46,41 @@ class WindowSizeTest {
     }
 
     // ---------------------------------------------------------------------------
+    // studioMultiPane — boundary at 840 dp (studio rail + listPane + detailPane layout)
+    // Below 840dp the studio uses drawer mode (Rail + Data Panel folded into the modal drawer,
+    // Content Pane as the default view).
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `studioMultiPane is false below expanded boundary (839dp)`() {
+        assertFalse(wsc(839).studioMultiPane)
+    }
+
+    @Test
+    fun `studioMultiPane is true at expanded boundary (840dp)`() {
+        assertTrue(wsc(840).studioMultiPane)
+    }
+
+    @Test
+    fun `studioMultiPane is true above expanded boundary (841dp)`() {
+        assertTrue(wsc(841).studioMultiPane)
+    }
+
+    @Test
+    fun `studioMultiPane is false for compact window (400dp)`() {
+        assertFalse(wsc(400).studioMultiPane)
+    }
+
+    @Test
+    fun `studioMultiPane is false for medium window (720dp) - drawer mode despite showing rail elsewhere`() {
+        val wsc = wsc(720)
+        // Even though showsRail is true for non-studio screens, the studio is in drawer mode
+        // below 840dp.
+        assertTrue(wsc.showsRail)
+        assertFalse(wsc.studioMultiPane)
+    }
+
+    // ---------------------------------------------------------------------------
     // dataPanelDefaultVisible — boundary at 840 dp
     // ---------------------------------------------------------------------------
 

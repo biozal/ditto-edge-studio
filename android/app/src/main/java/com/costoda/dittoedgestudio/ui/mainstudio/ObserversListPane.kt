@@ -47,6 +47,7 @@ fun ObserversListPane(
     viewModel: MainStudioViewModel,
     onSelectObserver: (DittoObservable) -> Unit,
     modifier: Modifier = Modifier,
+    onAfterAddTriggered: (() -> Unit)? = null,
 ) {
     val observers by viewModel.observers.collectAsStateWithLifecycle()
 
@@ -110,7 +111,10 @@ fun ObserversListPane(
         // Add-observer FAB. Uses the existing ObserverEditorSheet pipeline by setting
         // editingObserver to a fresh empty DittoObservable.
         FloatingActionButton(
-            onClick = { viewModel.editingObserver = DittoObservable() },
+            onClick = {
+                viewModel.editingObserver = DittoObservable()
+                onAfterAddTriggered?.invoke()
+            },
             containerColor = SulfurYellow,
             contentColor = JetBlack,
             modifier = Modifier

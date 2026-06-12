@@ -24,9 +24,36 @@ import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_MEDIUM_LOW
 fun studioWindowSizeClass(): WindowSizeClass =
     currentWindowAdaptiveInfoV2().windowSizeClass
 
-/** Medium and up: NavigationRail visible (below: modal Nav Drawer). */
+/** Medium and up: NavigationRail visible (below: modal Nav Drawer).
+ *
+ *  Used by [com.costoda.dittoedgestudio.ui.database.DatabaseListScreen] to switch between
+ *  the tablet (multi-pane) database picker and the phone single-column layout. The studio
+ *  no longer uses this property to decide between rail-mode and drawer-mode — see
+ *  [studioMultiPane] for the studio-specific decision. */
 val WindowSizeClass.showsRail: Boolean
     get() = isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
+
+/**
+ * Expanded and up (≥840dp): the studio renders its full multi-pane layout —
+ * `NavigationRail | listPane | detailPane | Inspector`.
+ *
+ * Below this breakpoint (Compact AND Medium — phones, floating windows, narrow split-screen)
+ * the studio switches to **drawer mode**:
+ *  - No rail column. A hamburger button on the top bar opens a [ModalNavigationDrawer].
+ *  - The drawer contains BOTH the rail items (section nav) AND the current section's Data
+ *    Panel content (Subscriptions list / Collections list / Observers list / Executed
+ *    queries list). Selecting anything in the drawer closes it.
+ *  - The Content Pane is the DEFAULT view (peers tabs, query editor+results, observer
+ *    events, EXPLAIN detail) — matches the original pre-migration phone UX and the iPad
+ *    "MainView is always the default" semantics.
+ *  - Sections without a Data Panel (Logging / AppMetrics / DiskUsage) show rail items only
+ *    in the drawer.
+ *
+ * Keep [showsRail] for non-studio screens (e.g. DatabaseListScreen) that retain the 600dp
+ * rail/no-rail behavior.
+ */
+val WindowSizeClass.studioMultiPane: Boolean
+    get() = isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
 /** Expanded and up: Data Panel defaults to visible. */
 val WindowSizeClass.dataPanelDefaultVisible: Boolean
