@@ -88,6 +88,7 @@ fun CollectionsListPane(
                     Icon(
                         imageVector = Icons.Outlined.Refresh,
                         contentDescription = "Refresh collections",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.width(16.dp),
                     )
                 }

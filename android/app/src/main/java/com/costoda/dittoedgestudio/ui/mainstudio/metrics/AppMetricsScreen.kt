@@ -49,7 +49,10 @@ fun AppMetricsScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         // Header
-        Surface(tonalElevation = 2.dp) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 2.dp,
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -59,6 +62,7 @@ fun AppMetricsScreen(
                 Text(
                     text = "App Metrics",
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -68,7 +72,11 @@ fun AppMetricsScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { scope.launch { viewModel.refresh() } }) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

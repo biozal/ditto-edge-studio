@@ -75,7 +75,10 @@ fun QueryMetricsListPane(
 
     Column(modifier = modifier.fillMaxSize()) {
         // Header
-        Surface(tonalElevation = 2.dp) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 2.dp,
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -85,6 +88,7 @@ fun QueryMetricsListPane(
                 Text(
                     text = "Query Metrics",
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -99,7 +103,11 @@ fun QueryMetricsListPane(
                         onClearAll()
                     }
                 }) {
-                    Icon(Icons.Outlined.ClearAll, contentDescription = "Clear all")
+                    Icon(
+                        Icons.Outlined.ClearAll,
+                        contentDescription = "Clear all",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

@@ -68,6 +68,7 @@ fun ObserverListItem(
                 Text(
                     text = observer.name.ifBlank { observer.query.take(30) },
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),

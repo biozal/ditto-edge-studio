@@ -61,26 +61,30 @@ fun DiskUsageScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Surface(tonalElevation = 2.dp) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 2.dp,
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Disk Usage",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                // Title removed — already shown in the top-bar; keep the refresh controls only.
                 Text(
                     text = lastUpdated,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { viewModel.refresh() }) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -305,6 +309,7 @@ private fun StorageCategoryRow(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             LinearProgressIndicator(
                 progress = { bytes.toFloat() / maxOf(totalBytes, 1).toFloat() },
@@ -319,6 +324,7 @@ private fun StorageCategoryRow(
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontFamily = FontFamily.Monospace,
                 ),
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
             )
         }

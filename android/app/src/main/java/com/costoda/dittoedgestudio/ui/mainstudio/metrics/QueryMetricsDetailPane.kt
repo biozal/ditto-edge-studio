@@ -84,6 +84,7 @@ fun QueryMetricsDetailPane(
                     modifier = Modifier.padding(8.dp),
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -120,6 +121,7 @@ fun QueryMetricsDetailPane(
                         modifier = Modifier.padding(8.dp),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }

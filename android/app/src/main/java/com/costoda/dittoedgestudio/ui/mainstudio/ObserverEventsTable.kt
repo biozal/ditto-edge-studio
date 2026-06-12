@@ -55,6 +55,7 @@ fun ObserverEventsTable(
                     text = col.label,
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .width(col.width)
                         .padding(horizontal = 8.dp),
@@ -93,6 +94,7 @@ fun ObserverEventsTable(
                             text = value,
                             style = MaterialTheme.typography.bodySmall,
                             fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier

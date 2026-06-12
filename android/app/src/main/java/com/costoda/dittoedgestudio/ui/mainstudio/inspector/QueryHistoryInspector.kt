@@ -63,6 +63,7 @@ fun QueryHistoryInspector(
             Text(
                 text = "History",
                 style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = { viewModel.clearHistory() }) {

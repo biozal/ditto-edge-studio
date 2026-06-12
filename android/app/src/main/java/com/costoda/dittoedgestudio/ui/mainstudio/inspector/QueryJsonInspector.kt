@@ -49,6 +49,7 @@ fun QueryJsonInspector(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
             ),
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(12.dp),

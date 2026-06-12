@@ -155,6 +155,7 @@ fun LoggingScreen(
                 text = "Logs",
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
 
@@ -195,7 +196,11 @@ fun LoggingScreen(
                 captureService.loadHistoricalLogs(context.cacheDir)
                 captureService.loadAppLogs()
             }) {
-                Icon(Icons.Outlined.Refresh, contentDescription = "Refresh logs")
+                Icon(
+                    Icons.Outlined.Refresh,
+                    contentDescription = "Refresh logs",
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -222,6 +227,7 @@ fun LoggingScreen(
                     Text(
                         text = "High log volume — UI throttled to 2 updates/sec, showing last 200 entries",
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.ui.graphics.Color(0xFFFF9500),
                     )
                 }
             }

@@ -54,6 +54,7 @@ fun QueryMetricsInspector(
             Text(
                 text = "No Query Executed",
                 style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 12.dp),
             )
             Text(
@@ -83,7 +84,7 @@ fun QueryMetricsInspector(
             )
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 SelectionContainer {
@@ -93,6 +94,7 @@ fun QueryMetricsInspector(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(8.dp),
                     )
                 }
@@ -141,7 +143,7 @@ fun QueryMetricsInspector(
         )
         Surface(
             shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (metrics.explainPlan != null) {
@@ -152,6 +154,7 @@ fun QueryMetricsInspector(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(8.dp),
                     )
                 }
