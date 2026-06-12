@@ -228,16 +228,22 @@ fun AppNavGraph() {
                             },
                         ),
                     ) { key ->
+                        // "View Peers" is a compact-only drill-in — at ≥600dp the peers
+                        // content is already visible as the detail placeholder (mirrors
+                        // the Query section's onOpenEditor gating).
+                        val expandedLayout = studioWindowSizeClass().showsRail
                         StudioSectionContainer(
                             databaseId = key.databaseId,
                             section = StudioNavItem.SUBSCRIPTIONS,
                         ) { viewModel ->
                             PresenceListSection(
                                 viewModel = viewModel,
-                                onViewPeers = {
-                                    backStack.removeIf { it is PresenceContentKey }
-                                    backStack.add(PresenceContentKey(databaseId = key.databaseId))
-                                },
+                                onViewPeers = if (!expandedLayout) {
+                                    {
+                                        backStack.removeIf { it is PresenceContentKey }
+                                        backStack.add(PresenceContentKey(databaseId = key.databaseId))
+                                    }
+                                } else null,
                             )
                         }
                     }
