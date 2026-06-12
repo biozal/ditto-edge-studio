@@ -23,9 +23,9 @@
 
   <!-- column headers -->
   <text x="48" y="166" class="colhead" fill="#F0D830">RAIL</text>
-  <text x="388" y="166" class="colhead" fill="#5B8DD9">DATA PANEL (200dp)</text>
+  <text x="388" y="166" class="colhead" fill="#5B8DD9">DATA PANEL (list pane)</text>
   <text x="728" y="166" class="colhead" fill="#58B368">CONTENT PANE</text>
-  <text x="1368" y="166" class="colhead" fill="#E8853A">INSPECTOR (300dp)</text>
+  <text x="1368" y="166" class="colhead" fill="#E8853A">INSPECTOR (300–400dp)</text>
 
   <!-- ============ ROW 1 : Presence ============ -->
   <g>
@@ -200,7 +200,7 @@
     <text x="104" y="1208" class="railcode">Icons…Outlined.ManageSearch</text>
 
     <rect x="380" y="1070" width="320" height="160" rx="10" fill="#1D1C1D" stroke="#5B8DD9"/>
-    <text x="398" y="1102" class="cellhead">Executed Queries *</text>
+    <text x="398" y="1102" class="cellhead">Executed Queries</text>
     <text x="398" y="1128" class="cellbody">Queries run since app start —</text>
     <text x="398" y="1150" class="cellbody">statement, run count, duration</text>
     <text x="398" y="1210" class="cellfile">QueryMetricsRepositoryImpl.kt</text>
@@ -243,10 +243,10 @@
     <rect x="1360" y="1246" width="520" height="160" rx="10" fill="#1D1C1D" stroke="#E8853A"/>
     <text x="1378" y="1278" class="cellhead">Feature documentation</text>
     <text x="1378" y="1304" class="cellbody">Storage metrics explained</text>
-    <text x="1378" y="1386" class="cellfile">assets/help/diskusage.md  (missing!)</text>
+    <text x="1378" y="1386" class="cellfile">docs/help/diskusage.md (synced to assets)</text>
   </g>
 
   <!-- footnotes -->
-  <text x="40" y="1448" class="footnote">* Gaps vs. current code: Presence Graph not yet implemented · Query Metrics list currently renders inside the Content Pane (target: Data Panel) · diskusage.md missing from assets/help/</text>
+  <text x="40" y="1448" class="footnote">Remaining gap: Presence Graph — the Presence Viewer tab is a placeholder · Data Panel = scene list pane (ListDetailSceneStrategy) since the Nav3 migration</text>
   <text x="40" y="1476" class="footnote">Rail order = StudioNavItem enum order — viewmodel/MainStudioViewModel.kt · Region terms: docs/android/UI_TERMINOLOGY.md</text>
 </svg>

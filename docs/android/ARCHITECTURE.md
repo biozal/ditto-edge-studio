@@ -186,15 +186,15 @@ private fun DittoQueryHistory.toEntity() = HistoryEntity(
 
 ## UI Layout Anatomy
 
-The main studio screen (`ui/mainstudio/MainStudioScreen.kt`) is a four-region tablet layout. These are the canonical names used in all docs, plans, and task descriptions:
+The studio is implemented in `ui/mainstudio/StudioScaffold.kt` (chrome) hosting a Navigation 3 `NavDisplay` defined in `ui/navigation/AppNavGraph.kt`, with Material 3 Adaptive `ListDetailSceneStrategy` scenes. These are the canonical names used in all docs, plans, and task descriptions:
 
 | Term | Code | Description |
 |------|------|-------------|
-| **Rail** | `NavigationRail` (column 1) | Vertical strip of navigation icons (`StudioNavItem`) |
-| **Data Panel** | `DataPanel` (column 2, 200dp) | Feature/info menu for the selected Rail item; slides in from the start edge |
-| **Content Pane** | content `Column` (column 3, `weight(1f)`) | Main working area: query editor, results, observers, etc. |
-| **Inspector** | `InspectorPanel` (column 4, 300dp) | Trailing slide-out side sheet; slides in from the end edge |
-| **Nav Drawer** | `ModalNavigationDrawer` | Phone-mode collapse of Rail + Data Panel |
+| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem`); visible at ≥600dp; selection = current `StudioSectionKey` on the Nav3 back stack |
+| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; default-visible at ≥840dp |
+| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area: query editor, results, observers, etc. |
+| **Inspector** | Inspector column in `StudioScaffold` (300dp <1200dp / 360dp ≥1200dp / 400dp ≥1600dp); `ModalBottomSheet` at compact widths | Trailing slide-out panel; default-visible at ≥1200dp |
+| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Compact-width (<600dp) collapse of Rail into a modal drawer |
 
 See [`UI_TERMINOLOGY.md`](UI_TERMINOLOGY.md) for the full cheat sheet, including the comparison with the SwiftUI (macOS/iPadOS) app's three-column layout.
 

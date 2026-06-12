@@ -28,7 +28,8 @@ docs, plans, and conversation; code names are what you'll grep for.
 | 7 | **Database Metrics** | `DISK_USAGE` | "Disk Usage" | `Icons.Outlined.DataUsage` | No — full-width Content Pane |
 
 Every rail item exposes feature documentation in the Inspector, rendered from a
-markdown file in `assets/help/` via `StudioNavItem.helpFileName` →
+Markdown file sourced from `docs/help/` (synced to `assets/help/` by
+`scripts/sync-help-docs.sh`) via `StudioNavItem.helpFileName` →
 `ui/mainstudio/inspector/HelpContentView.kt` (Markwon renderer).
 
 > All code paths below are relative to
@@ -48,10 +49,10 @@ Everything about the mesh: what this peer is syncing and who it is connected to.
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.SUBSCRIPTIONS` |
-| Subscriptions list (Data Panel) | `ui/mainstudio/MainStudioScreen.kt` Data Panel section; state in `viewmodel/MainStudioViewModel.kt` |
-| Connected Peers | `ui/mainstudio/ConnectedPeersScreen.kt` (`PeersUiState` in `MainStudioViewModel.kt`) |
-| Presence Graph | **Not yet implemented** — planned second view alongside Connected Peers |
+| Rail item | `StudioNavItem.SUBSCRIPTIONS` → `SubscriptionsKey` |
+| List pane (Data Panel) | `ui/mainstudio/SubscriptionsListPane.kt`; section entry-point `ui/mainstudio/PresenceSection.kt` → `PresenceListSection` |
+| Content pane (Connected Peers) | `ui/mainstudio/PresenceSection.kt` → `PresenceContentSection`; tabs: "Peers List" (`ConnectedPeersScreen.kt`) + "Presence Viewer" (placeholder); pushed on compact via `PresenceContentKey` |
+| Presence Graph | **Not yet implemented** — Presence Viewer tab is a "Coming Soon" placeholder |
 | Data layer | `data/repository/SubscriptionsRepositoryImpl.kt`, `data/repository/SystemRepositoryImpl.kt` (peers, sync status, transports) |
 | Inspector docs | `assets/help/subscription.md` |
 
@@ -69,11 +70,11 @@ The primary working surface: browse collections, write and run DQL, inspect resu
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.QUERY` |
-| Collections list (Data Panel) | Data Panel in `ui/mainstudio/MainStudioScreen.kt`; data via `data/repository/CollectionsRepositoryImpl.kt` (doc counts, index add/remove) |
-| Query Editor | `ui/mainstudio/QueryEditorScreen.kt` → `QueryEditorView` |
-| Query Results | `QueryResultsView` (same screen, lower split) |
+| Rail item | `StudioNavItem.QUERY` → `QueryKey` |
+| List pane (Collections, Data Panel) | `ui/mainstudio/CollectionsListPane.kt`; section entry-point `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchListSection`; data via `data/repository/CollectionsRepositoryImpl.kt` (doc counts, index add/remove) |
+| Content pane (Query Editor + Results) | `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchContentSection` hosting `QueryEditorScreen.kt`; Ctrl/Cmd+Enter runs query; state persists on session-scoped `QueryWorkbenchState`; pushed on compact via `QueryContentKey` |
 | Execution | `data/repository/QueryExecutionService.kt`; state in `viewmodel/QueryEditorViewModel.kt` |
+| Inspector | Rich `ui/mainstudio/inspector/QueryInspectorView.kt` (History / Favorites / JSON viewer / Metrics tabs); threaded via scaffold's `inspectorContent` slot |
 | Inspector — History | `ui/mainstudio/inspector/QueryHistoryInspector.kt`, `data/repository/HistoryRepositoryImpl.kt` |
 | Inspector — Favorites | `ui/mainstudio/inspector/QueryFavoritesInspector.kt`, `data/repository/FavoritesRepositoryImpl.kt` |
 | Inspector — JSON viewer | `ui/mainstudio/inspector/QueryJsonInspector.kt` |
@@ -94,9 +95,9 @@ Live-query observers: register them, activate them, and watch the change events 
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.OBSERVERS` |
-| Observers list (Data Panel) | Data Panel in `ui/mainstudio/MainStudioScreen.kt`; CRUD + activation in `viewmodel/MainStudioViewModel.kt` |
-| Events list + detail | `ui/mainstudio/ObserverDetailScreen.kt` — `ObserverEventsTable` (top) + `ObserverEventDetailView` (bottom, with insert/update/delete/move filters) |
+| Rail item | `StudioNavItem.OBSERVERS` → `ObserversKey` |
+| List pane (Observers, Data Panel) | `ui/mainstudio/ObserversListPane.kt`; section entry-point `ui/mainstudio/ObserversSection.kt` → `ObserversListSection`; CRUD + activation in `viewmodel/MainStudioViewModel.kt` |
+| Content pane (Events list + detail) | `ui/mainstudio/ObserversSection.kt` → `ObserverEventsSection` hosting `ObserverDetailScreen.kt`; `ObserverEventsTable` (top) + `ObserverEventDetailView` (bottom, with insert/update/delete/move filters); pushed via `ObserverEventsKey` |
 | Data layer | `data/repository/ObservableRepositoryImpl.kt`; models `DittoObservable`, `DittoObserveEvent` |
 | Inspector docs | `assets/help/observe.md` |
 
@@ -115,8 +116,8 @@ there is maximum room for log lines.
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.LOGGING` |
-| Log viewer + filters | `ui/mainstudio/LoggingScreen.kt` |
+| Rail item | `StudioNavItem.LOGGING` → `LoggingKey` |
+| Content pane (single-pane, full-width) | `ui/mainstudio/SinglePaneSections.kt` → `LoggingSection` → `LoggingScreen.kt` |
 | Data layer | `DittoLogCaptureService` (live capture), `LogFileParser`; models `LogEntry`, `LogComponent` |
 | Inspector docs | `assets/help/logging.md` |
 
@@ -134,8 +135,8 @@ Process-level health of the running app. No Data Panel — full-width Content Pa
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.APP_METRICS` |
-| Metrics UI | `ui/mainstudio/metrics/AppMetricsScreen.kt` |
+| Rail item | `StudioNavItem.APP_METRICS` → `AppMetricsKey` |
+| Content pane (single-pane, full-width) | `ui/mainstudio/SinglePaneSections.kt` → `AppMetricsSection` → `ui/mainstudio/metrics/AppMetricsScreen.kt` |
 | State / refresh | `viewmodel/AppMetricsViewModel.kt` |
 | Data layer | `data/repository/AppMetricsRepositoryImpl.kt` |
 | Inspector docs | `assets/help/appmetrics.md` |
@@ -154,8 +155,9 @@ EXPLAIN-level analysis of every query run since the app started.
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.QUERY_METRICS` |
-| Query list + detail | `ui/mainstudio/metrics/QueryMetricsScreen.kt` — currently a two-pane list-detail **inside the Content Pane** (Data Panel hidden); the target layout moves the list into the Data Panel proper |
+| Rail item | `StudioNavItem.QUERY_METRICS` → `QueryMetricsKey` |
+| List pane (executed-query list, Data Panel) | `ui/mainstudio/metrics/QueryMetricsListPane.kt`; section entry-point `ui/mainstudio/QueryMetricsSection.kt` → `QueryMetricsListSection` |
+| Content pane (EXPLAIN detail) | `ui/mainstudio/metrics/QueryMetricsDetailPane.kt`; section entry-point `ui/mainstudio/QueryMetricsSection.kt` → `QueryMetricsDetailSection`; pushed via `QueryMetricDetailKey` |
 | Data layer | `data/repository/QueryMetricsRepositoryImpl.kt`; model `QueryMetrics` (auto-capture, 200-record cap) |
 | Inspector docs | `assets/help/querymetrics.md` |
 
@@ -173,11 +175,11 @@ What the Ditto database costs on disk. No Data Panel — full-width Content Pane
 
 | Part | Code |
 |---|---|
-| Rail item | `StudioNavItem.DISK_USAGE` |
-| Storage UI | `ui/mainstudio/metrics/DiskUsageScreen.kt` |
+| Rail item | `StudioNavItem.DISK_USAGE` → `DiskUsageKey` |
+| Content pane (single-pane, full-width) | `ui/mainstudio/SinglePaneSections.kt` → `DiskUsageSection` → `ui/mainstudio/metrics/DiskUsageScreen.kt` |
 | State / refresh | `viewmodel/DiskUsageViewModel.kt` |
 | Data layer | `data/repository/AppMetricsRepositoryImpl.kt` (shared with App Metrics) |
-| Inspector docs | `assets/help/diskusage.md` — **file does not exist yet** (referenced by `helpFileName` but missing from `assets/help/`) |
+| Inspector docs | `assets/help/diskusage.md` |
 
 ---
 
@@ -185,12 +187,10 @@ What the Ditto database costs on disk. No Data Panel — full-width Content Pane
 
 | Item | Gap |
 |---|---|
-| Presence | **Presence Graph** view not implemented — Content Pane currently shows Connected Peers only. |
-| Query Metrics | Executed-query list lives inside the Content Pane (two-pane split) instead of the Data Panel. |
-| Database Metrics | `assets/help/diskusage.md` is missing, so the Inspector has no documentation to render. |
+| Presence | **Presence Graph** view not implemented — Presence Viewer tab is a "Coming Soon" placeholder alongside the Connected Peers tab. |
 | Naming | Code enum/labels (`SUBSCRIPTIONS`/"Subscriptions", `DISK_USAGE`/"Disk Usage", "Logging", "Observers") predate the canonical names (Presence, Database Metrics, Log Analyzer, Observation). Use canonical names in docs and UI copy going forward; code identifiers may lag. |
 
 ---
 
 *Region terminology (Rail, Data Panel, Content Pane, Inspector, Nav Drawer): [`UI_TERMINOLOGY.md`](UI_TERMINOLOGY.md)*
-*Layout source of truth: `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/MainStudioScreen.kt`*
+*Layout source of truth: `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/StudioScaffold.kt` + `android/app/src/main/java/com/costoda/dittoedgestudio/ui/navigation/AppNavGraph.kt`*

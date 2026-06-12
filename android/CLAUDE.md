@@ -95,30 +95,44 @@ app/src/main/java/com/costoda/dittoedgestudio/
 ├── MainApplication.kt               # Koin startKoin{}
 ├── MainActivity.kt                  # Entry point, sets up Compose content
 ├── domain/
-│   └── model/
-│       ├── AuthMode.kt              # enum: SERVER, SMALL_PEERS_ONLY
-│       ├── DittoDatabase.kt         # Database configuration model
-│       ├── DittoSubscription.kt
-│       ├── DittoObservable.kt
-│       └── DittoQueryHistory.kt
+│   └── model/                       # Pure Kotlin domain models (no Android/Room imports)
 ├── data/
 │   ├── db/
 │   │   ├── AppDatabase.kt           # Room + SQLCipher
 │   │   ├── DatabaseKeyManager.kt    # Keystore AES-256 key management
-│   │   ├── entity/                  # Room entities (5 tables)
-│   │   └── dao/                     # Room DAOs (5 DAOs, each with Flow queries)
-│   ├── repository/                  # 5 interfaces + 5 implementations
+│   │   ├── entity/                  # Room entities
+│   │   └── dao/                     # Room DAOs (Flow queries)
+│   ├── repository/                  # Repository interfaces + implementations
+│   ├── session/
+│   │   ├── StudioSession.kt         # Koin "studio" scope per databaseId (Ditto lifecycle)
+│   │   └── StudioUiState.kt         # Ephemeral cross-section UI state (queryWorkbench, etc.)
 │   └── di/
 │       └── DataModule.kt            # Koin module
 ├── ui/
-│   ├── home/
-│   │   └── HomeScreen.kt            # Home screen Composable
+│   ├── adaptive/
+│   │   └── WindowSize.kt            # Single source of truth for WindowSizeClass decisions
+│   ├── database/                    # DatabaseListScreen, DatabaseEditorScreen, DatabaseCard
+│   ├── mainstudio/
+│   │   ├── StudioScaffold.kt        # Chrome: Rail (≥600dp) / Nav Drawer + top bar + inspector
+│   │   ├── *Section.kt              # Scene-driven section entry-points (one per rail item)
+│   │   ├── *ListPane.kt             # List-pane composables (SubscriptionsListPane, etc.)
+│   │   ├── *Screen.kt               # Leaf screens (ConnectedPeersScreen, LoggingScreen, etc.)
+│   │   ├── inspector/               # Inspector composables (QueryInspectorView, HelpContentView)
+│   │   └── metrics/                 # AppMetricsScreen, DiskUsageScreen, QueryMetrics*Pane
+│   ├── navigation/
+│   │   ├── AppNavGraph.kt           # NavDisplay + ListDetailSceneStrategy + entryProvider
+│   │   ├── NavKeys.kt               # All NavKey types (DatabaseListKey, StudioSectionKey, etc.)
+│   │   └── StudioScopeManager.kt    # Koin studio-scope lifecycle manager
+│   ├── qrcode/                      # QR scanner + display
 │   └── theme/
 │       ├── Color.kt                 # Brand color definitions (RAL palette)
 │       ├── Theme.kt                 # Light/Dark MaterialTheme setup
 │       └── Type.kt                  # Typography
 └── viewmodel/
-    └── HomeViewModel.kt             # Home screen ViewModel
+    ├── MainStudioViewModel.kt       # Shared studio VM; owns StudioNavItem enum
+    ├── AppMetricsViewModel.kt
+    ├── DiskUsageViewModel.kt
+    └── QueryEditorViewModel.kt
 ```
 
 ### Layer Responsibilities
@@ -140,17 +154,19 @@ app/src/main/java/com/costoda/dittoedgestudio/
 
 ## UI Layout Terminology
 
-The main studio screen (`ui/mainstudio/MainStudioScreen.kt`) uses a four-column tablet layout. These are the **canonical terms** for each region — when a task references one of these terms, it means exactly this region:
+The studio is implemented in `ui/mainstudio/StudioScaffold.kt` (chrome) hosting a Navigation 3 `NavDisplay` in `ui/navigation/AppNavGraph.kt` with Material 3 Adaptive `ListDetailSceneStrategy` scenes. These are the **canonical terms** for each region — when a task references one of these terms, it means exactly this region:
 
 | Term | Code | Description | iOS (SwiftUI app) equivalent |
 |------|------|-------------|------------------------------|
-| **Rail** | `NavigationRail` (column 1) | Vertical strip of navigation icons (`StudioNavItem` entries) | Sidebar segmented picker |
-| **Data Panel** | `DataPanel` (column 2, 200dp) | Feature/info menu for the selected Rail item; toggleable, slides in from the start edge | Sidebar content list |
-| **Content Pane** | content `Column` (column 3, `weight(1f)`) | The main working area (query editor, results, observers, etc.) | MainView / detail area |
-| **Inspector** | `InspectorPanel` (column 4, 300dp) | Trailing slide-out panel (a Material "side sheet"); toggleable, slides in from the end edge | Inspector |
-| **Nav Drawer** | `ModalNavigationDrawer` / `PhoneDrawerContent` | Phone-mode collapse of Rail + Data Panel into a modal drawer | — |
+| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem` entries); visible at ≥600dp (Medium+); selection = the current `StudioSectionKey` on the Nav3 back stack (replace-top on switch; back exits the studio) | Sidebar segmented picker |
+| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; default-visible at ≥840dp (Expanded+) | Sidebar content list |
+| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area (query editor, results, observers, etc.) | MainView / detail area |
+| **Inspector** | Inspector column in `StudioScaffold`; width: 300dp (<1200dp), 360dp (≥1200dp), 400dp (≥1600dp); default-visible at ≥1200dp (Large+); `ModalBottomSheet` at compact | Trailing slide-out panel; toggleable | Inspector |
+| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Compact-width (<600dp) collapse of Rail into a modal drawer | — |
 
 Material/Android mapping for reference: Rail = Navigation Rail, Data Panel = list pane (of a list-detail layout), Content Pane = detail pane, Inspector = side sheet / supporting pane.
+
+Adaptivity source of truth: `ui/adaptive/WindowSize.kt` (uses `currentWindowAdaptiveInfoV2`, Large/XL enabled). The Gradle `check` task `forbidNonAdaptiveSizeApis` forbids `screenWidthDp` outside `ui/adaptive/`.
 
 ## Dependency Catalog
 
@@ -163,7 +179,7 @@ All versions and dependencies are declared in `gradle/libs.versions.toml`. Never
 | Android Gradle Plugin | 9.2.1 (built-in Kotlin — no kotlin-android plugin) |
 | Kotlin | 2.3.21 |
 | KSP | 2.3.9 |
-| Compose BOM | 2025.12.00 |
+| Compose BOM | 2026.05.01 |
 | Core KTX | 1.16.0 |
 | Activity Compose | 1.10.1 |
 | Lifecycle / ViewModel | 2.9.0 |

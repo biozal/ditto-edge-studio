@@ -39,38 +39,39 @@ in these regions, see [`RAIL_FEATURES.md`](RAIL_FEATURES.md).
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Android (tablet) — four-region layout
+### Android (≥840dp) — scene-driven list-detail layout
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│       │ StudioTopBar     (data-panel toggle · sync · inspector toggle) │
-│  ┌──┐ ├─────────────┬───────────────────────────────┬──────────────────┤
-│  │▣ │ │             │                               │                  │
-│  │  │ │ DATA PANEL  │         CONTENT PANE          │    INSPECTOR     │
-│  │◇ │ │   200dp     │          weight(1f)           │      300dp       │
-│  │  │ │ (toggleable,│                               │  (toggleable,    │
-│  │○ │ │  slides in  │   Query  → editor + results   │   slides in      │
-│  │  │ │  from start)│   Observer → events + detail  │   from end)      │
-│  │⚙ │ │             │   Sync   → peers/presence     │                  │
-│  └──┘ │  menu/info  │                               │   History        │
-│       │  for the    │   ┌─────────────────────┐     │   Favorites      │
-│  RAIL │  selected   │   │ QueryBottomBar / FAB │    │                  │
-│       │  Rail item  │   └─────────────────────┘     │                  │
-└───────┴─────────────┴───────────────────────────────┴──────────────────┘
+│       │  TopAppBar          (sync · close · inspector toggle)          │
+│  ┌──┐ ├──────────────────┬──────────────────────────┬──────────────────┤
+│  │▣ │ │                  │                          │                  │
+│  │  │ │   DATA PANEL     │      CONTENT PANE        │    INSPECTOR     │
+│  │◇ │ │  (list pane)     │     (detail pane)        │  300–400dp       │
+│  │  │ │  scene-managed   │                          │  (default-       │
+│  │○ │ │  width; capped   │  Query  → editor+results │   visible at     │
+│  │  │ │  320dp at ≥1200  │  Obs.   → events+detail  │   ≥1200dp)       │
+│  │⚙ │ │                  │  Pres.  → peers/tabs     │                  │
+│  └──┘ │  feature menu /  │                          │  Query: History  │
+│       │  list for the    │  ┌───────────────────┐   │  Favorites       │
+│  RAIL │  selected item   │  │ QueryWorkbenchBar  │   │  JSON / Metrics  │
+│       │  (default at     │  └───────────────────┘   │  Others: help    │
+│       │   ≥840dp)        │                          │                  │
+└───────┴──────────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Android (phone) — Rail + Data Panel collapse into the Nav Drawer
+### Android (<600dp) — Rail collapses into the Nav Drawer
 
 ```
 ┌──────────────────────────┐      ┌──────────────────────────┐
-│ ☰  StudioTopBar          │      │▓▓▓▓▓▓▓▓▓▓▓│              │
+│ ☰  TopAppBar             │      │▓▓▓▓▓▓▓▓▓▓▓│              │
 ├──────────────────────────┤      │▓ NAV     ▓│              │
 │                          │  ☰ → │▓ DRAWER  ▓│  (content    │
-│       CONTENT PANE       │      │▓         ▓│   dimmed)    │
-│      (full width)        │      │▓ Rail +  ▓│              │
-│                          │      │▓ Data    ▓│              │
-│                          │      │▓ Panel   ▓│              │
-│                          │      │▓ merged  ▓│              │
+│  LIST PANE (Data Panel)  │      │▓         ▓│   dimmed)    │
+│  or DETAIL (Content Pane)│      │▓  Rail   ▓│              │
+│  (single pane at a time; │      │▓  items  ▓│              │
+│   drill-in via back stack│      │▓  only   ▓│              │
+│   from list to detail)   │      │▓         ▓│              │
 └──────────────────────────┘      └───────────┴──────────────┘
 ```
 
@@ -80,13 +81,13 @@ in these regions, see [`RAIL_FEATURES.md`](RAIL_FEATURES.md).
 
 | iOS (SwiftUI) | Android (Edge Studio) | Android code | Material Design term |
 |---|---|---|---|
-| Sidebar — segmented picker | **Rail** | `NavigationRail` | Navigation Rail |
-| Sidebar — content list | **Data Panel** | `DataPanel` (200dp) | List pane (list-detail layout) |
-| MainView | **Content Pane** | content `Column`, `weight(1f)` | Detail pane / content pane |
-| Inspector | **Inspector** | `InspectorPanel` (300dp) | Side sheet / supporting pane |
-| — (iPadOS uses sidebar) | **Nav Drawer** (phone only) | `ModalNavigationDrawer` | Modal navigation drawer |
-| Toolbar | **Top Bar** | `StudioTopBar` | Top app bar |
-| Status Bar (bottom) | **Bottom Bar** | `StudioBottomBar` / `QueryBottomBar` | Bottom app bar |
+| Sidebar — segmented picker | **Rail** | `NavigationRail` in `StudioScaffold` (≥600dp) | Navigation Rail |
+| Sidebar — content list | **Data Panel** | `ListDetailSceneStrategy.listPane` in `AppNavGraph`; scene-managed width (preferred 320dp at ≥1200dp); default-visible at ≥840dp | List pane (list-detail layout) |
+| MainView | **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Detail pane / content pane |
+| Inspector | **Inspector** | Inspector column in `StudioScaffold`; 300dp (<1200dp) / 360dp (≥1200dp) / 400dp (≥1600dp); `ModalBottomSheet` at compact (<600dp) | Side sheet / supporting pane |
+| — (iPadOS uses sidebar) | **Nav Drawer** (compact only) | `ModalNavigationDrawer` in `StudioScaffold` (<600dp) | Modal navigation drawer |
+| Toolbar | **Top Bar** | `TopAppBar` in `StudioScaffold` | Top app bar |
+| Status Bar (bottom) | **Bottom Bar** | Floating `QueryWorkbenchBottomBar` (Query section only) | Bottom app bar |
 
 ---
 
@@ -94,13 +95,13 @@ in these regions, see [`RAIL_FEATURES.md`](RAIL_FEATURES.md).
 
 | Behavior | iOS | Android |
 |---|---|---|
-| Sidebar/Data Panel visibility | Always visible | Toggleable — slides in/out from the start edge |
-| Inspector visibility | Toggle via toolbar button | Toggle via top-bar button — slides in/out from the end edge |
-| Navigation switcher | Segmented picker (48pt SF Symbols) | Rail items (Material icons, `SulfurYellow` indicator) |
-| Phone adaptation | n/a (iPadOS/macOS only) | Rail + Data Panel merge into the modal Nav Drawer |
-| Status/utility bar | Persistent bottom status bar | Expandable `StudioBottomBar` (FAB collapses/expands it) |
+| Data Panel visibility | Always visible | Default-visible at ≥840dp (Expanded); scene controls width; can be toggled on narrower windows |
+| Inspector visibility | Toggle via toolbar button | Default-visible at ≥1200dp (Large); toggle via top-bar button; `ModalBottomSheet` at compact |
+| Navigation switcher | Segmented picker (48pt SF Symbols) | Rail items (Material icons, `SulfurYellow` indicator); visible at ≥600dp (Medium+) |
+| Phone / compact adaptation | n/a (iPadOS/macOS only) | Rail collapses into the modal Nav Drawer at <600dp; Data Panel becomes list-pane of scene |
+| Status/utility bar | Persistent bottom status bar | Floating `QueryWorkbenchBottomBar` in Query section (run, pagination, peers, overflow) |
 
 ---
 
-*Source of truth for the Android layout: `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/MainStudioScreen.kt`*
+*Source of truth for the Android layout: `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/StudioScaffold.kt` + `android/app/src/main/java/com/costoda/dittoedgestudio/ui/navigation/AppNavGraph.kt`*
 *Source of truth for the iOS layout: `SwiftUI/EdgeStudio/Views/MainStudioView.swift`*
