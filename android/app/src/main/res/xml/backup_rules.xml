@@ -1,13 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup rules (Android < 12).
+
+    The Room database `ditto_edge_studio.db` is encrypted with a SQLCipher key
+    stored in the Android Keystore. Keystore keys do NOT travel with backups, so
+    a restored DB on a new device is unopenable — every saved configuration
+    becomes inaccessible. Exclude the DB (and its WAL/SHM sidecars) so a restored
+    install starts clean instead of with an unopenable file.
+
+    Ditto's own persistence directory is in app-internal storage and is excluded
+    for the same reason (its native handles and keys are device-local).
+
+    See plans/android/config-loss-investigation.md (item B2).
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="ditto_edge_studio.db" />
+    <exclude domain="database" path="ditto_edge_studio.db-wal" />
+    <exclude domain="database" path="ditto_edge_studio.db-shm" />
+    <exclude domain="database" path="ditto_edge_studio.db-journal" />
+    <exclude domain="file" path="ditto" />
 </full-backup-content>
