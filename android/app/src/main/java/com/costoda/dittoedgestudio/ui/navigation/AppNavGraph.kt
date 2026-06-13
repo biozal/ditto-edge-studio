@@ -3,7 +3,10 @@
 package com.costoda.dittoedgestudio.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
@@ -11,8 +14,12 @@ import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,6 +49,9 @@ import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
 import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
+import com.costoda.dittoedgestudio.ui.recovery.KeyFailureScreen
+import com.costoda.dittoedgestudio.viewmodel.AppHealthViewModel
+import com.costoda.dittoedgestudio.viewmodel.DbHealthState
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 import org.koin.androidx.compose.koinViewModel
@@ -88,6 +98,48 @@ import org.koin.core.qualifier.named
  */
 @Composable
 fun AppNavGraph() {
+    // Fork on database health BEFORE anything else. If the encrypted Room DB can't
+    // be opened with the current Keystore-derived key, the rest of the graph (which
+    // resolves AppDatabase via Koin singleton) would crash on first DAO call. Drive
+    // the user-facing recovery surface here instead. See ui/recovery/KeyFailureScreen
+    // and plans/android/config-loss-investigation.md (item B3).
+    val healthViewModel: AppHealthViewModel = koinViewModel()
+    val healthState by healthViewModel.state.collectAsState()
+    var isRecovering by remember { mutableStateOf(false) }
+
+    when (val current = healthState) {
+        is DbHealthState.Initializing -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = "Opening database...",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+            return
+        }
+        is DbHealthState.KeyFailure -> {
+            KeyFailureScreen(
+                errorSummary = current.errorSummary,
+                isWorking = isRecovering,
+                onReset = { onComplete ->
+                    isRecovering = true
+                    healthViewModel.recover { success ->
+                        isRecovering = false
+                        onComplete(success)
+                    }
+                },
+            )
+            return
+        }
+        is DbHealthState.Healthy -> Unit // fall through to the normal graph
+    }
+
     val backStack = rememberNavBackStack(DatabaseListKey)
 
     // At Large+ widths (≥1200dp) we cap the list pane's preferred width to 320dp so the

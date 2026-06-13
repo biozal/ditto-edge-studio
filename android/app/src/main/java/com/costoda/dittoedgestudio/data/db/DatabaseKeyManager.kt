@@ -47,6 +47,34 @@ class DatabaseKeyManager(private val context: Context) {
         }
     }
 
+    /**
+     * Wipes the Keystore alias AND the stored encrypted passphrase so the next call
+     * to [getOrCreateKey] generates a fresh key from scratch.
+     *
+     * Used by the key-failure recovery path ([DatabaseRecovery]) when the existing
+     * key can no longer decrypt the database — there is no value in keeping either
+     * the alias or the (now-unrecoverable) ciphertext around.
+     *
+     * Safe to call even if the alias was already invalidated; KeyStore.deleteEntry
+     * throws only on backend failures, which are best-effort logged and swallowed
+     * (we're already in a recovery flow). See plans/android/config-loss-investigation.md (B3).
+     */
+    fun clearKey() {
+        runCatching {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (keyStore.containsAlias(keystoreAlias)) {
+                keyStore.deleteEntry(keystoreAlias)
+            }
+        }
+        // Clear the encrypted passphrase + IV; otherwise getOrCreateKey would try
+        // to decrypt with a now-missing alias and re-throw.
+        context.getSharedPreferences(prefsFile, Context.MODE_PRIVATE)
+            .edit()
+            .remove(prefsKey)
+            .remove(ivKey)
+            .apply()
+    }
+
     private fun generatePassphrase(): ByteArray {
         val passphrase = ByteArray(32)
         SecureRandom().nextBytes(passphrase)

@@ -2,6 +2,8 @@ package com.costoda.dittoedgestudio.data.di
 
 import com.costoda.dittoedgestudio.data.db.AppDatabase
 import com.costoda.dittoedgestudio.data.db.DatabaseKeyManager
+import com.costoda.dittoedgestudio.data.db.DatabaseOpener
+import com.costoda.dittoedgestudio.data.db.DatabaseRecovery
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.logging.LoggingService
@@ -30,6 +32,7 @@ import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayViewModel
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerViewModel
+import com.costoda.dittoedgestudio.viewmodel.AppHealthViewModel
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
@@ -52,7 +55,24 @@ val dataModule = module {
     single<CoroutineScope> { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
 
     single { DatabaseKeyManager(androidContext()) }
-    single { AppDatabase.create(androidContext(), get<DatabaseKeyManager>().getOrCreateKey()) }
+    single { DatabaseOpener(androidContext(), get<DatabaseKeyManager>()) }
+    single { DatabaseRecovery(androidContext(), get<DatabaseKeyManager>(), get<DatabaseOpener>()) }
+    // AppDatabase is built via DatabaseOpener so its open + decrypt path runs through
+    // the same probe that drives AppHealthViewModel. If the probe failed, this
+    // resolution path is never reached — the UI forks at the app root into the
+    // KeyFailureScreen before any DAO is touched. See data/db/DatabaseOpener.kt and
+    // plans/android/config-loss-investigation.md (B3).
+    single {
+        when (val result = get<DatabaseOpener>().openAndProbe()) {
+            is com.costoda.dittoedgestudio.data.db.DatabaseOpenResult.Ok -> result.db
+            is com.costoda.dittoedgestudio.data.db.DatabaseOpenResult.KeyFailure ->
+                throw IllegalStateException(
+                    "AppDatabase resolved while key-failure recovery should be visible. " +
+                        "This indicates a bug in the AppNavGraph health-state fork.",
+                    result.throwable,
+                )
+        }
+    }
     single { get<AppDatabase>().databaseConfigDao() }
     single { get<AppDatabase>().subscriptionDao() }
     single { get<AppDatabase>().historyDao() }
@@ -73,6 +93,10 @@ val dataModule = module {
     single { QueryExecutionService(get()) }
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
+    // AppHealthViewModel takes an ioDispatcher with a default of Dispatchers.IO for
+    // testability; in production we let the default win. Use an explicit factory so
+    // Koin doesn't try to resolve a CoroutineDispatcher binding it doesn't have.
+    viewModel { AppHealthViewModel(get(), get()) }
     viewModelOf(::DatabaseListViewModel)
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
     // Studio session scope — one StudioSession instance per scope id ("studio:<databaseId>").
