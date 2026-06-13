@@ -12,7 +12,8 @@ rust/target
 rust/.vscode
 rust/debug
 rust/designs
-.claude
+.claude/*
+!.claude/settings.json
 fontawesome
 .periphery_baseline.json
 .worktrees

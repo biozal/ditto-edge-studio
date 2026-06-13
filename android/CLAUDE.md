@@ -66,6 +66,8 @@ When the user references a screenshot by filename, always look for it in `screen
 
 **Working directory:** Always run Gradle commands from `android/` (this directory), not the repo root.
 
+**Device targeting (CRITICAL):** with multiple devices attached, ALWAYS prefix Gradle install/test commands with `ANDROID_SERIAL=<serial>` — it is the only supported mechanism (`-PdeviceSerial` does not exist and silently targets every device). Never run `adb uninstall` / `pm clear` / `pm uninstall` against a device holding a real configuration — uninstalling destroys app-private data (saved database configs). `connectedAndroidTest` removes and reinstalls the app **by design**; run it only on the designated wipe-safe test device. A PreToolUse hook in `.claude/settings.json` enforces these rules in Claude Code sessions (it also matches these literal patterns in prose typed through Bash — use the Edit tool for documentation).
+
 ## Android Studio
 
 - **Run configuration:** `app` (stored in `.idea/runConfigurations/app.xml`)
