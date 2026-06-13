@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -65,7 +66,7 @@ class QueryEditorViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val pageSizeOptions: StateFlow<List<Int>> =
-        combine(workbench.queryResult, workbench.queryResult) { r, _ ->
+        workbench.queryResult.map { r ->
             val total = r?.totalCount ?: 0
             buildList {
                 add(10)

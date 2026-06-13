@@ -29,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +38,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 @Composable
@@ -80,8 +78,10 @@ private fun DocumentCard(
     var showContextMenu by remember { mutableStateOf(false) }
     val id = document["_id"]?.toString() ?: "doc_$index"
     val jsonString = remember(document) { formatJson(document) }
+    // LocalClipboardManager is deprecated in favour of LocalClipboard (Compose UI 1.8+), but
+    // the replacement's setClipEntry() is a suspend function and would still require a coroutine
+    // scope. setText() is synchronous — no scope needed here.
     val clipboardManager = LocalClipboardManager.current
-    val scope = rememberCoroutineScope()
 
     // Right-click (secondary button) context menu affordance for desktop windowing.
     // Detects the secondary-button press via the underlying MotionEvent.BUTTON_SECONDARY
@@ -169,9 +169,7 @@ private fun DocumentCard(
                 text = { Text("Copy JSON") },
                 onClick = {
                     showContextMenu = false
-                    scope.launch {
-                        clipboardManager.setText(AnnotatedString(jsonString))
-                    }
+                    clipboardManager.setText(AnnotatedString(jsonString))
                 },
             )
         }

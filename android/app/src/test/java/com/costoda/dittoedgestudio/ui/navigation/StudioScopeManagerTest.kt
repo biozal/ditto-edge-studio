@@ -82,14 +82,12 @@ class StudioScopeManagerTest {
     @Test
     fun `every StudioChildKey subtype contributes its databaseId to the active set`() {
         // Regression guard: if a new StudioChildKey subtype is added, this test catches it
-        // before a strip-site or scope-manager site is missed. List all four subtypes explicitly
+        // before a strip-site or scope-manager site is missed. List all subtypes explicitly
         // (no reflection) so the test fails to compile if a constructor signature changes.
         val databaseId = 42L
         val subtypes: List<StudioChildKey> = listOf(
             ObserverEventsKey(databaseId = databaseId, observerId = 1L),
-            PresenceContentKey(databaseId = databaseId),
             QueryMetricDetailKey(databaseId = databaseId, historyId = 1L),
-            QueryContentKey(databaseId = databaseId),
         )
         subtypes.forEach { childKey ->
             assertEquals(
@@ -113,17 +111,6 @@ class StudioScopeManagerTest {
     }
 
     @Test
-    fun `drill-in detail key keeps the parent studio scope active`() {
-        // Drill-in via PresenceContentKey on top of SubscriptionsKey maintains scope.
-        val stack = listOf(
-            DatabaseListKey,
-            SubscriptionsKey(databaseId = 7L),
-            PresenceContentKey(databaseId = 7L),
-        )
-        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
-    }
-
-    @Test
     fun `QueryMetricDetailKey on top of QueryMetricsKey keeps the same databaseId active`() {
         // Compact-width drill-in: QueryMetricsKey -> QueryMetricDetailKey.
         val stack = listOf(
@@ -134,14 +121,4 @@ class StudioScopeManagerTest {
         assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
     }
 
-    @Test
-    fun `QueryContentKey on top of QueryKey keeps the same databaseId active`() {
-        // Compact-width drill-in: QueryKey -> QueryContentKey (the editor).
-        val stack = listOf(
-            DatabaseListKey,
-            QueryKey(databaseId = 7L),
-            QueryContentKey(databaseId = 7L),
-        )
-        assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
-    }
 }

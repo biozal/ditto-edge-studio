@@ -46,7 +46,7 @@ sealed interface StudioSectionKey : NavKey {
 // ---------------------------------------------------------------------------
 
 /**
- * Marker for the four compact-width drill-in keys that belong to the studio but are NOT rail
+ * Marker for the compact-width drill-in keys that belong to the studio but are NOT rail
  * section keys. Every instance carries a [databaseId] so [StudioScopeManager] can keep the
  * Koin scope alive, and [AppNavGraph.StudioSectionContainer] can strip them all in one
  * `removeIf` call on rail switches.
@@ -70,31 +70,6 @@ sealed interface StudioChildKey : NavKey {
  * [historyId] matches [com.costoda.dittoedgestudio.domain.model.QueryMetrics.historyId] (Long).
  */
 @Serializable data class QueryMetricDetailKey(override val databaseId: Long, val historyId: Long) : StudioChildKey
-
-/**
- * Compact-width drill-in: the Presence content pane (Connected Peers tabs).
- *
- * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.listPane] detail
- * placeholder and never pushed onto the back stack. At compact widths it is pushed on
- * top of [SubscriptionsKey] so the user reaches "Peers List / Presence Viewer" via a
- * normal back-stack drill-in from the subscriptions list.
- */
-@Serializable data class PresenceContentKey(override val databaseId: Long) : StudioChildKey
-
-/**
- * Compact-width drill-in: the Query Workbench content pane (DQL editor + results).
- *
- * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.listPane] detail
- * placeholder and never pushed onto the back stack — the editor is always visible
- * side-by-side with the collections list.
- *
- * At compact widths the user lands on [QueryKey] (collections list) by default, but a
- * one-frame LaunchedEffect pushes this key automatically so the *effective* compact
- * landing is the editor — matching legacy phone UX where the editor was the primary
- * surface and collections lived in the rail drawer. Tapping system back from the editor
- * returns to the collections list (one-tap-away from anything in the editor).
- */
-@Serializable data class QueryContentKey(override val databaseId: Long) : StudioChildKey
 
 // ---------------------------------------------------------------------------
 // Mapping helpers between StudioNavItem enum and StudioSectionKey
@@ -135,7 +110,5 @@ val StudioSectionKey.navItem: StudioNavItem get() = when (this) {
  */
 val StudioChildKey.parentNavItem: StudioNavItem get() = when (this) {
     is ObserverEventsKey      -> StudioNavItem.OBSERVERS
-    is PresenceContentKey     -> StudioNavItem.SUBSCRIPTIONS
     is QueryMetricDetailKey   -> StudioNavItem.QUERY_METRICS
-    is QueryContentKey        -> StudioNavItem.QUERY
 }

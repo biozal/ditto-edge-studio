@@ -299,33 +299,6 @@ fun AppNavGraph() {
                         }
                     }
 
-                    // Legacy detail keys kept for back-stack restore compatibility. These
-                    // are never pushed in the current code path (drawer mode shows content
-                    // by default; multi-pane uses list-pane + detail-placeholder), but we
-                    // keep the entries so any persisted stack from a previous build still
-                    // resolves to something sensible.
-                    entry<PresenceContentKey>(
-                        metadata = ListDetailSceneStrategy.detailPane(),
-                    ) { key ->
-                        StudioSectionContainer(
-                            databaseId = key.databaseId,
-                            section = StudioNavItem.SUBSCRIPTIONS,
-                        ) { viewModel ->
-                            PresenceContentSection(viewModel = viewModel)
-                        }
-                    }
-
-                    entry<QueryContentKey>(
-                        metadata = ListDetailSceneStrategy.detailPane(),
-                    ) { key ->
-                        StudioSectionContainer(
-                            databaseId = key.databaseId,
-                            section = StudioNavItem.QUERY,
-                        ) { viewModel ->
-                            QueryWorkbenchContentSection(viewModel = viewModel)
-                        }
-                    }
-
                     // ── Scene-driven section: Query Workbench ────────────────────────────
                     entry<QueryKey>(
                         metadata = ListDetailSceneStrategy.listPane(

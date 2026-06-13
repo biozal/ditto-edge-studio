@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private const val CELL_MIN_WIDTH_DP = 120
@@ -129,8 +127,10 @@ private fun TableDataRow(
     scrollState: ScrollState,
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
+    // LocalClipboardManager is deprecated in favour of LocalClipboard (Compose UI 1.8+), but
+    // the replacement's setClipEntry() is a suspend function and would still require a coroutine
+    // scope. setText() is synchronous — no scope needed here.
     val clipboardManager = LocalClipboardManager.current
-    val scope = rememberCoroutineScope()
     val jsonString = remember(doc) { formatDocJson(doc) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -183,9 +183,7 @@ private fun TableDataRow(
                 text = { Text("Copy JSON") },
                 onClick = {
                     showContextMenu = false
-                    scope.launch {
-                        clipboardManager.setText(AnnotatedString(jsonString))
-                    }
+                    clipboardManager.setText(AnnotatedString(jsonString))
                 },
             )
         }

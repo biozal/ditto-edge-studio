@@ -83,20 +83,8 @@ class StudioSectionKeyTest {
     }
 
     @Test
-    fun `PresenceContentKey parentNavItem maps to SUBSCRIPTIONS`() {
-        val key: StudioChildKey = PresenceContentKey(databaseId = 1L)
-        assertEquals(StudioNavItem.SUBSCRIPTIONS, key.parentNavItem)
-    }
-
-    @Test
     fun `QueryMetricDetailKey parentNavItem maps to QUERY_METRICS`() {
         val key: StudioChildKey = QueryMetricDetailKey(databaseId = 1L, historyId = 9L)
         assertEquals(StudioNavItem.QUERY_METRICS, key.parentNavItem)
-    }
-
-    @Test
-    fun `QueryContentKey parentNavItem maps to QUERY`() {
-        val key: StudioChildKey = QueryContentKey(databaseId = 1L)
-        assertEquals(StudioNavItem.QUERY, key.parentNavItem)
     }
 }
