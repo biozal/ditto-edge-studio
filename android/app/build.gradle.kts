@@ -37,6 +37,16 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            // mockk-android pulls in JUnit 5 (Jupiter) transitively, which includes multiple
+            // copies of LICENSE.md / LICENSE-notice.md. Exclude them to avoid merge conflicts.
+            excludes += setOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md",
+            )
+        }
+    }
     testOptions {
         unitTests {
             isReturnDefaultValues = true
@@ -180,4 +190,5 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.mockk.android)
 }

@@ -45,8 +45,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowSizeClass
 import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorWidth
@@ -97,9 +99,12 @@ fun StudioScaffold(
     onSectionSelect: (StudioNavItem) -> Unit,
     inspectorContent: (@Composable () -> Unit)? = null,
     dataPanelContent: (@Composable (closeDrawer: () -> Unit) -> Unit)? = null,
+    // Optional override for testability: pass a fixed WindowSizeClass in Compose UI tests to
+    // exercise both layout branches without needing a real device window of a specific size.
+    // Production code omits this arg and lets studioWindowSizeClass() read the real window.
+    windowSizeClass: WindowSizeClass = studioWindowSizeClass(),
     content: @Composable () -> Unit,
 ) {
-    val windowSizeClass = studioWindowSizeClass()
     val multiPaneLayout = windowSizeClass.studioMultiPane
     val inspectorDefault = windowSizeClass.inspectorDefaultVisible
     val inspectorColumnWidth = windowSizeClass.inspectorWidth
@@ -131,8 +136,9 @@ fun StudioScaffold(
 
     if (multiPaneLayout) {
         Row(modifier = Modifier.fillMaxSize().safeDrawingPadding().then(railShortcutModifier)) {
-            // Rail
-            NavigationRail {
+            // Rail — tagged "StudioRail" so instrumented layout tests can assert its presence
+            // (multi-pane) or absence (drawer mode) without depending on implementation details.
+            NavigationRail(modifier = Modifier.testTag("StudioRail")) {
                 StudioNavItem.entries.forEach { item ->
                     NavigationRailItem(
                         selected = currentSection == item,

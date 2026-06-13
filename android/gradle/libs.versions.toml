@@ -81,6 +81,7 @@ androidx-navigation3-runtime = { group = "androidx.navigation3", name = "navigat
 androidx-navigation3-ui = { group = "androidx.navigation3", name = "navigation3-ui", version.ref = "nav3" }
 # Testing
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 # QR Code — ML Kit + CameraX + ZXing + serialization
 mlkit-barcode = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
