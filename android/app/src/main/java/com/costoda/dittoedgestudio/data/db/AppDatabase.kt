@@ -76,11 +76,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration policy (see plans/android/config-loss-investigation.md item B1):
+        // - Every schema version bump REQUIRES a hand-written Migration AND a committed
+        //   schema JSON under app/schemas/.../<version>.json (validated by MigrationTest).
+        // - DO NOT re-add .fallbackToDestructiveMigration(...) / .fallbackToDestructiveMigrationOnDowngrade().
+        //   Missing-migration failures are intentional: Room will throw IllegalStateException
+        //   on app launch, surfacing the bug in QA instead of silently wiping every saved
+        //   database config, subscription, observer, favorite, and history row in production.
         fun create(context: Context, key: ByteArray): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }
 }

@@ -42,6 +42,15 @@ android {
             isReturnDefaultValues = true
         }
     }
+
+    // Expose the Room-exported schema JSONs to androidTest so MigrationTestHelper
+    // can load them via assets. The schemas/ directory is checked into git
+    // (see plans/android/config-loss-investigation.md item B1).
+    sourceSets {
+        named("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 kotlin {
