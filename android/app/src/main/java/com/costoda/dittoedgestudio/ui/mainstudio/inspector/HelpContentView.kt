@@ -4,6 +4,7 @@ import android.text.method.LinkMovementMethod
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.widget.NestedScrollView
@@ -56,6 +58,13 @@ fun HelpContentView(
             .build()
     }
 
+    // Bridge MaterialTheme colors into the AndroidView. Compose's theme does not propagate to
+    // the View hierarchy, so without this the TextView would render with platform defaults
+    // (light surface, dark text) regardless of system dark mode.
+    val surfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+    val onSurfaceArgb = MaterialTheme.colorScheme.onSurface.toArgb()
+    val linkArgb = MaterialTheme.colorScheme.primary.toArgb()
+
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
@@ -73,7 +82,11 @@ fun HelpContentView(
             }
         },
         update = { sv ->
+            sv.setBackgroundColor(surfaceArgb)
             val tv = sv.getChildAt(0) as TextView
+            tv.setBackgroundColor(surfaceArgb)
+            tv.setTextColor(onSurfaceArgb)
+            tv.setLinkTextColor(linkArgb)
             markwon.setMarkdown(tv, markdown)
         },
     )
