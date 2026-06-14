@@ -6,6 +6,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.focusable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -120,8 +124,16 @@ fun StudioScaffold(
     // onPreviewKeyEvent on the outermost focusable container intercepts the event before any
     // descendant (rail items, text fields) can consume it. The container is made focusable()
     // so it participates in focus traversal and can receive key events when nothing inside it
-    // holds focus.
+    // holds focus. The FocusRequester + LaunchedEffect seed focus on the scaffold root on
+    // first composition so the shortcuts fire from a pure-touch entry (without a hardware
+    // keypress first) — required for connected-display / Bluetooth keyboard scenarios where
+    // the user expects shortcuts to work the moment the studio appears.
+    val railFocus = remember { FocusRequester() }
+    LaunchedEffect(railFocus) {
+        runCatching { railFocus.requestFocus() }
+    }
     val railShortcutModifier = Modifier
+        .focusRequester(railFocus)
         .onPreviewKeyEvent { event ->
             if (event.type == KeyEventType.KeyDown) {
                 val target = studioShortcutFor(event)
