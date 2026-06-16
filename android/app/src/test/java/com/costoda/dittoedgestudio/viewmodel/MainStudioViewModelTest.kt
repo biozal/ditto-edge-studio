@@ -166,6 +166,22 @@ class MainStudioViewModelTest {
     }
 
     @Test
+    fun `showDirectConnectedOnly defaults to true`() = runTest {
+        val vm = createViewModel()
+        assertTrue(vm.showDirectConnectedOnly.value)
+    }
+
+    @Test
+    fun `toggleDirectConnectedOnly flips the flag`() = runTest {
+        val vm = createViewModel()
+        assertTrue(vm.showDirectConnectedOnly.value)
+        vm.toggleDirectConnectedOnly()
+        assertEquals(false, vm.showDirectConnectedOnly.value)
+        vm.toggleDirectConnectedOnly()
+        assertTrue(vm.showDirectConnectedOnly.value)
+    }
+
+    @Test
     fun `loadNetworkDiagnostics populates networkInterfaces and p2pTransports`() = runTest {
         val mockInterfaces = listOf(
             NetworkInterfaceInfo(

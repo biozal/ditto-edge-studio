@@ -42,32 +42,24 @@ private const val PEER_RING_PADDING_DP: Float = 20f
 /**
  * Compute a BFS-based ring layout for the given peers.
  *
+ * The cloud node (when present in [peerIds]) is laid out like any other ring-1 peer.
+ * The plan originally specified pinning it to top-center at `(0, +1.5 × r1)`, but
+ * that override caused vertical collisions when another ring-1 peer landed near 90°
+ * (notably iPhone, whose edge would then visually pass through the cloud line).
+ *
  * @param localPeerId  the local device's peer key. Always placed at origin (ring 0).
- * @param peerIds      all peer keys to lay out (must include [localPeerId]). Cloud key
- *                     should be included here if [cloudPeerId] is non-null.
+ * @param peerIds      all peer keys to lay out (must include [localPeerId]).
  * @param edges        connection edges (undirected — direction is normalized internally).
- * @param cloudPeerId  if non-null and present in [peerIds], the cloud node is pinned to
- *                     top-center at `(0, +1.5 × ringRadius_1)` regardless of its BFS
- *                     assignment. Matches the plan's iOS-parity behavior — iOS treats
- *                     cloud as a regular ring-1 peer, but the plan opinionates the
- *                     position to top-center for visual consistency.
  */
 internal fun calculateRadialLayout(
     localPeerId: String,
     peerIds: Iterable<String>,
     edges: Iterable<LayoutEdgeInput>,
-    @Suppress("UNUSED_PARAMETER") cloudPeerId: String? = null,
 ): LayoutResult {
     val allPeers: Set<String> = peerIds.toSet() + localPeerId
     val adjacency = buildAdjacency(edges)
     val (ringAssignments, parentMap) = performBfs(localPeerId, adjacency, allPeers)
     val ringRadii = calculateRingRadii(ringAssignments)
-    // Cloud peer is now placed by BFS like any other ring-1 peer (its synthetic edge to
-    // local puts it on ring 1). The previous (0, +1.5 × r1) override caused vertical
-    // collisions when another ring-1 peer happened to land at ~90° — iPhone in
-    // particular, whose edge would then visually pass through the cloud line near Me.
-    // The cloudPeerId parameter is kept for source compatibility with the plan's spec
-    // but is intentionally unused; remove on a future cleanup.
     val positions = calculatePositions(
         ringAssignments = ringAssignments,
         ringRadii = ringRadii,

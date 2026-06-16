@@ -56,6 +56,10 @@ internal fun DrawScope.drawPresenceEdge(
     parallelOffsetPx: Float,
     cloudCircleSpacingPx: Float,
     path: Path,
+    /** Reusable PathMeasure for cloud-edge decorative circles. Allocating one per
+     *  frame on a cloud-heavy graph was a measurable hotspot; the caller pools one
+     *  alongside [path]. */
+    pathMeasure: PathMeasure = PathMeasure(),
 ) {
     val dx = toPos.x - fromPos.x
     val dy = toPos.y - fromPos.y
@@ -129,6 +133,7 @@ internal fun DrawScope.drawPresenceEdge(
     if (isCloud) {
         drawCloudCirclesAlongPath(
             path = path,
+            pathMeasure = pathMeasure,
             color = color,
             alpha = alpha * 0.8f,
             radiusPx = 3.dp.toPx(),
@@ -192,12 +197,13 @@ internal fun DrawScope.drawPresencePeerPill(
 
 private fun DrawScope.drawCloudCirclesAlongPath(
     path: Path,
+    pathMeasure: PathMeasure,
     color: Color,
     alpha: Float,
     radiusPx: Float,
     spacingPx: Float,
 ) {
-    val measure = PathMeasure().apply { setPath(path, false) }
+    val measure = pathMeasure.apply { setPath(path, false) }
     val length = measure.length
     if (length <= 0f || spacingPx <= 0f) return
     val numCircles = (length / spacingPx).toInt()

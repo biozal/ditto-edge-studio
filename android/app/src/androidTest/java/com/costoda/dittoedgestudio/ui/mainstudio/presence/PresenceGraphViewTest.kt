@@ -7,6 +7,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
+import com.costoda.dittoedgestudio.domain.model.MeshEdge
+import com.costoda.dittoedgestudio.domain.model.MeshPeer
+import com.costoda.dittoedgestudio.domain.model.MeshTopology
 import com.costoda.dittoedgestudio.data.session.PeersUiState
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
@@ -127,6 +131,71 @@ class PresenceGraphViewTest {
         }
 
         composeRule.onNodeWithContentDescription("Direct Connected Only").assertIsDisplayed()
+    }
+
+    @Test
+    fun tapPeer_doesNotCrashAndExposesSemantics() {
+        // The selection state itself isn't exposed via semantics (visual-only
+        // dim/highlight on the canvas), so we exercise the click action and
+        // confirm the semantics node still resolves afterward — i.e. that the
+        // tap-driven recomposition path doesn't crash or remove the peer.
+        composeRule.setContent {
+            EdgeStudioTheme {
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(remotePeer("p1", "Device 1")),
+                    ),
+                    showDirectConnectedOnly = true,
+                    onToggleDirectConnectedOnly = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        // After tap-to-select, peer remains in the semantics tree.
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed()
+        // Local pill is announced for a11y but is NOT a tap target — exclusion
+        // from hitTestPeer + clickable filter prevents the layout-anchor break.
+        composeRule.onNodeWithContentDescription("Me").assertIsDisplayed()
+    }
+
+    @Test
+    fun directOff_surfacesNonDirectMeshPeers() {
+        // p1 is directly connected to local; p2 is in the raw mesh only
+        // (connected to p1 but not to local). With Direct ON, p2 should not
+        // appear; with Direct OFF, p2 should appear.
+        val direct = remotePeer("p1", "Pixel 10a")
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(
+                MeshPeer(peerKey = "p1", deviceName = "Pixel 10a"),
+                MeshPeer(peerKey = "p2", deviceName = "Galaxy Tab"),
+            ),
+            edges = listOf(
+                MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.LAN),
+                MeshEdge(peer1 = "p1", peer2 = "p2", type = ConnectionType.Bluetooth),
+            ),
+        )
+
+        composeRule.setContent {
+            EdgeStudioTheme {
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(direct),
+                        meshTopology = mesh,
+                    ),
+                    showDirectConnectedOnly = false,
+                    onToggleDirectConnectedOnly = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Pixel 10a").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Galaxy Tab").assertIsDisplayed()
     }
 
     @Test

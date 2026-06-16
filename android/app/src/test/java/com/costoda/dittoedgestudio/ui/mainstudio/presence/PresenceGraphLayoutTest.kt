@@ -119,7 +119,6 @@ class PresenceGraphLayoutTest {
             localPeerId = "local",
             peerIds = listOf("local", "p1", CLOUD_NODE_KEY),
             edges = edges,
-            cloudPeerId = CLOUD_NODE_KEY,
         )
         val cloudPos = result.positions[CLOUD_NODE_KEY]!!
         val ring1 = result.ringRadii[1]!!

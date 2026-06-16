@@ -29,6 +29,7 @@ import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("Presence", Icons.Outlined.Sync),
@@ -141,8 +142,9 @@ class MainStudioViewModel(
     // to true so the graph starts at the same "direct-only" view as iOS.
     private val _showDirectConnectedOnly = MutableStateFlow(true)
     val showDirectConnectedOnly: StateFlow<Boolean> = _showDirectConnectedOnly.asStateFlow()
+    /** Atomic flip — guards against the unlikely concurrent-toggle case. */
     fun toggleDirectConnectedOnly() {
-        _showDirectConnectedOnly.value = !_showDirectConnectedOnly.value
+        _showDirectConnectedOnly.update { !it }
     }
 
     // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`

@@ -98,7 +98,10 @@ internal fun detectDeviceKind(deviceName: String?): PeerDeviceKind {
             name.contains("windows") || name.contains("surface") ||
             name.contains("laptop") -> PeerDeviceKind.Laptop
 
-        name.contains("cloud") || name.contains("ditto") -> PeerDeviceKind.Cloud
+        // Tightened from `contains("ditto")` — "Ditto Server" (an on-prem product)
+        // would otherwise collide with the synthetic Big-Peer "Ditto Cloud" node and
+        // be drawn as a cloud pill instead of a server.
+        name.contains("ditto cloud") || name == "cloud" -> PeerDeviceKind.Cloud
 
         else -> PeerDeviceKind.Server
     }
@@ -201,6 +204,12 @@ private fun PeersUiState.Active.buildFullMeshModel(
     localId: String,
 ): PresenceGraphModel {
     val mesh = meshTopology
+    // If the repository hasn't published a meshTopology yet (e.g. first observe
+    // emission still in flight), fall back to the direct-only projection rather
+    // than rendering a one-node "Me" graph from MeshTopology.Empty.
+    if (mesh.localPeerKey.isBlank()) {
+        return buildDirectOnlyModel(local, localId)
+    }
     val nodes = mutableListOf<PeerNode>()
     nodes.add(
         PeerNode(

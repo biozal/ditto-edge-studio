@@ -211,4 +211,13 @@ class PresenceGraphStateTest {
         assertEquals(PeerDeviceKind.Server, detectDeviceKind("Unknown Box"))
         assertEquals(PeerDeviceKind.Server, detectDeviceKind(null))
     }
+
+    @Test
+    fun `ditto server is not misclassified as cloud`() {
+        // Regression: an earlier substring("ditto") match incorrectly bucketed
+        // on-prem "Ditto Server" peers as the synthetic Cloud node. Tighten
+        // ensures they route to PeerDeviceKind.Server instead.
+        assertEquals(PeerDeviceKind.Server, detectDeviceKind("Ditto Server"))
+        assertEquals(PeerDeviceKind.Server, detectDeviceKind("ditto-server-prod-01"))
+    }
 }

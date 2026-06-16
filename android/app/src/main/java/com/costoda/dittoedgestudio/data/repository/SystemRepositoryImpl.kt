@@ -175,6 +175,11 @@ class SystemRepositoryImpl(
             sdkLanguage = "Kotlin",
             sdkPlatform = "Android",
             sdkVersion = graph.localPeer.dittoSdkVersion ?: "Unknown",
+            // The Kotlin SDK exposes this as `isConnectedToDittoServer`; the iOS SDK
+            // calls the same flag `isConnectedToDittoCloud`. Both mean the same thing
+            // — "is this local device currently linked to the hosted Big Peer / Ditto
+            // Cloud service?" (NOT an on-prem Ditto Server instance — that's a
+            // different product). Keep our domain field name iOS-aligned.
             isCloudConnected = graph.localPeer.isConnectedToDittoServer,
         )
     }

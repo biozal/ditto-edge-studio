@@ -70,16 +70,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.util.Log
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import com.costoda.dittoedgestudio.data.session.PeersUiState
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+private const val TAG = "PresenceGraphView"
 
 /**
  * Per-peer animation state. Position, scale, and alpha each have their own [Animatable];
  * the renderer reads `.value` inside `drawBehind`, which invalidates the draw layer only
  * — composition is not retriggered per animation frame.
+ *
+ * The three `*Job` fields hold the outer coroutines driving each Animatable. They are
+ * cancelled before launching a replacement so back-to-back `applyLayoutDiff` invocations
+ * (e.g. presence update arriving immediately after drag-release) can't race each other
+ * on the same Animatable with stale targets.
  */
 internal class PeerAnimState(
     val position: Animatable<Offset, *>,
@@ -87,6 +98,9 @@ internal class PeerAnimState(
     val alpha: Animatable<Float, *>,
     var target: Offset,
     var exiting: Boolean = false,
+    var positionJob: Job? = null,
+    var scaleJob: Job? = null,
+    var alphaJob: Job? = null,
 )
 
 private const val ENTER_ANIM_MS = 400
@@ -123,19 +137,16 @@ fun PresenceGraphView(
         }
     }
 
-    val layoutResult = remember(
-        graphModel.localPeerId,
-        graphModel.nodes.map { it.peerId },
-        graphModel.edges.map { it.edgeId },
-    ) {
+    // Key on the @Immutable graphModel directly. Its data-class equality is cached
+    // and stable across recompositions for unchanged states, so we avoid allocating
+    // a temporary List<String> per recompose for the remember key.
+    val layoutResult = remember(graphModel) {
         val localId = graphModel.localPeerId
             ?: return@remember LayoutResult(emptyMap(), emptyMap(), emptyMap())
-        val cloudId = graphModel.nodes.firstOrNull { it.isCloud }?.peerId
         calculateRadialLayout(
             localPeerId = localId,
             peerIds = graphModel.nodes.map { it.peerId },
             edges = graphModel.edges.map { LayoutEdgeInput(it.fromPeerId, it.toPeerId) },
-            cloudPeerId = cloudId,
         )
     }
 
@@ -145,7 +156,25 @@ fun PresenceGraphView(
     val draggingPeerId = remember { mutableStateOf<String?>(null) }
     val deferredLayout = remember { mutableStateOf<LayoutResult?>(null) }
     val sceneSizePx = remember { mutableStateOf(IntOffset.Zero) }
-    val pulseAlpha = remember { mutableFloatStateOf(1f) }
+    // Pulse on incident edges when a peer is selected. Hosted via a conditional
+    // composable helper: while inactive it's a stable State<Float>=1f, while active
+    // it's an InfiniteTransition-driven State. Either way the parent never reads
+    // `.value` during composition (only inside drawBehind), so the parent never
+    // recomposes per animation frame.
+    val pulseAlphaState: State<Float> = rememberPulseAlphaState(
+        active = selectedPeerId.value != null,
+    )
+
+    // Belt-and-suspenders: if the composable leaves composition mid-drag (tab
+    // switch, navigation), clear draggingPeerId so the next visit doesn't start
+    // with the LaunchedEffect deferring forever because the flag was never reset.
+    DisposableEffect(Unit) {
+        onDispose {
+            draggingPeerId.value = null
+            peerStates.clear()
+            deferredLayout.value = null
+        }
+    }
 
     val sceneCenterPx by remember(sceneSizePx.value) {
         derivedStateOf { Offset(sceneSizePx.value.x * 0.5f, sceneSizePx.value.y * 0.5f) }
@@ -154,9 +183,18 @@ fun PresenceGraphView(
     val pxPerDp = density.density
     LaunchedEffect(graphModel.nodes, layoutResult.positions, pxPerDp) {
         if (draggingPeerId.value != null) {
+            Log.d(
+                TAG,
+                "Layout update deferred (peer drag in progress); nodes=${graphModel.nodes.size} " +
+                    "edges=${graphModel.edges.size}",
+            )
             deferredLayout.value = layoutResult
             return@LaunchedEffect
         }
+        Log.d(
+            TAG,
+            "Applying layout: nodes=${graphModel.nodes.size} edges=${graphModel.edges.size}",
+        )
         applyLayoutDiff(scope, peerStates, graphModel, layoutResult, pxPerDp)
         deferredLayout.value = null
     }
@@ -187,6 +225,10 @@ fun PresenceGraphView(
     }
 
     val pathPool = remember { mutableMapOf<String, Path>() }
+    // Reused PathMeasure for cloud-edge decorative circles. PathMeasure is mutable
+    // (setPath() rebinds), so a single instance is safe — only one cloud edge
+    // measures at a time inside drawBehind's sequential loop.
+    val cloudPathMeasure = remember { androidx.compose.ui.graphics.PathMeasure() }
     val dashEffects = rememberDashEffects()
     val cloudCircleSpacingPx = with(density) { 40.dp.toPx() }
     val baseStrokePx = with(density) { 2.dp.toPx() }
@@ -240,25 +282,41 @@ fun PresenceGraphView(
         }
     }
 
-    val edgeColorByEdgeId: Map<String, Color> = graphModel.edges.associate { edge ->
-        edge.edgeId to connectionColor(edge.type, edge.isCloud)
-    }
     val isDarkScheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val remoteGreen = if (isDarkScheme) RemoteGreenDark else RemoteGreenLight
     val primaryColor = MaterialTheme.colorScheme.primary
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
-    val nodeFillByPeerId: Map<String, Color> = graphModel.nodes.associate { node ->
-        node.peerId to when {
-            node.isCloud -> connectionColor(ConnectionType.WebSocket, isCloud = true)
-            node.isLocal -> primaryColor
-            else -> remoteGreen
+
+    // Wrap the three per-node/edge color tables in `remember` so they aren't rebuilt
+    // (allocating a fresh LinkedHashMap each time) on every recomposition. Keys
+    // include the inputs that can change the mapping: edges/nodes from the model,
+    // dark-mode toggle, and the primary theme colors. `resolveColor` is the
+    // non-Composable underlying function from ConnectionStyles — safe to call
+    // inside `remember { ... }`.
+    val cloudColor = remember(isDarkScheme) {
+        resolveColor(ConnectionType.WebSocket, isCloud = true, dark = isDarkScheme)
+    }
+    val edgeColorByEdgeId: Map<String, Color> = remember(graphModel.edges, isDarkScheme) {
+        graphModel.edges.associate { edge ->
+            edge.edgeId to resolveColor(edge.type, edge.isCloud, isDarkScheme)
+        }
+    }
+    val nodeFillByPeerId: Map<String, Color> = remember(graphModel.nodes, primaryColor, remoteGreen, cloudColor) {
+        graphModel.nodes.associate { node ->
+            node.peerId to when {
+                node.isCloud -> cloudColor
+                node.isLocal -> primaryColor
+                else -> remoteGreen
+            }
         }
     }
     // Local pill sits on `primary` (yellow in this theme) — onPrimary is the readable
     // text color the theme provides. Remote (green) and cloud (purple) are dark fills,
     // so white text stays readable on both.
-    val nodeTextColorByPeerId: Map<String, Color> = graphModel.nodes.associate { node ->
-        node.peerId to if (node.isLocal) onPrimaryColor else Color.White
+    val nodeTextColorByPeerId: Map<String, Color> = remember(graphModel.nodes, onPrimaryColor) {
+        graphModel.nodes.associate { node ->
+            node.peerId to if (node.isLocal) onPrimaryColor else Color.White
+        }
     }
     // Use the same background tone every other screen inherits from the parent
     // Material 3 Scaffold (colorScheme.background — PapyrusWhite light / JetBlack
@@ -276,7 +334,11 @@ fun PresenceGraphView(
             // pills bleed up into the tab toolbar above this view.
             .clipToBounds()
             .onSizeChanged { size -> sceneSizePx.value = IntOffset(size.width, size.height) }
-            .pointerInput(graphModel.nodes.map { it.peerId }) {
+            // Key on Unit so mesh churn (peers joining/leaving while the user is
+            // mid-gesture) does NOT cancel the gesture coroutine. The handler reads
+            // `graphModel.nodes` lazily through the snapshot delegate so it always
+            // sees current state without needing a re-keyed restart.
+            .pointerInput(Unit) {
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(requireUnconsumed = false)
                     val downPosition = firstDown.position
@@ -292,6 +354,12 @@ fun PresenceGraphView(
                     var dragStarted = false
                     var isPeerDrag = false
                     var isPanning = false
+                    // Tracks the prior frame's active-pointer count. When it
+                    // transitions 2→1 (a pinch becomes a single touch) the remaining
+                    // pointer's `previousPosition` is stale (it was moving during the
+                    // pinch), so we skip that frame's delta to avoid an unwanted
+                    // single-frame jump in pan or peer-drag.
+                    var lastPressedCount = 0
 
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Main)
@@ -306,6 +374,7 @@ fun PresenceGraphView(
                                 selectedPeerId.value = null
                             }
                             if (isPeerDrag) {
+                                Log.d(TAG, "Drag end peer=${draggingPeerId.value}")
                                 draggingPeerId.value = null
                                 val deferred = deferredLayout.value
                                 if (deferred != null) {
@@ -313,6 +382,7 @@ fun PresenceGraphView(
                                     deferredLayout.value = null
                                 }
                             }
+                            lastPressedCount = 0
                             break
                         }
                         if (pressed.size >= 2) {
@@ -324,9 +394,17 @@ fun PresenceGraphView(
                                 )
                                 event.changes.forEach { it.consume() }
                             }
+                            lastPressedCount = pressed.size
                             continue
                         }
                         // Single-pointer drag or pending tap
+                        val justTransitionedFromPinch = lastPressedCount >= 2
+                        lastPressedCount = pressed.size
+                        if (justTransitionedFromPinch) {
+                            // Discard this frame's stale delta — the next frame will
+                            // produce a clean previousPosition.
+                            continue
+                        }
                         val change = pressed[0]
                         val delta = change.position - change.previousPosition
                         if (!dragStarted) {
@@ -336,6 +414,7 @@ fun PresenceGraphView(
                                 if (hitPeerId != null) {
                                     isPeerDrag = true
                                     draggingPeerId.value = hitPeerId
+                                    Log.d(TAG, "Drag start peer=$hitPeerId")
                                 } else {
                                     isPanning = true
                                 }
@@ -367,6 +446,11 @@ fun PresenceGraphView(
                 }
             }
             .drawBehind {
+                // Skip the entire draw pass before onSizeChanged has reported a real
+                // viewport — otherwise the first frame draws every pill at canvas
+                // origin (0,0), producing a brief visible flash before re-layout.
+                if (sceneSizePx.value.x == 0 || sceneSizePx.value.y == 0) return@drawBehind
+
                 for (edge in graphModel.edges) {
                     val fromState = peerStates[edge.fromPeerId] ?: continue
                     val toState = peerStates[edge.toPeerId] ?: continue
@@ -388,11 +472,13 @@ fun PresenceGraphView(
                     val strokePx = if (isIncident) highlightStrokePx else baseStrokePx
                     // Three states per edge:
                     //   no selection           → full alpha, no pulse
-                    //   selected + incident    → pulse (0.8..1.0)
+                    //   selected + incident    → pulse (0.8..1.0) — reads State<Float>
+                    //                            inside drawBehind so only the draw
+                    //                            layer invalidates, never composition
                     //   selected + non-incident → dim to 0.2
                     val edgeAlpha = when {
                         selected == null -> 1f
-                        isIncident -> pulseAlpha.floatValue
+                        isIncident -> pulseAlphaState.value
                         else -> 0.2f
                     }
                     val path = pathPool.getOrPut(edge.edgeId) { Path() }
@@ -409,7 +495,15 @@ fun PresenceGraphView(
                         parallelOffsetPx = parallelOffsetByEdgeId[edge.edgeId] ?: 0f,
                         cloudCircleSpacingPx = cloudCircleSpacingPx,
                         path = path,
+                        pathMeasure = cloudPathMeasure,
                     )
+                }
+                // Evict pooled Path objects for edges that are no longer in the model.
+                // Without this, a long-running session with churning peers would grow
+                // the pool unbounded (one Path per ever-seen edgeId).
+                if (pathPool.size > graphModel.edges.size) {
+                    val activeEdgeIds = graphModel.edges.mapTo(HashSet(graphModel.edges.size)) { it.edgeId }
+                    pathPool.keys.retainAll(activeEdgeIds)
                 }
                 for (node in graphModel.nodes) {
                     val state = peerStates[node.peerId] ?: continue
@@ -443,12 +537,16 @@ fun PresenceGraphView(
                 }
             },
     ) {
-        // Parallel semantics layer (a11y + keyboard) ──────────────────────────
+        // Parallel semantics layer (a11y + keyboard) — every peer (including
+        // local) is announced for TalkBack, but only non-local pills are
+        // clickable. Local is exempt from selection/drag so the BFS layout
+        // anchor at origin stays intact.
         for (node in graphModel.nodes) {
             val state = peerStates[node.peerId] ?: continue
             val measurement = pillMeasurements[node.peerId] ?: continue
             val widthDp = with(density) { (measurement.width * transform.value.scale).toDp() }
             val heightDp = with(density) { (measurement.height * transform.value.scale).toDp() }
+            val interactive = !node.isLocal
             Box(
                 modifier = Modifier
                     .offset {
@@ -465,12 +563,23 @@ fun PresenceGraphView(
                     .size(widthDp, heightDp)
                     .semantics(mergeDescendants = true) {
                         contentDescription = node.displayName
-                        role = Role.Button
+                        if (interactive) role = Role.Button
                     }
-                    .clickable {
-                        selectedPeerId.value =
-                            if (selectedPeerId.value == node.peerId) null else node.peerId
-                    },
+                    .then(
+                        if (interactive) {
+                            Modifier.clickable {
+                                val newValue = if (selectedPeerId.value == node.peerId) {
+                                    null
+                                } else {
+                                    node.peerId
+                                }
+                                Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                                selectedPeerId.value = newValue
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
 
@@ -605,32 +714,44 @@ fun PresenceGraphView(
             }
         }
 
-        // Selected-peer edge pulse — only composed while selected so the
-        // infinite transition is cancelled on deselect (plan risk mitigation).
-        if (selectedPeerId.value != null) {
-            EdgeHighlightPulse(onAlpha = { pulseAlpha.floatValue = it })
-        }
+        // Pulse is sourced from rememberPulseAlphaState (declared above) — its
+        // State<Float> is read only inside drawBehind, so the parent never
+        // recomposes per frame.
     }
 }
 
 /**
- * Hosts a `rememberInfiniteTransition` and forwards its current value via [onAlpha].
- * Only added to composition while a peer is selected — when the parent removes it,
- * the infinite transition is cancelled and the next-frame draw clears the pulse.
+ * Returns a stable `State<Float>` consumed inside `drawBehind` only. When [active]
+ * is true an `InfiniteTransition` ticks the value between 0.8 and 1.0 at ~3 Hz;
+ * when false the value is a constant `1f`.
+ *
+ * Why this shape: previously a child composable hosted the transition and wrote
+ * back into a parent `mutableFloatStateOf` via `LaunchedEffect(v)`. Reading the
+ * animated value with property-delegation (`val v by ...`) inside that child
+ * caused it to recompose every animation frame (~60 Hz) and restart the
+ * LaunchedEffect with a fresh key each tick — defeating the plan's "no
+ * recomposition during animations" perf budget. This helper exposes a `State<Float>`
+ * the parent reads from `drawBehind` only; composition is never re-entered.
  */
 @Composable
-private fun EdgeHighlightPulse(onAlpha: (Float) -> Unit) {
-    val transition = rememberInfiniteTransition(label = "edgePulse")
-    val v by transition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 333, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "edgePulseValue",
-    )
-    LaunchedEffect(v) { onAlpha(v) }
+private fun rememberPulseAlphaState(active: Boolean): State<Float> {
+    return if (active) {
+        val transition = rememberInfiniteTransition(label = "edgePulse")
+        transition.animateFloat(
+            initialValue = 0.8f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 333, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "edgePulseValue",
+        )
+    } else {
+        // When deselected, the parent reads a constant 1f — no animation runs,
+        // no per-frame invalidation. `remember` keeps the State identity stable
+        // across re-toggles so drawBehind isn't churning closure captures.
+        remember { mutableFloatStateOf(1f) }
+    }
 }
 
 /** Convert a y-up math-coord position to canvas pixels (post transform, post y-flip). */
@@ -651,6 +772,12 @@ private fun hitTestPeer(
     sceneCenterPx: Offset,
 ): String? {
     for (node in nodes.asReversed()) {
+        // The BFS layout pins local at scene origin; dragging it would visually
+        // shift the centre while every other edge still terminates at the
+        // geometric origin, producing a broken graph. Local is also exempt from
+        // tap-to-isolate (tapping Me selecting Me-as-neighbourhood would dim
+        // everyone else and obscure the very thing the user wants to see).
+        if (node.isLocal) continue
         val state = peerStates[node.peerId] ?: continue
         val measurement = pillMeasurements[node.peerId] ?: continue
         val canvas = mathToCanvas(
@@ -698,28 +825,37 @@ private fun applyLayoutDiff(
                 target = target,
             )
             peerStates[node.peerId] = state
-            scope.launch {
+            state.positionJob = scope.launch {
                 state.position.animateTo(target, tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing))
             }
-            scope.launch {
+            state.scaleJob = scope.launch {
                 state.scale.animateTo(1f, tween(ENTER_ANIM_MS, easing = FastOutSlowInEasing))
             }
-            scope.launch {
+            state.alphaJob = scope.launch {
                 state.alpha.animateTo(1f, tween(ENTER_ANIM_MS, easing = FastOutSlowInEasing))
             }
         } else {
             existing.exiting = false
             existing.target = target
-            scope.launch {
+            // Cancel any in-flight animation coroutines on each Animatable before
+            // launching a replacement. Animatable.animateTo internally cancels its
+            // own current animation, but the outer coroutine's onComplete callbacks
+            // (e.g. peerStates.remove in the exit branch below) would otherwise run
+            // to completion against stale state when the user races a presence
+            // update against a drag-release.
+            existing.positionJob?.cancel()
+            existing.positionJob = scope.launch {
                 existing.position.animateTo(target, tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing))
             }
             if (existing.scale.value != 1f) {
-                scope.launch {
+                existing.scaleJob?.cancel()
+                existing.scaleJob = scope.launch {
                     existing.scale.animateTo(1f, tween(HIGHLIGHT_ANIM_MS, easing = FastOutSlowInEasing))
                 }
             }
             if (existing.alpha.value != 1f) {
-                scope.launch {
+                existing.alphaJob?.cancel()
+                existing.alphaJob = scope.launch {
                     existing.alpha.animateTo(1f, tween(ENTER_ANIM_MS, easing = FastOutSlowInEasing))
                 }
             }
@@ -731,15 +867,23 @@ private fun applyLayoutDiff(
         val state = peerStates[id] ?: continue
         if (state.exiting) continue
         state.exiting = true
-        scope.launch {
+        state.scaleJob?.cancel()
+        state.scaleJob = scope.launch {
             state.scale.animateTo(0.5f, tween(EXIT_ANIM_MS, easing = FastOutSlowInEasing))
         }
-        scope.launch {
+        state.alphaJob?.cancel()
+        state.alphaJob = scope.launch {
             state.alpha.animateTo(0f, tween(EXIT_ANIM_MS, easing = FastOutSlowInEasing))
         }
-        scope.launch {
+        state.positionJob?.cancel()
+        state.positionJob = scope.launch {
             state.position.animateTo(Offset.Zero, tween(EXIT_ANIM_MS, easing = FastOutSlowInEasing))
-            peerStates.remove(id)
+            // Only remove if our coroutine ran to completion. If a fresh
+            // applyLayoutDiff readded the peer mid-exit, this Job was cancelled
+            // before this line and `state.exiting` was already reset back to false.
+            if (peerStates[id]?.exiting == true) {
+                peerStates.remove(id)
+            }
         }
     }
 }
