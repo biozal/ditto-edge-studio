@@ -370,7 +370,13 @@ fun PresenceGraphView(
                             // below; if we also acted here on hitPeerId != null we'd
                             // race that handler (child sets P, parent immediately
                             // toggles it back off because selectedPeerId == hitPeerId).
-                            if (!dragStarted && hitPeerId == null) {
+                            //
+                            // Defensive: also skip the clear when any descendant has
+                            // consumed the tap. The child clickable consumes on tap
+                            // recognition, so seeing a consumed event here means the
+                            // child just toggled selection — never overwrite that.
+                            val anyConsumed = event.changes.any { it.isConsumed }
+                            if (!dragStarted && hitPeerId == null && !anyConsumed) {
                                 selectedPeerId.value = null
                             }
                             if (isPeerDrag) {
@@ -537,16 +543,21 @@ fun PresenceGraphView(
                 }
             },
     ) {
-        // Parallel semantics layer (a11y + keyboard) — every peer (including
-        // local) is announced for TalkBack, but only non-local pills are
-        // clickable. Local is exempt from selection/drag so the BFS layout
-        // anchor at origin stays intact.
+        // Parallel semantics layer (a11y + keyboard) — every peer is tap-to-isolate
+        // selectable, including local "Me". Selecting Me highlights its
+        // neighbourhood = exactly the peers directly connected to Me, which is the
+        // most useful "what am I talking to right now?" view in Direct=OFF mode.
+        //
+        // Me is intentionally excluded from `hitTestPeer` in the parent gesture
+        // handler instead: that keeps drag-from-Me out of the peer-drag path
+        // (which would otherwise shift the BFS layout anchor away from origin) and
+        // routes it to camera-pan, while taps still flow through the child
+        // clickable here unimpeded.
         for (node in graphModel.nodes) {
             val state = peerStates[node.peerId] ?: continue
             val measurement = pillMeasurements[node.peerId] ?: continue
             val widthDp = with(density) { (measurement.width * transform.value.scale).toDp() }
             val heightDp = with(density) { (measurement.height * transform.value.scale).toDp() }
-            val interactive = !node.isLocal
             Box(
                 modifier = Modifier
                     .offset {
@@ -563,23 +574,13 @@ fun PresenceGraphView(
                     .size(widthDp, heightDp)
                     .semantics(mergeDescendants = true) {
                         contentDescription = node.displayName
-                        if (interactive) role = Role.Button
+                        role = Role.Button
                     }
-                    .then(
-                        if (interactive) {
-                            Modifier.clickable {
-                                val newValue = if (selectedPeerId.value == node.peerId) {
-                                    null
-                                } else {
-                                    node.peerId
-                                }
-                                Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
-                                selectedPeerId.value = newValue
-                            }
-                        } else {
-                            Modifier
-                        },
-                    ),
+                    .clickable {
+                        val newValue = if (selectedPeerId.value == node.peerId) null else node.peerId
+                        Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                        selectedPeerId.value = newValue
+                    },
             )
         }
 
@@ -772,11 +773,12 @@ private fun hitTestPeer(
     sceneCenterPx: Offset,
 ): String? {
     for (node in nodes.asReversed()) {
-        // The BFS layout pins local at scene origin; dragging it would visually
-        // shift the centre while every other edge still terminates at the
-        // geometric origin, producing a broken graph. Local is also exempt from
-        // tap-to-isolate (tapping Me selecting Me-as-neighbourhood would dim
-        // everyone else and obscure the very thing the user wants to see).
+        // Local is excluded from PARENT-gesture hit-testing only — taps on Me
+        // still flow through the semantics-overlay clickable and select Me as
+        // expected. Excluding here means a drag starting on Me falls through to
+        // the panning branch (camera pan) instead of `isPeerDrag = true`, which
+        // would otherwise yank Me away from the scene origin and visually break
+        // the BFS layout anchor.
         if (node.isLocal) continue
         val state = peerStates[node.peerId] ?: continue
         val measurement = pillMeasurements[node.peerId] ?: continue
@@ -785,8 +787,17 @@ private fun hitTestPeer(
             sceneCenter = sceneCenterPx,
             transform = transform,
         )
-        val halfW = measurement.width * transform.scale * state.scale.value * 0.5f
-        val halfH = measurement.height * transform.scale * state.scale.value * 0.5f
+        // IMPORTANT: do NOT multiply by `state.scale.value` — the semantics-overlay
+        // Box uses `.size(widthDp, heightDp)` computed without the animation scale,
+        // so the overlay's clickable bounds are full-size during the enter
+        // animation. If we hit-tested with a smaller box here, a tap on the
+        // already-animating-in peer would: (a) miss the parent hit-test, leaving
+        // `hitPeerId = null`, then (b) get caught by the child's clickable (sets
+        // selection), then (c) the parent's tap-up handler would clear the
+        // selection because hitPeerId was null — the symptom users reported as
+        // "tap doesn't highlight on first launch but works after a tab switch".
+        val halfW = measurement.width * transform.scale * 0.5f
+        val halfH = measurement.height * transform.scale * 0.5f
         if (
             point.x in (canvas.x - halfW)..(canvas.x + halfW) &&
             point.y in (canvas.y - halfH)..(canvas.y + halfH)
