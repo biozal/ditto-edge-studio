@@ -6,4 +6,5 @@ data class LocalPeerInfo(
     val sdkLanguage: String,
     val sdkPlatform: String,
     val sdkVersion: String,
+    val isCloudConnected: Boolean = false,
 )

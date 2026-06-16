@@ -1,4 +1,6 @@
-# Query Editor
+# Query Workbench
+
+The **Query Workbench** is where you author, execute, and iterate on DQL queries against the local Ditto store. It surfaces collection structure, query history, saved favourites, and the result set in one place.
 
 ## Collections 
 Ditto stores documents in [collections](https://docs.ditto.live/key-concepts/apps-and-collections#collections).  Documents are synced into collections using [Subscriptions](https://docs.ditto.live/key-concepts/syncing-data).  No collections will appear until you either [INSERT](https://docs.ditto.live/dql/insert) a document into a collection OR you sync a collection from other peers. 

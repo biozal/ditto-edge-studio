@@ -26,7 +26,9 @@ import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 enum class StudioNavItem(val label: String, val icon: ImageVector) {
     SUBSCRIPTIONS("Presence", Icons.Outlined.Sync),
@@ -132,6 +134,16 @@ class MainStudioViewModel(
     // recomposes when sync starts/stops or transport-apply finishes.
     val syncEnabledFlow: StateFlow<Boolean> get() = session.syncEnabled
     val isApplyingTransportFlow: StateFlow<Boolean> get() = session.isApplyingTransport
+
+    // ── Presence Viewer filter state ─────────────────────────────────────────
+    // Mirrors iOS PresenceViewerSK.ViewModel.showDirectConnectedOnly. Controls whether
+    // remote-to-remote (peer A ↔ peer B) edges are drawn in PresenceGraphView. Defaults
+    // to true so the graph starts at the same "direct-only" view as iOS.
+    private val _showDirectConnectedOnly = MutableStateFlow(true)
+    val showDirectConnectedOnly: StateFlow<Boolean> = _showDirectConnectedOnly.asStateFlow()
+    fun toggleDirectConnectedOnly() {
+        _showDirectConnectedOnly.value = !_showDirectConnectedOnly.value
+    }
 
     // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`
     // inside the transport-config sheet, and for non-Compose readers (tests).

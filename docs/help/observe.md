@@ -1,4 +1,6 @@
-# Observable Help
+# Observation
+
+The **Observation** section lets you register live DQL queries against the local Ditto store and watch documents change in real time as they're inserted, updated, deleted, or moved.
 
 ## How Observers Work
 

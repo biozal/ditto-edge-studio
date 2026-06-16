@@ -17,6 +17,10 @@ struct MainStudioView: View {
     @State var activeSheet: ActiveSheet?
     /// Persists the sync detail's sub-tab (Peers List / Presence Viewer) across app launches.
     @AppStorage("selectedSyncTab") var selectedSyncTab = 0
+    /// Shared VM for the Presence Viewer. Lives at MainStudioView level so the
+    /// `syncTabsDetailView` body can BOTH host the viewer AND inject its controls
+    /// (Direct toggle, reset, ± zoom) as `DetailBottomBar` middle-content.
+    @State var presenceViewerVM = PresenceViewerSK.ViewModel()
     @State var queryCurrentPage = 1
     @State var queryPageSize = 10
     @State var observerCurrentPage = 1
@@ -612,15 +616,16 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
         rawValue
     }
 
-    /// Human-readable label used in the sidebar list.
+    /// Human-readable label used in the sidebar list. Mirrors the Android labels in
+    /// `StudioNavItem` so users moving between platforms see the same names.
     var displayName: String {
         switch self {
-        case .subscriptions: "Subscriptions"
-        case .query: "Query"
-        case .observers: "Observers"
+        case .subscriptions: "Presence"
+        case .query: "Query Workbench"
+        case .observers: "Observation"
         case .appMetrics: "App Metrics"
         case .queryMetrics: "Query Metrics"
-        case .logging: "Logging"
+        case .logging: "Log Analyzer"
         }
     }
 

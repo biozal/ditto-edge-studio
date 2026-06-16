@@ -14,7 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
+import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresenceGraphView
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 
 /**
@@ -109,8 +109,11 @@ fun PresenceContentSection(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
+            // Short labels: M3 Expressive connected groups morph the selected segment
+            // wider on tap, which squeezed the gear icon to the right when the label was
+            // "Presence Viewer". "Peers" / "Viewer" keep both segments visually balanced.
             DittoConnectedButtonGroup(
-                options = listOf("Peers List", "Presence Viewer"),
+                options = listOf("Peers", "Viewer"),
                 selectedIndex = selectedTabIndex,
                 onSelect = { selectedTabIndex = it },
             )
@@ -136,16 +139,14 @@ fun PresenceContentSection(
                     )
                 }
                 else -> {
-                    // Presence Viewer — future feature; placeholder matches legacy "Coming Soon"
-                    Box(
+                    val showDirectOnly by viewModel.showDirectConnectedOnly
+                        .collectAsStateWithLifecycle()
+                    PresenceGraphView(
+                        peersUiState = peersUiState,
+                        showDirectConnectedOnly = showDirectOnly,
+                        onToggleDirectConnectedOnly = { viewModel.toggleDirectConnectedOnly() },
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Presence Viewer — Coming Soon",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    )
                 }
             }
         }

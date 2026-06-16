@@ -60,6 +60,8 @@ class MainStudioViewModelTest {
     private val localPeerFlow = MutableStateFlow<LocalPeerInfo?>(null)
     private val peersFlow = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
     private val connectionsFlow = MutableStateFlow(ConnectionsByTransport.Empty)
+    private val meshTopologyFlow =
+        MutableStateFlow(com.costoda.dittoedgestudio.domain.model.MeshTopology.Empty)
     private val collectionsFlow = MutableStateFlow<List<DittoCollection>>(emptyList())
 
     private val testDatabase = DittoDatabase(
@@ -92,6 +94,7 @@ class MainStudioViewModelTest {
         every { systemRepository.localPeer } returns localPeerFlow
         every { systemRepository.peers } returns peersFlow
         every { systemRepository.connectionsByTransport } returns connectionsFlow
+        every { systemRepository.meshTopology } returns meshTopologyFlow
         every { collectionsRepository.collections } returns collectionsFlow
         every { networkRepo.hasLocationOrNearbyPermission() } returns false
 

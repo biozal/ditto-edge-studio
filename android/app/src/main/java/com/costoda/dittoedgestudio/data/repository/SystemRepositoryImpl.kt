@@ -5,6 +5,9 @@ import android.util.Log
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
+import com.costoda.dittoedgestudio.domain.model.MeshEdge
+import com.costoda.dittoedgestudio.domain.model.MeshPeer
+import com.costoda.dittoedgestudio.domain.model.MeshTopology
 import com.costoda.dittoedgestudio.domain.model.PeerConnectionInfo
 import com.costoda.dittoedgestudio.domain.model.PeerOS
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
@@ -38,11 +41,13 @@ class SystemRepositoryImpl(
     private val _peers = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
     private val _localPeer = MutableStateFlow<LocalPeerInfo?>(null)
     private val _connectionsByTransport = MutableStateFlow(ConnectionsByTransport.Empty)
+    private val _meshTopology = MutableStateFlow(MeshTopology.Empty)
 
     override val peers: StateFlow<List<SyncStatusInfo>> = _peers.asStateFlow()
     override val localPeer: StateFlow<LocalPeerInfo?> = _localPeer.asStateFlow()
     override val connectionsByTransport: StateFlow<ConnectionsByTransport> =
         _connectionsByTransport.asStateFlow()
+    override val meshTopology: StateFlow<MeshTopology> = _meshTopology.asStateFlow()
 
     // Job collecting the presence Flow — cancelled on stopObserving()
     private var observeJob: Job? = null
@@ -62,6 +67,7 @@ class SystemRepositoryImpl(
         _peers.value = emptyList()
         _localPeer.value = null
         _connectionsByTransport.value = ConnectionsByTransport.Empty
+        _meshTopology.value = MeshTopology.Empty
     }
 
     private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
@@ -124,15 +130,52 @@ class SystemRepositoryImpl(
             )
         }
 
-        // 5. Update state
+        // 5a. Build the unfiltered mesh topology — every peer the SDK knows about plus
+        //     every connection between them. The Presence Viewer needs this when the
+        //     user toggles "Direct Connected" off; everything else keeps using the
+        //     filtered [_peers] list above per the presence-graph pitfall rule.
+        val allPeersDeduped = graph.remotePeers
+            .groupBy { it.peerKey }
+            .mapValues { (_, peers) ->
+                peers.maxByOrNull { it.dittoSdkVersion != null } ?: peers.first()
+            }
+            .values
+        val meshPeerList = allPeersDeduped.map { peer ->
+            MeshPeer(
+                peerKey = peer.peerKey,
+                deviceName = peer.deviceName?.takeIf { it.isNotBlank() },
+            )
+        }
+        val seenEdgeKeys = mutableSetOf<String>()
+        val meshEdgeList = buildList {
+            for (peer in allPeersDeduped) {
+                for (conn in peer.connections) {
+                    val p1 = conn.peer1
+                    val p2 = conn.peer2
+                    if (p1.isBlank() || p2.isBlank()) continue
+                    val sortedPair = listOf(p1, p2).sorted()
+                    val key = "${sortedPair[0]}_${sortedPair[1]}_${conn.connectionType}"
+                    if (!seenEdgeKeys.add(key)) continue
+                    add(MeshEdge(p1, p2, conn.connectionType.toConnectionType()))
+                }
+            }
+        }
+
+        // 5b. Publish all derived flows.
         _peers.value = remotePeers
         _connectionsByTransport.value = buildConnectionCounts(deduped, localPeerKey)
+        _meshTopology.value = MeshTopology(
+            localPeerKey = localPeerKey,
+            peers = meshPeerList,
+            edges = meshEdgeList,
+        )
         _localPeer.value = LocalPeerInfo(
             peerId = graph.localPeer.peerKey,
             deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
             sdkLanguage = "Kotlin",
             sdkPlatform = "Android",
             sdkVersion = graph.localPeer.dittoSdkVersion ?: "Unknown",
+            isCloudConnected = graph.localPeer.isConnectedToDittoServer,
         )
     }
 

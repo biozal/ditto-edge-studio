@@ -10,38 +10,36 @@ struct PresenceViewerSK: View {
     @State private var viewModel: ViewModel
     @State private var scene: PresenceNetworkScene?
 
-    init() {
-        _viewModel = State(initialValue: ViewModel())
+    /// `nil` → this view owns its own ViewModel (back-compat with the standalone preview).
+    /// Non-`nil` → the parent provides one (so it can also drive the floating-toolbar
+    /// middle-content for Direct toggle, zoom, and reset).
+    init(viewModel: ViewModel? = nil) {
+        _viewModel = State(initialValue: viewModel ?? ViewModel())
     }
 
     var body: some View {
         // Main scene view with overlays
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .bottomLeading) {
             // SpriteKit scene
             SpriteKitSceneView(scene: $scene, viewModel: viewModel)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .focusable() // Allow view to receive keyboard and scroll events
 
-            // Bottom-right controls (Direct Connected toggle + zoom controls)
-            // Bottom padding clears the DetailBottomBar overlay (~56pt) that sits
-            // at the bottom of the parent syncTabsDetailView.
-            VStack(alignment: .trailing, spacing: 8) {
-                directConnectedToggle
-                zoomControls
-            }
-            .padding(.trailing, 16)
-            .padding(.bottom, 72)
-
-            // Connection legend overlay (bottom-left)
-            VStack {
-                Spacer()
-                HStack {
-                    connectionLegend
-                        .padding(.leading, 16)
-                        .padding(.bottom, 72)
-                    Spacer()
-                }
-            }
+            // Only the connection-types legend stays inside this view as a corner
+            // overlay. The Direct toggle, reset button, and zoom controls used to
+            // live here too but were hoisted to the parent's DetailBottomBar so they
+            // sit on the floating toolbar — see `presenceViewerToolbarControls(vm:)`
+            // in MainStudioView.
+            //
+            // Bottom padding clears the DetailBottomBar floating-toolbar overlay
+            // below this view. The bar's own footprint is ~56pt (HStack contents +
+            // 12pt vertical padding × 2 + glass-effect spread) plus the 12pt
+            // .padding(.bottom, 12) the overlay anchor applies. 100pt leaves a
+            // comfortable ~24pt visual gap between the legend's bottom edge and
+            // the toolbar's top edge.
+            connectionLegend
+                .padding(.leading, 16)
+                .padding(.bottom, 100)
         }
         .onAppear {
             createScene()
@@ -61,53 +59,6 @@ struct PresenceViewerSK: View {
             viewModel.stopProductionMode()
             cleanupScene()
         }
-    }
-
-    // MARK: - Direct Connected Toggle
-
-    /// Toggle switch to filter peers to only directly connected ones
-    private var directConnectedToggle: some View {
-        @Bindable var viewModel = viewModel
-        return Toggle("Direct Connected", isOn: $viewModel.showDirectConnectedOnly)
-            .toggleStyle(.switch)
-            .font(.caption)
-            .padding(8)
-            .background(.ultraThinMaterial)
-            .cornerRadius(8)
-            .help("Show only peers directly connected to this device")
-    }
-
-    // MARK: - Zoom Controls
-
-    /// Zoom controls overlay with +/- buttons and level indicator
-    private var zoomControls: some View {
-        HStack(spacing: 8) {
-            // Zoom out button (-)
-            Button(action: { viewModel.zoomOut() }, label: {
-                Image(systemName: "minus")
-            })
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .disabled(viewModel.zoomLevel >= 2.0)
-            .help("Zoom out (or use scroll wheel)")
-
-            // Zoom level indicator
-            Text("\(Int(viewModel.zoomLevel * 100))%")
-                .font(.caption)
-                .frame(width: 50)
-
-            // Zoom in button (+)
-            Button(action: { viewModel.zoomIn() }, label: {
-                Image(systemName: "plus")
-            })
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .disabled(viewModel.zoomLevel <= 0.5)
-            .help("Zoom in (or use scroll wheel)")
-        }
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .cornerRadius(8)
     }
 
     // MARK: - Connection Legend
@@ -424,10 +375,92 @@ extension PresenceViewerSK {
             scene?.camera?.setScale(level)
         }
 
+        /// Reset the camera to origin at 100% zoom and snap dragged peers back to their
+        /// layout-computed positions. Backs the reset button in the overlay.
+        func recenterView() {
+            scene?.resetCameraAndRelayout()
+            // Local zoom mirror — the scene also fires onZoomChanged(1.0), but updating
+            // here makes the % readout flip instantly even if the SK animation lags.
+            zoomLevel = 1.0
+        }
+
         // MARK: - Cleanup
 
         // Note: Cleanup happens automatically when ViewModel is deallocated
         // - DittoObserver cleans up when released
+    }
+}
+
+// MARK: - Floating Toolbar Controls
+
+/// Drop-in middle-content for `DetailBottomBar` when the Presence Viewer tab is active.
+/// Houses what used to be the bottom-right overlay (Direct toggle, reset, ± zoom)
+/// inline with the rest of the toolbar so the canvas is unobstructed.
+///
+/// Caller pattern (inside `MainStudioView.syncTabsDetailView`):
+/// ```
+/// DetailBottomBar(connections: ...) {
+///     if selectedSyncTab == 1 {
+///         PresenceViewerToolbarControls(viewModel: presenceViewerVM)
+///     }
+/// }
+/// ```
+struct PresenceViewerToolbarControls: View {
+    @Bindable var viewModel: PresenceViewerSK.ViewModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Direct toggle — same short label as Android.
+            Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
+                .toggleStyle(.switch)
+                .font(.caption)
+                .fixedSize()
+                .help("Show only peers directly connected to this device")
+
+            Divider()
+                .frame(height: 18)
+
+            // Reset (recenter + 100% zoom).
+            Button(action: { viewModel.recenterView() }, label: {
+                Image(systemName: "scope")
+                    .font(.system(size: 14))
+                    .frame(minWidth: 32, minHeight: 32)
+                    .contentShape(Rectangle())
+            })
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset view")
+            .help("Reset view — recenter and zoom to 100%")
+
+            // Zoom out.
+            Button(action: { viewModel.zoomOut() }, label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 14))
+                    .frame(minWidth: 32, minHeight: 32)
+                    .contentShape(Rectangle())
+            })
+            .buttonStyle(.plain)
+            .disabled(viewModel.zoomLevel >= 2.0)
+            .accessibilityLabel("Zoom out")
+            .help("Zoom out (or use scroll wheel)")
+
+            // Zoom level readout.
+            Text("\(Int(viewModel.zoomLevel * 100))%")
+                .font(.system(size: 12, design: .monospaced))
+                .frame(width: 40, alignment: .center)
+                .accessibilityLabel("Zoom level \(Int(viewModel.zoomLevel * 100)) percent")
+
+            // Zoom in.
+            Button(action: { viewModel.zoomIn() }, label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 14))
+                    .frame(minWidth: 32, minHeight: 32)
+                    .contentShape(Rectangle())
+            })
+            .buttonStyle(.plain)
+            .disabled(viewModel.zoomLevel <= 0.5)
+            .accessibilityLabel("Zoom in")
+            .help("Zoom in (or use scroll wheel)")
+        }
     }
 }
 

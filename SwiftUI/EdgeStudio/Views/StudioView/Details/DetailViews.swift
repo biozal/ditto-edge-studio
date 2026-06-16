@@ -10,7 +10,7 @@ extension MainStudioView {
                     // feedback loop caused by measuring both alternatives while syncStatusItems
                     // updates rapidly. The "Last updated" subtitle lives below this HStack.
                     HStack {
-                        Text("Connected Peers")
+                        Text("Presence")
                             .font(.title2)
                             .bold()
                             .padding(.leading, 10)
@@ -18,8 +18,8 @@ extension MainStudioView {
                         Spacer()
 
                         Picker("", selection: $selectedSyncTab) {
-                            Text("Peers List").tag(0)
-                            Text("Presence Viewer").tag(1)
+                            Text("Peers").tag(0)
+                            Text("Viewer").tag(1)
                         }
                         .pickerStyle(.segmented)
                         .padding(.horizontal)
@@ -32,15 +32,15 @@ extension MainStudioView {
                     // ── Narrow layout: picker on top, title below ─────────────────
                     VStack(alignment: .leading, spacing: 0) {
                         Picker("", selection: $selectedSyncTab) {
-                            Text("Peers List").tag(0)
-                            Text("Presence Viewer").tag(1)
+                            Text("Peers").tag(0)
+                            Text("Viewer").tag(1)
                         }
                         .pickerStyle(.segmented)
                         .padding(.leading, 10)
                         .padding(.vertical, 8)
                         .accessibilityIdentifier("SyncTabPicker")
 
-                        Text("Connected Peers")
+                        Text("Presence")
                             .font(.title2)
                             .bold()
                             .padding(.leading, 10)
@@ -70,15 +70,23 @@ extension MainStudioView {
                 case 0:
                     ConnectedPeersView(viewModel: viewModel)
                 case 1:
-                    PresenceViewerSK()
+                    PresenceViewerSK(viewModel: presenceViewerVM)
                 default:
                     ConnectedPeersView(viewModel: viewModel)
                 }
             }
         }
         .overlay(alignment: .bottom) {
-            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport)
-                .padding(.bottom, 12)
+            // The Viewer tab injects its own Direct/reset/zoom controls into the
+            // toolbar's middle slot so the canvas stays unobstructed. The Peers tab
+            // doesn't need any extra controls — the @ViewBuilder closure returns an
+            // empty conditional branch in that case (the bar's middle slot collapses).
+            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+                if selectedSyncTab == 1 {
+                    PresenceViewerToolbarControls(viewModel: presenceViewerVM)
+                }
+            }
+            .padding(.bottom, 12)
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

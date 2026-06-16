@@ -59,6 +59,19 @@ class PresenceNetworkScene: SKScene {
     private var isUserInteracting = false // Tracks if user is actively dragging/panning
     private var needsLayoutAfterInteraction = false // Defer layout until interaction completes
 
+    // Tap-to-isolate state — ports the Android tap-to-isolate UX. When a peer is the
+    // current `highlightedNode`, all non-incident edges fade to 0.2 alpha and all peers
+    // outside that peer's neighbourhood fade to 0.35, so the user can see at a glance
+    // which peers it's connected to. Tapping empty canvas (or the same peer again)
+    // clears the highlight.
+    private var highlightedNode: PeerNode?
+    private var pointerDownLocation: CGPoint = .zero
+    private var didDragSincePointerDown = false
+    private let tapMovementThreshold: CGFloat = 10.0
+    private let focusDimEdgeAlpha: CGFloat = 0.2
+    private let focusDimPeerAlpha: CGFloat = 0.35
+    private let focusFadeDuration: TimeInterval = 0.2
+
     // Layout
     private let centerPosition = CGPoint.zero
     private var layoutEngine = NetworkLayoutEngine()
@@ -190,6 +203,11 @@ class PresenceNetworkScene: SKScene {
             // Update snapshots
             lastPeerKeysSnapshot = currentPeerKeys
             lastConnectionsSnapshot = currentConnections
+
+            // After a topology change, re-apply the tap-to-isolate focus so brand-new
+            // peers/edges respect the dim, and clear the focus entirely if the
+            // highlighted peer left the mesh in this update.
+            refreshFocusAfterTopologyChange()
         } else {
             // Nothing changed, skip animation
             Log.debug("No topology changes detected, skipping layout animation")
@@ -524,15 +542,15 @@ class PresenceNetworkScene: SKScene {
 
         // Mark that user is actively interacting
         isUserInteracting = true
+        pointerDownLocation = location
+        didDragSincePointerDown = false
 
-        // Check if we touched a peer node (cloud is treated as a regular peer)
+        // Check if we touched a peer node (cloud is treated as a regular peer).
+        // We don't apply the highlight here — that's deferred to mouseUp so we can
+        // distinguish a tap (toggle persistent highlight) from a drag (move the peer).
         if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
             selectedNode = peerNode
             isDraggingNode = true
-            peerNode.setHighlighted(true)
-
-            // Highlight connected lines (including cloud connections)
-            highlightConnectionsForPeer(peerNode.peerKey, highlighted: true)
         } else {
             // Start panning the camera
             isPanning = true
@@ -542,6 +560,11 @@ class PresenceNetworkScene: SKScene {
 
     override func mouseDragged(with event: NSEvent) {
         let location = event.location(in: self)
+        if hypot(location.x - pointerDownLocation.x, location.y - pointerDownLocation.y)
+            > tapMovementThreshold
+        {
+            didDragSincePointerDown = true
+        }
 
         if isDraggingNode, let node = selectedNode {
             // Drag the peer node (including cloud if it's selected)
@@ -558,6 +581,15 @@ class PresenceNetworkScene: SKScene {
     }
 
     override func mouseUp(with event: NSEvent) {
+        // Tap (no drag) → toggle persistent highlight on the peer that was hit, or
+        // clear the highlight if the tap landed on empty canvas.
+        if !didDragSincePointerDown {
+            if let peer = selectedNode {
+                toggleHighlight(for: peer)
+            } else {
+                clearHighlight()
+            }
+        }
         endInteraction()
     }
 
@@ -565,33 +597,36 @@ class PresenceNetworkScene: SKScene {
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
 
-        // Find peer node under cursor
+        // Find peer node under cursor.
+        // Hover-highlight composes with persistent tap-highlight: never strip the
+        // 1.1× scale from the persistently highlighted peer when the cursor leaves —
+        // the user explicitly selected it and expects it to stay emphasized.
         if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
             if hoveredNode !== peerNode {
-                // New node hovered
-                hoveredNode?.setHighlighted(false)
+                if let prev = hoveredNode, prev !== highlightedNode {
+                    prev.setHighlighted(false)
+                }
                 hoveredNode = peerNode
-                peerNode.setHighlighted(true)
-
-                // Update cursor
+                if peerNode !== highlightedNode {
+                    peerNode.setHighlighted(true)
+                }
                 NSCursor.pointingHand.set()
             }
         } else {
-            // No peer node under cursor
-            if let hovered = hoveredNode {
+            if let hovered = hoveredNode, hovered !== highlightedNode {
                 hovered.setHighlighted(false)
-                hoveredNode = nil
-                NSCursor.arrow.set()
             }
+            hoveredNode = nil
+            NSCursor.arrow.set()
         }
     }
 
     override func mouseExited(with event: NSEvent) {
-        // Clear hover state when mouse leaves scene
-        if let hovered = hoveredNode {
+        // Clear hover state when mouse leaves scene (but keep tap-isolated peer's highlight).
+        if let hovered = hoveredNode, hovered !== highlightedNode {
             hovered.setHighlighted(false)
-            hoveredNode = nil
         }
+        hoveredNode = nil
         NSCursor.arrow.set()
     }
 
@@ -623,12 +658,15 @@ class PresenceNetworkScene: SKScene {
         let touchedNodes = nodes(at: location)
 
         isUserInteracting = true
+        pointerDownLocation = location
+        didDragSincePointerDown = false
 
+        // Highlight is applied on touchesEnded (after we know it was a tap, not a
+        // drag) so that dragging a peer doesn't accidentally toggle its persistent
+        // highlight state.
         if let peerNode = touchedNodes.first(where: { $0 is PeerNode }) as? PeerNode {
             selectedNode = peerNode
             isDraggingNode = true
-            peerNode.setHighlighted(true)
-            highlightConnectionsForPeer(peerNode.peerKey, highlighted: true)
         } else {
             isPanning = true
             lastPanLocation = location
@@ -638,6 +676,11 @@ class PresenceNetworkScene: SKScene {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
+        if hypot(location.x - pointerDownLocation.x, location.y - pointerDownLocation.y)
+            > tapMovementThreshold
+        {
+            didDragSincePointerDown = true
+        }
 
         if isDraggingNode, let node = selectedNode {
             node.position = location
@@ -651,6 +694,13 @@ class PresenceNetworkScene: SKScene {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if !didDragSincePointerDown {
+            if let peer = selectedNode {
+                toggleHighlight(for: peer)
+            } else {
+                clearHighlight()
+            }
+        }
         endInteraction()
     }
 
@@ -662,21 +712,140 @@ class PresenceNetworkScene: SKScene {
     // MARK: - Shared Interaction End
 
     private func endInteraction() {
-        if let node = selectedNode {
-            node.setHighlighted(false)
-            highlightConnectionsForPeer(node.peerKey, highlighted: false)
-        }
-
+        // NOTE: the per-tap highlight handling moved out of here — it's now applied in
+        // `mouseUp`/`touchesEnded` *before* this cleanup, via `toggleHighlight(for:)` or
+        // `clearHighlight()`. This method only handles drag/pan/interaction-state reset.
         selectedNode = nil
         isDraggingNode = false
         isPanning = false
         isUserInteracting = false
+        didDragSincePointerDown = false
 
         if needsLayoutAfterInteraction {
             needsLayoutAfterInteraction = false
             Log.debug("User interaction ended, running deferred layout animation")
             recalculateLayout()
         }
+    }
+
+    // MARK: - Tap-to-isolate Highlight
+
+    /// Toggle the persistent highlight for [peer]. Tapping a different peer switches the
+    /// highlight; tapping the same peer twice clears it. Tapping empty canvas in the
+    /// gesture handler calls [clearHighlight] directly.
+    private func toggleHighlight(for peer: PeerNode) {
+        if highlightedNode === peer {
+            clearHighlight()
+        } else {
+            // Switching from one peer to another: tear down the old focus first so the
+            // new applyFocus call starts from a clean restored state.
+            if highlightedNode != nil {
+                clearHighlight()
+            }
+            highlightedNode = peer
+            applyFocus()
+        }
+    }
+
+    /// Remove the persistent highlight if any: drop the line+peer highlight on the
+    /// previously selected peer and fade every node and edge back to alpha 1.0.
+    private func clearHighlight() {
+        guard let node = highlightedNode else { return }
+        node.setHighlighted(false)
+        highlightConnectionsForPeer(node.peerKey, highlighted: false)
+        highlightedNode = nil
+        restoreAllAlpha()
+    }
+
+    /// Apply the focus visualization for [highlightedNode]: scale up + glow on incident
+    /// edges, dim non-incident edges to 0.2 alpha, dim non-neighbourhood peers to 0.35.
+    /// Direct port of the Android tap-to-isolate UX.
+    private func applyFocus() {
+        guard let node = highlightedNode else { return }
+        let peerKey = node.peerKey
+
+        node.setHighlighted(true)
+        highlightConnectionsForPeer(peerKey, highlighted: true)
+
+        // Build the neighbourhood: the selected peer plus every peer at the other end
+        // of an incident connection.
+        var neighbourhood: Set<String> = [peerKey]
+        for (_, line) in connectionLines {
+            if line.fromPeerKey == peerKey {
+                neighbourhood.insert(line.toPeerKey)
+            } else if line.toPeerKey == peerKey {
+                neighbourhood.insert(line.fromPeerKey)
+            }
+        }
+
+        // Dim non-incident edges. Use a stable key so reapply-after-topology-change
+        // overrides the previous focus action instead of stacking with it.
+        for (_, line) in connectionLines {
+            let isIncident = line.fromPeerKey == peerKey || line.toPeerKey == peerKey
+            let target: CGFloat = isIncident ? 1.0 : focusDimEdgeAlpha
+            line.run(
+                SKAction.fadeAlpha(to: target, duration: focusFadeDuration),
+                withKey: "focusFade"
+            )
+        }
+
+        // Dim non-neighbourhood peers.
+        for (key, peerNode) in peerNodes {
+            let target: CGFloat = neighbourhood.contains(key) ? 1.0 : focusDimPeerAlpha
+            peerNode.run(
+                SKAction.fadeAlpha(to: target, duration: focusFadeDuration),
+                withKey: "focusFade"
+            )
+        }
+    }
+
+    /// Restore every node and edge to full alpha. Called by [clearHighlight].
+    private func restoreAllAlpha() {
+        for (_, line) in connectionLines {
+            line.run(
+                SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
+                withKey: "focusFade"
+            )
+        }
+        for (_, peerNode) in peerNodes {
+            peerNode.run(
+                SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
+                withKey: "focusFade"
+            )
+        }
+    }
+
+    /// Re-evaluate focus after a topology change: if the highlighted peer is still in
+    /// the scene, reapply (so new peers/edges inherit the dim); otherwise clear it
+    /// (the user's selected peer left the mesh).
+    private func refreshFocusAfterTopologyChange() {
+        guard let highlighted = highlightedNode else { return }
+        if peerNodes.values.contains(where: { $0 === highlighted }) {
+            applyFocus()
+        } else {
+            clearHighlight()
+        }
+    }
+
+    // MARK: - Reset View
+
+    /// Reset the camera to identity (origin + 100% zoom) and snap every peer back to its
+    /// layout-computed position. Called from the reset button in the SwiftUI overlay
+    /// when a user has panned/zoomed the graph off-screen or dragged peers around and
+    /// needs to get back to a clean view. Mirrors the Android viewer's reset button.
+    func resetCameraAndRelayout() {
+        let resetCamera = SKAction.group([
+            SKAction.move(to: centerPosition, duration: 0.3),
+            SKAction.scale(to: 1.0, duration: 0.3)
+        ])
+        resetCamera.timingMode = .easeInEaseOut
+        cameraNode.run(resetCamera, withKey: "resetCamera")
+        // Tell observers (the SwiftUI overlay) the zoom level is now 100% so the "%"
+        // indicator next to the +/- buttons stays in sync with the camera state.
+        onZoomChanged?(1.0)
+        // Re-snap peers to their layout-target positions in case the user had dragged
+        // any of them around.
+        recalculateLayout()
     }
 
     // MARK: - Zoom (called by UIViewRepresentable pinch gesture on iPad)

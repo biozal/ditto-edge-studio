@@ -16,6 +16,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
+import com.costoda.dittoedgestudio.domain.model.MeshTopology
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
@@ -133,8 +134,9 @@ class StudioSession(
     val peersUiState: StateFlow<PeersUiState> = combine(
         systemRepository.localPeer,
         systemRepository.peers,
-    ) { local, remote ->
-        PeersUiState.Active(localPeer = local, remotePeers = remote)
+        systemRepository.meshTopology,
+    ) { local, remote, mesh ->
+        PeersUiState.Active(localPeer = local, remotePeers = remote, meshTopology = mesh)
     }.stateIn(sessionScope, SharingStarted.WhileSubscribed(5_000), PeersUiState.Initializing)
 
     val connectionsByTransport: StateFlow<ConnectionsByTransport> =
@@ -528,5 +530,6 @@ sealed class PeersUiState {
     data class Active(
         val localPeer: LocalPeerInfo?,
         val remotePeers: List<SyncStatusInfo>,
+        val meshTopology: MeshTopology = MeshTopology.Empty,
     ) : PeersUiState()
 }

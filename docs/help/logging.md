@@ -1,4 +1,6 @@
-# Ditto SDK & App Logging
+# Log Analyzer
+
+The **Log Analyzer** captures Ditto SDK logs in real time and reads historical log files from disk so you can inspect past sessions, filter by level, and trace sync/transport/storage activity.
 
 ## What is Ditto SDK Logging?
 
