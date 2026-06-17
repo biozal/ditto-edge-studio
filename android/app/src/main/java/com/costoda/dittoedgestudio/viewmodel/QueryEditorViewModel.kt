@@ -160,16 +160,22 @@ class QueryEditorViewModel(
         viewModelScope.launch {
             runCatching {
                 require(documentId.isNotBlank()) { "documentId required" }
+                require(isSafeDocumentId(documentId)) {
+                    "Unsafe document id (must contain only printable, non-control characters " +
+                        "and no embedded newlines): $documentId"
+                }
                 require(isSafeIdentifier(collection)) { "Unsafe collection identifier: $collection" }
                 for (att in attachments) {
                     require(isSafeIdentifier(att.fieldName)) {
                         "Unsafe field identifier: ${att.fieldName}"
                     }
                 }
-                // The documentId is escaped via DQL string-literal quoting (single quotes;
-                // backslash-escape any embedded singles). Ditto document IDs are typically UUIDs or
-                // app-controlled strings, so this is defensive rather than likely-malicious.
-                val escapedDocId = documentId.replace("'", "\\'")
+                // documentId is rendered as a DQL string literal. DQL follows the ANSI SQL rule:
+                // embedded single quotes are doubled (`''`) — NOT backslash-escaped. The doc-id
+                // shape guard above also rejects control chars / newlines, so a single-line
+                // literal is sufficient. Identifiers (collection, fieldName) are not quoted —
+                // both are pre-validated by isSafeIdentifier.
+                val escapedDocId = documentId.replace("'", "''")
                 for (att in attachments) {
                     queryExecutionService.execute(
                         "UPDATE $collection SET ${att.fieldName} = NULL WHERE _id = '$escapedDocId'",
@@ -189,6 +195,17 @@ class QueryEditorViewModel(
         if (s.isBlank()) return false
         if (!(s[0].isLetter() || s[0] == '_')) return false
         return s.all { it.isLetterOrDigit() || it == '_' }
+    }
+
+    /**
+     * Doc-id shape guard. Rejects empty strings, anything containing ISO control characters
+     * (newlines, tabs, NULs etc.), and the literal backslash to prevent dialect-specific
+     * escape interactions. The single-quote IS allowed and is handled by doubling at the
+     * call site.
+     */
+    private fun isSafeDocumentId(s: String): Boolean {
+        if (s.isEmpty()) return false
+        return s.none { it.isISOControl() || it == '\\' }
     }
 
     fun addAttachment(
