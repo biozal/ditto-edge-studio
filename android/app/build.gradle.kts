@@ -169,6 +169,7 @@ dependencies {
     implementation(libs.camerax.view)
     implementation(libs.zxing.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
@@ -178,6 +179,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
+    testImplementation(libs.okhttp.mockwebserver)
 
     // Instrumented tests
     androidTestImplementation(libs.androidx.junit)
@@ -191,4 +193,5 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.okhttp.mockwebserver)
 }

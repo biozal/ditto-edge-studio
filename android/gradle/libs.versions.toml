@@ -31,6 +31,7 @@ nav3 = "1.0.0"
 timber = "5.0.1"
 orgJson = "20231013"
 markwon = "4.6.2"
+okhttp = "4.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -100,6 +101,9 @@ markwon-core    = { group = "io.noties.markwon", name = "core",       version.re
 markwon-html    = { group = "io.noties.markwon", name = "html",       version.ref = "markwon" }
 markwon-tables  = { group = "io.noties.markwon", name = "ext-tables", version.ref = "markwon" }
 markwon-linkify = { group = "io.noties.markwon", name = "linkify",    version.ref = "markwon" }
+# OkHttp (HTTP query execution + tests)
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
