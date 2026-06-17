@@ -143,7 +143,7 @@ class SystemRepositoryImpl(
         val meshPeerList = allPeersDeduped.map { peer ->
             MeshPeer(
                 peerKey = peer.peerKey,
-                deviceName = peer.deviceName?.takeIf { it.isNotBlank() },
+                deviceName = peer.deviceName.takeIf { it.isNotBlank() },
             )
         }
         val seenEdgeKeys = mutableSetOf<String>()
@@ -192,7 +192,7 @@ class SystemRepositoryImpl(
         return SyncStatusInfo(
             peerId = peerKey,
             isDittoServer = metrics?.optBoolean(FIELD_IS_DITTO_SERVER, false) ?: false,
-            deviceName = deviceName?.takeIf { it.isNotBlank() },
+            deviceName = deviceName.takeIf { it.isNotBlank() },
             osInfo = os?.toPeerOS() ?: PeerOS.Unknown,
             dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
             connections = connections
@@ -205,10 +205,10 @@ class SystemRepositoryImpl(
                     )
                 },
             peerMetadata = peerMetadata
-                ?.takeIf { !it.isNull }
+                .takeIf { !it.isNull }
                 ?.toString(),
             identityServiceMetadata = identityServiceMetadata
-                ?.takeIf { !it.isNull }
+                .takeIf { !it.isNull }
                 ?.toString(),
             syncedUpToLocalCommitId = docs?.optLongOrNull(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID),
             lastUpdateReceivedTime = docs?.optLongOrNull(FIELD_LAST_UPDATE_RECEIVED_TIME)?.toDouble(),

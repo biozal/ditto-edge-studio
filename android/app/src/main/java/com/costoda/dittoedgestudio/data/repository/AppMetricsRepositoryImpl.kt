@@ -142,7 +142,7 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     if (line!!.startsWith(key)) {
-                        return line!!.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
+                        return line.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
                     }
                 }
                 0L
