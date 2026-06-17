@@ -394,4 +394,69 @@ class MainStudioViewModelTest {
         // Different session instance — vmB must not see vmA's state.
         assertEquals(null, vmB.selectedObserver)
     }
+
+    // ── executeModes derivation ──────────────────────────────────────────────
+
+    @Test
+    fun `executeModes is Local only when httpApiUrl is blank`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "",
+            httpApiKey = "key",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeModes is Local only when httpApiKey is blank`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeModes is Local and HTTP when both are set`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "k",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local", "HTTP"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeMode resets to Local when HTTP drops out of executeModes`() = runTest {
+        // Start with HTTP available + selected.
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "k",
+        )
+        val vm = createViewModel()
+        advanceUntilIdle()
+        vm.session.uiState.queryWorkbench.executeMode.value = "HTTP"
+
+        // Then re-hydrate with HTTP removed — VM-side hook re-derives executeModes and
+        // sees "HTTP" is no longer valid → resets to "Local".
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "",
+            httpApiKey = "k",
+        )
+        vm.session.hydrate()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+        assertEquals("Local", vm.session.uiState.queryWorkbench.executeMode.value)
+    }
 }

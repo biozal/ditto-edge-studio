@@ -176,6 +176,21 @@ class StudioSession(
                     ?: error("Database not found: $databaseId")
                 currentDatabase = database
                 currentDittoId = database.databaseId
+
+                // Derive picker modes from credentials (mirrors SwiftUI QueryViewModel lines
+                // 86–98). HTTP only appears when both URL and key are non-blank. If the user's
+                // prior pick is no longer valid (e.g. credentials dropped mid-session), reset
+                // back to "Local" so the picker can't render a stale selection.
+                val modes = if (database.httpApiUrl.isBlank() || database.httpApiKey.isBlank()) {
+                    listOf("Local")
+                } else {
+                    listOf("Local", "HTTP")
+                }
+                uiState.queryWorkbench.executeModes.value = modes
+                if (uiState.queryWorkbench.executeMode.value !in modes) {
+                    uiState.queryWorkbench.executeMode.value = "Local"
+                }
+
                 _transportBluetoothEnabled.value = database.isBluetoothLeEnabled
                 _transportLanEnabled.value = database.isLanEnabled
                 _transportWifiAwareEnabled.value = database.isAwdlEnabled
