@@ -11,11 +11,13 @@ import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
 import com.costoda.dittoedgestudio.domain.model.DittoQueryHistory
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
+import com.costoda.dittoedgestudio.domain.model.QueryProfile
 import com.costoda.dittoedgestudio.domain.model.QueryResult
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -83,6 +85,7 @@ class QueryEditorViewModel(
     val selectedInspectorTab: StateFlow<QueryInspectorTab> = workbench.selectedInspectorTab.asStateFlow()
     val selectedDocument: StateFlow<Map<String, Any?>?> = workbench.selectedDocument.asStateFlow()
     val queryMetrics: StateFlow<QueryMetrics?> = workbench.queryMetrics.asStateFlow()
+    val queryProfile: StateFlow<QueryProfile?> = workbench.queryProfile.asStateFlow()
     val isFavorited: StateFlow<Boolean> = workbench.isFavorited.asStateFlow()
 
     // ── History / favorites ───────────────────────────────────────────────────
@@ -109,18 +112,34 @@ class QueryEditorViewModel(
     }
 
     fun executeQuery() {
-        val query = workbench.queryText.value.trim()
-        if (query.isBlank()) return
+        val rawQuery = workbench.queryText.value.trim()
+        if (rawQuery.isBlank()) return
+        val mode = workbench.executeMode.value
         viewModelScope.launch {
+            // Read the preference inside the coroutine so the live value is used even when
+            // captureProfilingData (a WhileSubscribed stateIn) has no active subscribers.
+            val captureProfile = appPreferences.metricsEnabled.first()
+            val effectiveQuery = if (
+                captureProfile &&
+                mode == "Local" &&
+                isSelectStatement(rawQuery) &&
+                !rawQuery.uppercase().trimStart().startsWith("PROFILE")
+            ) {
+                "PROFILE $rawQuery"
+            } else {
+                rawQuery
+            }
             workbench.isExecuting.value = true
             workbench.executionError.value = null
             try {
                 runCatching {
-                    val result = queryExecutionService.execute(query, mode = workbench.executeMode.value)
+                    val result = queryExecutionService.execute(effectiveQuery, mode = mode)
                     workbench.queryResult.value = result
+                    workbench.queryProfile.value = result.profile
                     workbench.currentPage.value = 0
-                    // Save to history and record metrics
-                    val historyId = historyRepository.addToHistory(databaseId, query)
+                    // Save to history and record metrics using the ORIGINAL query text so
+                    // history doesn't fill up with "PROFILE …" entries.
+                    val historyId = historyRepository.addToHistory(databaseId, rawQuery)
                     workbench.lastHistoryId = historyId
                     val metrics = QueryMetrics(
                         historyId = historyId,
@@ -131,7 +150,7 @@ class QueryEditorViewModel(
                         bytesRead = 0L,
                         explainPlan = result.explainPlan,
                         capturedAt = System.currentTimeMillis(),
-                        queryText = query,
+                        queryText = rawQuery,
                     )
                     metricsRepository.save(metrics)
                     workbench.queryMetrics.value = metrics
@@ -144,6 +163,11 @@ class QueryEditorViewModel(
                 workbench.isExecuting.value = false
             }
         }
+    }
+
+    private fun isSelectStatement(q: String): Boolean {
+        val upper = q.trimStart().uppercase()
+        return upper.startsWith("SELECT ") || upper == "SELECT"
     }
 
     fun explainQuery() {

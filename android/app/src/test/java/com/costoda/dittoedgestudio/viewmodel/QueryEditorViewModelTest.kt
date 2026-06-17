@@ -6,6 +6,9 @@ import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
+import com.costoda.dittoedgestudio.domain.model.QueryProfile
+import com.costoda.dittoedgestudio.domain.model.QueryProfileOperator
+import com.costoda.dittoedgestudio.domain.model.QueryProfileTimes
 import com.costoda.dittoedgestudio.domain.model.QueryResult
 import androidx.lifecycle.viewModelScope
 import io.mockk.coEvery
@@ -359,6 +362,93 @@ class QueryEditorViewModelTest {
         // The facade's explain() is local-only — confirm `execute(..., "HTTP")` was NOT called.
         io.mockk.coVerify(exactly = 0) { queryExecutionService.execute(any(), eq("HTTP")) }
         io.mockk.coVerify { queryExecutionService.explain("SELECT 1") }
+    }
+
+    // ── PROFILE prefix injection (QWP-8) ─────────────────────────────────────
+
+    @Test
+    fun `executeQuery prefixes PROFILE for SELECT Local with metricsEnabled true`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = true)
+        val workbench = QueryWorkbenchState().apply { executeMode.value = "Local" }
+        val captured = mutableListOf<String>()
+        coEvery { queryExecutionService.execute(any(), any()) } coAnswers {
+            captured += (it.invocation.args[0] as String)
+            QueryResult(emptyList(), 0, 1L)
+        }
+        val vm = createVm(workbench, appPreferences = fakePrefs)
+        vm.onQueryTextChange("SELECT * FROM tasks")
+        vm.executeQuery()
+        advanceUntilIdle()
+        assertEquals(listOf("PROFILE SELECT * FROM tasks"), captured)
+    }
+
+    @Test
+    fun `executeQuery does NOT prefix when metricsEnabled is false`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = false)
+        val workbench = QueryWorkbenchState().apply { executeMode.value = "Local" }
+        val captured = mutableListOf<String>()
+        coEvery { queryExecutionService.execute(any(), any()) } coAnswers {
+            captured += (it.invocation.args[0] as String)
+            QueryResult(emptyList(), 0, 1L)
+        }
+        val vm = createVm(workbench, appPreferences = fakePrefs)
+        vm.onQueryTextChange("SELECT * FROM tasks")
+        vm.executeQuery()
+        advanceUntilIdle()
+        assertEquals(listOf("SELECT * FROM tasks"), captured)
+    }
+
+    @Test
+    fun `executeQuery does NOT prefix for HTTP mode`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = true)
+        val workbench = QueryWorkbenchState().apply { executeMode.value = "HTTP" }
+        val captured = mutableListOf<String>()
+        coEvery { queryExecutionService.execute(any(), any()) } coAnswers {
+            captured += (it.invocation.args[0] as String)
+            QueryResult(emptyList(), 0, 1L)
+        }
+        val vm = createVm(workbench, appPreferences = fakePrefs)
+        vm.onQueryTextChange("SELECT * FROM tasks")
+        vm.executeQuery()
+        advanceUntilIdle()
+        assertEquals(listOf("SELECT * FROM tasks"), captured)
+    }
+
+    @Test
+    fun `executeQuery does NOT prefix for non-SELECT statements`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = true)
+        val workbench = QueryWorkbenchState().apply { executeMode.value = "Local" }
+        val captured = mutableListOf<String>()
+        coEvery { queryExecutionService.execute(any(), any()) } coAnswers {
+            captured += (it.invocation.args[0] as String)
+            QueryResult(emptyList(), 0, 1L)
+        }
+        val vm = createVm(workbench, appPreferences = fakePrefs)
+        vm.onQueryTextChange("UPDATE tasks SET done = true")
+        vm.executeQuery()
+        advanceUntilIdle()
+        assertEquals(listOf("UPDATE tasks SET done = true"), captured)
+    }
+
+    @Test
+    fun `executeQuery populates queryProfile flow when service returns a profile`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = true)
+        val workbench = QueryWorkbenchState().apply { executeMode.value = "Local" }
+        val fakeProfile = QueryProfile(
+            id = "p1", appId = "a", featureFlags = "0x1",
+            queryType = "select", requestType = "SDK", resultCount = 0,
+            state = "completed", text = "PROFILE SELECT 1",
+            times = QueryProfileTimes(1L, 2L, 3L, ""),
+            plan = QueryProfileOperator("op", "scan", null, emptyList(), emptyList()),
+            capturedAtMs = 0L,
+        )
+        coEvery { queryExecutionService.execute(any(), any()) } returns
+            QueryResult(documents = emptyList(), totalCount = 0, executionTimeMs = 5L, profile = fakeProfile)
+        val vm = createVm(workbench, appPreferences = fakePrefs)
+        vm.onQueryTextChange("SELECT 1")
+        vm.executeQuery()
+        advanceUntilIdle()
+        assertEquals(fakeProfile, vm.queryProfile.value)
     }
 }
 

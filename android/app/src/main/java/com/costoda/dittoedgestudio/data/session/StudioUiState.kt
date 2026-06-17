@@ -7,6 +7,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
+import com.costoda.dittoedgestudio.domain.model.QueryProfile
 import com.costoda.dittoedgestudio.domain.model.QueryResult
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -82,6 +83,7 @@ class QueryWorkbenchState {
     val selectedInspectorTab = MutableStateFlow(QueryInspectorTab.HISTORY)
     val selectedDocument = MutableStateFlow<Map<String, Any?>?>(null)
     val queryMetrics = MutableStateFlow<QueryMetrics?>(null)
+    val queryProfile = MutableStateFlow<QueryProfile?>(null)
     val isFavorited = MutableStateFlow(false)
 
     /** Picker selection — "Local" or "HTTP". Survives rail-section switches. */
