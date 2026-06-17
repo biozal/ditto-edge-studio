@@ -7,6 +7,8 @@ import com.costoda.dittoedgestudio.data.db.DatabaseRecovery
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.logging.LoggingService
+import com.costoda.dittoedgestudio.data.preferences.AppPreferences
+import com.costoda.dittoedgestudio.data.preferences.appPreferencesDataStore
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -86,6 +88,7 @@ val dataModule = module {
     single<HistoryRepository> { HistoryRepositoryImpl(get()) }
     single<ObservableRepository> { ObservableRepositoryImpl(get()) }
     single { LoggingService(androidContext()) }
+    single { AppPreferences(androidContext().appPreferencesDataStore) }
     single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
     single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
     single<SystemRepository> { SystemRepositoryImpl(get<CoroutineScope>()) }
