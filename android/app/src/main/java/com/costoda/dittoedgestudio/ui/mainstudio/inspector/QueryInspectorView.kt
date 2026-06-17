@@ -4,18 +4,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedIconButtonGroup
+import com.costoda.dittoedgestudio.ui.mainstudio.attachments.DeleteAttachmentSheet
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
 
@@ -47,6 +52,10 @@ fun QueryInspectorView(
     val metrics by viewModel.queryMetrics.collectAsStateWithLifecycle()
     val cachedAtt by viewModel.cachedAttachments.collectAsStateWithLifecycle()
 
+    // State: non-null while the Delete sheet is open. Holds the triggering AttachmentInfo so the
+    // sheet can pre-populate; the sheet itself re-derives all attachments from selectedDocument.
+    var pendingDeleteFor by remember { mutableStateOf<AttachmentInfo?>(null) }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Icon-only connected button group — fits the narrow 300-400dp inspector column
         // without wrapping; selection is conveyed by SulfurYellow container + shape morph.
@@ -73,10 +82,7 @@ fun QueryInspectorView(
                 selectedDocument = selectedDocument,
                 cachedAttachments = cachedAtt,
                 onViewAttachment = { viewModel.viewAttachment(it) },
-                onDeleteAttachment = {
-                    // Stubbed for QWP-13 — Delete sheet lands in QWP-15.
-                    android.util.Log.w("QueryInspector", "Delete (QWP-15) $it")
-                },
+                onDeleteAttachment = { pendingDeleteFor = it },
                 modifier = Modifier.weight(1f),
             )
             QueryInspectorTab.METRICS -> QueryMetricsInspector(
@@ -89,4 +95,47 @@ fun QueryInspectorView(
             )
         }
     }
+
+    // Delete sheet — shown when pendingDeleteFor is set. Derives all attachments from the current
+    // document so the user sees the full list, not just the one row that was tapped.
+    val pending = pendingDeleteFor
+    if (pending != null) {
+        val docId = (selectedDocument?.get("_id") as? String)
+        val collectionGuess = currentCollectionFromQuery(viewModel.queryText.value)
+
+        val allAttachments = remember(selectedDocument) {
+            selectedDocument?.let { AttachmentInfo.detectTokens(it) } ?: emptyList()
+        }
+
+        if (docId == null || collectionGuess == null) {
+            // Can't determine target document or collection — dismiss without acting.
+            pendingDeleteFor = null
+        } else {
+            DeleteAttachmentSheet(
+                attachments = allAttachments,
+                onDismiss = { pendingDeleteFor = null },
+                onConfirm = { selected ->
+                    viewModel.deleteAttachments(
+                        documentId = docId,
+                        collection = collectionGuess,
+                        attachments = selected,
+                    )
+                    pendingDeleteFor = null
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Best-effort: infer the target collection from the most recent query text.
+ * Looks for `FROM <name>` (case-insensitive) and returns the matched identifier.
+ * Returns null if the query doesn't have a recognisable FROM clause.
+ *
+ * v1 trade-off: works for `SELECT … FROM <c>` but not joins or aliased queries.
+ * A future task should track the last-executed collection explicitly on workbench state.
+ */
+private fun currentCollectionFromQuery(query: String): String? {
+    val match = Regex("""\bFROM\s+([A-Za-z_][A-Za-z0-9_]*)""", RegexOption.IGNORE_CASE).find(query)
+    return match?.groupValues?.get(1)
 }

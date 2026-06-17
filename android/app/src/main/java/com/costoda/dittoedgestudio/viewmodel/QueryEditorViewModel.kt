@@ -144,6 +144,53 @@ class QueryEditorViewModel(
      *
      * Errors are surfaced to the UI via [workbench.executionError].
      */
+    /**
+     * Remove the given attachments from [documentId] in [collection] by issuing a DQL UPDATE per
+     * attachment that nulls the field holding the token.
+     *
+     * The DQL identifier rules in Ditto permit unquoted collection/field names as long as they're
+     * valid identifiers (alpha + underscore start, alphanumeric thereafter). For safety we apply
+     * [isSafeIdentifier] — anything else fails fast rather than risking an injection-style misparse.
+     */
+    fun deleteAttachments(
+        documentId: String,
+        collection: String,
+        attachments: List<AttachmentInfo>,
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                require(documentId.isNotBlank()) { "documentId required" }
+                require(isSafeIdentifier(collection)) { "Unsafe collection identifier: $collection" }
+                for (att in attachments) {
+                    require(isSafeIdentifier(att.fieldName)) {
+                        "Unsafe field identifier: ${att.fieldName}"
+                    }
+                }
+                // The documentId is escaped via DQL string-literal quoting (single quotes;
+                // backslash-escape any embedded singles). Ditto document IDs are typically UUIDs or
+                // app-controlled strings, so this is defensive rather than likely-malicious.
+                val escapedDocId = documentId.replace("'", "\\'")
+                for (att in attachments) {
+                    queryExecutionService.execute(
+                        "UPDATE $collection SET ${att.fieldName} = NULL WHERE _id = '$escapedDocId'",
+                        mode = "Local",
+                    )
+                }
+                // Re-fetch note: the caller is responsible for triggering a result refresh. For v1
+                // we leave this as a known follow-up — the document row must be re-queried to
+                // reflect cleared fields.
+            }.onFailure { e ->
+                workbench.executionError.value = "Delete attachment failed: ${e.message}"
+            }
+        }
+    }
+
+    private fun isSafeIdentifier(s: String): Boolean {
+        if (s.isBlank()) return false
+        if (!(s[0].isLetter() || s[0] == '_')) return false
+        return s.all { it.isLetterOrDigit() || it == '_' }
+    }
+
     fun addAttachment(
         contentUri: android.net.Uri,
         documentId: String,
