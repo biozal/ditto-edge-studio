@@ -84,6 +84,22 @@ class QueryWorkbenchState {
     val queryMetrics = MutableStateFlow<QueryMetrics?>(null)
     val isFavorited = MutableStateFlow(false)
 
+    /** Picker selection — "Local" or "HTTP". Survives rail-section switches. */
+    val executeMode: MutableStateFlow<String> = MutableStateFlow("Local")
+
+    /**
+     * Modes the user can pick from. Derived by [com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel]
+     * on hydration from the active [com.costoda.dittoedgestudio.domain.model.DittoDatabase] — HTTP only
+     * appears when both `httpApiUrl` and `httpApiKey` are non-blank.
+     */
+    val executeModes: MutableStateFlow<List<String>> = MutableStateFlow(listOf("Local"))
+
+    /** Options popover — defaults ON each session; no DataStore persistence in this plan. */
+    val captureProfilingData: MutableStateFlow<Boolean> = MutableStateFlow(true)
+
+    /** Options popover — defaults ON each session; no DataStore persistence in this plan. */
+    val captureQueryMetrics: MutableStateFlow<Boolean> = MutableStateFlow(true)
+
     /** Last-saved history id, used to link metrics rows back to a history entry. Survives
      *  rail switches just like the rest of the workbench state. */
     var lastHistoryId: Long = -1L
