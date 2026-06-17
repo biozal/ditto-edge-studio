@@ -169,8 +169,15 @@ fun PresenceContentSection(
         SubscriptionEditorSheet(
             initial = sub,
             onSave = { name, query ->
-                if (sub.id == 0L) viewModel.addSubscription(name, query)
-                else viewModel.updateSubscription(sub.copy(name = name, query = query))
+                // Suspend until the Room write commits — the editor sheet shows
+                // a "Saving…" spinner and blocks dismissal until this returns.
+                // On success the VM clears editingSubscription, removing this
+                // composable from composition.
+                if (sub.id == 0L) {
+                    viewModel.addSubscription(name, query)
+                } else {
+                    viewModel.updateSubscription(sub.copy(name = name, query = query))
+                }
             },
             onDismiss = { viewModel.editingSubscription = null },
         )

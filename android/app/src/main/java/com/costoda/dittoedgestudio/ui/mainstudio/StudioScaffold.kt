@@ -2,6 +2,7 @@
 
 package com.costoda.dittoedgestudio.ui.mainstudio
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -119,6 +120,14 @@ fun StudioScaffold(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+
+    // Back button: when the drawer is open, the back press should close the
+    // drawer (matches the long-standing Android pattern), NOT pop the whole
+    // studio entry. Only enabled while the drawer is open so the handler doesn't
+    // interfere with normal back navigation when the drawer is dismissed.
+    BackHandler(enabled = drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
+    }
 
     // Ctrl+1..7 section-switch shortcut modifier — shared by both layout branches.
     // onPreviewKeyEvent on the outermost focusable container intercepts the event before any

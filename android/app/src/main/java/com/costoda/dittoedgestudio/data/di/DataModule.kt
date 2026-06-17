@@ -119,11 +119,23 @@ val dataModule = module {
             )
         } onClose { it?.close() }
     }
-    // The session is supplied by the UI via parametersOf(session) after resolving it from
-    // the studio scope; the VM stays plain so unit tests don't need a Koin scope.
-    // Koin resolves SavedStateHandle from CreationExtras for viewModel {} factories.
-    viewModel { (session: StudioSession) ->
-        MainStudioViewModel(session = session, savedStateHandle = get())
+    // The VM accepts a session-provider lambda so it can always resolve the CURRENT
+    // session from Koin (re-entry-safe — see MainStudioViewModel KDoc). The UI calls
+    // `parametersOf(databaseId)` and the factory below builds the lookup lambda; the
+    // scope is keyed by databaseId so the lambda returns the live session even
+    // across close-and-reopen cycles. Tests can construct the VM directly with
+    // `{ mockSession }` and bypass Koin entirely.
+    viewModel { (databaseId: Long) ->
+        val scopedKoin = getKoin()
+        MainStudioViewModel(
+            sessionProvider = {
+                scopedKoin.getOrCreateScope(
+                    StudioSession.scopeId(databaseId),
+                    org.koin.core.qualifier.named(StudioSession.SCOPE_QUALIFIER),
+                ).get<StudioSession> { org.koin.core.parameter.parametersOf(databaseId) }
+            },
+            savedStateHandle = get(),
+        )
     }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
     viewModel { DiskUsageViewModel(androidContext(), get(), get()) }

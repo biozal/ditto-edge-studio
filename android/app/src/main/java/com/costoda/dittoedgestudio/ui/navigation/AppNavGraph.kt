@@ -523,17 +523,14 @@ private fun StudioSectionContainer(
  */
 @Composable
 private fun rememberStudioViewModel(databaseId: Long): MainStudioViewModel {
-    val koin = getKoin()
-    val scopeId = remember(databaseId) { StudioSession.scopeId(databaseId) }
-    val scope = remember(scopeId) {
-        koin.getOrCreateScope(scopeId, named(StudioSession.SCOPE_QUALIFIER))
-    }
-    val session = remember(scope, databaseId) {
-        scope.get<StudioSession> { parametersOf(databaseId) }
-    }
+    // The VM is parameterised on databaseId only — it looks up the actual
+    // StudioSession lazily from Koin on every `viewModel.session` access. This
+    // means the VM is safe to keep alive in the Activity's ViewModelStore across
+    // a close-and-reopen cycle of the studio scope: after re-entry, the lookup
+    // returns the freshly-created session, never the closed one.
     return koinViewModel(
         key = "MainStudioViewModel:$databaseId",
-        parameters = { parametersOf(session) },
+        parameters = { parametersOf(databaseId) },
     )
 }
 

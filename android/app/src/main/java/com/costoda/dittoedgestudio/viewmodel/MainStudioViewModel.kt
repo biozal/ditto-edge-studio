@@ -60,13 +60,22 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
  * toggles, paging cursors for the observer events list, etc.) and delegates everything
  * Ditto-session-related to [StudioSession].
  *
- * The session is supplied by the UI via `parametersOf` after looking up / creating the
- * Koin `studio` scope keyed by databaseId — see [com.costoda.dittoedgestudio.ui.navigation.AppNavGraph].
+ * The session is supplied as a `() -> StudioSession` lookup lambda — typically a Koin
+ * scope query keyed by databaseId. The lambda is invoked on **every** `session`
+ * access so this VM always sees the **current** session, even after the user backs
+ * out of the studio (closing the Koin scope and `StudioSession`) and re-enters
+ * (creating a fresh scope + session). A previous design captured the session as a
+ * constructor field, which left the outer VM observing a closed, emptied session's
+ * StateFlows after re-entry — manifesting as "my subscriptions disappeared".
+ *
+ * Tests can pass `{ mockSession }` to inject a deterministic instance.
  */
 class MainStudioViewModel(
-    val session: StudioSession,
+    private val sessionProvider: () -> StudioSession,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+
+    val session: StudioSession get() = sessionProvider()
 
     companion object {
         internal const val KEY_SELECTED_NAV = "selectedNavItem"
@@ -170,14 +179,24 @@ class MainStudioViewModel(
 
     fun loadNetworkDiagnostics() = session.loadNetworkDiagnostics()
     fun toggleSync() = session.toggleSync()
-    fun addSubscription(name: String, query: String) {
-        session.addSubscription(name, query)
-        editingSubscription = null
+    /**
+     * Suspends until the new subscription is committed to Room. The editor sheet
+     * shows a "Saving…" indicator and blocks dismissal while this is in flight, so
+     * the user can't back out mid-save and silently lose data. The actual Room
+     * write runs under [kotlinx.coroutines.NonCancellable] inside the session.
+     */
+    suspend fun addSubscription(name: String, query: String): Result<Unit> {
+        val result = session.addSubscriptionSuspend(name, query)
+        if (result.isSuccess) editingSubscription = null
+        return result
     }
-    fun updateSubscription(subscription: DittoSubscription) {
-        session.updateSubscription(subscription)
-        editingSubscription = null
+
+    suspend fun updateSubscription(subscription: DittoSubscription): Result<Unit> {
+        val result = session.updateSubscriptionSuspend(subscription)
+        if (result.isSuccess) editingSubscription = null
+        return result
     }
+
     fun removeSubscription(id: Long) = session.removeSubscription(id)
 
     fun addObserver(name: String, query: String) {

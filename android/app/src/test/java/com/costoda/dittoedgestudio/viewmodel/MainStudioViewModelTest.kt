@@ -129,8 +129,9 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
+        val session99 = createSession(databaseId = 99L)
         val vm = MainStudioViewModel(
-            session = createSession(databaseId = 99L),
+            sessionProvider = { session99 },
             savedStateHandle = SavedStateHandle(),
         )
         advanceUntilIdle()
@@ -261,11 +262,13 @@ class MainStudioViewModelTest {
         ioDispatcher = testDispatcher,
     )
 
-    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()) =
-        MainStudioViewModel(
-            session = createSession(),
+    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): MainStudioViewModel {
+        val session = createSession()
+        return MainStudioViewModel(
+            sessionProvider = { session },
             savedStateHandle = savedStateHandle,
         )
+    }
 
     @Test
     fun `hydrate loads observers from repository`() = runTest {
@@ -357,8 +360,8 @@ class MainStudioViewModelTest {
     @Test
     fun `selectedObserver set via VM A is visible via VM B sharing the same session`() = runTest {
         val sharedSession = createSession()
-        val vmA = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
-        val vmB = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+        val vmA = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
 
         val observer = DittoObservable(id = 42, databaseId = "test-db-id", name = "Obs", query = "SELECT * FROM c")
         vmA.selectedObserver = observer
@@ -370,8 +373,8 @@ class MainStudioViewModelTest {
     @Test
     fun `eventCurrentPage set via VM A is visible via VM B sharing the same session`() = runTest {
         val sharedSession = createSession()
-        val vmA = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
-        val vmB = MainStudioViewModel(session = sharedSession, savedStateHandle = SavedStateHandle())
+        val vmA = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
 
         vmA.eventCurrentPage = 3
 
@@ -382,8 +385,8 @@ class MainStudioViewModelTest {
     fun `ephemeral state in session is independent from another session`() = runTest {
         val sessionA = createSession(databaseId = 1L)
         val sessionB = createSession(databaseId = 1L) // separate instance
-        val vmA = MainStudioViewModel(session = sessionA, savedStateHandle = SavedStateHandle())
-        val vmB = MainStudioViewModel(session = sessionB, savedStateHandle = SavedStateHandle())
+        val vmA = MainStudioViewModel(sessionProvider = { sessionA }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sessionB }, savedStateHandle = SavedStateHandle())
 
         val observer = DittoObservable(id = 7, databaseId = "test-db-id", name = "X", query = "SELECT * FROM t")
         vmA.selectedObserver = observer

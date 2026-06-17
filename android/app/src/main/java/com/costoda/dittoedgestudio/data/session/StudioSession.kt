@@ -224,30 +224,48 @@ class StudioSession(
         }
     }
 
-    fun addSubscription(name: String, query: String) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        sessionScope.launch {
+    /**
+     * Suspends until the subscription is written to Room. The Room write itself runs
+     * under [NonCancellable] so a fast back-tap by the user can never race the
+     * editor's coroutine and lose data — even if the caller's scope is cancelled
+     * mid-flight, the persisted record still lands.
+     *
+     * Returns a [Result] so the caller (the editor sheet) can decide whether to
+     * dismiss or surface an error.
+     */
+    suspend fun addSubscriptionSuspend(name: String, query: String): Result<Unit> {
+        val ditto = dittoManager.currentInstance()
+            ?: return Result.failure(IllegalStateException("Ditto instance not ready"))
+        val db = currentDatabase
+            ?: return Result.failure(IllegalStateException("Database not hydrated"))
+        return withContext(NonCancellable + ioDispatcher) {
             runCatching {
                 val sub = DittoSubscription(databaseId = db.databaseId, name = name, query = query)
                 val id = subscriptionsRepository.saveSubscription(sub)
                 val handle = ditto.sync.registerSubscription(query)
                 activeHandles[id] = handle
                 _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
+                Unit
+            }.onFailure { e ->
+                Log.e(TAG, "addSubscriptionSuspend failed: ${e.message}", e)
+                hydrateError = e.message
+            }
         }
     }
 
-    fun updateSubscription(subscription: DittoSubscription) {
-        val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
-        sessionScope.launch {
+    suspend fun updateSubscriptionSuspend(subscription: DittoSubscription): Result<Unit> {
+        val ditto = dittoManager.currentInstance()
+            ?: return Result.failure(IllegalStateException("Ditto instance not ready"))
+        val db = currentDatabase
+            ?: return Result.failure(IllegalStateException("Database not hydrated"))
+        return withContext(NonCancellable + ioDispatcher) {
             runCatching {
                 activeHandles.remove(subscription.id)?.close()
                 subscriptionsRepository.updateSubscription(subscription)
                 val handle = ditto.sync.registerSubscription(subscription.query)
                 activeHandles[subscription.id] = handle
                 _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
+                Unit
             }.onFailure { e -> hydrateError = e.message }
         }
     }
@@ -256,7 +274,9 @@ class StudioSession(
         val db = currentDatabase ?: return
         sessionScope.launch {
             activeHandles.remove(id)?.close()
-            subscriptionsRepository.removeSubscription(id)
+            withContext(NonCancellable) {
+                subscriptionsRepository.removeSubscription(id)
+            }
             _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
         }
     }
@@ -268,7 +288,11 @@ class StudioSession(
         sessionScope.launch {
             runCatching {
                 val obs = DittoObservable(databaseId = db.databaseId, name = name, query = query)
-                observableRepository.saveObservable(obs)
+                // Same data-loss-on-back-tap concern as addSubscription — keep the
+                // Room write under NonCancellable.
+                withContext(NonCancellable) {
+                    observableRepository.saveObservable(obs)
+                }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
             }.onFailure { e -> hydrateError = e.message }
         }
@@ -281,7 +305,9 @@ class StudioSession(
                 activeObserverHandles.remove(observer.id)?.close()
                 _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
                 val updated = observer.copy(name = name, query = query, isActive = false)
-                observableRepository.updateObservable(updated)
+                withContext(NonCancellable) {
+                    observableRepository.updateObservable(updated)
+                }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
             }.onFailure { e -> hydrateError = e.message }
         }
@@ -291,7 +317,9 @@ class StudioSession(
         val db = currentDatabase ?: return
         sessionScope.launch {
             activeObserverHandles.remove(observer.id)?.close()
-            observableRepository.removeObservable(observer.id)
+            withContext(NonCancellable) {
+                observableRepository.removeObservable(observer.id)
+            }
             _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
             _observers.value = observableRepository.loadObservables(db.databaseId)
         }
