@@ -51,6 +51,15 @@ android {
         unitTests {
             isReturnDefaultValues = true
         }
+        managedDevices {
+            localDevices {
+                create("tabletApi34") {
+                    device = "Pixel Tablet"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+            }
+        }
     }
 
     // Expose the Room-exported schema JSONs to androidTest so MigrationTestHelper
