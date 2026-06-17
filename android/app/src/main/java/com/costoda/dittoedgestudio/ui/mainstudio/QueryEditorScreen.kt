@@ -19,6 +19,7 @@ fun QueryEditorScreen(
     val executionError by viewModel.executionError.collectAsStateWithLifecycle()
     val queryResult by viewModel.queryResult.collectAsStateWithLifecycle()
     val displayedDocuments by viewModel.displayedDocuments.collectAsStateWithLifecycle()
+    val captureProfilingData by viewModel.captureProfilingData.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         QueryEditorView(
@@ -34,6 +35,8 @@ fun QueryEditorScreen(
             displayedDocuments = displayedDocuments,
             isExecuting = isExecuting,
             executionError = executionError,
+            captureProfilingData = captureProfilingData,
+            lastQueryText = queryText,
             onDocumentSelected = { viewModel.selectDocument(it) },
             modifier = Modifier.weight(0.6f),
         )

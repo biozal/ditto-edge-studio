@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.QueryResult
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
+import com.costoda.dittoedgestudio.ui.mainstudio.profile.ProfileViewerView
 
 @Composable
 fun QueryResultsView(
@@ -25,6 +26,8 @@ fun QueryResultsView(
     displayedDocuments: List<Map<String, Any?>>,
     isExecuting: Boolean,
     executionError: String?,
+    captureProfilingData: Boolean,
+    lastQueryText: String,
     onDocumentSelected: (Map<String, Any?>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -33,7 +36,7 @@ fun QueryResultsView(
     Column(modifier = modifier) {
         // ── View switcher ─────────────────────────────────────────────────────
         DittoConnectedButtonGroup(
-            options = listOf("JSON", "TABLE"),
+            options = listOf("JSON", "TABLE", "PROFILE"),
             selectedIndex = selectedTabIndex,
             onSelect = { selectedTabIndex = it },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -50,7 +53,7 @@ fun QueryResultsView(
                 .fillMaxWidth(),
         ) {
             when {
-                executionError != null -> {
+                executionError != null && selectedTabIndex != 2 -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = executionError,
@@ -60,7 +63,7 @@ fun QueryResultsView(
                         )
                     }
                 }
-                queryResult == null -> {
+                queryResult == null && selectedTabIndex != 2 -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = "Run a query to see results",
@@ -68,7 +71,7 @@ fun QueryResultsView(
                         )
                     }
                 }
-                queryResult.documents.isEmpty() -> {
+                queryResult?.documents?.isEmpty() == true && selectedTabIndex != 2 -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = "No results",
@@ -83,9 +86,17 @@ fun QueryResultsView(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                else -> {
+                selectedTabIndex == 1 -> {
                     ResultTableView(
                         documents = displayedDocuments,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                else -> {
+                    ProfileViewerView(
+                        profile = queryResult?.profile,
+                        metricsEnabled = captureProfilingData,
+                        lastQueryText = lastQueryText,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
