@@ -70,16 +70,20 @@ class QueryEditorViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createVm(workbench: QueryWorkbenchState): QueryEditorViewModel =
-        QueryEditorViewModel(
-            databaseId = "test-db-id",
-            workbench = workbench,
-            queryExecutionService = queryExecutionService,
-            historyRepository = historyRepository,
-            favoritesRepository = favoritesRepository,
-            metricsRepository = metricsRepository,
-            appMetricsRepository = appMetricsRepository,
-        )
+    private fun createVm(
+        workbench: QueryWorkbenchState,
+        appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway =
+            FakeAppPreferences(initialMetricsEnabled = true),
+    ): QueryEditorViewModel = QueryEditorViewModel(
+        databaseId = "test-db-id",
+        workbench = workbench,
+        queryExecutionService = queryExecutionService,
+        historyRepository = historyRepository,
+        favoritesRepository = favoritesRepository,
+        metricsRepository = metricsRepository,
+        appMetricsRepository = appMetricsRepository,
+        appPreferences = appPreferences,
+    )
 
     // ── Draft survival: shared session-scoped state across VM instances ───────
 
@@ -276,14 +280,21 @@ class QueryEditorViewModelTest {
     }
 
     @Test
-    fun `setCaptureProfilingData flips session-scoped toggle`() = runTest {
+    fun `setCaptureProfilingData writes through to AppPreferences`() = runTest {
+        val fakePrefs = FakeAppPreferences(initialMetricsEnabled = true)
         val sharedWorkbench = QueryWorkbenchState()
-        val vm = createVm(sharedWorkbench)
+        val vm = createVm(sharedWorkbench, appPreferences = fakePrefs)
+        // Subscribe so WhileSubscribed stateIn begins collecting from the gateway flow.
+        val collectedValues = mutableListOf<Boolean>()
+        val job = launch { vm.captureProfilingData.collect { collectedValues += it } }
+        advanceUntilIdle()
 
         assertEquals(true, vm.captureProfilingData.value)
         vm.setCaptureProfilingData(false)
         advanceUntilIdle()
+        assertEquals(false, fakePrefs.metricsEnabledValue)
         assertEquals(false, vm.captureProfilingData.value)
+        job.cancel()
     }
 
     @Test
@@ -348,5 +359,15 @@ class QueryEditorViewModelTest {
         // The facade's explain() is local-only — confirm `execute(..., "HTTP")` was NOT called.
         io.mockk.coVerify(exactly = 0) { queryExecutionService.execute(any(), eq("HTTP")) }
         io.mockk.coVerify { queryExecutionService.explain("SELECT 1") }
+    }
+}
+
+private class FakeAppPreferences(initialMetricsEnabled: Boolean) :
+    com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway {
+    private val _metricsEnabled = kotlinx.coroutines.flow.MutableStateFlow(initialMetricsEnabled)
+    override val metricsEnabled = _metricsEnabled
+    val metricsEnabledValue: Boolean get() = _metricsEnabled.value
+    override suspend fun setMetricsEnabled(enabled: Boolean) {
+        _metricsEnabled.value = enabled
     }
 }

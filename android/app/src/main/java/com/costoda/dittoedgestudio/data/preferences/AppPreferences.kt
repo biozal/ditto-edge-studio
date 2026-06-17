@@ -16,12 +16,12 @@ import kotlinx.coroutines.flow.map
  * AppStorage key of the same purpose. When ON, the Query Workbench captures execution
  * profiles for SELECT statements (PROFILE prefix injection in QueryEditorViewModel).
  */
-class AppPreferences(private val store: DataStore<Preferences>) {
+class AppPreferences(private val store: DataStore<Preferences>) : AppPreferencesGateway {
 
-    val metricsEnabled: Flow<Boolean> =
+    override val metricsEnabled: Flow<Boolean> =
         store.data.map { it[KEY_METRICS_ENABLED] ?: DEFAULT_METRICS_ENABLED }
 
-    suspend fun setMetricsEnabled(enabled: Boolean) {
+    override suspend fun setMetricsEnabled(enabled: Boolean) {
         store.edit { it[KEY_METRICS_ENABLED] = enabled }
     }
 

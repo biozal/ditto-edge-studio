@@ -95,9 +95,6 @@ class QueryWorkbenchState {
     val executeModes: MutableStateFlow<List<String>> = MutableStateFlow(listOf("Local"))
 
     /** Options popover — defaults ON each session; no DataStore persistence in this plan. */
-    val captureProfilingData: MutableStateFlow<Boolean> = MutableStateFlow(true)
-
-    /** Options popover — defaults ON each session; no DataStore persistence in this plan. */
     val captureQueryMetrics: MutableStateFlow<Boolean> = MutableStateFlow(true)
 
     /** Last-saved history id, used to link metrics rows back to a history entry. Survives

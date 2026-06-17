@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
@@ -45,6 +46,7 @@ class QueryEditorViewModel(
     private val favoritesRepository: FavoritesRepository,
     private val metricsRepository: QueryMetricsRepository,
     private val appMetricsRepository: AppMetricsRepository,
+    private val appPreferences: AppPreferencesGateway,
 ) : ViewModel() {
 
     // ── Editor state (session-backed) ─────────────────────────────────────────
@@ -95,7 +97,8 @@ class QueryEditorViewModel(
     // ── Execute mode + Options toggles (session-backed) ──────────────────────
     val executeMode: StateFlow<String> = workbench.executeMode.asStateFlow()
     val executeModes: StateFlow<List<String>> = workbench.executeModes.asStateFlow()
-    val captureProfilingData: StateFlow<Boolean> = workbench.captureProfilingData.asStateFlow()
+    val captureProfilingData: StateFlow<Boolean> = appPreferences.metricsEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val captureQueryMetrics: StateFlow<Boolean> = workbench.captureQueryMetrics.asStateFlow()
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -248,7 +251,9 @@ class QueryEditorViewModel(
     }
 
     fun setExecuteMode(mode: String) { workbench.executeMode.value = mode }
-    fun setCaptureProfilingData(enabled: Boolean) { workbench.captureProfilingData.value = enabled }
+    fun setCaptureProfilingData(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setMetricsEnabled(enabled) }
+    }
     fun setCaptureQueryMetrics(enabled: Boolean) { workbench.captureQueryMetrics.value = enabled }
 
     private fun checkFavorited(query: String) {
