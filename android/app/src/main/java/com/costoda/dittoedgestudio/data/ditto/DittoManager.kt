@@ -21,6 +21,11 @@ class DittoManager(
 
     private var ditto: Ditto? = null
 
+    @Volatile
+    private var activeDatabase: DittoDatabase? = null
+
+    fun currentDatabase(): DittoDatabase? = activeDatabase
+
     companion object {
         private const val TAG = "DittoManager"
     }
@@ -61,6 +66,7 @@ class DittoManager(
         withContext(Dispatchers.IO) { newDitto.sync.start() }
 
         ditto = newDitto
+        activeDatabase = database
         return newDitto
     }
 
@@ -109,6 +115,7 @@ class DittoManager(
         val current = ditto ?: return
         // Null out first so any concurrent calls to currentInstance() see null immediately
         ditto = null
+        activeDatabase = null
         withContext(Dispatchers.IO) {
             // close() cancels the Ditto coroutine scope and calls implementation.close(),
             // which releases the persistence-directory lock. Stopping sync alone is not

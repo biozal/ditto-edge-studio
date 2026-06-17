@@ -91,8 +91,17 @@ val dataModule = module {
     single<SystemRepository> { SystemRepositoryImpl(get<CoroutineScope>()) }
     single<NetworkDiagnosticsRepository> { NetworkDiagnosticsRepositoryImpl(androidContext()) }
     single<CollectionsRepository> { CollectionsRepositoryImpl(get<CoroutineScope>()) }
-    single { LocalQueryExecutionService(get()) }
-    single<QueryExecutionService> { error("Wired in Task 6") } // TEMP — replaced in Task 6
+    single { okhttp3.OkHttpClient() }
+    single { kotlinx.serialization.json.Json { ignoreUnknownKeys = true } }
+    single { LocalQueryExecutionService(get<com.costoda.dittoedgestudio.data.ditto.DittoManager>()) }
+    single {
+        com.costoda.dittoedgestudio.data.repository.HttpQueryExecutionService(
+            client = get(),
+            json = get(),
+            databaseProvider = { get<com.costoda.dittoedgestudio.data.ditto.DittoManager>().currentDatabase() },
+        )
+    }
+    single { QueryExecutionService(local = get(), http = get()) }
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     // AppHealthViewModel takes an ioDispatcher with a default of Dispatchers.IO for
