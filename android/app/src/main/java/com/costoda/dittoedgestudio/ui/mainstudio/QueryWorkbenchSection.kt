@@ -126,13 +126,31 @@ fun QueryWorkbenchContentSection(
                 CircularProgressIndicator()
             }
         } else {
-            QueryEditorScreen(
-                viewModel = queryVm,
-                modifier = Modifier.fillMaxSize(),
-            )
-            // Floating bottom bar — preserves the legacy QueryBottomBar (peers count,
-            // pagination, page-size, clear-results). The Run button lives next to the
-            // overflow so it's reachable without a top-bar dependency.
+            val queryText by queryVm.queryText.collectAsStateWithLifecycle()
+            val isExecuting by queryVm.isExecuting.collectAsStateWithLifecycle()
+            val executeMode by queryVm.executeMode.collectAsStateWithLifecycle()
+            val executeModes by queryVm.executeModes.collectAsStateWithLifecycle()
+            val captureProfilingData by queryVm.captureProfilingData.collectAsStateWithLifecycle()
+            val captureQueryMetrics by queryVm.captureQueryMetrics.collectAsStateWithLifecycle()
+            Column(modifier = Modifier.fillMaxSize()) {
+                QueryWorkbenchTopToolbar(
+                    queryText = queryText,
+                    isExecuting = isExecuting,
+                    executeMode = executeMode,
+                    executeModes = executeModes,
+                    captureProfilingData = captureProfilingData,
+                    captureQueryMetrics = captureQueryMetrics,
+                    onRun = { queryVm.executeQuery() },
+                    onModeSelect = { queryVm.setExecuteMode(it) },
+                    onCaptureProfilingDataChange = { queryVm.setCaptureProfilingData(it) },
+                    onCaptureQueryMetricsChange = { queryVm.setCaptureQueryMetrics(it) },
+                )
+                QueryEditorScreen(
+                    viewModel = queryVm,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Floating bottom bar (Run removed in Task 13).
             QueryWorkbenchBottomBar(
                 viewModel = queryVm,
                 mainViewModel = viewModel,
