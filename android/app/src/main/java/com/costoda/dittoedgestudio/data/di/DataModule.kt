@@ -107,6 +107,47 @@ val dataModule = module {
     single { QueryExecutionService(local = get(), http = get()) }
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
+    single<com.costoda.dittoedgestudio.data.repository.AttachmentStoreGateway> {
+        object : com.costoda.dittoedgestudio.data.repository.AttachmentStoreGateway {
+            override suspend fun newAttachment(
+                path: String,
+                metadata: Map<String, String>,
+            ): String {
+                val ditto = get<com.costoda.dittoedgestudio.data.ditto.DittoManager>().currentInstance()
+                    ?: error("No active Ditto instance")
+                // DittoCborSerializable.Dictionary takes Map<DittoCborSerializable, DittoCborSerializable>;
+                // string keys and values are Utf8String (not Text — that type does not exist in 5.0.x).
+                val md = com.ditto.kotlin.serialization.DittoCborSerializable.Dictionary(
+                    metadata.map { (k, v) ->
+                        com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String(k) to
+                            com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String(v)
+                    }.toMap(),
+                )
+                // newAttachment is a regular (non-suspend) function in SDK 5.0.x.
+                val att = ditto.store.newAttachment(path = path, metadata = md)
+                return att.id
+            }
+
+            override suspend fun fetchAttachment(tokenMap: Map<String, Any>): java.io.InputStream {
+                val ditto = get<com.costoda.dittoedgestudio.data.ditto.DittoManager>().currentInstance()
+                    ?: error("No active Ditto instance")
+                val res = ditto.store.fetchAttachment(tokenMap) { _, _ -> }
+                val completed = res.asCompleted() ?: error("Attachment deleted before fetch completed")
+                // Use copyToPath to land bytes in a temp file regardless of internal stream type,
+                // then stream from there. Safe across SDK internal-stream changes.
+                val tmp = java.io.File.createTempFile("ditto-att-", ".bin")
+                completed.attachment.copyToPath(tmp.absolutePath)
+                tmp.deleteOnExit()
+                return tmp.inputStream()
+            }
+        }
+    }
+    single {
+        com.costoda.dittoedgestudio.data.repository.AttachmentService(
+            gateway = get(),
+            cacheDirProvider = { androidContext().cacheDir },
+        )
+    }
     // AppHealthViewModel takes an ioDispatcher with a default of Dispatchers.IO for
     // testability; in production we let the default win. Use an explicit factory so
     // Koin doesn't try to resolve a CoroutineDispatcher binding it doesn't have.
