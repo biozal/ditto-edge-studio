@@ -5,4 +5,6 @@ data class QueryResult(
     val totalCount: Int,
     val executionTimeMs: Long,
     val explainPlan: String? = null,
+    /** Set only when the query was a SELECT prefixed with PROFILE and the envelope was parsed. */
+    val profile: QueryProfile? = null,
 )

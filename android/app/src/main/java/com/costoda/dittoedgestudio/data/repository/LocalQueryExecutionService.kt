@@ -12,17 +12,19 @@ class LocalQueryExecutionService(private val dittoManager: DittoManager) {
         val ditto = dittoManager.currentInstance()
             ?: error("No active Ditto instance")
         val start = System.currentTimeMillis()
-        val documents = ditto.store.execute(query) { result ->
+        val items = ditto.store.execute(query) { result ->
             result.items.map { item ->
                 runCatching { parseJsonToMap(JSONObject(item.jsonString())) }
                     .getOrDefault(emptyMap<String, Any?>())
             }
         }
         val elapsed = System.currentTimeMillis() - start
+        val (docs, profile) = QueryProfileParser.partition(items)
         QueryResult(
-            documents = documents,
-            totalCount = documents.size,
+            documents = docs,
+            totalCount = docs.size,
             executionTimeMs = elapsed,
+            profile = profile,
         )
     }
 
