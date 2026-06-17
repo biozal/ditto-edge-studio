@@ -92,6 +92,12 @@ class QueryEditorViewModel(
         favoritesRepository.observeFavorites(databaseId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // ── Execute mode + Options toggles (session-backed) ──────────────────────
+    val executeMode: StateFlow<String> = workbench.executeMode.asStateFlow()
+    val executeModes: StateFlow<List<String>> = workbench.executeModes.asStateFlow()
+    val captureProfilingData: StateFlow<Boolean> = workbench.captureProfilingData.asStateFlow()
+    val captureQueryMetrics: StateFlow<Boolean> = workbench.captureQueryMetrics.asStateFlow()
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     fun onQueryTextChange(text: String) {
@@ -107,7 +113,7 @@ class QueryEditorViewModel(
             workbench.executionError.value = null
             try {
                 runCatching {
-                    val result = queryExecutionService.execute(query)
+                    val result = queryExecutionService.execute(query, mode = workbench.executeMode.value)
                     workbench.queryResult.value = result
                     workbench.currentPage.value = 0
                     // Save to history and record metrics
@@ -240,6 +246,10 @@ class QueryEditorViewModel(
     fun clearHistory() {
         viewModelScope.launch { historyRepository.clearHistory(databaseId) }
     }
+
+    fun setExecuteMode(mode: String) { workbench.executeMode.value = mode }
+    fun setCaptureProfilingData(enabled: Boolean) { workbench.captureProfilingData.value = enabled }
+    fun setCaptureQueryMetrics(enabled: Boolean) { workbench.captureQueryMetrics.value = enabled }
 
     private fun checkFavorited(query: String) {
         workbench.isFavorited.value = favorites.value.any { it.query == query }

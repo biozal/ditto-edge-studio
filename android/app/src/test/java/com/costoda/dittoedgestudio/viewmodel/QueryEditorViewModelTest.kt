@@ -260,4 +260,93 @@ class QueryEditorViewModelTest {
         assertNull(vmB.executionError.value)
         assertEquals(0, vmB.currentPage.value)
     }
+
+    // ── execute-mode wiring ────────────────────────────────────────────────────
+
+    @Test
+    fun `setExecuteMode updates session-scoped flow visible across VMs`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState()
+        val vmA = createVm(sharedWorkbench)
+        val vmB = createVm(sharedWorkbench)
+
+        vmA.setExecuteMode("HTTP")
+        advanceUntilIdle()
+
+        assertEquals("HTTP", vmB.executeMode.value)
+    }
+
+    @Test
+    fun `setCaptureProfilingData flips session-scoped toggle`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState()
+        val vm = createVm(sharedWorkbench)
+
+        assertEquals(true, vm.captureProfilingData.value)
+        vm.setCaptureProfilingData(false)
+        advanceUntilIdle()
+        assertEquals(false, vm.captureProfilingData.value)
+    }
+
+    @Test
+    fun `setCaptureQueryMetrics flips session-scoped toggle`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState()
+        val vm = createVm(sharedWorkbench)
+
+        assertEquals(true, vm.captureQueryMetrics.value)
+        vm.setCaptureQueryMetrics(false)
+        advanceUntilIdle()
+        assertEquals(false, vm.captureQueryMetrics.value)
+    }
+
+    @Test
+    fun `executeQuery passes current executeMode to the facade`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState().apply { executeMode.value = "HTTP" }
+        val captured = mutableListOf<String>()
+        coEvery { queryExecutionService.execute(any(), any()) } coAnswers {
+            captured += (it.invocation.args[1] as String)
+            QueryResult(documents = emptyList(), totalCount = 0, executionTimeMs = 1L)
+        }
+
+        val vm = createVm(sharedWorkbench)
+        vm.onQueryTextChange("SELECT * FROM c")
+        vm.executeQuery()
+        advanceUntilIdle()
+
+        assertEquals(listOf("HTTP"), captured)
+    }
+
+    @Test
+    fun `executeQuery records history and metrics identically for HTTP mode`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState().apply { executeMode.value = "HTTP" }
+        val result = QueryResult(documents = listOf(mapOf("a" to 1)), totalCount = 1, executionTimeMs = 7L)
+        coEvery { queryExecutionService.execute(any(), eq("HTTP")) } returns result
+        coEvery { historyRepository.addToHistory(any(), any()) } returns 42L
+
+        val vm = createVm(sharedWorkbench)
+        vm.onQueryTextChange("SELECT * FROM c")
+        vm.executeQuery()
+        advanceUntilIdle()
+
+        assertEquals(result, vm.queryResult.value)
+        assertEquals(42L, sharedWorkbench.lastHistoryId)
+        io.mockk.coVerify { historyRepository.addToHistory("test-db-id", "SELECT * FROM c") }
+        io.mockk.coVerify { metricsRepository.save(any()) }
+        io.mockk.coVerify { appMetricsRepository.incrementQueryCount() }
+    }
+
+    @Test
+    fun `explainQuery always uses Local mode regardless of picker`() = runTest {
+        val sharedWorkbench = QueryWorkbenchState().apply { executeMode.value = "HTTP" }
+        val result = QueryResult(documents = emptyList(), totalCount = 0, executionTimeMs = 2L)
+        coEvery { queryExecutionService.explain(any()) } returns result
+        coEvery { historyRepository.addToHistory(any(), any()) } returns 0L
+
+        val vm = createVm(sharedWorkbench)
+        vm.onQueryTextChange("SELECT 1")
+        vm.explainQuery()
+        advanceUntilIdle()
+
+        // The facade's explain() is local-only — confirm `execute(..., "HTTP")` was NOT called.
+        io.mockk.coVerify(exactly = 0) { queryExecutionService.execute(any(), eq("HTTP")) }
+        io.mockk.coVerify { queryExecutionService.explain("SELECT 1") }
+    }
 }
