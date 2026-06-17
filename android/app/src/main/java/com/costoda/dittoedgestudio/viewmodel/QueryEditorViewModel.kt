@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class QueryInspectorTab { HISTORY, FAVORITES, JSON, METRICS }
+enum class QueryInspectorTab { HISTORY, FAVORITES, JSON, METRICS, HELP }
 
 /**
  * ViewModel for the Query Workbench (Task 4.3e).

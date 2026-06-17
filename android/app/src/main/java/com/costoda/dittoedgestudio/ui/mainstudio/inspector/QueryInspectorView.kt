@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +24,7 @@ private val INSPECTOR_TAB_ICONS: List<ImageVector> = listOf(
     Icons.Outlined.BookmarkBorder,
     Icons.Outlined.Code,
     Icons.Outlined.Analytics,
+    Icons.AutoMirrored.Outlined.HelpOutline,
 )
 
 private val INSPECTOR_TAB_DESCRIPTIONS: List<String> = listOf(
@@ -30,6 +32,7 @@ private val INSPECTOR_TAB_DESCRIPTIONS: List<String> = listOf(
     "Favorites",
     "JSON",
     "Metrics",
+    "Help",
 )
 
 @Composable
@@ -71,6 +74,10 @@ fun QueryInspectorView(
             )
             QueryInspectorTab.METRICS -> QueryMetricsInspector(
                 metrics = metrics,
+                modifier = Modifier.weight(1f),
+            )
+            QueryInspectorTab.HELP -> HelpContentView(
+                assetFileName = "query.md",
                 modifier = Modifier.weight(1f),
             )
         }
