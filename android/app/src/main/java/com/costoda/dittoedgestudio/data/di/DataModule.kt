@@ -52,6 +52,7 @@ import org.koin.core.module.dsl.viewModelOf
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.dsl.onClose
+import com.ditto.kotlin.serialization.toDittoCbor
 
 val dataModule = module {
     // App-level CoroutineScope for Ditto operations
@@ -126,6 +127,52 @@ val dataModule = module {
                 // newAttachment is a regular (non-suspend) function in SDK 5.0.x.
                 val att = ditto.store.newAttachment(path = path, metadata = md)
                 return att.id
+            }
+
+            override suspend fun createAndLink(
+                path: String,
+                metadata: Map<String, String>,
+                collection: String,
+                fieldName: String,
+                documentId: String,
+            ) {
+                val ditto = get<com.costoda.dittoedgestudio.data.ditto.DittoManager>().currentInstance()
+                    ?: error("No active Ditto instance")
+
+                // Build CBOR metadata dictionary for newAttachment.
+                val md = com.ditto.kotlin.serialization.DittoCborSerializable.Dictionary(
+                    metadata.map { (k, v) ->
+                        com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String(k) to
+                            com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String(v)
+                    }.toMap(),
+                )
+                val attachment = ditto.store.newAttachment(path = path, metadata = md)
+
+                // Bind the DittoAttachment to the DQL UPDATE via the CBOR Dictionary overload.
+                //
+                // BINDING RATIONALE: The Kotlin SDK's execute(query, Map<String,Any?>) overload
+                // uses toCborOrThrow() which only supports primitives/strings/bytes/null — it does
+                // NOT accept a DittoAttachment value. The reified execute<T> overload requires
+                // @Serializable types; DittoAttachment has no serializer. The only correct path is
+                // execute(query, DittoCborSerializable.Dictionary) using attachment.toDittoCbor()
+                // which is a published SDK extension that converts DittoAttachment to its internal
+                // CBOR representation (defined in serializationHelpers.kt, SDK 5.0.1).
+                //
+                // The DQL UPDATE uses :att and :docId argument placeholders. The :att binding
+                // carries the attachment's full CBOR token so Ditto can resolve the attachment
+                // object on the document.
+                val cborArgs = com.ditto.kotlin.serialization.DittoCborSerializable.Dictionary(
+                    mapOf(
+                        com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String("att")
+                            to attachment.toDittoCbor(),
+                        com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String("docId")
+                            to com.ditto.kotlin.serialization.DittoCborSerializable.Utf8String(documentId),
+                    ),
+                )
+                ditto.store.execute(
+                    query = "UPDATE $collection SET $fieldName = :att WHERE _id = :docId",
+                    arguments = cborArgs,
+                )
             }
 
             override suspend fun fetchAttachment(tokenMap: Map<String, Any>): java.io.InputStream {

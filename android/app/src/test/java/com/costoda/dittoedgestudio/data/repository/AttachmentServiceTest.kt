@@ -78,17 +78,55 @@ class AttachmentServiceTest {
         assertArrayEquals(payload, file.readBytes())
         assertTrue(gateway.fetchCallCount.get() == 1)
     }
+
+    @Test
+    fun `createAndLink delegates all parameters to gateway`() = runTest {
+        val md = mapOf("type" to "image/png")
+        svc.createAndLink(
+            path = "/tmp/img.png",
+            metadata = md,
+            collection = "photos",
+            fieldName = "thumbnail",
+            documentId = "doc-42",
+        )
+        assertEquals(1, gateway.createAndLinkCalls.size)
+        val call = gateway.createAndLinkCalls.first()
+        assertEquals("/tmp/img.png", call.path)
+        assertEquals(md, call.metadata)
+        assertEquals("photos", call.collection)
+        assertEquals("thumbnail", call.fieldName)
+        assertEquals("doc-42", call.documentId)
+    }
 }
+
+private data class CreateAndLinkCall(
+    val path: String,
+    val metadata: Map<String, String>,
+    val collection: String,
+    val fieldName: String,
+    val documentId: String,
+)
 
 private class RecordingGateway : AttachmentStoreGateway {
     val newAttachmentCalls: MutableList<Pair<String, Map<String, String>>> = mutableListOf()
     var newAttachmentResult: String = ""
     val fetchCallCount = AtomicInteger(0)
     var fetchPayload: ByteArray = ByteArray(0)
+    val createAndLinkCalls: MutableList<CreateAndLinkCall> = mutableListOf()
 
     override suspend fun newAttachment(path: String, metadata: Map<String, String>): String {
         newAttachmentCalls += path to metadata
         return newAttachmentResult
+    }
+
+    override suspend fun createAndLink(
+        path: String,
+        metadata: Map<String, String>,
+        collection: String,
+        fieldName: String,
+        documentId: String,
+    ) {
+        createAndLinkCalls += CreateAndLinkCall(path, metadata, collection, fieldName, documentId)
     }
 
     override suspend fun fetchAttachment(tokenMap: Map<String, Any>): InputStream {

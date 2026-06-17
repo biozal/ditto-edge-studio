@@ -23,6 +23,22 @@ class AttachmentService internal constructor(
         gateway.newAttachment(path, metadata)
 
     /**
+     * Creates an attachment from [path] and immediately links it to [documentId]'s [fieldName]
+     * in [collection] via a DQL UPDATE.
+     *
+     * Delegates to [AttachmentStoreGateway.createAndLink] which keeps the SDK
+     * [com.ditto.kotlin.DittoAttachment] object in scope so it can be bound as a typed CBOR
+     * argument — the only correct binding path in the Kotlin SDK (see gateway KDoc).
+     */
+    suspend fun createAndLink(
+        path: String,
+        metadata: Map<String, String>,
+        collection: String,
+        fieldName: String,
+        documentId: String,
+    ): Unit = gateway.createAndLink(path, metadata, collection, fieldName, documentId)
+
+    /**
      * Downloads the attachment described by [info] to `cacheDir/attachments/<id>`.
      * Idempotent: if a cached file with matching length already exists, the gateway
      * is not invoked.

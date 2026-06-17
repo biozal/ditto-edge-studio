@@ -126,6 +126,59 @@ class QueryEditorViewModel(
         }
     }
 
+    /**
+     * Adds an attachment to the document identified by [documentId] in [collection], storing
+     * it at field [fieldName].
+     *
+     * Pipeline:
+     *   1. Copy the picked content Uri to a local cache temp file (Ditto's newAttachment
+     *      takes a file path, not a Uri).
+     *   2. Call [AttachmentService.createAndLink] which: (a) calls newAttachment to upload
+     *      the file to Ditto's store, (b) immediately binds the resulting DittoAttachment
+     *      to the document via a DQL UPDATE using the CBOR Dictionary execute overload with
+     *      `attachment.toDittoCbor()`. This two-step combined operation is necessary because
+     *      the Kotlin SDK's Map<String,Any?> execute path does not accept DittoAttachment
+     *      values — only the DittoCborSerializable.Dictionary overload supports attachment
+     *      binding (see AttachmentStoreGateway.createAndLink KDoc for full rationale).
+     *   3. Delete the temp file after the upload completes.
+     *
+     * Errors are surfaced to the UI via [workbench.executionError].
+     */
+    fun addAttachment(
+        contentUri: android.net.Uri,
+        documentId: String,
+        collection: String,
+        fieldName: String,
+        metadata: Map<String, String>,
+        context: android.content.Context,
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                // Step 1: Copy the picked content Uri to a temp file (SDK needs a path).
+                val tempFile = java.io.File.createTempFile("ditto-pick-", ".bin", context.cacheDir)
+                try {
+                    context.contentResolver.openInputStream(contentUri)?.use { input ->
+                        tempFile.outputStream().use { input.copyTo(it) }
+                    } ?: error("Could not read content uri: $contentUri")
+
+                    // Step 2: Upload to Ditto and link to the document in one gateway call.
+                    attachmentService.createAndLink(
+                        path = tempFile.absolutePath,
+                        metadata = metadata,
+                        collection = collection,
+                        fieldName = fieldName,
+                        documentId = documentId,
+                    )
+                } finally {
+                    // Step 3: Clean up — temp file was only needed for the SDK upload call.
+                    tempFile.delete()
+                }
+            }.onFailure { e ->
+                workbench.executionError.value = "Add attachment failed: ${e.message}"
+            }
+        }
+    }
+
     fun onQueryTextChange(text: String) {
         workbench.queryText.value = text
         checkFavorited(text)
