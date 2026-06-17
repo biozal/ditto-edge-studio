@@ -27,16 +27,4 @@ class QueryExecutionService(private val dittoManager: DittoManager) {
     }
 
     suspend fun explain(query: String): QueryResult = execute("EXPLAIN $query")
-
-    private fun parseJsonToMap(json: JSONObject): Map<String, Any?> {
-        val map = mutableMapOf<String, Any?>()
-        for (key in json.keys()) {
-            map[key] = when (val value = json.opt(key)) {
-                JSONObject.NULL -> null
-                is JSONObject -> parseJsonToMap(value)
-                else -> value
-            }
-        }
-        return map
-    }
 }
