@@ -1,30 +1,22 @@
 package com.costoda.dittoedgestudio.data.repository
 
-import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.domain.model.QueryResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
-class QueryExecutionService(private val dittoManager: DittoManager) {
+/**
+ * Dispatcher facade: routes [execute] to [LocalQueryExecutionService] or
+ * [HttpQueryExecutionService] based on the picker mode set on `QueryWorkbenchState`.
+ *
+ * [explain] is local-only (matches SwiftUI's "PROFILE is local-only for v1"; see the
+ * design spec §5.7). Unknown modes fall back to Local — defensive in case the picker
+ * state drifts from the supported set.
+ */
+class QueryExecutionService(
+    private val local: LocalQueryExecutionService,
+    private val http: HttpQueryExecutionService,
+) {
 
-    suspend fun execute(query: String): QueryResult = withContext(Dispatchers.IO) {
-        val ditto = dittoManager.currentInstance()
-            ?: error("No active Ditto instance")
-        val start = System.currentTimeMillis()
-        val documents = ditto.store.execute(query) { result ->
-            result.items.map { item ->
-                runCatching { parseJsonToMap(JSONObject(item.jsonString())) }
-                    .getOrDefault(emptyMap<String, Any?>())
-            }
-        }
-        val elapsed = System.currentTimeMillis() - start
-        QueryResult(
-            documents = documents,
-            totalCount = documents.size,
-            executionTimeMs = elapsed,
-        )
-    }
+    suspend fun execute(query: String, mode: String = "Local"): QueryResult =
+        if (mode == "HTTP") http.execute(query) else local.execute(query)
 
-    suspend fun explain(query: String): QueryResult = execute("EXPLAIN $query")
+    suspend fun explain(query: String): QueryResult = local.explain(query)
 }

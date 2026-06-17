@@ -21,6 +21,7 @@ import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
 import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepositoryImpl
+import com.costoda.dittoedgestudio.data.repository.LocalQueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepositoryImpl
@@ -90,7 +91,8 @@ val dataModule = module {
     single<SystemRepository> { SystemRepositoryImpl(get<CoroutineScope>()) }
     single<NetworkDiagnosticsRepository> { NetworkDiagnosticsRepositoryImpl(androidContext()) }
     single<CollectionsRepository> { CollectionsRepositoryImpl(get<CoroutineScope>()) }
-    single { QueryExecutionService(get()) }
+    single { LocalQueryExecutionService(get()) }
+    single<QueryExecutionService> { error("Wired in Task 6") } // TEMP — replaced in Task 6
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
     // AppHealthViewModel takes an ioDispatcher with a default of Dispatchers.IO for
