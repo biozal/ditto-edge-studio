@@ -124,4 +124,11 @@ class QueryProfileParserTest {
         val malformed = mapOf(envelopeKey to canonicalEnvelope.minus("plan"))
         assertNull(QueryProfileParser.parseItem(malformed))
     }
+
+    @Test
+    fun `subtreeExecNs sums match canonical fixture`() {
+        val profile = QueryProfileParser.parseItem(wrappedItem)!!
+        // sequence(0) + scan(209) + limit(2083) = 2292 ns
+        assertEquals(2_292L, profile.plan.subtreeExecNs)
+    }
 }
