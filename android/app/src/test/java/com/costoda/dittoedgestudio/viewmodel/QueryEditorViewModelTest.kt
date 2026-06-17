@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.viewmodel
 
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.AttachmentService
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
@@ -53,6 +54,7 @@ class QueryEditorViewModelTest {
     private lateinit var favoritesRepository: FavoritesRepository
     private lateinit var metricsRepository: QueryMetricsRepository
     private lateinit var appMetricsRepository: AppMetricsRepository
+    private lateinit var attachmentService: AttachmentService
 
     @Before
     fun setUp() {
@@ -62,6 +64,7 @@ class QueryEditorViewModelTest {
         favoritesRepository = mockk(relaxed = true)
         metricsRepository = mockk(relaxed = true)
         appMetricsRepository = mockk(relaxed = true)
+        attachmentService = mockk(relaxed = true)
 
         // Empty history/favorites by default — tests that need data override per-case.
         coEvery { historyRepository.observeHistory(any()) } returns flowOf(emptyList())
@@ -86,6 +89,7 @@ class QueryEditorViewModelTest {
         metricsRepository = metricsRepository,
         appMetricsRepository = appMetricsRepository,
         appPreferences = appPreferences,
+        attachmentService = attachmentService,
     )
 
     // ── Draft survival: shared session-scoped state across VM instances ───────

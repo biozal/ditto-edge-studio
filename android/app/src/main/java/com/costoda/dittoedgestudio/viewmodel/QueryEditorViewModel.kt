@@ -4,15 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.AttachmentService
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
+import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import com.costoda.dittoedgestudio.domain.model.DittoQueryHistory
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
 import com.costoda.dittoedgestudio.domain.model.QueryProfile
 import com.costoda.dittoedgestudio.domain.model.QueryResult
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class QueryInspectorTab { HISTORY, FAVORITES, JSON, METRICS, HELP }
@@ -49,6 +53,7 @@ class QueryEditorViewModel(
     private val metricsRepository: QueryMetricsRepository,
     private val appMetricsRepository: AppMetricsRepository,
     private val appPreferences: AppPreferencesGateway,
+    private val attachmentService: AttachmentService,
 ) : ViewModel() {
 
     // ── Editor state (session-backed) ─────────────────────────────────────────
@@ -88,6 +93,10 @@ class QueryEditorViewModel(
     val queryProfile: StateFlow<QueryProfile?> = workbench.queryProfile.asStateFlow()
     val isFavorited: StateFlow<Boolean> = workbench.isFavorited.asStateFlow()
 
+    // ── Attachment cache ──────────────────────────────────────────────────────
+    private val _cachedAttachments = MutableStateFlow<Map<String, java.io.File>>(emptyMap())
+    val cachedAttachments: StateFlow<Map<String, java.io.File>> = _cachedAttachments.asStateFlow()
+
     // ── History / favorites ───────────────────────────────────────────────────
     val history: StateFlow<List<DittoQueryHistory>> =
         historyRepository.observeHistory(databaseId)
@@ -105,6 +114,17 @@ class QueryEditorViewModel(
     val captureQueryMetrics: StateFlow<Boolean> = workbench.captureQueryMetrics.asStateFlow()
 
     // ── Public API ────────────────────────────────────────────────────────────
+
+    fun viewAttachment(info: AttachmentInfo) {
+        viewModelScope.launch {
+            runCatching {
+                val file = attachmentService.fetchToCache(info)
+                _cachedAttachments.update { it + (info.id to file) }
+            }.onFailure { e ->
+                workbench.executionError.value = "Attachment fetch failed: ${e.message}"
+            }
+        }
+    }
 
     fun onQueryTextChange(text: String) {
         workbench.queryText.value = text

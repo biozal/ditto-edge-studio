@@ -45,6 +45,7 @@ fun QueryInspectorView(
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val selectedDocument by viewModel.selectedDocument.collectAsStateWithLifecycle()
     val metrics by viewModel.queryMetrics.collectAsStateWithLifecycle()
+    val cachedAtt by viewModel.cachedAttachments.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         // Icon-only connected button group — fits the narrow 300-400dp inspector column
@@ -70,6 +71,12 @@ fun QueryInspectorView(
             )
             QueryInspectorTab.JSON -> QueryJsonInspector(
                 selectedDocument = selectedDocument,
+                cachedAttachments = cachedAtt,
+                onViewAttachment = { viewModel.viewAttachment(it) },
+                onDeleteAttachment = {
+                    // Stubbed for QWP-13 — Delete sheet lands in QWP-15.
+                    android.util.Log.w("QueryInspector", "Delete (QWP-15) $it")
+                },
                 modifier = Modifier.weight(1f),
             )
             QueryInspectorTab.METRICS -> QueryMetricsInspector(

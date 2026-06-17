@@ -199,7 +199,7 @@ val dataModule = module {
     // and inspector tab survive rail-section switches that destroy/recreate this VM. See
     // [com.costoda.dittoedgestudio.data.session.QueryWorkbenchState].
     viewModel { (databaseId: String, workbench: com.costoda.dittoedgestudio.data.session.QueryWorkbenchState) ->
-        QueryEditorViewModel(databaseId, workbench, get(), get(), get(), get(), get(), get<AppPreferences>())
+        QueryEditorViewModel(databaseId, workbench, get(), get(), get(), get(), get(), get<AppPreferences>(), get())
     }
     viewModelOf(::QrScannerViewModel)
     viewModel { (db: DittoDatabase) -> QrDisplayViewModel(db, get()) }
