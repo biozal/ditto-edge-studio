@@ -15,7 +15,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -34,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
@@ -207,9 +207,7 @@ fun QueryWorkbenchInspector(
 /**
  * Floating bottom bar for the Query Workbench. Mirrors the legacy `QueryBottomBar`
  * in `MainStudioScreen` 1:1 (peers chip + dropdown, prev/next page, page-size submenu,
- * Clear Results) and adds a leading Run / progress button so the run affordance is
- * reachable from the content pane (the top bar used to host this; the scaffold's
- * top bar is shared across sections in the scene shell and stays generic).
+ * Clear Results). The Run button lives in [QueryWorkbenchTopToolbar] — not here.
  */
 @Composable
 private fun QueryWorkbenchBottomBar(
@@ -222,7 +220,6 @@ private fun QueryWorkbenchBottomBar(
     val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
     val pageSize by viewModel.pageSize.collectAsStateWithLifecycle()
     val pageSizeOptions by viewModel.pageSizeOptions.collectAsStateWithLifecycle()
-    val isExecuting by viewModel.isExecuting.collectAsStateWithLifecycle()
 
     var connectionsExpanded by remember { mutableStateOf(false) }
     var overflowExpanded by remember { mutableStateOf(false) }
@@ -243,26 +240,6 @@ private fun QueryWorkbenchBottomBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            // Run / loading button (legacy lived in the top bar — moved here so the scaffold
-            // top bar stays section-agnostic).
-            IconButton(
-                onClick = { viewModel.executeQuery() },
-                enabled = !isExecuting,
-            ) {
-                if (isExecuting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Outlined.PlayArrow,
-                        contentDescription = "Run query",
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
             // Peers count with dropdown — identical to QueryBottomBar in MainStudioScreen.
             Box {
                 FilterChip(
