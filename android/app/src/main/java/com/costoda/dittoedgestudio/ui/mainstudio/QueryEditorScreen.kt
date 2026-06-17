@@ -38,6 +38,12 @@ fun QueryEditorScreen(
             captureProfilingData = captureProfilingData,
             lastQueryText = queryText,
             onDocumentSelected = { viewModel.selectDocument(it) },
+            onAddConfirm = { uri, docId, coll, fieldName, metadata, ctx ->
+                viewModel.addAttachment(uri, docId, coll, fieldName, metadata, ctx)
+            },
+            onDeleteConfirm = { docId, coll, attachments ->
+                viewModel.deleteAttachments(docId, coll, attachments)
+            },
             modifier = Modifier.weight(0.6f),
         )
     }

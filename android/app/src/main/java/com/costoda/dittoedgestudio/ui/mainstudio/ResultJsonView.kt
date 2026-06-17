@@ -3,7 +3,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 import android.view.MotionEvent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,12 +38,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import org.json.JSONObject
 
 @Composable
 fun ResultJsonView(
     documents: List<Map<String, Any?>>,
     onDocumentSelected: (Map<String, Any?>) -> Unit,
+    onAddAttachmentRequest: (Map<String, Any?>) -> Unit,
+    onDeleteAttachmentRequest: (Map<String, Any?>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (documents.isEmpty()) {
@@ -62,6 +65,8 @@ fun ResultJsonView(
                 index = index,
                 document = doc,
                 onClick = { onDocumentSelected(doc) },
+                onAddAttachmentRequest = { onAddAttachmentRequest(doc) },
+                onDeleteAttachmentRequest = { onDeleteAttachmentRequest(doc) },
             )
         }
     }
@@ -73,11 +78,14 @@ private fun DocumentCard(
     index: Int,
     document: Map<String, Any?>,
     onClick: () -> Unit,
+    onAddAttachmentRequest: () -> Unit,
+    onDeleteAttachmentRequest: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     val id = document["_id"]?.toString() ?: "doc_$index"
     val jsonString = remember(document) { formatJson(document) }
+    val hasAttachments = remember(document) { AttachmentInfo.detectTokens(document).isNotEmpty() }
     // LocalClipboardManager is deprecated in favour of LocalClipboard (Compose UI 1.8+), but
     // the replacement's setClipEntry() is a suspend function and would still require a coroutine
     // scope. setText() is synchronous — no scope needed here.
@@ -113,10 +121,13 @@ private fun DocumentCard(
         ) {
             Column(
                 modifier = Modifier
-                    .clickable {
-                        expanded = !expanded
-                        if (!expanded) onClick()
-                    }
+                    .combinedClickable(
+                        onClick = {
+                            expanded = !expanded
+                            if (!expanded) onClick()
+                        },
+                        onLongClick = { showContextMenu = true },
+                    )
                     .padding(8.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -160,7 +171,8 @@ private fun DocumentCard(
             }
         }
 
-        // Right-click context menu — "Copy JSON" copies the full document JSON.
+        // Context menu — opened by right-click (desktop) or long-press (touch).
+        // "Copy JSON" copies the full document; attachment entries open the relevant sheet.
         DropdownMenu(
             expanded = showContextMenu,
             onDismissRequest = { showContextMenu = false },
@@ -170,6 +182,21 @@ private fun DocumentCard(
                 onClick = {
                     showContextMenu = false
                     clipboardManager.setText(AnnotatedString(jsonString))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Add Attachment…") },
+                onClick = {
+                    showContextMenu = false
+                    onAddAttachmentRequest()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete Attachment…") },
+                enabled = hasAttachments,
+                onClick = {
+                    showContextMenu = false
+                    onDeleteAttachmentRequest()
                 },
             )
         }

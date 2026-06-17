@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedIconButtonGroup
 import com.costoda.dittoedgestudio.ui.mainstudio.attachments.DeleteAttachmentSheet
+import com.costoda.dittoedgestudio.ui.mainstudio.currentCollectionFromQuery
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
 
@@ -117,7 +118,7 @@ fun QueryInspectorView(
                 onConfirm = { selected ->
                     viewModel.deleteAttachments(
                         documentId = docId,
-                        collection = collectionGuess,
+                        collection = collectionGuess!!,
                         attachments = selected,
                     )
                     pendingDeleteFor = null
@@ -127,15 +128,5 @@ fun QueryInspectorView(
     }
 }
 
-/**
- * Best-effort: infer the target collection from the most recent query text.
- * Looks for `FROM <name>` (case-insensitive) and returns the matched identifier.
- * Returns null if the query doesn't have a recognisable FROM clause.
- *
- * v1 trade-off: works for `SELECT … FROM <c>` but not joins or aliased queries.
- * A future task should track the last-executed collection explicitly on workbench state.
- */
-private fun currentCollectionFromQuery(query: String): String? {
-    val match = Regex("""\bFROM\s+([A-Za-z_][A-Za-z0-9_]*)""", RegexOption.IGNORE_CASE).find(query)
-    return match?.groupValues?.get(1)
-}
+// currentCollectionFromQuery is defined in AttachmentTargets.kt (same package) to avoid
+// duplication with QueryResultsView. No import needed — same package.

@@ -1,8 +1,10 @@
 package com.costoda.dittoedgestudio.ui.mainstudio
 
+import android.view.MotionEvent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import android.view.MotionEvent
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -35,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import org.json.JSONObject
 
 private const val CELL_MIN_WIDTH_DP = 120
@@ -43,6 +46,8 @@ private const val CELL_PADDING_DP = 8
 @Composable
 fun ResultTableView(
     documents: List<Map<String, Any?>>,
+    onAddAttachmentRequest: (Map<String, Any?>) -> Unit,
+    onDeleteAttachmentRequest: (Map<String, Any?>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (documents.isEmpty()) {
@@ -104,6 +109,8 @@ fun ResultTableView(
                     columns = columns,
                     index = index,
                     scrollState = scrollState,
+                    onAddAttachmentRequest = { onAddAttachmentRequest(doc) },
+                    onDeleteAttachmentRequest = { onDeleteAttachmentRequest(doc) },
                 )
                 HorizontalDivider(thickness = 0.5.dp)
             }
@@ -112,21 +119,26 @@ fun ResultTableView(
 }
 
 /**
- * A single data row in the results table with right-click (secondary-button) context
- * menu support for desktop windowing.
+ * A single data row in the results table with right-click (secondary-button) and long-press
+ * context menu support.
  *
- * Right-clicking the row shows a "Copy JSON" item that copies the full row document as
- * pretty-printed JSON to the system clipboard. The menu is implemented with [DropdownMenu]
- * which is consistent with the right-click menus in [ResultJsonView] and elsewhere in the app.
+ * The menu includes:
+ * - "Copy JSON" — copies the full row document as pretty-printed JSON to the clipboard.
+ * - "Add Attachment…" — opens the attachment picker sheet for this row.
+ * - "Delete Attachment…" — opens the delete sheet; enabled only when the row has attachment tokens.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TableDataRow(
     doc: Map<String, Any?>,
     columns: List<String>,
     index: Int,
     scrollState: ScrollState,
+    onAddAttachmentRequest: () -> Unit,
+    onDeleteAttachmentRequest: () -> Unit,
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
+    val hasAttachments = remember(doc) { AttachmentInfo.detectTokens(doc).isNotEmpty() }
     // LocalClipboardManager is deprecated in favour of LocalClipboard (Compose UI 1.8+), but
     // the replacement's setClipEntry() is a suspend function and would still require a coroutine
     // scope. setText() is synchronous — no scope needed here.
@@ -142,6 +154,10 @@ private fun TableDataRow(
                     else MaterialTheme.colorScheme.surfaceContainerLowest,
                 )
                 .horizontalScroll(scrollState)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showContextMenu = true },
+                )
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val event = awaitPointerEvent()
@@ -174,7 +190,8 @@ private fun TableDataRow(
             }
         }
 
-        // Right-click context menu — "Copy JSON" copies the row document as JSON.
+        // Context menu — opened by right-click (desktop) or long-press (touch).
+        // "Copy JSON" copies the row document; attachment entries open the relevant sheet.
         DropdownMenu(
             expanded = showContextMenu,
             onDismissRequest = { showContextMenu = false },
@@ -184,6 +201,21 @@ private fun TableDataRow(
                 onClick = {
                     showContextMenu = false
                     clipboardManager.setText(AnnotatedString(jsonString))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Add Attachment…") },
+                onClick = {
+                    showContextMenu = false
+                    onAddAttachmentRequest()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete Attachment…") },
+                enabled = hasAttachments,
+                onClick = {
+                    showContextMenu = false
+                    onDeleteAttachmentRequest()
                 },
             )
         }
