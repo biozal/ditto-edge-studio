@@ -13,6 +13,8 @@ import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepositoryImpl
+import com.costoda.dittoedgestudio.data.repository.DatabaseMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.DatabaseMetricsRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepositoryImpl
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
@@ -108,6 +110,7 @@ val dataModule = module {
     single { QueryExecutionService(local = get(), http = get()) }
     single<QueryMetricsRepository> { QueryMetricsRepositoryImpl(get()) }
     single<AppMetricsRepository> { AppMetricsRepositoryImpl() }
+    single<DatabaseMetricsRepository> { DatabaseMetricsRepositoryImpl() }
     single<com.costoda.dittoedgestudio.data.repository.AttachmentStoreGateway> {
         object : com.costoda.dittoedgestudio.data.repository.AttachmentStoreGateway {
             override suspend fun newAttachment(
@@ -240,7 +243,7 @@ val dataModule = module {
         )
     }
     viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
-    viewModel { DiskUsageViewModel(androidContext(), get(), get()) }
+    viewModel { DiskUsageViewModel(get<DittoManager>(), get<DatabaseMetricsRepository>()) }
     // QueryEditorViewModel is parameterised on (databaseId, workbench). The workbench state
     // holder lives on the StudioSession's uiState so the editor draft, results, pagination,
     // and inspector tab survive rail-section switches that destroy/recreate this VM. See
