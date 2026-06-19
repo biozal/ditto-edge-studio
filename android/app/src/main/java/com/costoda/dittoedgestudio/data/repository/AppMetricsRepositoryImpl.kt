@@ -8,7 +8,6 @@ import com.costoda.dittoedgestudio.domain.model.CollectionStorageInfo
 import com.ditto.kotlin.Ditto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.LinkedList
@@ -75,8 +74,10 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
             }
         }
 
-        // Collection breakdown
-        val collectionBreakdown = if (ditto != null) computeCollectionBreakdown(ditto) else emptyList()
+        // Per-collection breakdown was moved to DatabaseMetricsRepository — the field
+        // stays on the model for now to avoid churning other callers, but we no longer
+        // pay the per-document CBOR scan on every AppMetrics auto-refresh (15s tick).
+        val collectionBreakdown = emptyList<CollectionStorageInfo>()
 
         AppMetrics(
             capturedAt = System.currentTimeMillis(),
@@ -97,43 +98,6 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
             otherBytes = otherBytes,
             collectionBreakdown = collectionBreakdown,
         )
-    }
-
-    private suspend fun computeCollectionBreakdown(ditto: Ditto): List<CollectionStorageInfo> {
-        return try {
-            val names = ditto.store.execute("SELECT * FROM system:collections") { colResult ->
-                colResult.items.mapNotNull { item ->
-                    runCatching { JSONObject(item.jsonString()).optString("name") }
-                        .getOrNull()
-                        ?.takeIf { it.isNotBlank() }
-                }
-            }
-
-            val breakdown = names.mapNotNull { name ->
-                try {
-                    val escaped = name.replace("`", "``")
-                    ditto.store.execute("SELECT * FROM `$escaped`") { docResult ->
-                        var jsonBytes = 0L
-                        var docCount = 0
-                        docResult.items.forEach { item ->
-                            jsonBytes += item.jsonString().toByteArray(Charsets.UTF_8).size.toLong()
-                            docCount++
-                            item.dematerialize()
-                        }
-                        CollectionStorageInfo(
-                            collectionName = name,
-                            documentCount = docCount,
-                            estimatedBytes = jsonBytes,
-                        )
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            breakdown.sortedByDescending { it.estimatedBytes }
-        } catch (e: Exception) {
-            emptyList()
-        }
     }
 
     private fun readProcStat(key: String): Long {

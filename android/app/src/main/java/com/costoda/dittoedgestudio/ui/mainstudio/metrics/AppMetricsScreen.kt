@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -112,20 +111,8 @@ fun AppMetricsScreen(
             item { MetricsSectionHeader("Queries") }
             item { MetricsGrid(snap.queryMetrics()) }
 
-            item { MetricsSectionHeader("Storage") }
-            item { MetricsGrid(snap.storageMetrics()) }
-
-            if (snap.collectionBreakdown.isNotEmpty()) {
-                item { MetricsSectionHeader("Collections") }
-                items(snap.collectionBreakdown) { info ->
-                    MetricCard(
-                        title = info.collectionName,
-                        value = info.estimatedBytesFormatted,
-                        subtitle = info.documentCountFormatted,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+            // Storage and per-collection breakdown live on the Database Metrics
+            // screen now — see DatabaseMetricsRepository.
         }
     }
 }
@@ -167,15 +154,4 @@ private fun AppMetrics.queryMetrics(): List<Pair<String, String>> = listOf(
     "Total Queries" to "$totalQueryCount",
     "Avg Latency" to avgLatencyFormatted,
     "Last Latency" to lastLatencyFormatted,
-)
-
-private fun AppMetrics.storageMetrics(): List<Pair<String, String>> = listOf(
-    "Store" to storeBytesFormatted,
-    "Replication" to replicationBytesFormatted,
-    "Attachments" to attachmentsBytesFormatted,
-    "Auth" to authBytesFormatted,
-    "WAL/SHM" to walShmBytesFormatted,
-    "Logging" to logsBytesFormatted,
-    "Other" to otherBytesFormatted,
-    "Total" to totalStorageBytesFormatted,
 )
