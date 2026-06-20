@@ -1,11 +1,10 @@
 package com.costoda.dittoedgestudio.viewmodel
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.domain.model.AppMetrics
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,9 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class AppMetricsViewModel(
-    private val context: Context,
     private val appMetricsRepository: AppMetricsRepository,
-    private val dittoManager: DittoManager,
 ) : ViewModel() {
 
     private val _metrics = MutableStateFlow<AppMetrics?>(null)
@@ -47,12 +44,17 @@ class AppMetricsViewModel(
 
     suspend fun refresh() {
         _isLoading.value = true
-        runCatching {
-            val snapshot = appMetricsRepository.snapshot(context, dittoManager.currentInstance())
+        try {
+            val snapshot = appMetricsRepository.snapshot()
             _metrics.value = snapshot
             _lastUpdatedText.value = formatRelativeTime(snapshot.capturedAt)
+        } catch (c: CancellationException) {
+            throw c
+        } catch (_: Throwable) {
+            // Snapshot failure leaves the last good metrics in place.
+        } finally {
+            _isLoading.value = false
         }
-        _isLoading.value = false
     }
 
     override fun onCleared() {

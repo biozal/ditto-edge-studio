@@ -242,7 +242,7 @@ val dataModule = module {
             savedStateHandle = get(),
         )
     }
-    viewModel { AppMetricsViewModel(androidContext(), get(), get()) }
+    viewModel { AppMetricsViewModel(get<AppMetricsRepository>()) }
     viewModel { DiskUsageViewModel(get<DittoManager>(), get<DatabaseMetricsRepository>()) }
     // QueryEditorViewModel is parameterised on (databaseId, workbench). The workbench state
     // holder lives on the StudioSession's uiState so the editor draft, results, pagination,

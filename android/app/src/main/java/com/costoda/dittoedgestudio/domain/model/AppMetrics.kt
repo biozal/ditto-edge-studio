@@ -1,14 +1,11 @@
 package com.costoda.dittoedgestudio.domain.model
 
-data class CollectionStorageInfo(
-    val collectionName: String,
-    val documentCount: Int,
-    val estimatedBytes: Long,
-) {
-    val estimatedBytesFormatted: String get() = formatBytes(estimatedBytes)
-    val documentCountFormatted: String get() = "$documentCount docs"
-}
-
+/**
+ * Process- and query-level metrics displayed on the App Metrics rail item.
+ *
+ * Storage and per-collection payload metrics moved to [DatabaseMetrics] / the
+ * Database Metrics rail item; this model is intentionally narrow now.
+ */
 data class AppMetrics(
     val capturedAt: Long,
     // Process
@@ -21,20 +18,11 @@ data class AppMetrics(
     val totalQueryCount: Int,
     val avgQueryLatencyMs: Double,
     val lastQueryLatencyMs: Double?,
-    // Storage
-    val storeBytes: Long,
-    val replicationBytes: Long,
-    val attachmentsBytes: Long,
-    val authBytes: Long,
-    val walShmBytes: Long,
-    val logsBytes: Long,
-    val otherBytes: Long,
-    val collectionBreakdown: List<CollectionStorageInfo> = emptyList(),
 ) {
     val residentMemoryFormatted: String get() = formatBytes(residentMemoryBytes)
     val virtualMemoryFormatted: String get() = formatBytes(virtualMemoryBytes)
     val cpuTimeFormatted: String get() =
-        if (cpuTimeMs < 1000) "${cpuTimeMs} ms" else "${"%.2f".format(cpuTimeMs / 1000.0)} s"
+        if (cpuTimeMs < 1000) "$cpuTimeMs ms" else "${"%.2f".format(cpuTimeMs / 1000.0)} s"
     val uptimeFormatted: String get() {
         val secs = processUptimeMs / 1000
         val mins = secs / 60
@@ -47,15 +35,6 @@ data class AppMetrics(
     }
     val avgLatencyFormatted: String get() = if (totalQueryCount > 0) formatMs(avgQueryLatencyMs) else "—"
     val lastLatencyFormatted: String get() = lastQueryLatencyMs?.let { formatMs(it) } ?: "—"
-    val storeBytesFormatted: String get() = formatBytes(storeBytes)
-    val replicationBytesFormatted: String get() = formatBytes(replicationBytes)
-    val attachmentsBytesFormatted: String get() = formatBytes(attachmentsBytes)
-    val authBytesFormatted: String get() = formatBytes(authBytes)
-    val walShmBytesFormatted: String get() = formatBytes(walShmBytes)
-    val logsBytesFormatted: String get() = formatBytes(logsBytes)
-    val otherBytesFormatted: String get() = formatBytes(otherBytes)
-    val totalStorageBytes: Long get() = storeBytes + replicationBytes + attachmentsBytes + authBytes + walShmBytes + logsBytes + otherBytes
-    val totalStorageBytesFormatted: String get() = formatBytes(totalStorageBytes)
 }
 
 private fun formatBytes(bytes: Long): String = when {

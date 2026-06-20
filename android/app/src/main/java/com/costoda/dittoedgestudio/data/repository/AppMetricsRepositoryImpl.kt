@@ -1,11 +1,8 @@
 package com.costoda.dittoedgestudio.data.repository
 
-import android.content.Context
 import android.os.Debug
 import android.os.SystemClock
 import com.costoda.dittoedgestudio.domain.model.AppMetrics
-import com.costoda.dittoedgestudio.domain.model.CollectionStorageInfo
-import com.ditto.kotlin.Ditto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,7 +27,7 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
         }
     }
 
-    override suspend fun snapshot(context: Context, ditto: Ditto?): AppMetrics = withContext(Dispatchers.IO) {
+    override suspend fun snapshot(): AppMetrics = withContext(Dispatchers.IO) {
         // Process metrics
         val memInfo = Debug.MemoryInfo()
         Debug.getMemoryInfo(memInfo)
@@ -46,39 +43,6 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
         val avgLatency = if (samples.isNotEmpty()) samples.average() else 0.0
         val lastLatency = samples.lastOrNull()
 
-        // Storage metrics from app files directory
-        val dittoDir = File(context.filesDir, "ditto")
-        var storeBytes = 0L
-        var replicationBytes = 0L
-        var attachmentsBytes = 0L
-        var authBytes = 0L
-        var walShmBytes = 0L
-        var logsBytes = 0L
-        var otherBytes = 0L
-
-        if (dittoDir.exists()) {
-            dittoDir.walkTopDown().forEach { file ->
-                if (file.isFile) {
-                    val size = file.length()
-                    val rel = file.path.removePrefix(dittoDir.path)
-                    when {
-                        rel.contains("ditto_store") -> storeBytes += size
-                        rel.contains("ditto_replication") -> replicationBytes += size
-                        rel.contains("ditto_attachments") -> attachmentsBytes += size
-                        rel.contains("ditto_auth") -> authBytes += size
-                        rel.endsWith(".wal") || rel.endsWith(".shm") -> walShmBytes += size
-                        rel.contains("ditto_logs") -> logsBytes += size
-                        else -> otherBytes += size
-                    }
-                }
-            }
-        }
-
-        // Per-collection breakdown was moved to DatabaseMetricsRepository — the field
-        // stays on the model for now to avoid churning other callers, but we no longer
-        // pay the per-document CBOR scan on every AppMetrics auto-refresh (15s tick).
-        val collectionBreakdown = emptyList<CollectionStorageInfo>()
-
         AppMetrics(
             capturedAt = System.currentTimeMillis(),
             residentMemoryBytes = residentMemory,
@@ -89,14 +53,6 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
             totalQueryCount = total,
             avgQueryLatencyMs = avgLatency,
             lastQueryLatencyMs = lastLatency,
-            storeBytes = storeBytes,
-            replicationBytes = replicationBytes,
-            attachmentsBytes = attachmentsBytes,
-            authBytes = authBytes,
-            walShmBytes = walShmBytes,
-            logsBytes = logsBytes,
-            otherBytes = otherBytes,
-            collectionBreakdown = collectionBreakdown,
         )
     }
 
