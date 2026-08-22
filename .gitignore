@@ -14,6 +14,8 @@ rust/debug
 rust/designs
 .claude/*
 !.claude/settings.json
+.codex/*
+!.codex/config.toml
 fontawesome
 .periphery_baseline.json
 .worktrees
@@ -51,3 +53,20 @@ docs/superpowers
 # never meant to be checked in. Anchored to the repo root so a
 # `screens/` directory nested elsewhere isn't accidentally ignored.
 /screens/
+
+# Local databases and device backups — never checked in.
+#
+# These are scratch artifacts: a `data/dto.db` from ad-hoc SQLite poking, and
+# `adb backup` archives. The app's real stores live in its sandbox container
+# (~/Library/Containers/<bundle-id>/Data/Library/Application Support/), never in
+# the repo. This matters beyond tidiness: the local configuration store is
+# plaintext (see docs/CREDENTIAL_STORAGE.md), so a committed database file would
+# publish whatever database tokens, license tokens and API keys it happened to
+# hold. No tracked file has ever matched these patterns.
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.ab
