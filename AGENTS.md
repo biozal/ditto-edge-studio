@@ -77,8 +77,9 @@ active database and review write queries before executing them.
 ## Skills
 
 For Android architecture, Compose screens, ViewModels, repositories, or modules,
-load the project skill with `npx openskills read android-development` before
-implementation.
+check the installed project skills with `npx openskills list` and load relevant
+ones (e.g. `navigation-3`, `styles`, `testing-setup`) with
+`npx openskills read <skill-name>` before implementation.
 
 ## Code review rules
 

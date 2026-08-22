@@ -4,8 +4,9 @@ These rules apply under `android/` and extend the repository root `AGENTS.md`.
 
 ## Required workflow
 
-- Load `android-development` with
-  `npx openskills read android-development` before Android implementation work.
+- Project skills from the Android CLI are installed under `.claude/skills/`;
+  list them with `npx openskills list` and load relevant ones with
+  `npx openskills read <skill-name>` before Android implementation work.
 - Keep documentation in `../docs/android/`, plans in `../plans/android/`, and
   screenshots in `../screens/android/`; do not add Markdown files here.
 - Follow `../docs/android/ARCHITECTURE.md` and
