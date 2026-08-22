@@ -18,6 +18,10 @@ final class SyncStatusViewModel {
     private let dittoManager: any DittoManagerProtocol
     @ObservationIgnored
     private let systemRepository: any SystemRepositoryProtocol
+    /// Injected rather than read from `.shared` so this stays unit-testable; production
+    /// always gets the process-wide instance the `DittoManager` funnels publish to.
+    @ObservationIgnored
+    private let syncRuntime: SyncRuntimeState
 
     // MARK: - State
 
@@ -25,10 +29,20 @@ final class SyncStatusViewModel {
     /// the SystemRepository sync-status callback installed in `installCallbacks`.
     var syncStatusItems: [SyncStatusInfo] = []
 
-    /// Drives the toolbar sync indicator and `toggleSync` semantics. Defaults
-    /// to `true` because hydration starts sync; flipped by `toggleSync` and by
-    /// `reset()` on close.
-    var isSyncEnabled = true
+    /// Drives the toolbar sync indicator and `toggleSync` semantics.
+    ///
+    /// **Derived, not stored.** This used to be a `Bool` defaulting to `true` "because
+    /// hydration starts sync", written only by `toggleSync` and `reset()`. That made it a
+    /// guess, and it disagreed with reality whenever sync stopped by any other route — a
+    /// failed restart after a transport change, a failed system-settings reset, or a
+    /// silent no-op start. The indicator showed green over stopped sync, and the first
+    /// recovery tap took the *stop* branch, so it took two taps to restart.
+    ///
+    /// It now reflects `SyncRuntimeState`, which only the two `DittoManager` funnels write
+    /// and only after the SDK call they wrap has actually returned.
+    var isSyncEnabled: Bool {
+        syncRuntime.isRunning
+    }
 
     /// Live transport connection counts from the presence observer.
     var connectionsByTransport: ConnectionsByTransport = .empty
@@ -44,10 +58,12 @@ final class SyncStatusViewModel {
 
     init(
         dittoManager: any DittoManagerProtocol = DittoManager.shared,
-        systemRepository: any SystemRepositoryProtocol = SystemRepository.shared
+        systemRepository: any SystemRepositoryProtocol = SystemRepository.shared,
+        syncRuntime: SyncRuntimeState = .shared
     ) {
         self.dittoManager = dittoManager
         self.systemRepository = systemRepository
+        self.syncRuntime = syncRuntime
     }
 
     // MARK: - Lifecycle hooks (called from parent's performLoad)
@@ -105,12 +121,17 @@ final class SyncStatusViewModel {
         }
     }
 
-    /// Clears all sync state. Called from the parent VM's `closeSelectedApp`
-    /// so the next database open starts from a known-empty baseline.
+    /// Clears the peer/transport caches so the next database open starts from a
+    /// known-empty baseline. Called from the parent VM's `closeSelectedApp`.
+    ///
+    /// It deliberately does **not** touch sync state: the caller
+    /// (`MainStudioViewModel.closeSelectedApp`) goes on to close the database, and
+    /// `DittoManager.closeDittoSelectedDatabase` publishes `isRunning = false` through the
+    /// stop funnel. Writing it here as well would be a second, competing source of truth —
+    /// the thing this refactor removes.
     func reset() {
         syncStatusItems = []
         connectionsByTransport = .empty
-        isSyncEnabled = false
 
         localPeerDeviceName = nil
         localPeerSDKLanguage = nil
@@ -122,15 +143,18 @@ final class SyncStatusViewModel {
 
     /// Toggles sync on/off via the DittoManager. When disabling, also clears
     /// the live transport / peer caches so stale UI doesn't linger.
+    ///
+    /// Neither branch assigns `isSyncEnabled` any more — it is derived from
+    /// `SyncRuntimeState`, which the manager's funnels update once the SDK call has
+    /// actually succeeded. Assigning it here is what previously let a failed or no-op
+    /// start still light the indicator green.
     func toggleSync() async throws {
         if isSyncEnabled {
             await dittoManager.selectedDatabaseStopSync()
             connectionsByTransport = .empty
             syncStatusItems = []
-            isSyncEnabled = false
         } else {
             try await dittoManager.selectedDatabaseStartSync()
-            isSyncEnabled = true
         }
     }
 

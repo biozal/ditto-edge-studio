@@ -59,9 +59,13 @@ struct DatabaseListPanel: View {
                                 Task { await viewModel.showMainStudio(dittoApp, appState: appState) }
                             }
                             .contextMenu {
+                                // Identifiers so UI tests can reach the editor for an
+                                // EXISTING config (the row's tap gesture opens the
+                                // database instead) and can clean up afterwards.
                                 Button {
                                     viewModel.showAppEditor(dittoApp)
                                 } label: { Label("Edit", systemImage: "pencil") }
+                                    .accessibilityIdentifier("EditDatabaseMenuItem")
                                 Button {
                                     Task { await viewModel.showQRCode(dittoApp) }
                                 } label: { Label("Show QR Code", systemImage: "qrcode") }
@@ -69,6 +73,7 @@ struct DatabaseListPanel: View {
                                 Button(role: .destructive) {
                                     Task { await viewModel.deleteApp(dittoApp, appState: appState) }
                                 } label: { Label("Delete", systemImage: "trash") }
+                                    .accessibilityIdentifier("DeleteDatabaseMenuItem")
                             }
                             .accessibilityIdentifier("AppCard_\(dittoApp.name)")
                     }

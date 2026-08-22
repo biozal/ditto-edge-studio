@@ -18,8 +18,12 @@ enum JSONRPCId {
     }
 
     static func parse(from json: [String: Any]) -> JSONRPCId {
-        if let s = json["id"] as? String { return .string(s) }
-        if let i = json["id"] as? Int { return .integer(i) }
+        if let s = json["id"] as? String {
+            return .string(s)
+        }
+        if let i = json["id"] as? Int {
+            return .integer(i)
+        }
         return .null
     }
 }

@@ -257,9 +257,15 @@ struct AppMetricsDetailView: View {
         let gb = bytes / 1_073_741_824.0
         let mb = bytes / 1_048_576.0
         let kb = bytes / 1024.0
-        if gb >= 1.0 { return String(format: "%.2f GB", gb) }
-        if mb >= 1.0 { return String(format: "%.1f MB", mb) }
-        if kb >= 1.0 { return String(format: "%.0f KB", kb) }
+        if gb >= 1.0 {
+            return String(format: "%.2f GB", gb)
+        }
+        if mb >= 1.0 {
+            return String(format: "%.1f MB", mb)
+        }
+        if kb >= 1.0 {
+            return String(format: "%.0f KB", kb)
+        }
         return String(format: "%.0f B", bytes)
     }
 
@@ -267,21 +273,33 @@ struct AppMetricsDetailView: View {
         let h = Int(seconds) / 3600
         let m = (Int(seconds) % 3600) / 60
         let s = Int(seconds) % 60
-        if h > 0 { return "\(h)h \(m)m" }
-        if m > 0 { return "\(m)m \(s)s" }
+        if h > 0 {
+            return "\(h)h \(m)m"
+        }
+        if m > 0 {
+            return "\(m)m \(s)s"
+        }
         return "\(s)s"
     }
 
     private func formatLatency(_ ms: Double) -> String {
-        if ms < 1.0 { return "<1ms" }
-        if ms < 1000.0 { return String(format: "%.1fms", ms) }
+        if ms < 1.0 {
+            return "<1ms"
+        }
+        if ms < 1000.0 {
+            return String(format: "%.1fms", ms)
+        }
         return String(format: "%.2fs", ms / 1000.0)
     }
 
     private func timeAgo(_ date: Date) -> String {
         let elapsed = Date.now.timeIntervalSince(date)
-        if elapsed < 5 { return "just now" }
-        if elapsed < 60 { return "\(Int(elapsed))s ago" }
+        if elapsed < 5 {
+            return "just now"
+        }
+        if elapsed < 60 {
+            return "\(Int(elapsed))s ago"
+        }
         return "\(Int(elapsed / 60))m ago"
     }
 }

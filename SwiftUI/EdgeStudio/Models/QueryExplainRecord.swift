@@ -23,8 +23,12 @@ struct QueryExplainRecord: Identifiable, Hashable {
     }
 
     var formattedExecutionTime: String {
-        if executionTimeMs < 1.0 { return "<1ms" }
-        if executionTimeMs < 1000.0 { return String(format: "%.1fms", executionTimeMs) }
+        if executionTimeMs < 1.0 {
+            return "<1ms"
+        }
+        if executionTimeMs < 1000.0 {
+            return String(format: "%.1fms", executionTimeMs)
+        }
         return String(format: "%.2fs", executionTimeMs / 1000.0)
     }
 }

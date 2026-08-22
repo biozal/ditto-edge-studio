@@ -79,6 +79,7 @@ struct QueryViewModelTests {
     }
 
     // MARK: - Execution-plan profile state machine
+
     //
     // These tests exercise the latestProfile property on QueryViewModel
     // by stubbing MockQueryService.stubbedLocalProfile. They cover the

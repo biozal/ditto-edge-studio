@@ -275,7 +275,9 @@ class PresenceNetworkScene: SKScene {
                 let pk1 = connection.peerKeyString1
                 let pk2 = connection.peerKeyString2
                 // Apply the same filter as the draw loop so change-detection stays in sync
-                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey { continue }
+                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey {
+                    continue
+                }
                 let pairKey = [pk1, pk2].sorted().joined(separator: "_")
                 let id = "\(pairKey)_\(connection.type)"
                 guard seenExpectedPairTypes.insert(id).inserted else { continue }
@@ -317,7 +319,9 @@ class PresenceNetworkScene: SKScene {
 
                 // When filtering to direct connections only, skip edges that don't
                 // involve the local device (e.g., PeerA ↔ PeerB connections).
-                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey { continue }
+                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey {
+                    continue
+                }
 
                 let pairKey = [pk1, pk2].sorted().joined(separator: "_")
                 let connectionId = "\(pairKey)_\(connection.type)"

@@ -3,8 +3,7 @@ import Foundation
 
 /// Test fixtures for database configurations
 /// Provides pre-configured DittoConfigForDatabase instances for testing
-struct DatabaseConfigFixtures {
-
+enum DatabaseConfigFixtures {
     // MARK: - Valid Configurations
 
     /// Create a valid development (server-connected) configuration
@@ -26,7 +25,9 @@ struct DatabaseConfigFixtures {
             isLanEnabled: true,
             isAwdlEnabled: true,
             isCloudSyncEnabled: true,
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
     }
 
@@ -49,7 +50,9 @@ struct DatabaseConfigFixtures {
             isLanEnabled: true,
             isAwdlEnabled: true,
             isCloudSyncEnabled: false,
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
     }
 
@@ -72,7 +75,9 @@ struct DatabaseConfigFixtures {
             isLanEnabled: true,
             isAwdlEnabled: false,
             isCloudSyncEnabled: false,
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
     }
 
@@ -150,7 +155,9 @@ struct DatabaseConfigFixtures {
             isLanEnabled: true,
             isAwdlEnabled: true,
             isCloudSyncEnabled: true,
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
     }
 
@@ -175,7 +182,7 @@ struct DatabaseConfigFixtures {
     /// - Parameter count: Number of configs to generate
     /// - Returns: Array of unique configs
     static func multipleConfigs(count: Int = 5) -> [DittoConfigForDatabase] {
-        (0..<count).map { index in
+        (0 ..< count).map { index in
             switch index % 3 {
             case 0: return validServerConfig()
             case 1: return validSmallPeersConfig()
@@ -203,7 +210,9 @@ struct DatabaseConfigFixtures {
                 isLanEnabled: true,
                 isAwdlEnabled: true,
                 isCloudSyncEnabled: true,
-                isStrictModeEnabled: false
+                isStrictModeEnabled: false,
+                collectionSyncScopes: [],
+                startupSettings: []
             ),
             DittoConfigForDatabase(
                 UUID().uuidString,
@@ -220,7 +229,9 @@ struct DatabaseConfigFixtures {
                 isLanEnabled: true,
                 isAwdlEnabled: true,
                 isCloudSyncEnabled: true,
-                isStrictModeEnabled: false
+                isStrictModeEnabled: false,
+                collectionSyncScopes: [],
+                startupSettings: []
             )
         ]
     }

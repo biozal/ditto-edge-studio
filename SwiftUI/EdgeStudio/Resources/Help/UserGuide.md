@@ -15,6 +15,41 @@ Welcome to **Ditto Edge Studio**, a macOS and iPadOS tool for querying, monitori
    - **Small Peers Only** — no cloud, fully local mesh
 3. Fill in your credentials and tap **Save**.
 
+### Advanced Configuration
+
+The **Advanced Configuration** section of the Register/Edit Database screen holds two
+optional settings. Both are stored per database and re-applied every time you open it.
+
+**Collection Sync Scopes** control where each collection is allowed to synchronize:
+
+- **All Peers** — Ditto Server and Small Peers (the default)
+- **Big Peer Only** — Ditto Server only
+- **Small Peers Only** — Small Peers only
+- **Local Peer Only** — never leaves this device
+
+Changes take effect the next time the database is opened. If a sync scope cannot be
+applied, Edge Studio **refuses to open the database** rather than risk syncing data you
+marked device-local.
+
+**Startup System Settings** apply `ALTER SYSTEM` parameters after Ditto opens and before
+sync starts. Enter a parameter name, pick its type (String, JSON, Integer, Double or
+Boolean), and enter the value. Run `SHOW ALL` in the query editor to see every available
+parameter and its current value. Parameters that Edge Studio manages through its own UI
+(strict mode, transports, sync scopes) are blocked here, and parameters that can expose
+data on the network or reduce durability ask you to confirm first. If one of these
+settings fails, the database still opens and the failure is reported.
+
+**Reset to SDK Defaults** clears both lists; **Undo Reset** puts them back. If the
+database is open at the time, saving also restores every system parameter to Ditto's
+defaults and re-applies Edge Studio's own settings.
+
+If the sync scopes saved for a database ever become unreadable, Edge Studio keeps the
+database in the list but refuses to open it, and says so — rather than opening it with no
+scopes and syncing data you had marked device-local. Re-enter the scopes to recover.
+
+Advanced settings are **not** included when you share a database by QR code — re-enter
+them on the receiving device.
+
 ### Opening a Database
 
 Tap any database card to open the Studio. On first launch you may be prompted for Bluetooth and local network permissions — grant these for full sync functionality.
@@ -133,7 +168,7 @@ Toggles performance data collection. When enabled, **App Metrics** and **Query M
 
 ### Enable MCP Server
 
-Starts the built-in Model Context Protocol server on port **65269**, letting AI agents (Claude Code, Cursor, etc.) query your active Ditto database. Disabled by default. A green status dot in Settings confirms the server is running.
+Starts the built-in Model Context Protocol server on port **65269**, letting AI agents (Codex, Claude Code, Cursor, etc.) query your active Ditto database. Disabled by default. A green status dot in Settings confirms the server is running.
 
 See **MCP Integration** below for connection instructions.
 
@@ -141,13 +176,19 @@ See **MCP Integration** below for connection instructions.
 
 ## MCP Integration (AI Agents)
 
-Edge Studio includes a built-in **MCP (Model Context Protocol) server** that lets Claude Code and other AI agents query and manage your Ditto databases directly — no separate binary or CLI setup required.
+Edge Studio includes a built-in **MCP (Model Context Protocol) server** that lets Codex, Claude Code, and other AI agents query and manage your Ditto databases directly — no separate binary or CLI setup required.
 
 ### Enabling
 
 1. Open **Edge Studio → Settings…** (⌘,)
 2. Toggle **Enable MCP Server** ON
 3. A green dot confirms it is running on **port 65269**
+
+### Connecting Codex
+
+This repository includes a project-scoped `.codex/config.toml`. After enabling
+the server, restart Codex and verify the connection with `/mcp` or
+`codex mcp list`.
 
 ### Connecting Claude Code
 
@@ -165,7 +206,7 @@ claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp
 
 Verify: `claude mcp list` — you should see `ditto-edge-studio (sse) http://localhost:65269/mcp`.
 
-### What You Can Ask Claude
+### What You Can Ask Your Agent
 
 With the server running and a database selected:
 

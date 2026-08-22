@@ -108,7 +108,11 @@ struct Ditto_Edge_StudioApp: App {
                     "Error",
                     isPresented: Binding(
                         get: { appState.error != nil },
-                        set: { if !$0 { appState.error = nil } }
+                        set: {
+                            if !$0 {
+                                appState.error = nil
+                            }
+                        }
                     )
                 ) {
                     Button("OK", role: .cancel) {

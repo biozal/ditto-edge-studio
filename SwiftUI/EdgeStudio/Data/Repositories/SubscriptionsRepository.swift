@@ -1,16 +1,20 @@
 import DittoSwift
 import Foundation
 
-/// Repository for managing subscription metadata with secure encrypted storage
+/// Repository for managing subscription metadata, persisted in the local store
 ///
 /// **Storage Strategy:**
 /// - Per-database isolation (each database has its own subscriptions in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to encrypted database
+/// - Write-through persistence to the local store
 /// - **Note**: Live DittoSyncSubscription instances are NOT persisted (only metadata)
 ///
 /// **Security:**
-/// - All subscription metadata encrypted at rest with AES-256 (SQLCipher)
+/// - **Not encrypted at rest.** The `SQLCipher*` names throughout this codebase are
+///   historical: no SQLCipher library is linked, so `PRAGMA key` is a silent no-op on
+///   Apple's system SQLite and the file on disk begins with `SQLite format 3`. See
+///   `docs/CREDENTIAL_STORAGE.md` — this is a recorded, accepted decision, not an
+///   oversight.
 /// - Indexed for fast queries by databaseId
 ///
 /// **Lifecycle:**

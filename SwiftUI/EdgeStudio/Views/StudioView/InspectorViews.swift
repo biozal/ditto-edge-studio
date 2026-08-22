@@ -590,8 +590,12 @@ extension MainStudioView {
     }
 
     private func metricsLatencyColor(_ ms: Double) -> Color {
-        if ms < 10 { return .green }
-        if ms < 100 { return .primary }
+        if ms < 10 {
+            return .green
+        }
+        if ms < 100 {
+            return .primary
+        }
         return .orange
     }
 

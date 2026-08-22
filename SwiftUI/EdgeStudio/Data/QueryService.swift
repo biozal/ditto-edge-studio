@@ -224,7 +224,9 @@ actor QueryService {
         // After "SELECT" we need whitespace or end-of-string. Anything
         // else (e.g. SELECTOR) is not a SELECT statement.
         let afterIndex = upper.index(upper.startIndex, offsetBy: needle.count)
-        if afterIndex == upper.endIndex { return true }
+        if afterIndex == upper.endIndex {
+            return true
+        }
         let next = upper[afterIndex]
         return next.isWhitespace || next.isNewline
     }
@@ -239,7 +241,9 @@ actor QueryService {
         let needle = "PROFILE"
         guard upper.hasPrefix(needle) else { return false }
         let afterIndex = upper.index(upper.startIndex, offsetBy: needle.count)
-        if afterIndex == upper.endIndex { return true }
+        if afterIndex == upper.endIndex {
+            return true
+        }
         let next = upper[afterIndex]
         return next.isWhitespace || next.isNewline
     }

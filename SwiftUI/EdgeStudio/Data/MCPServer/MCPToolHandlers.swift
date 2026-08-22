@@ -544,9 +544,20 @@ enum MCPToolHandlers {
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
 
         // Step 3: Restart sync
-        try await DittoManager.shared.selectedDatabaseStartSync()
+        // Restarting sync re-applies the Advanced Configuration and is fail-closed on
+        // sync scopes, so it can throw. Restart the observers regardless — otherwise a
+        // scope failure leaves the session with sync off AND no observers running.
+        var syncStartError: Error?
+        do {
+            try await DittoManager.shared.selectedDatabaseStartSync()
+        } catch {
+            syncStartError = error
+        }
         try? await SystemRepository.shared.registerSyncStatusObserver()
         try? await SystemRepository.shared.registerConnectionsPresenceObserver()
+        if let syncStartError {
+            throw syncStartError
+        }
 
         let summary: [String: Any] = [
             "applied": [

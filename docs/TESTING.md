@@ -28,7 +28,8 @@ Edge Debug Helper uses a **comprehensive testing strategy** with three types of 
 - **Integration Tests** (Swift Testing) - Multi-component interaction tests
 - **UI Tests** (XCTest) - End-to-end user workflow validation
 
-**Testing is mandatory** - all new code must have tests with minimum 80% coverage.
+**Testing is mandatory** - all new code must have tests with minimum 80% coverage, with
+one named exception: see [SDK-boundary exemption](#sdk-boundary-exemption).
 
 ### Why We Test
 
@@ -40,10 +41,55 @@ Edge Debug Helper uses a **comprehensive testing strategy** with three types of 
 
 ### Current Status
 
-- **Overall Coverage**: 15.96% (target: 50%)
-- **SQLCipherService**: 62.19% coverage ✅
-- **Test Targets**: 3 (Unit, Integration, UI)
-- **Total Tests**: 15+ and growing
+Measured 2026-08-21 with
+`xcodebuild test … -enableCodeCoverage YES -resultBundlePath <bundle>` followed by
+`xcrun xccov view --report --files-for-target "Ditto Edge Studio.app" <bundle>`. Per file,
+not aggregate — an aggregate number hides exactly the files that matter.
+
+- **Test targets**: 3 (Unit, Integration, UI)
+- **App target overall**: 15.51% (6863/44236) — dominated by SwiftUI view bodies
+- **Tests**: 506 unit + 164 integration passing; the UI target contributes 0% to app
+  coverage because 10 of its 15 tests are credential-gated skips
+- `Data/SQLCipherService.swift` — **93.13%**
+- `Data/Repositories/DatabaseRepository.swift` — **93.98%**
+- `Models/AdvancedDatabaseSettings.swift` — **91.23%**
+- `Data/AdvancedSettingsApplier.swift` — **86.27%**
+- `Views/StudioView/ViewModels/SyncRuntimeState.swift` — **100%**
+- `Data/DittoManager.swift` — **13.19%** (see the exemption below; was 3.38%)
+- `Views/Database/DatabaseEditorView.swift` — **13.51%** (294/2176 *executable* lines; the
+  file is ~1,300 physical lines and is almost entirely `body`). Its `ViewModel` logic is
+  covered by `DatabaseEditorAdvancedViewModelTests`
+- `Views/StudioView/ViewModels/SyncStatusViewModel.swift` — **23.14%**
+
+The 15.51% figure replaces a stale "15.96% (target: 50%)" and a
+"SQLCipherService: 62.19%" that predated the current suite.
+
+### SDK-boundary exemption
+
+Code whose body is a sequence of Ditto SDK calls that cannot be constructed without a live
+`Ditto` instance is exempt from the 80% rule, **on three conditions**:
+
+1. Every *decision* in it — validation, gating, ordering, failure policy — is extracted
+   into a pure type or static and covered to ≥80% there.
+2. The residual shim is listed by name below with its measured coverage.
+3. The shim's behavior is covered by a live or manual procedure recorded in the owning
+   plan.
+
+Listing a file here is a **claim that condition 1 holds**, and a reviewer may reject it.
+Adding a name here is not a way to make a coverage number go away.
+
+**Currently exempt — `Data/DittoManager.swift`,** measured 2026-08-21:
+
+| Function | Coverage | Extracted decisions covered elsewhere |
+|---|---|---|
+| `hydrateDittoSelectedDatabase(_:)` | 0.00% (0/198) | `transportFlags(for:isUITesting:)` **100%** (8/8) and `createDatabaseConfig(from:withDirectory:)` **100%** (38/38), both `nonisolated static` and both covered by `DittoManagerPureDecisionsTests`; statement **ordering** is covered by `AdvancedSettingsApplier.OpenSequence` + `AdvancedSettingsApplierTests` (86.27% on that file) |
+| `resetSystemSettingsToDefaults(for:)` | 0.00% (0/85) | Same two statics plus the applier's reset tests; the UI-test transport gate is asserted through `transportFlags` |
+| `selectedDatabaseStartSync()` | 40.43% (19/47) | The no-database-open guard is covered directly (`DittoManagerPureDecisionsTests`); the rest is `OpenSequence` |
+| `startSyncNow(_:)` / `stopSyncNow(_:)` | 0.00% (0/8), 0.00% (0/4) | The published state is covered by `SyncRuntimeStateTests` (**100%** on `SyncRuntimeState.swift`). The fatal `sync_start_choke_point` rule enforces the **start** side only — its regex is `sync\s*\.\s*start\s*\(`, so a rogue `sync.stop()` outside `stopSyncNow` would not be caught, which is the direction that reproduces C3's original bug. One `sync.stop()` exists today and it is inside the funnel; that is a fact about the code, not something the linter guarantees |
+
+Substitute coverage for the residual shims is the manual smoke procedure recorded in
+`plans/2026-08-21-production-readiness-remediation.md` §5 (Phases 4 and 6a) and its
+known-unverified register (§10). **The exemption is a written trade, not a silent miss.**
 
 ---
 
@@ -1575,7 +1621,7 @@ jobs:
 
 ### Coverage
 - [ ] Coverage has not decreased
-- [ ] New code has 80%+ coverage
+- [ ] New code has 80%+ coverage (or a claimed [SDK-boundary exemption](#sdk-boundary-exemption))
 - [ ] Coverage report reviewed: `./scripts/coverage_dashboard.sh`
 
 ### Code Quality
@@ -1586,7 +1632,7 @@ jobs:
 
 ### Documentation
 - [ ] Test documentation added to test files
-- [ ] CLAUDE.md updated if testing patterns changed
+- [ ] AGENTS.md updated if agent testing rules changed
 - [ ] README.md updated if setup changed
 
 ## Coverage Report
@@ -1613,7 +1659,8 @@ New Code Coverage: XX.XX%
 
 ### Project Documentation
 
-- [`CLAUDE.md`](../CLAUDE.md) - Complete project guide
+- [`AGENTS.md`](../AGENTS.md) - Cross-agent repository guide
+- [`CLAUDE.md`](../CLAUDE.md) - Supplementary Swift and Claude Code guidance
 - [`scripts/README.md`](../scripts/README.md) - Coverage scripts documentation
 - [`TEST_MIGRATION_LOG.md`](../TEST_MIGRATION_LOG.md) - Testing infrastructure history
 
@@ -1629,7 +1676,9 @@ New Code Coverage: XX.XX%
 
 **Key Takeaways:**
 
-1. **Testing is mandatory** - All new code must have tests with 80%+ coverage
+1. **Testing is mandatory** - All new code must have tests with 80%+ coverage, except
+   under the [SDK-boundary exemption](#sdk-boundary-exemption), which must be claimed in
+   writing
 2. **Use Swift Testing** - Modern framework for unit/integration tests
 3. **Follow AAA pattern** - Arrange-Act-Assert for clarity
 4. **Test isolation** - Use runtime detection and `TestHelpers`

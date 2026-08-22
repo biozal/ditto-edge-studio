@@ -85,8 +85,12 @@ actor NetworkDiagnosticsService {
 
         // WiFi first, then Ethernet; alphabetical within each group
         return results.sorted {
-            if $0.kind == .wifi, $1.kind != .wifi { return true }
-            if $0.kind != .wifi, $1.kind == .wifi { return false }
+            if $0.kind == .wifi, $1.kind != .wifi {
+                return true
+            }
+            if $0.kind != .wifi, $1.kind == .wifi {
+                return false
+            }
             return $0.interfaceName < $1.interfaceName
         }
     }
@@ -183,7 +187,9 @@ actor NetworkDiagnosticsService {
                         .map { String(format: "%02x", raw.load(fromByteOffset: macOffset + $0, as: UInt8.self)) }
                         .joined(separator: ":")
                 }
-                if let mac { result[name, default: AddrEntry()].mac = mac }
+                if let mac {
+                    result[name, default: AddrEntry()].mac = mac
+                }
 
             case AF_INET:
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))

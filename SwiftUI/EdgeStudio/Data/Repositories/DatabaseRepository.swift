@@ -1,10 +1,11 @@
 import DittoSwift
 import Foundation
 
-/// Repository for managing database configurations with secure storage
+/// Repository for managing database configurations, persisted in the local store
 ///
 /// **Storage Strategy:**
-/// - All data (credentials + metadata) → SQLCipher encrypted database
+/// - All data (credentials + metadata) → the local SQLite store managed by
+///   `SQLCipherService`
 /// - In-memory cache for fast access during session
 ///
 /// **Performance:**
@@ -13,8 +14,15 @@ import Foundation
 /// - In-memory access: < 1ms
 ///
 /// **Security:**
-/// - All data encrypted at rest with AES-256 (SQLCipher)
-/// - Encryption key stored in local file with 0600 permissions
+/// - **Not encrypted at rest.** The `SQLCipher*` names throughout this codebase are
+///   historical: no SQLCipher library is linked, so `PRAGMA key` is a silent no-op on
+///   Apple's system SQLite and the file on disk begins with `SQLite format 3`. See
+///   `docs/CREDENTIAL_STORAGE.md` — this is a recorded, accepted decision, not an
+///   oversight.
+/// - A 64-character key file **is** generated and stored 0600, and it does protect the
+///   *key* — but the key currently encrypts nothing, because nothing consumes it.
+/// - Credentials (`developmentToken`, `secretKey`, `httpApiKey`) are therefore readable
+///   by anything that can read the file, which on macOS means the user's own processes.
 actor DatabaseRepository {
     static let shared = DatabaseRepository()
 
@@ -35,6 +43,60 @@ actor DatabaseRepository {
 
     private init() {}
 
+    // MARK: - Advanced Settings JSON Bridging
+
+    /// Strict, but **per row**: a malformed block marks only that config unopenable.
+    ///
+    /// Aborting the whole load (which `try rows.map` used to do) meant one bad row hid
+    /// every other database behind a "couldn't load" screen — and the error told the
+    /// user to fix it in the editor, which is only reachable through the list that had
+    /// just failed to load.
+    private static func decodeSyncScopes(
+        _ json: String,
+        databaseId: String
+    ) -> (scopes: [CollectionSyncScope], isCorrupt: Bool) {
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "[]" else { return ([], false) }
+        do {
+            return try (JSONDecoder().decode([CollectionSyncScope].self, from: Data(trimmed.utf8)), false)
+        } catch {
+            Log.error("[Advanced] Corrupt collectionSyncScopes for '\(databaseId)': \(error)")
+            return ([], true)
+        }
+    }
+
+    /// Lenient: startup settings are tuning knobs, so a malformed block degrades to
+    /// none rather than blocking access to the database.
+    private static func decodeStartupSettings(_ json: String, databaseId: String) -> [StartupSetting] {
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "[]" else { return [] }
+        do {
+            return try JSONDecoder().decode([StartupSetting].self, from: Data(trimmed.utf8))
+        } catch {
+            Log.warning("[Advanced] Ignoring unreadable startupSettings for '\(databaseId)': \(error)")
+            return []
+        }
+    }
+
+    /// Encodes an advanced-settings list for storage. Returns `"[]"` if encoding
+    /// somehow fails, which is safe for both lists on the write path.
+    private static func encodeJSON(_ value: some Encodable) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let json = String(data: data, encoding: .utf8) else { return "[]" }
+        return json
+    }
+
+    // MARK: - Test Support
+
+    #if DEBUG
+    /// Drops the in-memory cache. Test-only, compiled out of Release: the singleton's
+    /// cache survives a swapped SQLCipher context, which otherwise leaks state between
+    /// suites.
+    func clearCacheForTesting() {
+        cachedConfigs = []
+    }
+    #endif
+
     // MARK: - Public API
 
     /// Loads all database configurations from secure storage
@@ -46,7 +108,8 @@ actor DatabaseRepository {
 
         // 2. Convert rows to DittoConfigForDatabase objects
         let configs = rows.map { row in
-            DittoConfigForDatabase(
+            let decodedScopes = Self.decodeSyncScopes(row.collectionSyncScopes, databaseId: row.databaseId)
+            let config = DittoConfigForDatabase(
                 row._id,
                 name: row.name,
                 databaseId: row.databaseId,
@@ -66,8 +129,15 @@ actor DatabaseRepository {
                 isAwdlEnabled: row.isAwdlEnabled,
                 isCloudSyncEnabled: row.isCloudSyncEnabled,
                 logLevel: row.logLevel,
-                isStrictModeEnabled: row.isStrictModeEnabled
+                isStrictModeEnabled: row.isStrictModeEnabled,
+                collectionSyncScopes: decodedScopes.scopes,
+                startupSettings: Self.decodeStartupSettings(row.startupSettings, databaseId: row.databaseId)
             )
+            // Marked, not thrown: the config still appears in the list (so the user can
+            // reach the editor and fix it) but `hydrate` refuses to open it, because a
+            // dropped `LocalPeerOnly` scope would otherwise start syncing.
+            config.hasCorruptSyncScopes = decodedScopes.isCorrupt
+            return config
         }
 
         // 3. Update in-memory cache
@@ -98,7 +168,9 @@ actor DatabaseRepository {
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
                 logLevel: appConfig.logLevel,
-                isStrictModeEnabled: appConfig.isStrictModeEnabled
+                isStrictModeEnabled: appConfig.isStrictModeEnabled,
+                collectionSyncScopes: Self.encodeJSON(appConfig.collectionSyncScopes),
+                startupSettings: Self.encodeJSON(appConfig.startupSettings)
             )
             try await sqlCipher.insertDatabaseConfig(row)
 
@@ -138,7 +210,9 @@ actor DatabaseRepository {
                 httpApiKey: appConfig.httpApiKey,
                 secretKey: appConfig.secretKey,
                 logLevel: appConfig.logLevel,
-                isStrictModeEnabled: appConfig.isStrictModeEnabled
+                isStrictModeEnabled: appConfig.isStrictModeEnabled,
+                collectionSyncScopes: Self.encodeJSON(appConfig.collectionSyncScopes),
+                startupSettings: Self.encodeJSON(appConfig.startupSettings)
             )
             try await sqlCipher.updateDatabaseConfig(row)
 

@@ -14,7 +14,17 @@ import Foundation
 /// have to enumerate eight defaults each time.
 @MainActor
 struct MockSet {
-    let dittoManager = MockDittoManager()
+    /// The runtime sync state the mock manager publishes to, mirroring what the real
+    /// `DittoManager` funnels do. Tests read `SyncStatusViewModel.isSyncEnabled`, which is
+    /// derived from this — so the assertion exercises the same property the toolbar reads
+    /// rather than a parallel field.
+    let syncRuntime = SyncRuntimeState()
+    let dittoManager: MockDittoManager
+
+    init() {
+        dittoManager = MockDittoManager(syncRuntime: syncRuntime)
+    }
+
     let queryService = MockQueryService()
     let subscriptionsRepository = MockSubscriptionsRepository()
     let systemRepository = MockSystemRepository()
@@ -36,18 +46,45 @@ actor MockDittoManager: DittoManagerProtocol {
     private(set) var startSyncCallCount = 0
     private(set) var stopSyncCallCount = 0
 
+    /// Publishes sync transitions exactly as the real `DittoManager` funnels do, so
+    /// `SyncStatusViewModel.isSyncEnabled` (a derived property) responds in tests.
+    private let syncRuntime: SyncRuntimeState?
+
+    /// When set, `selectedDatabaseStartSync` throws instead of starting — lets a test
+    /// prove the state is published only on success.
+    private var startError: Error?
+
+    init(syncRuntime: SyncRuntimeState? = nil) {
+        self.syncRuntime = syncRuntime
+    }
+
+    func setStartError(_ error: Error?) {
+        startError = error
+    }
+
     func setAppState(_: AppState) {}
     func hydrateDittoSelectedDatabase(_: DittoConfigForDatabase) async throws -> Bool {
         false
     }
 
     func closeDittoSelectedDatabase() async {}
+
     func selectedDatabaseStartSync() async throws {
         startSyncCallCount += 1
+        if let startError {
+            throw startError
+        }
+        // AFTER the "SDK call" succeeds, matching `DittoManager.startSyncNow`.
+        if let syncRuntime {
+            await MainActor.run { syncRuntime.setRunning(true) }
+        }
     }
 
     func selectedDatabaseStopSync() async {
         stopSyncCallCount += 1
+        if let syncRuntime {
+            await MainActor.run { syncRuntime.setRunning(false) }
+        }
     }
 }
 

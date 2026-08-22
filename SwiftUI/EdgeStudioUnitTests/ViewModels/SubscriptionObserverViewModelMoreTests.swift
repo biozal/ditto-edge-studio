@@ -16,7 +16,6 @@ import Testing
 /// any observable behaviour can be asserted). Those belong to integration tests.
 @Suite("SubscriptionObserverViewModel — staging, save & delete", .serialized)
 struct SubscriptionObserverViewModelMoreTests {
-
     // MARK: - Helper
 
     @MainActor
@@ -325,7 +324,9 @@ struct ObservableEventStoreModelTests {
         var firstFew: [DittoObserveEvent] = []
         for index in 0 ..< overflow {
             let event = DittoObserveEvent.new(observeId: "o\(index)")
-            if index < 5 { firstFew.append(event) }
+            if index < 5 {
+                firstFew.append(event)
+            }
             store.append(event)
         }
 
@@ -347,6 +348,6 @@ struct ObservableEventStoreModelTests {
 
         // ASSERT
         #expect(store.isEmpty)
-        #expect(store.count == 0)
+        #expect(store.isEmpty)
     }
 }

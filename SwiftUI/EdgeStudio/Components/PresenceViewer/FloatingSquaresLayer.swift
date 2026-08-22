@@ -128,10 +128,18 @@ class FloatingSquaresLayer {
 
         // Wrap around within ±600 range (centered at 0,0)
         let maxRange: CGFloat = 600
-        if newX < -maxRange { newX += (maxRange * 2) }
-        if newX > maxRange { newX -= (maxRange * 2) }
-        if newY < -maxRange { newY += (maxRange * 2) }
-        if newY > maxRange { newY -= (maxRange * 2) }
+        if newX < -maxRange {
+            newX += (maxRange * 2)
+        }
+        if newX > maxRange {
+            newX -= (maxRange * 2)
+        }
+        if newY < -maxRange {
+            newY += (maxRange * 2)
+        }
+        if newY > maxRange {
+            newY -= (maxRange * 2)
+        }
 
         let move = SKAction.move(to: CGPoint(x: newX, y: newY), duration: duration)
         move.timingMode = .easeInEaseOut

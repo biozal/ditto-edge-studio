@@ -115,65 +115,64 @@ struct QueryMetricsDetailView: View {
 
     // MARK: - Record Detail
 
+    @ViewBuilder
     private var recordDetail: some View {
-        Group {
-            if let record = selectedRecord {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label("DQL Statement", systemImage: "text.page")
-                                .font(.headline)
-                            Text(record.dql)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
+        if let record = selectedRecord {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("DQL Statement", systemImage: "text.page")
+                            .font(.headline)
+                        Text(record.dql)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+
+                    HStack(spacing: 12) {
+                        statBadge(
+                            label: "Time",
+                            value: record.formattedExecutionTime,
+                            color: latencyColor(record.executionTimeMs)
+                        )
+                        statBadge(label: "Results", value: "\(record.resultCount)", color: .secondary)
+                        statBadge(
+                            label: "Index",
+                            value: record.usedIndex ? "✓ Yes" : "✗ No",
+                            color: record.usedIndex ? .green : .orange
+                        )
+                        statBadge(label: "At", value: record.formattedTimestamp, color: .secondary)
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("EXPLAIN Output", systemImage: "doc.text.magnifyingglass")
+                            .font(.headline)
+                        if record.explainOutput.isEmpty {
+                            Text("(no output)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(10)
                                 .background(Color.secondary.opacity(0.1))
                                 .cornerRadius(8)
-                        }
-
-                        HStack(spacing: 12) {
-                            statBadge(
-                                label: "Time",
-                                value: record.formattedExecutionTime,
-                                color: latencyColor(record.executionTimeMs)
-                            )
-                            statBadge(label: "Results", value: "\(record.resultCount)", color: .secondary)
-                            statBadge(
-                                label: "Index",
-                                value: record.usedIndex ? "✓ Yes" : "✗ No",
-                                color: record.usedIndex ? .green : .orange
-                            )
-                            statBadge(label: "At", value: record.formattedTimestamp, color: .secondary)
-                            Spacer()
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label("EXPLAIN Output", systemImage: "doc.text.magnifyingglass")
-                                .font(.headline)
-                            if record.explainOutput.isEmpty {
-                                Text("(no output)")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(10)
-                                    .background(Color.secondary.opacity(0.1))
-                                    .cornerRadius(8)
-                            } else {
-                                JsonSyntaxView(jsonString: record.explainOutput)
-                                    .background(Color.secondary.opacity(0.05))
-                                    .cornerRadius(8)
-                            }
+                        } else {
+                            JsonSyntaxView(jsonString: record.explainOutput)
+                                .background(Color.secondary.opacity(0.05))
+                                .cornerRadius(8)
                         }
                     }
-                    .padding()
                 }
-            } else {
-                ContentUnavailableView(
-                    "No Query Selected",
-                    systemImage: "text.magnifyingglass",
-                    description: Text("Select a query from the list to view its EXPLAIN output.")
-                )
+                .padding()
             }
+        } else {
+            ContentUnavailableView(
+                "No Query Selected",
+                systemImage: "text.magnifyingglass",
+                description: Text("Select a query from the list to view its EXPLAIN output.")
+            )
         }
     }
 
@@ -195,8 +194,12 @@ struct QueryMetricsDetailView: View {
     }
 
     private func latencyColor(_ ms: Double) -> Color {
-        if ms < 10 { return .green }
-        if ms < 100 { return .primary }
+        if ms < 10 {
+            return .green
+        }
+        if ms < 100 {
+            return .primary
+        }
         return .orange
     }
 

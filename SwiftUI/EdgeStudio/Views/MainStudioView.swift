@@ -179,14 +179,22 @@ struct MainStudioView: View {
     private var importJSONBinding: Binding<Bool> {
         Binding(
             get: { activeSheet == .importJSON },
-            set: { if !$0 { activeSheet = nil } }
+            set: {
+                if !$0 {
+                    activeSheet = nil
+                }
+            }
         )
     }
 
     private var importSubscriptionsBinding: Binding<Bool> {
         Binding(
             get: { activeSheet == .importSubscriptions },
-            set: { if !$0 { activeSheet = nil } }
+            set: {
+                if !$0 {
+                    activeSheet = nil
+                }
+            }
         )
     }
 
@@ -409,7 +417,12 @@ struct MainStudioView: View {
         .buttonStyle(.glass)
         .clipShape(Circle())
         .help(viewModel.syncVM.isSyncEnabled ? "Disable Sync" : "Enable Sync")
-        .accessibilityIdentifier("SyncButton")
+        // Distinct from the three bottom-bar sync buttons, which all use "SyncButton" —
+        // a shared identifier makes an XCUITest query ambiguous. The value exposes the
+        // state itself, so sync-state regressions are mechanically checkable rather than
+        // only inspectable as a colour.
+        .accessibilityIdentifier("SyncToggleButton")
+        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
     }
 
     private var closeButtonContent: some View {
@@ -495,7 +508,11 @@ struct MainStudioView: View {
         Binding(
             get: { expandedCollectionIds.contains(collection._id) },
             set: { isExpanded in
-                if isExpanded { expandedCollectionIds.insert(collection._id) } else { expandedCollectionIds.remove(collection._id) }
+                if isExpanded {
+                    expandedCollectionIds.insert(collection._id)
+                } else {
+                    expandedCollectionIds.remove(collection._id)
+                }
             }
         )
     }
@@ -503,7 +520,13 @@ struct MainStudioView: View {
     func expandedSubscriptionBinding(for sub: DittoSubscription) -> Binding<Bool> {
         Binding(
             get: { expandedSubscriptionIds.contains(sub.id) },
-            set: { if $0 { expandedSubscriptionIds.insert(sub.id) } else { expandedSubscriptionIds.remove(sub.id) } }
+            set: {
+                if $0 {
+                    expandedSubscriptionIds.insert(sub.id)
+                } else {
+                    expandedSubscriptionIds.remove(sub.id)
+                }
+            }
         )
     }
 
@@ -522,7 +545,13 @@ struct MainStudioView: View {
     func expandedObserverBinding(for obs: DittoObservable) -> Binding<Bool> {
         Binding(
             get: { expandedObserverIds.contains(obs.id) },
-            set: { if $0 { expandedObserverIds.insert(obs.id) } else { expandedObserverIds.remove(obs.id) } }
+            set: {
+                if $0 {
+                    expandedObserverIds.insert(obs.id)
+                } else {
+                    expandedObserverIds.remove(obs.id)
+                }
+            }
         )
     }
 }

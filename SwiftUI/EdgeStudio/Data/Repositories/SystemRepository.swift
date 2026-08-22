@@ -54,6 +54,7 @@ actor SystemRepository {
         case .accessPoint: return .accessPoint
         case .p2pWiFi: return .p2pWiFi
         case .webSocket: return .webSocket
+        case .multicast: return .multicast
         @unknown default: return .unknown("\(dittoType)")
         }
     }
@@ -70,6 +71,9 @@ actor SystemRepository {
         case .accessPoint: return config.isLanEnabled
         case .p2pWiFi: return config.isAwdlEnabled
         case .webSocket: return config.isCloudSyncEnabled
+        // Multicast (beta, SDK 5.1.0) is configured via `DittoPeerToPeer.multicastBeta`, which the
+        // app does not currently expose, so there is no per-database flag to filter against.
+        case .multicast: return true
         case .unknown: return true
         }
     }
@@ -543,6 +547,7 @@ actor SystemRepository {
                 var totalBluetooth = 0
                 var totalP2PWiFi = 0
                 var totalWebSocket = 0
+                var totalMulticast = 0
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
@@ -577,6 +582,8 @@ actor SystemRepository {
                             totalP2PWiFi += 1
                         case .webSocket:
                             totalWebSocket += 1
+                        case .multicast:
+                            totalMulticast += 1
                         case .unknown:
                             break
                         }
@@ -589,7 +596,8 @@ actor SystemRepository {
                     bluetooth: totalBluetooth,
                     dittoServer: dittoServerCount,
                     p2pWiFi: totalP2PWiFi,
-                    webSocket: totalWebSocket
+                    webSocket: totalWebSocket,
+                    multicast: totalMulticast
                 )
 
                 // Call the callback to update the ViewModel's published property
@@ -668,6 +676,7 @@ actor SystemRepository {
                 case .accessPoint: "Access Point"
                 case .p2pWiFi: "P2P WiFi"
                 case .webSocket: "WebSocket"
+                case .multicast: "Multicast"
                 case let .unknown(t): t
                 }
                 var entry: [String: Any] = ["type": typeName]

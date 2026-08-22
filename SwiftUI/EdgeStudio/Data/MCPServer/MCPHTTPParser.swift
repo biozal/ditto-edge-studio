@@ -57,7 +57,9 @@ enum MCPHTTPParser {
 
         // Wait for full body before returning a request
         let contentLength = Int(headers["content-length"] ?? "0") ?? 0
-        if contentLength > 0, bodyData.count < contentLength { return nil }
+        if contentLength > 0, bodyData.count < contentLength {
+            return nil
+        }
 
         return HTTPRequest(
             method: method,

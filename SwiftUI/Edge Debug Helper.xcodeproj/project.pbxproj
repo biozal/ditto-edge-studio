@@ -367,7 +367,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  swiftlint lint --config .swiftlint.yml --quiet || true\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  # NO `|| true`. The exit status IS the gate: the two custom rules in .swiftlint.yml\n  # (sync_start_choke_point, sync_scopes_via_applier) are severity:error and guard a\n  # data-containment control, and discarding the status meant they enforced nothing.\n  # There is no CI on this repo, so this build phase is the only gate that runs.\n  # Warning-severity rules still do not fail the build (no --strict) - that is deliberate.\n  swiftlint lint --config .swiftlint.yml --quiet\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -887,9 +887,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
-				kind = versionRange;
-				maximumVersion = 5.0.4;
-				minimumVersion = 5.0.1;
+				kind = exactVersion;
+				version = 5.1.0;
 			};
 		};
 		0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */ = {

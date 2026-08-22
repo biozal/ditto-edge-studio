@@ -123,7 +123,9 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }
 
-            if let data { accumulatedData.append(data) }
+            if let data {
+                accumulatedData.append(data)
+            }
 
             // Cap buffered request size — a client that never sends a valid HTTP
             // boundary must not grow this unbounded (localhost-only, but defensive).

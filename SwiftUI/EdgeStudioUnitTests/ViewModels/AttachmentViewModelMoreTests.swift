@@ -14,7 +14,6 @@ import Testing
 /// to integration tests — see the header note on `AttachmentViewModelTests`.
 @Suite("AttachmentViewModel — staging & error paths", .serialized)
 struct AttachmentViewModelMoreTests {
-
     // MARK: - Helpers
 
     /// `AttachmentError` does not conform to `Equatable`, so case identity is
@@ -22,19 +21,25 @@ struct AttachmentViewModelMoreTests {
     /// by the early-return guards under test.
     private static func isNoDocumentId(_ error: Error?) -> Bool {
         guard let attachmentError = error as? AttachmentError else { return false }
-        if case .noDocumentId = attachmentError { return true }
+        if case .noDocumentId = attachmentError {
+            return true
+        }
         return false
     }
 
     private static func isCollectionNotFound(_ error: Error?) -> Bool {
         guard let attachmentError = error as? AttachmentError else { return false }
-        if case .collectionNotFound = attachmentError { return true }
+        if case .collectionNotFound = attachmentError {
+            return true
+        }
         return false
     }
 
     private static func isInvalidFieldName(_ error: Error?) -> Bool {
         guard let attachmentError = error as? AttachmentError else { return false }
-        if case .invalidFieldName = attachmentError { return true }
+        if case .invalidFieldName = attachmentError {
+            return true
+        }
         return false
     }
 

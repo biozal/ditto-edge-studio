@@ -15,14 +15,12 @@ import Testing
 /// Target: 90% code coverage for model types.
 @Suite("Model Tests")
 struct ModelTests {
-
     // MARK: - DittoConfigForDatabase Tests
 
     @Suite("DittoConfigForDatabase")
     struct DittoConfigForDatabaseTests {
-
-        @Test("Default mode is development", .tags(.model, .fast))
-        func testDefaultMode() {
+        @Test(.tags(.model, .fast))
+        func `Default mode is development`() {
             // ARRANGE & ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
@@ -31,15 +29,17 @@ struct ModelTests {
                 developmentToken: "",
                 url: "",
                 httpApiUrl: "",
-                httpApiKey: ""
+                httpApiKey: "",
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
             #expect(config.mode == .development)
         }
 
-        @Test("Default transport flags are all enabled", .tags(.model, .fast))
-        func testDefaultTransportFlags() {
+        @Test(.tags(.model, .fast))
+        func `Default transport flags are all enabled`() {
             // ARRANGE & ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
@@ -48,7 +48,9 @@ struct ModelTests {
                 developmentToken: "",
                 url: "",
                 httpApiUrl: "",
-                httpApiKey: ""
+                httpApiKey: "",
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
@@ -58,8 +60,8 @@ struct ModelTests {
             #expect(config.isCloudSyncEnabled)
         }
 
-        @Test("Default allowUntrustedCerts is false", .tags(.model, .fast))
-        func testDefaultAllowUntrustedCerts() {
+        @Test(.tags(.model, .fast))
+        func `Default allowUntrustedCerts is false`() {
             // ARRANGE & ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
@@ -68,15 +70,17 @@ struct ModelTests {
                 developmentToken: "",
                 url: "",
                 httpApiUrl: "",
-                httpApiKey: ""
+                httpApiKey: "",
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
             #expect(config.allowUntrustedCerts == false)
         }
 
-        @Test("All-fields initializer stores every field", .tags(.model, .fast))
-        func testAllFieldsInit() {
+        @Test(.tags(.model, .fast))
+        func `All-fields initializer stores every field`() {
             // ARRANGE
             let id = UUID().uuidString
             let name = "My Database"
@@ -98,7 +102,9 @@ struct ModelTests {
                 isLanEnabled: false,
                 isAwdlEnabled: false,
                 isCloudSyncEnabled: false,
-                isStrictModeEnabled: false
+                isStrictModeEnabled: false,
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
@@ -119,8 +125,8 @@ struct ModelTests {
             #expect(config.isStrictModeEnabled == false)
         }
 
-        @Test("Default isStrictModeEnabled is false", .tags(.model, .fast))
-        func testDefaultStrictModeIsFalse() {
+        @Test(.tags(.model, .fast))
+        func `Default isStrictModeEnabled is false`() {
             // ARRANGE & ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
@@ -129,15 +135,17 @@ struct ModelTests {
                 developmentToken: "",
                 url: "",
                 httpApiUrl: "",
-                httpApiKey: ""
+                httpApiKey: "",
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
             #expect(config.isStrictModeEnabled == false)
         }
 
-        @Test("All-fields init preserves isStrictModeEnabled true", .tags(.model, .fast))
-        func testAllFieldsInitPreservesStrictMode() {
+        @Test(.tags(.model, .fast))
+        func `All-fields init preserves isStrictModeEnabled true`() {
             // ACT
             let config = DittoConfigForDatabase(
                 UUID().uuidString,
@@ -147,15 +155,17 @@ struct ModelTests {
                 url: "",
                 httpApiUrl: "",
                 httpApiKey: "",
-                isStrictModeEnabled: true
+                isStrictModeEnabled: true,
+                collectionSyncScopes: [],
+                startupSettings: []
             )
 
             // ASSERT
             #expect(config.isStrictModeEnabled == true)
         }
 
-        @Test("Decodable defaults missing isStrictModeEnabled to false", .tags(.model, .fast))
-        func testDecodableDefaultsMissingStrictModeToFalse() throws {
+        @Test(.tags(.model, .fast))
+        func `Decodable defaults missing isStrictModeEnabled to false`() throws {
             // ARRANGE — JSON without isStrictModeEnabled (backward compat)
             let json = """
             {
@@ -171,15 +181,15 @@ struct ModelTests {
             """
 
             // ACT
-            let data = json.data(using: .utf8)!
+            let data = try #require(json.data(using: .utf8))
             let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
             // ASSERT — missing field defaults to false
             #expect(decoded.isStrictModeEnabled == false)
         }
 
-        @Test("Decodable round-trip preserves isStrictModeEnabled true", .tags(.model, .fast))
-        func testDecodableRoundTripPreservesStrictModeTrue() throws {
+        @Test(.tags(.model, .fast))
+        func `Decodable round-trip preserves isStrictModeEnabled true`() throws {
             // ARRANGE
             let json = """
             {
@@ -196,15 +206,15 @@ struct ModelTests {
             """
 
             // ACT
-            let data = json.data(using: .utf8)!
+            let data = try #require(json.data(using: .utf8))
             let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
             // ASSERT
             #expect(decoded.isStrictModeEnabled == true)
         }
 
-        @Test("new() factory defaults isStrictModeEnabled to false", .tags(.model, .fast))
-        func testNewFactoryDefaultsStrictModeToFalse() {
+        @Test(.tags(.model, .fast))
+        func `new() factory defaults isStrictModeEnabled to false`() {
             // ACT
             let config = DittoConfigForDatabase.new()
 
@@ -212,8 +222,8 @@ struct ModelTests {
             #expect(config.isStrictModeEnabled == false)
         }
 
-        @Test("new() factory creates config with unique ID and empty fields", .tags(.model, .fast))
-        func testNewFactory() {
+        @Test(.tags(.model, .fast))
+        func `new() factory creates config with unique ID and empty fields`() {
             // ACT
             let config1 = DittoConfigForDatabase.new()
             let config2 = DittoConfigForDatabase.new()
@@ -229,8 +239,8 @@ struct ModelTests {
             #expect(config1.secretKey == "")
         }
 
-        @Test("new() factory defaults to development mode", .tags(.model, .fast))
-        func testNewFactoryDefaultMode() {
+        @Test(.tags(.model, .fast))
+        func `new() factory defaults to development mode`() {
             // ACT
             let config = DittoConfigForDatabase.new()
 
@@ -238,8 +248,8 @@ struct ModelTests {
             #expect(config.mode == .development)
         }
 
-        @Test("Decodable round-trip preserves all fields", .tags(.model, .fast))
-        func testDecodableRoundTrip() throws {
+        @Test(.tags(.model, .fast))
+        func `Decodable round-trip preserves all fields`() throws {
             // ARRANGE
             let json = """
             {
@@ -261,7 +271,7 @@ struct ModelTests {
             """
 
             // ACT
-            let data = json.data(using: .utf8)!
+            let data = try #require(json.data(using: .utf8))
             let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
             // ASSERT
@@ -275,8 +285,8 @@ struct ModelTests {
             #expect(decoded.isAwdlEnabled == false)
         }
 
-        @Test("Decodable defaults missing transport fields to true", .tags(.model, .fast))
-        func testDecodableDefaultsTransportFieldsToTrue() throws {
+        @Test(.tags(.model, .fast))
+        func `Decodable defaults missing transport fields to true`() throws {
             // ARRANGE — JSON without transport fields (backward compat test)
             let json = """
             {
@@ -292,7 +302,7 @@ struct ModelTests {
             """
 
             // ACT
-            let data = json.data(using: .utf8)!
+            let data = try #require(json.data(using: .utf8))
             let decoded = try JSONDecoder().decode(DittoConfigForDatabase.self, from: data)
 
             // ASSERT — all transport flags default to true
@@ -302,8 +312,8 @@ struct ModelTests {
             #expect(decoded.isCloudSyncEnabled == true)
         }
 
-        @Test("Config fields can be mutated", .tags(.model, .fast))
-        func testFieldMutation() {
+        @Test(.tags(.model, .fast))
+        func `Config fields can be mutated`() {
             // ARRANGE
             let config = DittoConfigForDatabase.new()
 
@@ -323,9 +333,8 @@ struct ModelTests {
 
     @Suite("DittoQueryHistory")
     struct DittoQueryHistoryTests {
-
-        @Test("Initializer stores all fields", .tags(.model, .fast))
-        func testInitializer() {
+        @Test(.tags(.model, .fast))
+        func `Initializer stores all fields`() {
             // ARRANGE & ACT
             let history = DittoQueryHistory(
                 id: "hist-1",
@@ -339,8 +348,8 @@ struct ModelTests {
             #expect(history.createdDate == "2026-01-01T00:00:00Z")
         }
 
-        @Test("Initializer defaults selectedAppId to empty string", .tags(.model, .fast))
-        func testDefaultSelectedAppId() {
+        @Test(.tags(.model, .fast))
+        func `Initializer defaults selectedAppId to empty string`() {
             // ACT
             let history = DittoQueryHistory(
                 id: "hist-2",
@@ -352,8 +361,8 @@ struct ModelTests {
             #expect(history.selectedAppId == "")
         }
 
-        @Test("Codable round-trip preserves fields", .tags(.model, .fast))
-        func testCodableRoundTrip() throws {
+        @Test(.tags(.model, .fast))
+        func `Codable round-trip preserves fields`() throws {
             // ARRANGE
             let original = DittoQueryHistory(
                 id: "hist-codable",
@@ -371,8 +380,8 @@ struct ModelTests {
             #expect(decoded.createdDate == original.createdDate)
         }
 
-        @Test("Decodable from JSON with coding keys", .tags(.model, .fast))
-        func testDecodableFromJson() throws {
+        @Test(.tags(.model, .fast))
+        func `Decodable from JSON with coding keys`() throws {
             // ARRANGE — uses the actual CodingKeys: _id, selectedApp_id
             let json = """
             {
@@ -384,7 +393,7 @@ struct ModelTests {
             """
 
             // ACT
-            let data = json.data(using: .utf8)!
+            let data = try #require(json.data(using: .utf8))
             let decoded = try JSONDecoder().decode(DittoQueryHistory.self, from: data)
 
             // ASSERT
@@ -393,8 +402,8 @@ struct ModelTests {
             #expect(decoded.selectedAppId == "app-abc")
         }
 
-        @Test("Two history items with same query have different IDs", .tags(.model, .fast))
-        func testDistinctItemsWithSameQuery() {
+        @Test(.tags(.model, .fast))
+        func `Two history items with same query have different IDs`() {
             // ARRANGE & ACT
             let h1 = DittoQueryHistory(id: "id-1", query: "SELECT 1", createdDate: "2026-01-01T00:00:00Z")
             let h2 = DittoQueryHistory(id: "id-2", query: "SELECT 1", createdDate: "2026-02-01T00:00:00Z")
@@ -409,9 +418,8 @@ struct ModelTests {
 
     @Suite("DittoSubscription")
     struct DittoSubscriptionTests {
-
-        @Test("Minimal init creates subscription with empty fields", .tags(.model, .fast))
-        func testMinimalInit() {
+        @Test(.tags(.model, .fast))
+        func `Minimal init creates subscription with empty fields`() {
             // ACT
             let sub = DittoSubscription(id: "sub-1")
 
@@ -422,13 +430,13 @@ struct ModelTests {
             #expect(sub.syncSubscription == nil)
         }
 
-        @Test("Dictionary init extracts all fields", .tags(.model, .fast))
-        func testDictionaryInit() {
+        @Test(.tags(.model, .fast))
+        func `Dictionary init extracts all fields`() {
             // ARRANGE
             let dict: [String: Any?] = [
                 "_id": "sub-dict-1",
                 "name": "My Subscription",
-                "query": "SELECT * FROM cars",
+                "query": "SELECT * FROM cars"
             ]
 
             // ACT
@@ -440,8 +448,8 @@ struct ModelTests {
             #expect(sub.query == "SELECT * FROM cars")
         }
 
-        @Test("Dictionary init generates UUID when id is missing", .tags(.model, .fast))
-        func testDictionaryInitMissingId() {
+        @Test(.tags(.model, .fast))
+        func `Dictionary init generates UUID when id is missing`() {
             // ARRANGE — no _id key
             let dict: [String: Any?] = [
                 "name": "No ID Sub",
@@ -455,8 +463,8 @@ struct ModelTests {
             #expect(!sub.id.isEmpty)
         }
 
-        @Test("Dictionary init defaults missing name to Unnamed Subscription", .tags(.model, .fast))
-        func testDictionaryInitMissingName() {
+        @Test(.tags(.model, .fast))
+        func `Dictionary init defaults missing name to Unnamed Subscription`() {
             // ARRANGE
             let dict: [String: Any?] = [
                 "_id": "sub-no-name",
@@ -470,8 +478,8 @@ struct ModelTests {
             #expect(sub.name == "Unnamed Subscription")
         }
 
-        @Test("new() factory creates subscription with unique ID and nil syncSubscription", .tags(.model, .fast))
-        func testNewFactory() {
+        @Test(.tags(.model, .fast))
+        func `new() factory creates subscription with unique ID and nil syncSubscription`() {
             // ACT
             let sub1 = DittoSubscription.new()
             let sub2 = DittoSubscription.new()
@@ -487,9 +495,8 @@ struct ModelTests {
 
     @Suite("DittoObservable")
     struct DittoObservableTests {
-
-        @Test("Minimal init creates observable with default values", .tags(.model, .fast))
-        func testMinimalInit() {
+        @Test(.tags(.model, .fast))
+        func `Minimal init creates observable with default values`() {
             // ACT
             let obs = DittoObservable(id: "obs-1")
 
@@ -502,15 +509,15 @@ struct ModelTests {
             #expect(obs.storeObserver == nil)
         }
 
-        @Test("Dictionary init extracts all fields", .tags(.model, .fast))
-        func testDictionaryInit() {
+        @Test(.tags(.model, .fast))
+        func `dictionary init`() {
             // ARRANGE
             let dict: [String: Any?] = [
                 "_id": "obs-dict-1",
                 "name": "My Observer",
                 "query": "SELECT * FROM items",
                 "isActive": true,
-                "lastUpdated": "2026-01-01T00:00:00Z",
+                "lastUpdated": "2026-01-01T00:00:00Z"
             ]
 
             // ACT
@@ -524,8 +531,8 @@ struct ModelTests {
             #expect(obs.lastUpdated == "2026-01-01T00:00:00Z")
         }
 
-        @Test("Dictionary init generates UUID when id is missing", .tags(.model, .fast))
-        func testDictionaryInitMissingId() {
+        @Test(.tags(.model, .fast))
+        func `dictionary init missing id`() {
             // ARRANGE
             let dict: [String: Any?] = ["name": "No ID Obs", "query": "SELECT 1"]
 
@@ -536,8 +543,8 @@ struct ModelTests {
             #expect(!obs.id.isEmpty)
         }
 
-        @Test("Dictionary init defaults missing name to Unnamed Observable", .tags(.model, .fast))
-        func testDictionaryInitMissingName() {
+        @Test(.tags(.model, .fast))
+        func `Dictionary init defaults missing name to Unnamed Observable`() {
             // ARRANGE
             let dict: [String: Any?] = ["_id": "obs-no-name", "query": "SELECT 1"]
 
@@ -548,8 +555,8 @@ struct ModelTests {
             #expect(obs.name == "Unnamed Observable")
         }
 
-        @Test("Dictionary init defaults isActive to false when missing", .tags(.model, .fast))
-        func testDictionaryInitIsActiveDefault() {
+        @Test(.tags(.model, .fast))
+        func `Dictionary init defaults isActive to false when missing`() {
             // ARRANGE — no isActive key
             let dict: [String: Any?] = ["_id": "obs-active", "name": "A", "query": "SELECT 1"]
 
@@ -560,8 +567,8 @@ struct ModelTests {
             #expect(obs.isActive == false)
         }
 
-        @Test("new() factory creates observable with unique ID and nil storeObserver", .tags(.model, .fast))
-        func testNewFactory() {
+        @Test(.tags(.model, .fast))
+        func `new() factory creates observable with unique ID and nil storeObserver`() {
             // ACT
             let obs1 = DittoObservable.new()
             let obs2 = DittoObservable.new()
@@ -577,57 +584,56 @@ struct ModelTests {
 
     @Suite("AuthMode")
     struct AuthModeTests {
-
-        @Test("AuthMode has exactly two cases", .tags(.model, .fast))
-        func testCasesCount() {
+        @Test(.tags(.model, .fast))
+        func `AuthMode has exactly two cases`() {
             #expect(AuthMode.allCases.count == 2)
         }
 
-        @Test("development raw value is 'development'", .tags(.model, .fast))
-        func testServerRawValue() {
+        @Test(.tags(.model, .fast))
+        func `development raw value is 'development'`() {
             #expect(AuthMode.development.rawValue == "development")
         }
 
-        @Test("smallPeerOnly raw value is 'smallPeerOnly'", .tags(.model, .fast))
-        func testSmallPeersOnlyRawValue() {
+        @Test(.tags(.model, .fast))
+        func `smallPeerOnly raw value is 'smallPeerOnly'`() {
             #expect(AuthMode.smallPeerOnly.rawValue == "smallPeerOnly")
         }
 
-        @Test("Raw value round-trip works for development", .tags(.model, .fast))
-        func testRawValueRoundTripServer() {
+        @Test(.tags(.model, .fast))
+        func `Raw value round-trip works for development`() {
             let mode = AuthMode(rawValue: "development")
             #expect(mode == .development)
         }
 
-        @Test("Raw value round-trip works for smallPeerOnly", .tags(.model, .fast))
-        func testRawValueRoundTripSmallPeers() {
+        @Test(.tags(.model, .fast))
+        func `Raw value round-trip works for smallPeerOnly`() {
             let mode = AuthMode(rawValue: "smallPeerOnly")
             #expect(mode == .smallPeerOnly)
         }
 
-        @Test("Invalid raw value returns nil", .tags(.model, .fast))
-        func testInvalidRawValue() {
+        @Test(.tags(.model, .fast))
+        func `Invalid raw value returns nil`() {
             let mode = AuthMode(rawValue: "invalid-mode")
             #expect(mode == nil)
         }
 
-        @Test("development displayName is Development", .tags(.model, .fast))
-        func testServerDisplayName() {
+        @Test(.tags(.model, .fast))
+        func `development displayName is Development`() {
             #expect(AuthMode.development.displayName == "Development")
         }
 
-        @Test("smallPeerOnly displayName is Small Peer Only", .tags(.model, .fast))
-        func testSmallPeersOnlyDisplayName() {
+        @Test(.tags(.model, .fast))
+        func `smallPeerOnly displayName is Small Peer Only`() {
             #expect(AuthMode.smallPeerOnly.displayName == "Small Peer Only")
         }
 
-        @Test("Default mode is development", .tags(.model, .fast))
-        func testDefaultMode() {
+        @Test(.tags(.model, .fast))
+        func `default mode`() {
             #expect(AuthMode.default == .development)
         }
 
-        @Test("Codable encode and decode round-trip", .tags(.model, .fast))
-        func testCodableRoundTrip() throws {
+        @Test(.tags(.model, .fast))
+        func `Codable encode and decode round-trip`() throws {
             // ARRANGE
             struct Wrapper: Codable {
                 let mode: AuthMode

@@ -38,6 +38,24 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
     var logLevel: String
     var isStrictModeEnabled: Bool
 
+    /// Advanced Configuration — re-applied on every database open because the SDK
+    /// keeps `ALTER SYSTEM` state in memory only.
+    var collectionSyncScopes: [CollectionSyncScope]
+    var startupSettings: [StartupSetting]
+
+    /// Set by the repository when the stored sync-scope JSON could not be decoded.
+    ///
+    /// Runtime-only (never persisted, never encoded): the config still loads so it shows
+    /// in the list and can be repaired in the editor, but `DittoManager` refuses to open
+    /// it — dropping a `LocalPeerOnly` scope silently would start syncing data the user
+    /// marked device-local.
+    var hasCorruptSyncScopes = false
+
+    /// - Note: `collectionSyncScopes` and `startupSettings` are intentionally
+    ///   **not** defaulted. Every caller rebuilds this object from scratch and
+    ///   `updateDatabaseConfig` overwrites all columns, so a defaulted parameter
+    ///   lets a forgetful call site silently erase a user's sync scopes. Requiring
+    ///   both arguments makes the compiler catch that instead.
     init(
         _ _id: String,
         name: String,
@@ -54,7 +72,9 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         isAwdlEnabled: Bool = true,
         isCloudSyncEnabled: Bool = true,
         logLevel: String = "info",
-        isStrictModeEnabled: Bool = false
+        isStrictModeEnabled: Bool = false,
+        collectionSyncScopes: [CollectionSyncScope],
+        startupSettings: [StartupSetting]
     ) {
         self._id = _id
         self.name = name
@@ -72,6 +92,8 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         self.isCloudSyncEnabled = isCloudSyncEnabled
         self.logLevel = logLevel
         self.isStrictModeEnabled = isStrictModeEnabled
+        self.collectionSyncScopes = collectionSyncScopes
+        self.startupSettings = startupSettings
     }
 
     enum CodingKeys: String, CodingKey {
@@ -91,6 +113,8 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         case isCloudSyncEnabled
         case logLevel
         case isStrictModeEnabled
+        case collectionSyncScopes
+        case startupSettings
     }
 
     /// Legacy (pre-v5) keys accepted on decode for backward compatibility.
@@ -118,6 +142,8 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
         try container.encode(logLevel, forKey: .logLevel)
         try container.encode(isStrictModeEnabled, forKey: .isStrictModeEnabled)
+        try container.encode(collectionSyncScopes, forKey: .collectionSyncScopes)
+        try container.encode(startupSettings, forKey: .startupSettings)
     }
 
     required init(from decoder: Decoder) throws {
@@ -155,6 +181,48 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         // Developer options with backward compatibility
         logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
         isStrictModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isStrictModeEnabled) ?? false
+
+        // Advanced configuration. Absent is fine (older payloads), but present-and-
+        // malformed is NOT tolerated for sync scopes: quietly dropping a
+        // `LocalPeerOnly` entry would let that collection sync. `decodeIfPresent`
+        // rethrows a malformed array rather than yielding nil, which is what we want.
+        collectionSyncScopes = try container
+            .decodeIfPresent([CollectionSyncScope].self, forKey: .collectionSyncScopes) ?? []
+        startupSettings = try container
+            .decodeIfPresent([StartupSetting].self, forKey: .startupSettings) ?? []
+    }
+
+    /// A copy with the advanced settings stripped, for QR sharing.
+    ///
+    /// Returns a **new instance** on purpose. This is a reference type with no copy
+    /// initializer, so clearing the arrays in place would delete the user's real sync
+    /// scopes from the shared `@Observable` object the moment they opened the QR
+    /// sheet — data loss triggered by a read-only action.
+    func sanitizedForSharing() -> DittoConfigForDatabase {
+        DittoConfigForDatabase(
+            _id,
+            name: name,
+            databaseId: databaseId,
+            developmentToken: developmentToken,
+            url: url,
+            httpApiUrl: httpApiUrl,
+            httpApiKey: httpApiKey,
+            mode: mode,
+            allowUntrustedCerts: allowUntrustedCerts,
+            secretKey: secretKey,
+            isBluetoothLeEnabled: isBluetoothLeEnabled,
+            isLanEnabled: isLanEnabled,
+            isAwdlEnabled: isAwdlEnabled,
+            isCloudSyncEnabled: isCloudSyncEnabled,
+            logLevel: logLevel,
+            isStrictModeEnabled: isStrictModeEnabled,
+            collectionSyncScopes: [],
+            startupSettings: []
+        )
+        // Deliberately NOT copied: a shared copy carries no advanced settings, so it has
+        // nothing corrupt to flag. Stated explicitly because this initializer is a
+        // positional re-construction — any property added to the class and not to
+        // `init` is silently dropped here.
     }
 }
 
@@ -176,7 +244,13 @@ extension DittoConfigForDatabase {
             isAwdlEnabled: true,
             isCloudSyncEnabled: true,
             logLevel: "info",
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
+        // Deliberately NOT copied: a shared copy carries no advanced settings, so it has
+        // nothing corrupt to flag. Stated explicitly because this initializer is a
+        // positional re-construction — any property added to the class and not to
+        // `init` is silently dropped here.
     }
 }

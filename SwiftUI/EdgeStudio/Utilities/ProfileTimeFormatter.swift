@@ -81,7 +81,9 @@ enum ProfileTimeFormatter {
     ) -> String? {
         guard let ns, totalNs > 0 else { return nil }
         let share = Double(ns) / Double(totalNs)
-        if share < threshold { return nil }
+        if share < threshold {
+            return nil
+        }
         return String(format: "%.1f%%", share * 100)
     }
 }

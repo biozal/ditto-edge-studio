@@ -137,6 +137,7 @@ extension MainStudioView {
                                 .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                         }
                         .accessibilityIdentifier("SyncButton")
+                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
 
                         Button {
                             Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
@@ -397,6 +398,7 @@ extension MainStudioView {
                                     .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                             }
                             .accessibilityIdentifier("SyncButton")
+                            .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
 
                             // Close
                             Button {
@@ -700,6 +702,7 @@ extension MainStudioView {
                                     .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                             }
                             .accessibilityIdentifier("SyncButton")
+                            .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
 
                             Button {
                                 Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }

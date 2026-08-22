@@ -64,7 +64,10 @@ enum QRCodeGenerator {
             {
                 return nil
             }
-            return (config: qrPayload.config, favorites: qrPayload.favorites)
+            // Sanitize on the way IN as well, so a payload produced by another client
+            // (or a future version of this app) can never silently import sync scopes or
+            // startup settings onto this device.
+            return (config: qrPayload.config.sanitizedForSharing(), favorites: qrPayload.favorites)
         } else {
             // Legacy v1: raw JSON of DittoConfigForDatabase
             guard let data = payload.data(using: .utf8),
@@ -72,7 +75,7 @@ enum QRCodeGenerator {
             {
                 return nil
             }
-            return (config: config, favorites: [])
+            return (config: config.sanitizedForSharing(), favorites: [])
         }
     }
 
@@ -100,11 +103,45 @@ enum QRCodeGenerator {
     // MARK: Private Helpers
 
     private static func encodePayload(config: DittoConfigForDatabase, favorites: [FavoriteQueryItem]) -> String? {
-        let payload = QRCodePayload(version: 2, config: config, favorites: favorites)
+        // Advanced configuration is deliberately NOT shared. Importing another device's
+        // sync scopes changes what syncs in both directions — a scanned `LocalPeerOnly`
+        // silently stops a collection from syncing, and a scanned `AllPeers` pushes data
+        // the sender meant to keep on-device — and startup settings are
+        // environment-specific (some open network listeners or install a trusted CA).
+        // `sanitizedForSharing()` returns a NEW instance; clearing in place would delete
+        // the user's real scopes just by displaying a QR code.
+        let payload = QRCodePayload(version: 2, config: config.sanitizedForSharing(), favorites: favorites)
         guard let json = try? JSONEncoder().encode(payload),
               let compressed = try? (json as NSData).compressed(using: .zlib) as Data else { return nil }
         return v2Prefix + compressed.base64EncodedString()
     }
+
+    // MARK: Test Seams
+
+    // Compiled out of Release. Neither of these exposes anything the shipping API doesn't
+    // — `testPayloadString(config:favorites:)` forwards to `encodePayload`, which `generate`
+    // already calls in Release, sanitisation included — so this is convention, not a leak
+    // being closed: a seam that exists for tests should not be part of the shipping
+    // surface. Matched by `SQLCipherService.executeRawForTesting` and
+    // `DatabaseRepository.clearCacheForTesting`. The tests that call these
+    // (`QRCodeAdvancedExclusionTests`) build against Debug, so they are unaffected; the
+    // Release build is what proves nothing production-side depended on them.
+    #if DEBUG
+    /// The payload string `generate` would encode, without rasterizing a QR image.
+    ///
+    /// Exposed so the advanced-settings exclusion can be asserted on the real encoder
+    /// rather than on a reimplementation of it.
+    static func testPayloadString(config: DittoConfigForDatabase, favorites: [FavoriteQueryItem]) -> String? {
+        encodePayload(config: config, favorites: favorites)
+    }
+
+    /// Wraps arbitrary payload JSON in the v2 envelope, for testing that a foreign
+    /// payload carrying advanced settings still cannot import them.
+    static func testPayloadString(rawJSON: String) -> String? {
+        guard let compressed = try? (Data(rawJSON.utf8) as NSData).compressed(using: .zlib) as Data else { return nil }
+        return v2Prefix + compressed.base64EncodedString()
+    }
+    #endif
 
     static func generateQRImage(from data: Data) -> Image? {
         let filter = CIFilter.qrCodeGenerator()

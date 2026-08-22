@@ -34,6 +34,9 @@ enum ConnectionType: Equatable, Codable {
     case accessPoint
     case p2pWiFi
     case webSocket
+    /// LAN multicast transport, added as a beta transport in Ditto SDK 5.1.0
+    /// (`DittoPeerToPeer.multicastBeta`).
+    case multicast
     case unknown(String)
 
     var displayName: String {
@@ -46,6 +49,8 @@ enum ConnectionType: Equatable, Codable {
             return "P2P WiFi"
         case .webSocket:
             return "WebSocket"
+        case .multicast:
+            return "Multicast"
         case let .unknown(name):
             return name
         }
@@ -61,6 +66,8 @@ enum ConnectionType: Equatable, Codable {
             return ConnectivityIcon.wifi
         case .webSocket:
             return ConnectivityIcon.network
+        case .multicast:
+            return ConnectivityIcon.ethernet
         case .unknown:
             return SystemIcon.question
         }
@@ -72,6 +79,7 @@ enum ConnectionType: Equatable, Codable {
         case .accessPoint: return Color(red: 0.05, green: 0.52, blue: 0.25)
         case .p2pWiFi: return Color(red: 0.78, green: 0.10, blue: 0.22)
         case .webSocket: return Color(red: 0.85, green: 0.48, blue: 0.00)
+        case .multicast: return Color(red: 0.0, green: 0.55, blue: 0.60)
         case .unknown: return Color(red: 0.35, green: 0.35, blue: 0.40)
         }
     }
@@ -82,6 +90,7 @@ enum ConnectionType: Equatable, Codable {
         case .accessPoint: return Color(red: 0.02, green: 0.32, blue: 0.14)
         case .p2pWiFi: return Color(red: 0.50, green: 0.04, blue: 0.12)
         case .webSocket: return Color(red: 0.60, green: 0.30, blue: 0.00)
+        case .multicast: return Color(red: 0.0, green: 0.32, blue: 0.36)
         case .unknown: return Color(red: 0.20, green: 0.20, blue: 0.25)
         }
     }
@@ -195,12 +204,25 @@ struct SyncStatusInfo: Identifiable, Equatable {
     /// helpers) and folded into `==` so cards only re-render when the dominant
     /// transport actually changes.
     var dominantConnectionType: String {
-        if isDittoServer { return "cloud" }
+        if isDittoServer {
+            return "cloud"
+        }
         guard let connections else { return "unknown" }
-        if connections.contains(where: { $0.type == .webSocket }) { return "websocket" }
-        if connections.contains(where: { $0.type == .accessPoint }) { return "lan" }
-        if connections.contains(where: { $0.type == .p2pWiFi }) { return "p2p" }
-        if connections.contains(where: { $0.type == .bluetooth }) { return "bluetooth" }
+        if connections.contains(where: { $0.type == .webSocket }) {
+            return "websocket"
+        }
+        if connections.contains(where: { $0.type == .accessPoint }) {
+            return "lan"
+        }
+        if connections.contains(where: { $0.type == .p2pWiFi }) {
+            return "p2p"
+        }
+        if connections.contains(where: { $0.type == .multicast }) {
+            return "multicast"
+        }
+        if connections.contains(where: { $0.type == .bluetooth }) {
+            return "bluetooth"
+        }
         return "unknown"
     }
 

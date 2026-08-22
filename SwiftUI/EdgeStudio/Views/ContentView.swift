@@ -57,8 +57,14 @@ struct ContentView: View {
                 // fully drawn regardless of which screen the user is
                 // on. Once a database is opened MainStudioView's
                 // `.frame(minWidth:minHeight:)` lets the window grow.
+                //
+                // Sized to contain the editor sheet presented from here, but CLAMPED to
+                // the screen: `.windowResizability(.contentSize)` makes the window
+                // exactly this size with no ability to shrink, so a hard 820pt was
+                // taller than the usable height of a 1280x800 or 1366x768 display and
+                // pushed the CTA buttons off-screen with no way to recover.
                 macOSPickerView
-                    .frame(width: 900, height: 640)
+                    .frame(width: Self.pickerWindowSize.width, height: Self.pickerWindowSize.height)
                 #endif
             }
         }
@@ -139,6 +145,30 @@ struct ContentView: View {
 
 #if os(macOS)
 extension ContentView {
+    /// Preferred picker-window size, clamped to what the current screen can actually
+    /// show. `.windowResizability(.contentSize)` pins the window to exactly the size
+    /// declared here — it cannot be resized down — so an unclamped value simply pushes
+    /// content off-screen on a smaller display.
+    static var pickerWindowSize: CGSize {
+        let preferred = CGSize(width: 1000, height: 820)
+        guard let visible = NSScreen.main?.visibleFrame.size else { return preferred }
+        // Leave room for the titlebar and a margin.
+        return CGSize(
+            width: min(preferred.width, max(760, visible.width - 40)),
+            height: min(preferred.height, max(560, visible.height - 60))
+        )
+    }
+
+    /// Editor sheet size, derived from the window so the sheet can never be taller than
+    /// its host.
+    static var editorSheetSize: CGSize {
+        let window = pickerWindowSize
+        return CGSize(
+            width: min(930, window.width - 70),
+            height: min(740, window.height - 80)
+        )
+    }
+
     var macOSPickerView: some View {
         @Bindable var viewModel = viewModel
         return ZStack(alignment: .bottomLeading) {
@@ -274,16 +304,22 @@ extension ContentView {
                         hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
                         dittoAppConfig: dittoAppConfig
                     )
+                    // Fixed size rather than a min/ideal/max range: AppKit sizes
+                    // a sheet from its content's *minimum* (ideal is ignored),
+                    // and the form's intrinsic minimum is driven by the widest
+                    // single-line caption, which overshot the sheet and got
+                    // centre-overflowed — clipping the header title, the info
+                    // panel, and both side edges. A hard frame makes the
+                    // captions wrap and the Form scroll instead of overflow.
+                    // Derived from the (already screen-clamped) window size so the sheet
+                    // always fits inside its host — a taller sheet spills past the window
+                    // frame and reads as the editor being cut off. The Form scrolls, so
+                    // content is not capped by this; see DatabaseEditorView.
                     .frame(
-                        minWidth: 600,
-                        idealWidth: 1000,
-                        maxWidth: 1920,
-                        minHeight: 700,
-                        idealHeight: 1000,
-                        maxHeight: 1400
+                        width: Self.editorSheetSize.width,
+                        height: Self.editorSheetSize.height
                     )
                     .environment(appState)
-                    .presentationDetents([.medium, .large])
                     .interactiveDismissDisabled(databaseEditorHasUnsavedChanges)
                 }
             }
@@ -395,12 +431,18 @@ extension ContentView {
                                         Task { await viewModel.showMainStudio(app, appState: appState) }
                                     }
                                     .contextMenu {
+                                        // Identifiers so UI tests can reach the editor for
+                                        // an EXISTING config (the card's own tap gesture
+                                        // opens the database instead) and can delete a
+                                        // config they created, leaving no state behind.
                                         Button { viewModel.showAppEditor(app) } label: { Label("Edit", systemImage: "pencil") }
+                                            .accessibilityIdentifier("EditDatabaseMenuItem")
                                         Button { Task { await viewModel.showQRCode(app) } } label: { Label("QR Code", systemImage: "qrcode") }
                                         Divider()
                                         Button(role: .destructive) {
                                             Task { await viewModel.deleteApp(app, appState: appState) }
                                         } label: { Label("Delete", systemImage: "trash") }
+                                            .accessibilityIdentifier("DeleteDatabaseMenuItem")
                                     }
                                     .accessibilityIdentifier("AppCard_\(app.name)")
                             }
@@ -699,7 +741,14 @@ extension ContentView {
                     isBluetoothLeEnabled: (dict["isBluetoothLeEnabled"] as? Bool) ?? true,
                     isLanEnabled: (dict["isLanEnabled"] as? Bool) ?? true,
                     isAwdlEnabled: (dict["isAwdlEnabled"] as? Bool) ?? true,
-                    isCloudSyncEnabled: (dict["isCloudSyncEnabled"] as? Bool) ?? true
+                    isCloudSyncEnabled: (dict["isCloudSyncEnabled"] as? Bool) ?? true,
+                    // These two were previously omitted, so seeded test databases
+                    // silently fell back to the initializer defaults.
+                    logLevel: (dict["logLevel"] as? String) ?? "info",
+                    isStrictModeEnabled: (dict["isStrictModeEnabled"] as? Bool) ?? false,
+                    // Advanced configuration is not seedable from the test plist.
+                    collectionSyncScopes: [],
+                    startupSettings: []
                 )
                 try? await databaseRepository.addDittoAppConfig(config)
                 Log.info("[UI-TESTING] Seeded test database: \(config.name)")
@@ -768,10 +817,15 @@ extension ContentView {
                     // abort would otherwise leave the user staring at the picker
                     // with no feedback. Surface a real error so the alert fires.
                     selectedDittoConfigForDatabase = nil
-                    appState.setError(AppError.error(
-                        message: "Failed to initialize database '\(dittoApp.name)'. " +
-                            "Please verify the configuration and try again."
-                    ))
+                    // Only if hydrate didn't already report something specific: it sets
+                    // the real reason (e.g. "sync scopes could not be applied"), and a
+                    // generic message written afterwards would overwrite it.
+                    if appState.error == nil {
+                        appState.setError(AppError.error(
+                            message: "Failed to initialize database '\(dittoApp.name)'. " +
+                                "Please verify the configuration and try again."
+                        ))
+                    }
                 }
             } catch {
                 selectedDittoConfigForDatabase = nil

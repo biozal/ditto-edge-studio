@@ -172,7 +172,9 @@ actor CollectionsRepository {
 
             var countsByCollection: [String: Int] = [:]
             for try await (name, count) in group {
-                if let count { countsByCollection[name] = count }
+                if let count {
+                    countsByCollection[name] = count
+                }
             }
             return countsByCollection
         }

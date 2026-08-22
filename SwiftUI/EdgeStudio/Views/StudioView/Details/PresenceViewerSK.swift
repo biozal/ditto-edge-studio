@@ -74,6 +74,7 @@ struct PresenceViewerSK: View {
             LegendRow(color: ConnectionType.accessPoint.cardColor, pattern: "████ ████", label: "LAN")
             LegendRow(color: ConnectionType.p2pWiFi.cardColor, pattern: "██ ██ ██", label: "P2P WiFi")
             LegendRow(color: ConnectionType.webSocket.cardColor, pattern: "███·███·", label: "WebSocket")
+            LegendRow(color: ConnectionType.multicast.cardColor, pattern: "██ ██ ██", label: "Multicast")
             LegendRow(color: SyncStatusInfo.cloudCardColor, pattern: "████ ○ ████", label: "Cloud")
         }
         .padding(12)

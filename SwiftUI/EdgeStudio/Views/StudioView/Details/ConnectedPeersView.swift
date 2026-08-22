@@ -312,6 +312,7 @@ struct ConnectedPeersView: View {
         case "websocket": return (ConnectionType.webSocket.cardColor, ConnectionType.webSocket.cardDarkColor)
         case "lan": return (ConnectionType.accessPoint.cardColor, ConnectionType.accessPoint.cardDarkColor)
         case "p2p": return (ConnectionType.p2pWiFi.cardColor, ConnectionType.p2pWiFi.cardDarkColor)
+        case "multicast": return (ConnectionType.multicast.cardColor, ConnectionType.multicast.cardDarkColor)
         case "bluetooth": return (ConnectionType.bluetooth.cardColor, ConnectionType.bluetooth.cardDarkColor)
         default: return (ConnectionType.unknown("").cardColor, ConnectionType.unknown("").cardDarkColor)
         }
@@ -375,7 +376,9 @@ struct ConnectedPeersView: View {
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             await MainActor.run {
-                if copiedText == text { copiedText = nil }
+                if copiedText == text {
+                    copiedText = nil
+                }
             }
         }
     }

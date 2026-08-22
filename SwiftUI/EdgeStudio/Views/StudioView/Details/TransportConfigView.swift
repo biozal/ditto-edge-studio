@@ -209,12 +209,16 @@ extension TransportConfigView {
             }
 
             var isError: Bool {
-                if case .error = self { return true }
+                if case .error = self {
+                    return true
+                }
                 return false
             }
 
             var isComplete: Bool {
-                if case .complete = self { return true }
+                if case .complete = self {
+                    return true
+                }
                 return false
             }
         }
@@ -286,7 +290,17 @@ extension TransportConfigView {
                 // STEP 3: RESTART SYNC
                 currentStep = .restartingSync
 
-                try await DittoManager.shared.selectedDatabaseStartSync()
+                // Restarting sync re-applies the Advanced Configuration, which is
+                // fail-closed on sync scopes and can therefore throw. The observers must
+                // be restarted either way: letting the throw skip them left the Sync tab
+                // dead (sync off, no status or presence updates) until the database was
+                // closed and reopened.
+                var syncStartError: Error?
+                do {
+                    try await DittoManager.shared.selectedDatabaseStartSync()
+                } catch {
+                    syncStartError = error
+                }
 
                 // Restart observers with fresh connections
                 do {
@@ -294,6 +308,10 @@ extension TransportConfigView {
                     try await SystemRepository.shared.registerConnectionsPresenceObserver()
                 } catch {
                     Log.warning("Failed to restart observers: \(error.localizedDescription)")
+                }
+
+                if let syncStartError {
+                    throw syncStartError
                 }
 
                 // STEP 4: SUCCESS

@@ -113,9 +113,15 @@ enum QueryProfileParser {
     /// nested objects re-encode as compact JSON so the value survives
     /// without expanding into the layout unpredictably.
     private static func renderAttribute(_ raw: Any) -> String {
-        if let s = raw as? String { return s }
-        if let n = raw as? NSNumber { return n.stringValue }
-        if let b = raw as? Bool { return b ? "true" : "false" }
+        if let s = raw as? String {
+            return s
+        }
+        if let n = raw as? NSNumber {
+            return n.stringValue
+        }
+        if let b = raw as? Bool {
+            return b ? "true" : "false"
+        }
         // Try compact JSON for objects/arrays so they're still readable
         // when the card view shows them on a single line.
         if let data = try? JSONSerialization.data(
@@ -163,23 +169,41 @@ enum QueryProfileParser {
     /// `stringValue` for IDs that may come back numeric). Returns
     /// nil for anything else.
     private static func stringValue(_ raw: Any?) -> String? {
-        if let s = raw as? String { return s }
-        if let n = raw as? NSNumber { return n.stringValue }
+        if let s = raw as? String {
+            return s
+        }
+        if let n = raw as? NSNumber {
+            return n.stringValue
+        }
         return nil
     }
 
     private static func intValue(_ raw: Any?) -> Int? {
-        if let n = raw as? NSNumber { return n.intValue }
-        if let i = raw as? Int { return i }
-        if let s = raw as? String, let i = Int(s) { return i }
+        if let n = raw as? NSNumber {
+            return n.intValue
+        }
+        if let i = raw as? Int {
+            return i
+        }
+        if let s = raw as? String, let i = Int(s) {
+            return i
+        }
         return nil
     }
 
     private static func int64Value(_ raw: Any?) -> Int64? {
-        if let n = raw as? NSNumber { return n.int64Value }
-        if let i = raw as? Int64 { return i }
-        if let i = raw as? Int { return Int64(i) }
-        if let s = raw as? String, let i = Int64(s) { return i }
+        if let n = raw as? NSNumber {
+            return n.int64Value
+        }
+        if let i = raw as? Int64 {
+            return i
+        }
+        if let i = raw as? Int {
+            return Int64(i)
+        }
+        if let s = raw as? String, let i = Int64(s) {
+            return i
+        }
         return nil
     }
 }

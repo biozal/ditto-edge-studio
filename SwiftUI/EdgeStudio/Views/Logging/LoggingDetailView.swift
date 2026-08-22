@@ -308,7 +308,9 @@ struct LoggingDetailView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .onChange(of: isDateFilterEnabled) { _, enabled in
-                if enabled { dateFilterEnd = Date.now }
+                if enabled {
+                    dateFilterEnd = Date.now
+                }
             }
 
             if isDateFilterEnabled {
@@ -483,7 +485,11 @@ struct LoggingDetailView: View {
                                 let source = capture.selectedSource
                                 Task { @MainActor in
                                     let didStartAccess = url.startAccessingSecurityScopedResource()
-                                    defer { if didStartAccess { url.stopAccessingSecurityScopedResource() } }
+                                    defer {
+                                        if didStartAccess {
+                                            url.stopAccessingSecurityScopedResource()
+                                        }
+                                    }
                                     do {
                                         switch source {
                                         case .application:
@@ -623,7 +629,10 @@ struct LoggingDetailView: View {
             guard selectedLevels.contains(entry.level) else { return false }
             if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported,
                selectedComponent != .all,
-               entry.component != selectedComponent { return false }
+               entry.component != selectedComponent
+            {
+                return false
+            }
             if !searchText.isEmpty {
                 // Case-insensitive substring match without the per-entry
                 // `lowercased()` allocation.

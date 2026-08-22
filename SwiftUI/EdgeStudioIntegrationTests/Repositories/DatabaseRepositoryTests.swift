@@ -15,14 +15,12 @@ import Testing
 /// Target: 80% code coverage for DatabaseRepository.
 @Suite("DatabaseRepository Tests", .serialized)
 struct DatabaseRepositoryTests {
-
     // MARK: - Load Tests
 
     @Suite("Load")
     struct LoadTests {
-
-        @Test("Fresh database returns empty config list", .tags(.repository, .database))
-        func testFreshDatabaseEmpty() async throws {
+        @Test(.tags(.repository, .database))
+        func `Fresh database returns empty config list`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -35,8 +33,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Load returns previously added config", .tags(.repository, .database))
-        func testLoadReturnsPreviouslyAddedConfig() async throws {
+        @Test(.tags(.repository, .database))
+        func `Load returns previously added config`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -53,8 +51,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Load returns all fields correctly", .tags(.repository, .database))
-        func testLoadAllFields() async throws {
+        @Test(.tags(.repository, .database))
+        func `Load returns all fields correctly`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -73,7 +71,11 @@ struct DatabaseRepositoryTests {
                     isBluetoothLeEnabled: true,
                     isLanEnabled: false,
                     isAwdlEnabled: true,
-                    isCloudSyncEnabled: false
+                    isCloudSyncEnabled: false,
+                    collectionSyncScopes: [CollectionSyncScope(collection: "orders", scope: .localPeerOnly)],
+                    startupSettings: [
+                        StartupSetting(parameter: "example_parameter", type: .integer, value: "42")
+                    ]
                 )
 
                 // ACT
@@ -87,6 +89,13 @@ struct DatabaseRepositoryTests {
                 #expect(loaded[0].httpApiKey == "api-key-xyz")
                 #expect(loaded[0].isLanEnabled == false)
                 #expect(loaded[0].isCloudSyncEnabled == false)
+                // Advanced configuration round-trips through the JSON columns.
+                #expect(loaded[0].collectionSyncScopes == [
+                    CollectionSyncScope(collection: "orders", scope: .localPeerOnly)
+                ])
+                #expect(loaded[0].startupSettings == [
+                    StartupSetting(parameter: "example_parameter", type: .integer, value: "42")
+                ])
             }
         }
     }
@@ -95,9 +104,8 @@ struct DatabaseRepositoryTests {
 
     @Suite("Add")
     struct AddTests {
-
-        @Test("Add stores config in SQLCipher", .tags(.repository, .database))
-        func testAddStoresInSQLCipher() async throws {
+        @Test(.tags(.repository, .database))
+        func `Add stores config in SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -117,8 +125,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Add multiple configs stores all", .tags(.repository, .database))
-        func testAddMultipleConfigs() async throws {
+        @Test(.tags(.repository, .database))
+        func `Add multiple configs stores all`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -136,8 +144,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Add notifies observer callback", .tags(.repository, .database))
-        func testAddNotifiesObserver() async throws {
+        @Test(.tags(.repository, .database))
+        func `Add notifies observer callback`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -160,9 +168,8 @@ struct DatabaseRepositoryTests {
 
     @Suite("Update")
     struct UpdateTests {
-
-        @Test("Update modifies name and token", .tags(.repository, .database))
-        func testUpdateModifiesFields() async throws {
+        @Test(.tags(.repository, .database))
+        func `Update modifies name and token`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -184,8 +191,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Update preserves original ID", .tags(.repository, .database))
-        func testUpdatePreservesId() async throws {
+        @Test(.tags(.repository, .database))
+        func `Update preserves original ID`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -204,8 +211,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Update persists across reload", .tags(.repository, .database))
-        func testUpdatePersistsAcrossReload() async throws {
+        @Test(.tags(.repository, .database))
+        func `Update persists across reload`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -223,8 +230,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Update notifies observer callback", .tags(.repository, .database))
-        func testUpdateNotifiesObserver() async throws {
+        @Test(.tags(.repository, .database))
+        func `Update notifies observer callback`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -250,9 +257,8 @@ struct DatabaseRepositoryTests {
 
     @Suite("Delete")
     struct DeleteTests {
-
-        @Test("Delete removes config", .tags(.repository, .database))
-        func testDeleteRemovesConfig() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete removes config`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -268,8 +274,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Delete cascades to history", .tags(.repository, .database))
-        func testDeleteCascadesToHistory() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete cascades to history`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -293,8 +299,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Delete cascades to favorites", .tags(.repository, .database))
-        func testDeleteCascadesToFavorites() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete cascades to favorites`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -318,8 +324,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Delete notifies observer callback", .tags(.repository, .database))
-        func testDeleteNotifiesObserver() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete notifies observer callback`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -344,9 +350,8 @@ struct DatabaseRepositoryTests {
 
     @Suite("Multiple Configs")
     struct MultipleConfigTests {
-
-        @Test("All configs are returned in load", .tags(.repository, .database))
-        func testAllConfigsReturnedInLoad() async throws {
+        @Test(.tags(.repository, .database))
+        func `All configs are returned in load`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared
@@ -364,8 +369,8 @@ struct DatabaseRepositoryTests {
             }
         }
 
-        @Test("Delete one does not affect others", .tags(.repository, .database))
-        func testDeleteOneDoesNotAffectOthers() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete one does not affect others`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = DatabaseRepository.shared

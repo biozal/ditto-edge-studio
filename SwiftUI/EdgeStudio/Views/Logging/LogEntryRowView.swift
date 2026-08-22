@@ -73,7 +73,9 @@ struct LogEntryRowView: View {
     }
 
     private var isImportedSDKSource: Bool {
-        if case .imported = entry.source { return true }
+        if case .imported = entry.source {
+            return true
+        }
         return false
     }
 
