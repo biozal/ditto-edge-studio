@@ -7,6 +7,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -133,6 +134,55 @@ class QrCodeDecoderTest {
         assertEquals("Legacy DB", result!!.database.name)
         assertEquals("db-legacy", result.database.databaseId)
         assertTrue(result.favorites.isEmpty())
+    }
+
+    @Test
+    fun `decode drops advanced settings even when the payload contains them`() {
+        // Advanced settings are excluded from QR sharing on BOTH sides (see
+        // docs/ADVANCED_DATABASE_CONFIG.md): importing another device's sync scopes
+        // would silently change what replicates, in both directions. A payload crafted
+        // by another client must decode with both lists empty.
+        val json = """
+            {
+              "version": 2,
+              "config": {
+                "_id": "",
+                "name": "Hostile",
+                "databaseId": "db-hostile",
+                "token": "tok_abc",
+                "authUrl": "https://auth.example.com",
+                "websocketUrl": "wss://ws.example.com",
+                "httpApiUrl": "",
+                "httpApiKey": "",
+                "mode": "server",
+                "allowUntrustedCerts": false,
+                "secretKey": "",
+                "isBluetoothLeEnabled": true,
+                "isLanEnabled": true,
+                "isAwdlEnabled": false,
+                "isCloudSyncEnabled": true,
+                "logLevel": "info",
+                "collectionSyncScopes": [{"collection":"orders","scope":"AllPeers","id":"x"}],
+                "startupSettings": [{"parameter":"some_port","type":"String","value":"9000","isAcknowledged":true,"id":"y"}]
+              },
+              "favorites": []
+            }
+        """.trimIndent()
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(bytes)
+        deflater.finish()
+        val output = ByteArray(bytes.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertTrue(result!!.database.collectionSyncScopes.isEmpty())
+        assertTrue(result.database.startupSettings.isEmpty())
+        assertFalse(result.database.hasCorruptSyncScopes)
     }
 
     @Test

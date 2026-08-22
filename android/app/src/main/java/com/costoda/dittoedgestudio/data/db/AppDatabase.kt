@@ -29,7 +29,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         ObservableEntity::class,
         QueryMetricsEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Advanced Database Configuration (docs/ADVANCED_DATABASE_CONFIG.md):
+                // per-database collection sync scopes and startup system settings,
+                // stored as JSON-in-TEXT.
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN collectionSyncScopes TEXT NOT NULL DEFAULT '[]'"
+                )
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN startupSettings TEXT NOT NULL DEFAULT '[]'"
+                )
+            }
+        }
+
         // Migration policy (see plans/android/config-loss-investigation.md item B1):
         // - Every schema version bump REQUIRES a hand-written Migration AND a committed
         //   schema JSON under app/schemas/.../<version>.json (validated by MigrationTest).
@@ -86,7 +100,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun create(context: Context, key: ByteArray): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

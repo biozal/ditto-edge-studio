@@ -3,6 +3,9 @@ package com.costoda.dittoedgestudio.viewmodel
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.StartupSetting
+import com.costoda.dittoedgestudio.domain.model.StartupSettingType
+import com.costoda.dittoedgestudio.domain.model.SyncScope
 import io.mockk.MockKAnnotations
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
@@ -195,5 +198,217 @@ class DatabaseEditorViewModelTest {
         assertEquals("", vm.authUrl.value)
         assertEquals("", vm.httpApiUrl.value)
         assertEquals(AuthMode.SMALL_PEERS_ONLY, vm.mode.value)
+    }
+
+    // MARK: Advanced Configuration
+
+    private fun validNewItemViewModel(): DatabaseEditorViewModel {
+        val vm = newItemViewModel()
+        vm.name.value = "My DB"
+        vm.databaseId.value = "db-id"
+        vm.token.value = "token"
+        return vm
+    }
+
+    @Test
+    fun `canSave is blocked by an invalid scope row`() = runTest {
+        val vm = validNewItemViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.canSave.value)
+
+        vm.addSyncScope() // blank collection name is invalid
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.canSave.value)
+        assertTrue(vm.hasAdvancedValidationErrors.value)
+    }
+
+    @Test
+    fun `canSave is blocked by an unacknowledged sensitive setting`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addStartupSetting()
+        val row = vm.startupSettings.value.first()
+        vm.setParameter(row.id, "some_port")
+        vm.setType(row.id, StartupSettingType.Integer)
+        vm.setValue(row.id, "9000")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.canSave.value)
+
+        vm.setAcknowledged(row.id, true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.canSave.value)
+    }
+
+    @Test
+    fun `renaming a setting revokes its acknowledgement`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addStartupSetting()
+        val row = vm.startupSettings.value.first()
+        vm.setParameter(row.id, "some_port")
+        vm.setAcknowledged(row.id, true)
+        assertTrue(vm.startupSettings.value.first().isAcknowledged)
+
+        vm.setParameter(row.id, "additional_p2p_trusted_ca_certs")
+
+        assertFalse(vm.startupSettings.value.first().isAcknowledged)
+    }
+
+    @Test
+    fun `editing the value of a sensitive setting revokes its acknowledgement`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addStartupSetting()
+        val row = vm.startupSettings.value.first()
+        vm.setParameter(row.id, "metrics_exporter_prometheus_http_listener_addr")
+        vm.setValue(row.id, "127.0.0.1:9000")
+        vm.setAcknowledged(row.id, true)
+
+        vm.setValue(row.id, "0.0.0.0:9000")
+
+        assertFalse(vm.startupSettings.value.first().isAcknowledged)
+    }
+
+    @Test
+    fun `switching type to Boolean seeds a value and revokes acknowledgement`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addStartupSetting()
+        val row = vm.startupSettings.value.first()
+        vm.setParameter(row.id, "sqlite3_synchronous")
+        vm.setValue(row.id, "FULL")
+        vm.setAcknowledged(row.id, true)
+
+        vm.setType(row.id, StartupSettingType.Boolean)
+
+        val updated = vm.startupSettings.value.first()
+        assertEquals("True", updated.value) // seeded
+        assertFalse(updated.isAcknowledged) // seeded value is a real value change
+    }
+
+    @Test
+    fun `switching type to Boolean over an existing boolean only canonicalises spelling`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addStartupSetting()
+        val row = vm.startupSettings.value.first()
+        vm.setParameter(row.id, "sqlite3_synchronous")
+        vm.setValue(row.id, "true") // typed as String first
+        vm.setAcknowledged(row.id, true)
+
+        vm.setType(row.id, StartupSettingType.Boolean)
+
+        val updated = vm.startupSettings.value.first()
+        assertEquals("True", updated.value) // canonical spelling
+        assertTrue(updated.isAcknowledged) // re-spelling is NOT a value change
+    }
+
+    @Test
+    fun `reset to defaults clears both lists and undo restores them`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addSyncScope()
+        vm.updateScopeCollection(vm.collectionSyncScopes.value.first().id, "orders")
+        vm.addStartupSetting()
+        vm.setParameter(vm.startupSettings.value.first().id, "some_setting")
+
+        vm.resetAdvancedToDefaults()
+
+        assertTrue(vm.collectionSyncScopes.value.isEmpty())
+        assertTrue(vm.startupSettings.value.isEmpty())
+        assertTrue(vm.resetToDefaultsRequested.value)
+        assertTrue(vm.canUndoResetToDefaults)
+
+        vm.undoResetToDefaults()
+
+        assertEquals(1, vm.collectionSyncScopes.value.size)
+        assertEquals(1, vm.startupSettings.value.size)
+        assertFalse(vm.resetToDefaultsRequested.value)
+    }
+
+    @Test
+    fun `undo reset is not offered once a row is re-entered`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addSyncScope()
+        vm.resetAdvancedToDefaults()
+        vm.addSyncScope() // user starts over
+
+        assertFalse(vm.canUndoResetToDefaults)
+    }
+
+    @Test
+    fun `corrupt scopes block save until discarded or replaced`() = runTest {
+        val existing = DittoDatabase(
+            id = 5L,
+            name = "Existing",
+            databaseId = "ex-id",
+            token = "ex-token",
+            hasCorruptSyncScopes = true,
+        )
+        val vm = editItemViewModel(5L, existing)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.hasCorruptSyncScopes.value)
+        assertFalse(vm.canSave.value)
+
+        vm.discardCorruptSyncScopes.value = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.canSave.value)
+    }
+
+    @Test
+    fun `save persists normalized advanced lists`() = runTest {
+        val vm = validNewItemViewModel()
+        vm.addSyncScope()
+        val scopeRow = vm.collectionSyncScopes.value.first()
+        vm.updateScopeCollection(scopeRow.id, "  orders  ")
+        vm.updateScope(scopeRow.id, SyncScope.LocalPeerOnly)
+        vm.addSyncScope() // blank row — must be dropped, not persisted
+
+        vm.addStartupSetting()
+        val settingRow = vm.startupSettings.value.first()
+        vm.setParameter(settingRow.id, " some_setting ")
+        vm.setValue(settingRow.id, "v")
+
+        val captured = slot<DittoDatabase>()
+        coEvery { repository.save(capture(captured)) } returns 1L
+
+        assertTrue(vm.save())
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, captured.captured.collectionSyncScopes.size)
+        assertEquals("orders", captured.captured.collectionSyncScopes[0].collection)
+        assertEquals(SyncScope.LocalPeerOnly, captured.captured.collectionSyncScopes[0].scope)
+        assertEquals(1, captured.captured.startupSettings.size)
+        assertEquals("some_setting", captured.captured.startupSettings[0].parameter)
+    }
+
+    @Test
+    fun `loadForEdit canonicalises stored boolean spelling`() = runTest {
+        val db = DittoDatabase(
+            id = 3L,
+            name = "DB",
+            databaseId = "db-id",
+            token = "t",
+            startupSettings = listOf(
+                StartupSetting(
+                    parameter = "some_flag",
+                    type = StartupSettingType.Boolean,
+                    value = "true",
+                    isAcknowledged = false,
+                ),
+            ),
+        )
+        val vm = newItemViewModel()
+        vm.loadForEdit(db)
+
+        assertEquals("True", vm.startupSettings.value.first().value)
+    }
+
+    @Test
+    fun `advanced summary counts rows`() = runTest {
+        val vm = validNewItemViewModel()
+        assertEquals("0 scopes · 0 startup settings", vm.advancedSummary())
+        vm.addSyncScope()
+        vm.addStartupSetting()
+        assertEquals("1 scope · 1 startup setting", vm.advancedSummary())
     }
 }

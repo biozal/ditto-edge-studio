@@ -203,7 +203,7 @@ val dataModule = module {
     // Koin doesn't try to resolve a CoroutineDispatcher binding it doesn't have.
     viewModel { AppHealthViewModel(get(), get()) }
     viewModelOf(::DatabaseListViewModel)
-    viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get()) }
+    viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get(), get()) }
     // Studio session scope — one StudioSession instance per scope id ("studio:<databaseId>").
     // The session is *not* a ViewModel: Koin scopes don't drive `onCleared`, they fire
     // `onClose` when the scope itself is closed. We rely on that to tear down Ditto exactly

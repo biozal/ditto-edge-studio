@@ -84,8 +84,20 @@ fun DatabaseEditorScreen(
     val logLevel by viewModel.logLevel.collectAsStateWithLifecycle()
     val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsStateWithLifecycle()
     val canSave by viewModel.canSave.collectAsStateWithLifecycle()
+    val saveWarning by viewModel.saveWarning.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
+
+    saveWarning?.let { message ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.saveWarning.value = null },
+            confirmButton = {
+                TextButton(onClick = { viewModel.saveWarning.value = null }) { Text("OK") }
+            },
+            title = { Text("Saved with warnings") },
+            text = { Text(message) },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -105,8 +117,7 @@ fun DatabaseEditorScreen(
                         enabled = canSave,
                         onClick = {
                             scope.launch {
-                                viewModel.save()
-                                onDismiss()
+                                if (viewModel.save()) onDismiss()
                             }
                         },
                         modifier = Modifier.testTag("SaveButton"),
@@ -254,6 +265,9 @@ fun DatabaseEditorScreen(
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 }
+
+                // --- Advanced Configuration ---
+                AdvancedConfigurationSection(viewModel)
 
                 // --- Developer Options ---
                 FormSectionHeader("Developer Options")

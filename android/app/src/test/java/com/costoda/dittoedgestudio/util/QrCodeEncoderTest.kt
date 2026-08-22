@@ -3,10 +3,14 @@ package com.costoda.dittoedgestudio.util
 import android.graphics.Bitmap
 import android.util.Base64
 import com.costoda.dittoedgestudio.domain.model.AuthMode
+import com.costoda.dittoedgestudio.domain.model.CollectionSyncScope
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.domain.model.QrCodePayload
 import com.costoda.dittoedgestudio.domain.model.QrConfigPayload
 import com.costoda.dittoedgestudio.domain.model.QrFavoriteItem
+import com.costoda.dittoedgestudio.domain.model.StartupSetting
+import com.costoda.dittoedgestudio.domain.model.StartupSettingType
+import com.costoda.dittoedgestudio.domain.model.SyncScope
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
@@ -134,6 +138,30 @@ class QrCodeEncoderTest {
 
         assertNotNull(result)
         assertTrue("Expected EDS2: prefix but got: $result", result!!.startsWith("EDS2:"))
+    }
+
+    @Test
+    fun `encode excludes advanced settings from the payload`() {
+        // Advanced settings are excluded from QR sharing on BOTH sides (see
+        // docs/ADVANCED_DATABASE_CONFIG.md): silently importing another device's sync
+        // scopes changes what syncs, in both directions. QrConfigPayload must not
+        // carry them no matter what the source database holds.
+        val withAdvanced = minimalDatabase.copy(
+            collectionSyncScopes = listOf(
+                CollectionSyncScope(collection = "orders", scope = SyncScope.LocalPeerOnly),
+            ),
+            startupSettings = listOf(
+                StartupSetting(parameter = "some_port", type = StartupSettingType.Integer, value = "9000"),
+            ),
+        )
+
+        val encoded = encodeToEds2String(withAdvanced, emptyList())
+
+        assertNotNull(encoded)
+        val decoded = QrCodeDecoder.decode(encoded!!)
+        assertNotNull(decoded)
+        assertTrue(decoded!!.database.collectionSyncScopes.isEmpty())
+        assertTrue(decoded.database.startupSettings.isEmpty())
     }
 
     @Test

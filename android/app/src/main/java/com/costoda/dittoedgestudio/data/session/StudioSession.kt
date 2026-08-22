@@ -232,7 +232,11 @@ class StudioSession(
                     ditto.sync.stop()
                     _syncEnabled.value = false
                 } else {
-                    ditto.sync.start()
+                    // Re-run the full open sequence rather than a bare sync.start():
+                    // ALTER SYSTEM state is in-memory, so scopes and startup settings
+                    // must be re-applied and re-verified on every sync start (a query
+                    // editor `ALTER SYSTEM RESET ALL` could have cleared them).
+                    dittoManager.startSync()
                     _syncEnabled.value = true
                 }
             }
@@ -419,12 +423,17 @@ class StudioSession(
                 )
                 dittoManager.applyTransportConfig(ditto, updatedDb)
 
-                // 3. Persist to Room so settings survive app restart
+                // 3. Persist to Room so settings survive app restart, and keep the
+                // manager's active config current so the restart re-applies the new
+                // transports rather than the ones the database was opened with.
                 databaseRepository.save(updatedDb)
                 currentDatabase = updatedDb
+                dittoManager.refreshActiveConfigIfMatching(updatedDb)
 
-                // 4. Restart sync and re-register observers
-                ditto.sync.start()
+                // 4. Restart sync through the DittoManager funnel — every sync start
+                // re-applies and re-verifies the advanced configuration — then
+                // re-register observers.
+                dittoManager.startSync()
                 systemRepository.startObserving(ditto)
             }.onFailure { e ->
                 Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
