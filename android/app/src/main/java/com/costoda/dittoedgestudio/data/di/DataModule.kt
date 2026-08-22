@@ -94,7 +94,12 @@ val dataModule = module {
     single { AppPreferences(androidContext().appPreferencesDataStore) }
     single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
     single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
-    single<SystemRepository> { SystemRepositoryImpl(get<CoroutineScope>()) }
+    single<SystemRepository> {
+        SystemRepositoryImpl(
+            get<CoroutineScope>(),
+            databaseProvider = { get<com.costoda.dittoedgestudio.data.ditto.DittoManager>().currentDatabase() },
+        )
+    }
     single<NetworkDiagnosticsRepository> { NetworkDiagnosticsRepositoryImpl(androidContext()) }
     single<CollectionsRepository> { CollectionsRepositoryImpl(get<CoroutineScope>()) }
     single { okhttp3.OkHttpClient() }

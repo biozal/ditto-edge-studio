@@ -26,6 +26,12 @@ import org.json.JSONObject
 
 class SystemRepositoryImpl(
     private val coroutineScope: CoroutineScope,
+    /**
+     * Current database config, used to filter stale presence-graph connections on
+     * disabled transports (SDK bug workaround, mirroring SwiftUI SystemRepository).
+     * Null means "no config known" — nothing is filtered.
+     */
+    private val databaseProvider: () -> com.costoda.dittoedgestudio.domain.model.DittoDatabase? = { null },
 ) : SystemRepository {
 
     companion object {
@@ -163,7 +169,12 @@ class SystemRepositoryImpl(
 
         // 5b. Publish all derived flows.
         _peers.value = remotePeers
-        _connectionsByTransport.value = buildConnectionCounts(deduped, localPeerKey)
+        _connectionsByTransport.value = buildConnectionCounts(
+            deduped,
+            localPeerKey,
+            dittoServerCount = remotePeers.count { it.isDittoServer },
+            config = databaseProvider(),
+        )
         _meshTopology.value = MeshTopology(
             localPeerKey = localPeerKey,
             peers = meshPeerList,
@@ -235,7 +246,12 @@ class SystemRepositoryImpl(
         DittoConnectionType.WebSocket -> ConnectionType.WebSocket
     }
 
-    private fun buildConnectionCounts(peers: Collection<DittoPeer>, localPeerKey: String): ConnectionsByTransport {
+    private fun buildConnectionCounts(
+        peers: Collection<DittoPeer>,
+        localPeerKey: String,
+        dittoServerCount: Int,
+        config: com.costoda.dittoedgestudio.domain.model.DittoDatabase?,
+    ): ConnectionsByTransport {
         var bluetooth = 0
         var lan = 0
         var p2pWifi = 0
@@ -246,7 +262,12 @@ class SystemRepositoryImpl(
                 .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
                 .distinctBy { it.connectionType }
                 .forEach { conn ->
-                    when (conn.connectionType.toConnectionType()) {
+                    val type = conn.connectionType.toConnectionType()
+                    // Skip connections for disabled transports (SDK bug workaround:
+                    // the presence graph retains stale connections after transport
+                    // config changes). Mirrors SwiftUI's isConnectionTypeEnabled.
+                    if (config != null && !type.isEnabledIn(config)) return@forEach
+                    when (type) {
                         ConnectionType.Bluetooth -> bluetooth++
                         ConnectionType.LAN -> lan++
                         ConnectionType.P2PWiFi -> p2pWifi++
@@ -261,6 +282,17 @@ class SystemRepositoryImpl(
             lan = lan,
             p2pWifi = p2pWifi,
             webSocket = webSocket,
+            dittoServer = dittoServerCount,
         )
     }
 }
+
+/** Whether a transport is enabled in the database config (SwiftUI parity). */
+internal fun ConnectionType.isEnabledIn(config: com.costoda.dittoedgestudio.domain.model.DittoDatabase): Boolean =
+    when (this) {
+        ConnectionType.Bluetooth -> config.isBluetoothLeEnabled
+        ConnectionType.LAN -> config.isLanEnabled
+        ConnectionType.P2PWiFi -> config.isAwdlEnabled
+        ConnectionType.WebSocket -> config.isCloudSyncEnabled
+        ConnectionType.Unknown -> true
+    }

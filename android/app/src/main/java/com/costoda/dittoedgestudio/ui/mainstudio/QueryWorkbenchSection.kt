@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -15,12 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.costoda.dittoedgestudio.ui.components.CollapsibleBottomBar
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -221,67 +221,20 @@ private fun QueryWorkbenchBottomBar(
     val pageSize by viewModel.pageSize.collectAsStateWithLifecycle()
     val pageSizeOptions by viewModel.pageSizeOptions.collectAsStateWithLifecycle()
 
-    var connectionsExpanded by remember { mutableStateOf(false) }
     var overflowExpanded by remember { mutableStateOf(false) }
     var pageSizeExpanded by remember { mutableStateOf(false) }
 
     val totalCount = queryResult?.totalCount ?: 0
     val pageCount = if (totalCount == 0) 1 else (totalCount + pageSize - 1) / pageSize
 
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-        tonalElevation = 3.dp,
-        shadowElevation = 4.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            // Peers count with dropdown — identical to QueryBottomBar in MainStudioScreen.
-            Box {
-                FilterChip(
-                    selected = false,
-                    onClick = { connectionsExpanded = true },
-                    label = {
-                        Text(
-                            text = "((•)) ${connections.total}",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Wifi,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    },
-                )
-                DropdownMenu(
-                    expanded = connectionsExpanded,
-                    onDismissRequest = { connectionsExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Bluetooth: ${connections.bluetooth}") },
-                        onClick = { connectionsExpanded = false },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("LAN: ${connections.lan}") },
-                        onClick = { connectionsExpanded = false },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("P2P WiFi: ${connections.p2pWifi}") },
-                        onClick = { connectionsExpanded = false },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("WebSocket: ${connections.webSocket}") },
-                        onClick = { connectionsExpanded = false },
-                    )
-                }
-            }
+    // Collapse/expand chrome lives in CollapsibleBottomBar (SwiftUI
+    // DetailBottomBar parity): the bar floats over the results content, so the user
+    // can fold it away (e.g. while reading the Profile tab) and bring it back with
+    // the chevron pill.
+    CollapsibleBottomBar(modifier = modifier) {
+            // Connections counter — SwiftUI DetailBottomBar parity (antenna icon +
+            // monospaced count, colored-dot transport popover).
+            ConnectionsMenuButton(connections = connections)
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -384,5 +337,4 @@ private fun QueryWorkbenchBottomBar(
                 }
             }
         }
-    }
 }
