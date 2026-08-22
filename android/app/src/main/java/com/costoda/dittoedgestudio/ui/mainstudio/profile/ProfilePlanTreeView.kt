@@ -3,8 +3,6 @@ package com.costoda.dittoedgestudio.ui.mainstudio.profile
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -15,14 +13,14 @@ import com.costoda.dittoedgestudio.domain.model.QueryProfileOperator
  * relative to its parent. Uses a `verticalScroll` so deep trees stay reachable.
  */
 @Composable
-fun ProfilePlanTreeView(plan: QueryProfileOperator, modifier: Modifier = Modifier) {
+fun ProfilePlanTreeView(
+    plan: QueryProfileOperator,
+    modifier: Modifier = Modifier,
+) {
     val totalExecNs = plan.subtreeExecNs
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-    ) {
+    // No verticalScroll here — the whole Profile view scrolls as one container
+    // (SwiftUI parity); a nested scroller would break drag scrolling.
+    Column(modifier = modifier.fillMaxWidth()) {
         TreeNode(operator = plan, totalExecNs = totalExecNs, depth = 0)
     }
 }
