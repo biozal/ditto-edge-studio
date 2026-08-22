@@ -42,11 +42,11 @@ struct ProfileSummaryStrip: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.06))
+                .fill(Color.secondary.opacity(0.05))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5)
         )
     }
 }

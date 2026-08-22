@@ -203,7 +203,37 @@ operator is the bottleneck" colour (≥ 50% share). Colour and badge
 always tell the same story; they cannot get out of sync.
 
 If users want the full exec/recv/send breakdown they switch to
-Card view, which renders each phase as its own badge.
+Card view, which renders each phase as its own chip.
+
+---
+
+## Visual design (VS Code parity)
+
+The Profile tab matches the VS Code extension's profile page on both
+platforms (SwiftUI and Android):
+
+- **Header** — bold "Execution Profile" title on the left, dimmed
+  `captured <ISO-8601 UTC>` timestamp on the right, and the query text
+  below with syntax highlighting (yellow-olive keywords, light-blue
+  string literals) and no enclosing box.
+- **Summary strip** — six bordered cards: ELAPSED, PARSE, PLAN,
+  RESULT COUNT, FEATUREFLAGS, QUERYTYPE.
+- **Stat chips** — solid filled rounded chips with white text:
+  `in:` blue `#2563EB`, `out:` green `#2E7D32`, `exec` red `#C62828`,
+  `send` dark grey `#424242`. `recv` is plain text, not a chip
+  (it's waiting time, not operator work). Syntax colors adapt for
+  light mode; chip fills are fixed.
+- **Plan cards** — nested with vertical guide lines; attribute rows
+  are dimmed-key / bold-value; values that parse as JSON (e.g.
+  `descriptor`) render as a syntax-highlighted code block.
+- **Footer** — `profile: <uuid> · db: <appId> · state: <state>`.
+
+Android mirrors this under
+`android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/profile/`
+(`ProfileSyntax.kt` holds the shared palette + DQL/JSON
+`AnnotatedString` highlighters). The Android populated view shows the
+header, summary strip, EXECUTION PLAN section (with the Card/Plan
+picker), and footer for both sub-modes.
 
 ---
 
@@ -286,16 +316,22 @@ SwiftUI/EdgeStudio/
 │   │                                              isSelectStatement, alreadyHasProfilePrefix
 │   └── QueryProfileParser.swift                 ← [String: Any] → QueryProfile
 ├── Utilities/
-│   └── ProfileTimeFormatter.swift               ← ns → ms/µs/ns + percentOfTotal
+│   ├── ProfileTimeFormatter.swift               ← ns → ms/µs/ns + percentOfTotal
+│   └── ProfileSyntaxHighlighter.swift           ← DQL/JSON AttributedString
+│                                                  highlighting, VS Code palette
 ├── Components/
 │   └── ProfileViewer/
 │       ├── ProfileViewerView.swift              ← Profile tab orchestrator
 │       │                                          (4 states + Card/Plan sub-picker)
-│       ├── ProfileQueryHeaderCard.swift         ← Query text + captured-at timestamp
+│       ├── ProfileQueryHeaderCard.swift         ← Bold title + captured ISO-8601 +
+│       │                                          syntax-highlighted query
 │       ├── ProfileSummaryStrip.swift            ← ELAPSED/PARSE/PLAN/RESULT/FLAGS/TYPE
-│       ├── ProfileStatsBadges.swift             ← Coloured in/out/exec/recv/send pills
+│       ├── ProfileStatsBadges.swift             ← Solid chips: in blue, out green,
+│       │                                          exec red, send dark; recv plain text
 │       ├── ProfileOperatorCard.swift            ← Card-mode single operator card
-│       ├── ProfileCardListView.swift            ← Card-mode recursive nesting
+│       │                                          (JSON attributes render highlighted)
+│       ├── ProfileCardListView.swift            ← Card-mode recursive nesting with
+│       │                                          vertical guide lines
 │       ├── PlanNodeBox.swift                    ← Plan-mode rounded box + hotspot
 │       ├── ProfilePlanTreeView.swift            ← Plan-mode recursive tree
 │       │                                          with T-junction connectors

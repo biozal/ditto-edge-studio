@@ -171,35 +171,41 @@ struct ProfileViewerView: View {
         #endif
     }
 
-    /// Footer legend block — explains what each colored badge means.
-    /// Mirrors the "How to read this page" callout at the bottom of
-    /// `screens/profile-viewer.png` so users don't have to guess at
-    /// `recv` vs `send`.
+    /// Footer legend block — explains what each colored chip means.
+    /// Chip colors match the VS Code profile page: solid fills for
+    /// in/out/exec/send; recv is plain text there, so it is here too.
     private var badgeLegend: some View {
         VStack(alignment: .leading, spacing: 6) {
             Divider().padding(.vertical, 4)
-            Text("Reading the badges")
+            Text("Reading the chips")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                legendRow("in", "documents flowing in", color: .blue)
-                legendRow("out", "documents flowing out", color: .green)
-                legendRow("exec", "CPU time inside this operator", color: .red)
-                legendRow("recv", "time waiting on upstream operators", color: .orange)
-                legendRow("send", "time pushing output downstream", color: .purple)
+                legendRow("in:", "documents flowing in", fill: ProfileSyntaxColors.chipIn)
+                legendRow("out:", "documents flowing out", fill: ProfileSyntaxColors.chipOut)
+                legendRow("exec", "CPU time inside this operator", fill: ProfileSyntaxColors.chipExec)
+                legendRow("recv", "time waiting on upstream operators", fill: nil)
+                legendRow("send", "time pushing output downstream", fill: ProfileSyntaxColors.chipSend)
             }
         }
     }
 
-    private func legendRow(_ label: String, _ description: String, color: Color) -> some View {
+    private func legendRow(_ label: String, _ description: String, fill: Color?) -> some View {
         HStack(spacing: 8) {
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(color)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(color.opacity(0.15)))
-                .frame(width: 56, alignment: .center)
+            if let fill {
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(fill))
+                    .frame(width: 56, alignment: .center)
+            } else {
+                Text(label)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.primary)
+                    .frame(width: 56, alignment: .center)
+            }
             Text(description)
                 .font(.caption)
                 .foregroundStyle(.secondary)

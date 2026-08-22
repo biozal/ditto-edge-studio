@@ -26,12 +26,20 @@ private struct CardNode: View {
             ProfileOperatorCard(node: node)
 
             if !node.children.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(node.children) { child in
-                        CardNode(node: child)
+                // Vertical guide line down the left of the children block, matching
+                // the VS Code profile page's nested-plan indentation.
+                HStack(alignment: .top, spacing: 0) {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.35))
+                        .frame(width: 1)
+                        .padding(.leading, 6)
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(node.children) { child in
+                            CardNode(node: child)
+                        }
                     }
+                    .padding(.leading, 11)
                 }
-                .padding(.leading, 12)
             }
         }
     }

@@ -1,15 +1,13 @@
 import SwiftUI
 
-/// Horizontal strip of small coloured pills summarising an operator's
-/// `#stats` block: `in`, `out`, `exec`, `recv`, `send`. Used in the
-/// header row of each `ProfileOperatorCard`.
+/// Horizontal strip of stat chips summarising an operator's `#stats` block.
 ///
-/// Color assignments match the reference screenshot at
-/// `screens/profile-viewer.png` and the legend at the bottom of that
-/// page — keeping the colors stable across views lets users build
-/// muscle memory ("orange = slow operator").
+/// Colors and chip style match the VS Code extension's profile page:
+/// solid filled rounded chips with white text — `in` blue, `out` green,
+/// `exec` red, `send` dark grey — while `recv` is plain text, not a chip.
+/// Keeping the colors stable across views lets users build muscle memory.
 ///
-/// A badge is suppressed entirely when its underlying stat is nil:
+/// A chip is suppressed entirely when its underlying stat is nil:
 /// not every operator emits every field (a `scan` has no
 /// `documentsIn`; a `limit` may have no `recv` phase time). Hiding
 /// vs. showing `—` keeps the row visually quiet.
@@ -17,51 +15,51 @@ struct ProfileStatsBadges: View {
     let stats: QueryProfileStats?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if let documentsIn = stats?.documentsIn {
-                Badge(label: "in", value: ProfileFormat.documents(documentsIn), color: .blue)
+                StatChip(label: "in:", value: ProfileFormat.documents(documentsIn), fill: ProfileSyntaxColors.chipIn)
             }
             if let documentsOut = stats?.documentsOut {
-                Badge(label: "out", value: ProfileFormat.documents(documentsOut), color: .green)
+                StatChip(label: "out:", value: ProfileFormat.documents(documentsOut), fill: ProfileSyntaxColors.chipOut)
             }
             if let execNs = stats?.execNs {
-                Badge(label: "exec", value: ProfileTimeFormatter.format(ns: execNs), color: .red)
+                StatChip(label: "exec", value: ProfileTimeFormatter.format(ns: execNs), fill: ProfileSyntaxColors.chipExec)
             }
             if let recvNs = stats?.recvNs {
-                Badge(label: "recv", value: ProfileTimeFormatter.format(ns: recvNs), color: .orange)
+                // Plain text, matching the VS Code page — recv is waiting time, not
+                // operator work, so it doesn't get a chip.
+                Text("recv \(ProfileTimeFormatter.format(ns: recvNs))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.primary)
             }
             if let sendNs = stats?.sendNs {
-                Badge(label: "send", value: ProfileTimeFormatter.format(ns: sendNs), color: .purple)
+                StatChip(label: "send", value: ProfileTimeFormatter.format(ns: sendNs), fill: ProfileSyntaxColors.chipSend)
             }
         }
     }
 }
 
-/// Single coloured pill. The label/value are joined visually like
-/// `out: 23,539` and the whole pill takes the colour of the stat.
-private struct Badge: View {
+/// Single solid chip, e.g. `out: 23,539` — dimmed white label, bold white value,
+/// saturated fill. Readable in both light and dark mode by construction.
+private struct StatChip: View {
     let label: String
     let value: String
-    let color: Color
+    let fill: Color
 
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(color)
+                .foregroundStyle(.white.opacity(0.85))
             Text(value)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(color.opacity(0.95))
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(
-            Capsule()
-                .fill(color.opacity(0.15))
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(color.opacity(0.35), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 5)
+                .fill(fill)
         )
     }
 }
