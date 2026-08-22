@@ -3,6 +3,7 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 
 **Key Features:**
 - Multi-app connection management with local storage
+- Advanced per-database configuration: collection sync scopes and startup `ALTER SYSTEM` settings
 - Real-time query execution with history and favorites
 - Active subscriptions and observables management
 - Connection status bar with transport-level statistics
@@ -26,9 +27,9 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 - [Periphery](https://github.com/peripheryapp/periphery) Installed
 
 ### Ditto SDK
-This project uses **Ditto SDK 5.0** (currently 5.0.0-preview.5).
+This project uses **Ditto SDK 5.1** (currently 5.1.0).
 
-API Reference: https://software.ditto.live/cocoa/DittoSwift/5.0.0-preview.5/api-reference/documentation/dittoswift/
+API Reference: https://software.ditto.live/cocoa/DittoSwift/5.1.0/api-reference/documentation/dittoswift/
 
 Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it will build and run on iOS, it has not been tested on iOS and there are known issues with the SwiftUI app on iOS.
 
@@ -225,9 +226,11 @@ git push --no-verify
 - Coverage best practices
 - Troubleshooting guide
 
-## Claude Code MCP Integration
+## AI Agent MCP Integration
 
-Edge Studio embeds an MCP (Model Context Protocol) server that lets Claude Code query and manage your Ditto databases directly — no separate setup, no CLI binary. When Edge Studio is running with MCP enabled, Claude Code connects automatically.
+Edge Studio embeds an MCP (Model Context Protocol) server that lets Codex,
+Claude Code, and other MCP clients query and manage your Ditto databases
+directly. No separate server binary is required.
 
 ### Enable in Edge Studio
 
@@ -235,6 +238,21 @@ Edge Studio embeds an MCP (Model Context Protocol) server that lets Claude Code 
 2. Go to **Edge Studio → Settings…** (⌘,)
 3. Toggle **Enable MCP Server** ON
 4. A green dot confirms it's running on port 65269
+
+### Connect Codex
+
+This repository includes `.codex/config.toml`, which Codex loads for trusted
+projects. Restart Codex after enabling the server, then verify it with
+`/mcp` in the Codex TUI or:
+
+```bash
+codex mcp list
+```
+
+To make the server available outside this repository, add it to your global
+Codex configuration using the MCP server UI in Codex or a
+`[mcp_servers.ditto-edge-studio]` entry in `~/.codex/config.toml` with
+`url = "http://localhost:65269/mcp"`.
 
 ### Connect Claude Code
 
@@ -255,7 +273,7 @@ claude mcp list
 # ditto-edge-studio (sse) http://localhost:65269/mcp
 ```
 
-### What you can ask Claude
+### What you can ask your agent
 
 Once connected and with a database selected in Edge Studio:
 
@@ -308,5 +326,3 @@ By using this software, you acknowledge and agree that:
 - The authors are not liable for any damages resulting from use of this software
 
 For official Ditto support and documentation, please visit [Ditto Documentation](https://docs.ditto.live/).
-
-

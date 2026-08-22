@@ -1,11 +1,11 @@
-# ditto-edge-studio Claude Code Plugin
+# ditto-edge-studio MCP integration
 
-Gives Claude Code access to the [Edge Studio](../../README.md) MCP server for querying and managing Ditto databases directly from your AI coding sessions.
+Gives Codex, Claude Code, and compatible clients access to the [Edge Studio](../../README.md) MCP server for querying and managing Ditto databases directly from AI coding sessions.
 
 ## Prerequisites
 
 - **Edge Studio** running on macOS with MCP Server enabled
-- **Claude Code** 1.x+
+- A local MCP client such as **Codex** or **Claude Code**
 
 ## Setup
 
@@ -16,9 +16,13 @@ Gives Claude Code access to the [Edge Studio](../../README.md) MCP server for qu
 3. Toggle **Enable MCP Server** ON
 4. Confirm the green status dot appears (Running on port 65269)
 
-### 2. Connect Claude Code
+### 2. Connect your agent
 
-The `.mcp.json` at the repository root is auto-discovered by Claude Code when you work in this project. No additional steps needed.
+For Codex, the repository's `.codex/config.toml` configures the server. Restart
+Codex and verify with `/mcp` or `codex mcp list`.
+
+For Claude Code, the `.mcp.json` at the repository root is auto-discovered when
+you work in this project. No additional steps are needed.
 
 To make it available globally across all projects:
 
@@ -45,7 +49,7 @@ Should return a JSON array of 9 tools.
 
 ## Usage
 
-Once connected, ask Claude Code naturally:
+Once connected, ask your agent naturally:
 
 - *"List the collections in my active database"*
 - *"Run this DQL query and explain what it's doing: SELECT * FROM orders WHERE status = 'pending'"*

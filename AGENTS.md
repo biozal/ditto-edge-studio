@@ -1,34 +1,89 @@
-# AGENTS
+# Edge Studio agent guide
 
-<skills_system priority="1">
+This is the canonical repository guidance for coding agents. `CLAUDE.md` is
+retained for Claude Code compatibility and deeper historical Swift guidance;
+do not assume that every agent loads it automatically.
 
-## Available Skills
+## Repository map
 
-<!-- SKILLS_TABLE_START -->
-<usage>
-When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.
+- `SwiftUI/`: primary macOS/iPadOS app (Swift and SwiftUI)
+- `android/`: Android companion app (Kotlin and Jetpack Compose)
+- `dotnet/`: archived Avalonia implementation; reference only, no new features
+- `docs/`: approved technical and user documentation
+- `plans/`: implementation plans and research awaiting implementation
+- `screens/`: screenshots and design references
 
-How to use skills:
-- Invoke: `npx openskills read <skill-name>` (run in your shell)
-  - For multiple: `npx openskills read skill-one,skill-two`
-- The skill content will load with detailed instructions on how to complete the task
-- Base directory provided in output for resolving bundled resources (references/, scripts/, assets/)
+More specific `AGENTS.md` files under `SwiftUI/` and `android/` add platform
+rules. Read the nearest file before changing code in either tree.
 
-Usage notes:
-- Only use skills listed in <available_skills> below
-- Do not invoke a skill that is already loaded in your context
-- Each skill invocation is stateless
-</usage>
+## Working agreements
 
-<available_skills>
+- Preserve unrelated user changes. The worktree is often intentionally dirty.
+- Search with `rg`/`rg --files` and prefix shell commands with `rtk`.
+- Keep plans in `plans/`; Android plans belong in `plans/android/`.
+- Put approved implementation documentation in `docs/`; Android documentation
+  belongs in `docs/android/`.
+- Resolve named screenshots under `screens/`, or `screens/android/` for Android.
+- Never commit credentials, local SDK paths, database exports, or device data.
+- Update relevant documentation when behavior, setup, or commands change.
 
-<skill>
-<name>android-development</name>
-<description>Create production-quality Android applications following Google's official architecture guidance and NowInAndroid best practices. Use when building Android apps with Kotlin, Jetpack Compose, MVVM architecture, Hilt dependency injection, Room database, or multi-module projects. Triggers on requests to create Android projects, screens, ViewModels, repositories, feature modules, or when asked about Android architecture patterns.</description>
-<location>project</location>
-</skill>
+## Reviewing and fixing (MANDATORY — read before acting on any review)
 
-</available_skills>
-<!-- SKILLS_TABLE_END -->
+**A reported problem is not actionable until two independent reviewers confirm it.**
+**A fix is not complete until a reviewer who did not write it verifies the wiring.**
 
-</skills_system>
+Full rule, rationale and workflow: [`docs/FIX_VERIFICATION_RULE.md`](docs/FIX_VERIFICATION_RULE.md).
+
+In short:
+
+- One reviewer's finding is a hypothesis. Two independent confirmations make it
+  actionable. Your own evidence-based verification counts as one.
+- Single-source findings go to a targeted adjudication round (confirm **or refute**)
+  before any code changes. Never fix an unconfirmed finding.
+- After fixing, grep for the **production call site**. "It compiles and the tests
+  pass" is not verification — that was true of three fixes on this repo that were
+  either not wired up or actively harmful.
+- Test the path the user takes. A test that calls a view-model method the view
+  bypasses proves nothing.
+- Fix in small batches and verify each. Never batch-fix a long review list in one
+  pass.
+- Run readiness review as a separate pass from bug-hunting.
+- Record confirmation counts, what you chose not to fix, and which claims are
+  **unverified**. Shipping something unverified is fine; describing it as verified is
+  not.
+
+## Platform selection
+
+Determine the target platform from the requested files or feature. Do not make
+parallel changes across SwiftUI and Android unless the user asks for parity.
+Do not implement new work in `dotnet/`.
+
+## Verification
+
+Run the narrowest relevant checks first, then the platform-required suite. Do
+not claim a check passed unless it was run. If the environment prevents a
+check, report the exact command and reason.
+
+For Swift implementation work, read `docs/TESTING.md` before starting. New code
+requires tests; use Swift Testing for unit/integration tests and XCTest only for
+UI tests.
+
+## MCP integration
+
+Edge Studio exposes the currently selected database through a local MCP server
+at `http://localhost:65269/mcp`. Tools can mutate database contents. Confirm the
+active database and review write queries before executing them.
+
+## Skills
+
+For Android architecture, Compose screens, ViewModels, repositories, or modules,
+load the project skill with `npx openskills read android-development` before
+implementation.
+
+## Code review rules
+
+- Flag destructive Android device commands that clear or uninstall app data.
+- Flag use of transitive presence peers where direct connections are required;
+  follow `docs/PRESENCE_GRAPH.md`.
+- Flag new production code without proportionate tests.
+- Flag feature work added to the archived `dotnet/` implementation.

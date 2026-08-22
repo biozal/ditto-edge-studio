@@ -1,5 +1,8 @@
 # CLAUDE.md - SwiftUI App
 
+> Shared SwiftUI agent rules live in [`AGENTS.md`](AGENTS.md). This file retains
+> supplementary architecture and troubleshooting detail for Claude Code.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with the SwiftUI Edge Debug Helper application.
 
 ## Project Overview

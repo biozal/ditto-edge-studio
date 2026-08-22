@@ -230,6 +230,7 @@ class SystemRepositoryImpl(
     private fun DittoConnectionType.toConnectionType(): ConnectionType = when (this) {
         DittoConnectionType.Bluetooth -> ConnectionType.Bluetooth
         DittoConnectionType.AccessPoint -> ConnectionType.LAN
+        DittoConnectionType.Multicast -> ConnectionType.LAN
         DittoConnectionType.P2PWiFi -> ConnectionType.P2PWiFi
         DittoConnectionType.WebSocket -> ConnectionType.WebSocket
     }

@@ -6,7 +6,7 @@ Use the Edge Studio MCP server to query and manage the active Ditto database.
 
 1. Edge Studio is running on macOS
 2. MCP Server is enabled: Settings → General → MCP Server (toggle on, green dot appears)
-3. Claude Code is configured: `.mcp.json` at repo root, or `claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp`
+3. Your agent is configured: Codex uses `.codex/config.toml`; Claude Code uses `.mcp.json` or `claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp`
 
 > If you get "connection refused", Edge Studio is not running or MCP is disabled.
 

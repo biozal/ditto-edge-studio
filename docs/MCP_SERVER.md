@@ -1,6 +1,8 @@
 # Edge Studio MCP Server
 
-Edge Studio embeds an MCP (Model Context Protocol) server that lets AI agents like Claude Code query and manage the active Ditto database directly. When the app is running with MCP enabled, Claude Code connects automatically. When the app quits, the server stops.
+Edge Studio embeds an MCP (Model Context Protocol) server that lets AI agents
+such as Codex and Claude Code query and manage the active Ditto database
+directly. When the app quits, the server stops.
 
 ---
 
@@ -24,6 +26,23 @@ Edge Studio embeds an MCP (Model Context Protocol) server that lets AI agents li
 To disable, toggle it off. The server also stops automatically when the app quits.
 
 ---
+
+## Configuring Codex
+
+A project-scoped `.codex/config.toml` is included in this repository:
+
+```toml
+[mcp_servers.ditto-edge-studio]
+url = "http://localhost:65269/mcp"
+enabled = true
+default_tools_approval_mode = "writes"
+```
+
+Trust the project and restart Codex after enabling the Edge Studio server.
+Verify the connection with `/mcp` in the Codex TUI or `codex mcp list`.
+
+To use the server in every project, add the same table to
+`~/.codex/config.toml` instead.
 
 ## Configuring Claude Code
 
@@ -321,7 +340,7 @@ Queries are sent to the Ditto HTTP API endpoint configured on the active databas
 
 ## Troubleshooting
 
-### "Connection refused" when Claude tries to connect
+### "Connection refused" when an agent tries to connect
 Edge Studio is not running, or the MCP Server is disabled. Start the app and enable the server in Settings.
 
 ### Port conflict (address already in use)

@@ -1,5 +1,8 @@
 # CLAUDE.md — Android
 
+> Shared Android agent rules live in [`AGENTS.md`](AGENTS.md). This file retains
+> supplementary project detail for Claude Code.
+
 This file provides guidance to Claude Code when working with the Android project in this directory.
 
 ## Project Overview

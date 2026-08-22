@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+> Shared repository rules now live in [`AGENTS.md`](AGENTS.md). Keep this file
+> for Claude Code compatibility and Swift-specific detail; update both when a
+> rule must apply to every coding agent.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Xcode MCP — Required for All Code Operations and Discovery of the code
@@ -15,6 +19,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Standard tools (Read, Grep, Glob, Write) are for documentation (`.md`) and config files outside the Xcode project only.  Never use grep, ls, or other shell tools to discover code unless Xcode MCP is not available.
 
 For SwiftUI always use the swiftui-pro skill.
+
+## Reviewing and fixing (MANDATORY — read before acting on any review)
+
+**A reported problem is not actionable until two independent reviewers confirm it.**
+**A fix is not complete until a reviewer who did not write it verifies the wiring.**
+
+Full rule, rationale and workflow: [`docs/FIX_VERIFICATION_RULE.md`](docs/FIX_VERIFICATION_RULE.md).
+
+In short:
+
+- One reviewer's finding is a hypothesis. Two independent confirmations make it
+  actionable. Your own evidence-based verification counts as one.
+- Single-source findings go to a targeted adjudication round (confirm **or refute**)
+  before any code changes. Never fix an unconfirmed finding.
+- After fixing, grep for the **production call site**. "It compiles and the tests
+  pass" is not verification — that was true of three fixes on this repo that were
+  either not wired up or actively harmful.
+- Test the path the user takes. A test that calls a view-model method the view
+  bypasses proves nothing.
+- Fix in small batches and verify each. Never batch-fix a long review list in one
+  pass.
+- Run readiness review as a separate pass from bug-hunting.
+- Record confirmation counts, what you chose not to fix, and which claims are
+  **unverified**. Shipping something unverified is fine; describing it as verified is
+  not.
 
 ## Plans
 
@@ -43,9 +72,9 @@ Edge Debug Helper is a comprehensive SwiftUI application for macOS and iPadOS, p
 
 ## Ditto SDK Version
 
-**This project uses Ditto SDK 5.0 (currently 5.0.0-preview.5).**
+**This project uses Ditto SDK 5.1 (currently 5.1.0).**
 
-API Reference: https://software.ditto.live/cocoa/DittoSwift/5.0.0-preview.5/api-reference/documentation/dittoswift/
+API Reference: https://software.ditto.live/cocoa/DittoSwift/5.1.0/api-reference/documentation/dittoswift/
 
 ### Terminology Changes (v5)
 
@@ -707,6 +736,7 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 
 ## Key Features
 - Multi-database connection management with local storage (using DittoConfigForDatabase model)
+- Per-database Advanced Configuration: collection sync scopes and startup `ALTER SYSTEM` settings, re-applied on every open (see [docs/ADVANCED_DATABASE_CONFIG.md](docs/ADVANCED_DATABASE_CONFIG.md))
 - Query execution with history and favorites
 - Execution-profile capture for `SELECT` statements with Card and Plan views (gated on the Collect Metrics setting; see [docs/PROFILE.md](docs/PROFILE.md))
 - Attachments: add (from file picker), view (in Document Viewer), and delete (via DQL `UPDATE … = null`) directly from query result rows
