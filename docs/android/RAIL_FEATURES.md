@@ -27,6 +27,13 @@ docs, plans, and conversation; code names are what you'll grep for.
 | 6 | **Query Metrics** | `QUERY_METRICS` | "Query Metrics" | `Icons.AutoMirrored.Outlined.ManageSearch` | Yes — executed-query list |
 | 7 | **Database Metrics** | `DISK_USAGE` | "Database Metrics" | `Icons.Outlined.DataUsage` | No — full-width Content Pane |
 
+**App Metrics** and **Query Metrics** are gated by the **Collect Metrics** toggle
+(Settings screen, opened from the Database List top bar; `AppPreferences.metricsEnabled`,
+mirrors SwiftUI's `SidebarDestination.isMetricsDestination`). When disabled, both items
+are hidden from the rail and drawer (`StudioNavItem.visibleEntries`), an active metrics
+section auto-navigates to Presence, no metrics data is captured, and the Query
+Workbench inspector hides its Metrics tab. Enabled by default.
+
 Every rail item exposes feature documentation in the Inspector, rendered from a
 Markdown file sourced from `docs/help/` (synced to `assets/help/` by
 `scripts/sync-help-docs.sh`) via `StudioNavItem.helpFileName` →
@@ -47,12 +54,18 @@ Everything about the mesh: what this peer is syncing and who it is connected to.
 | **Content Pane** | Two features: **Connected Peers** (local peer info, remote peers, transports, network interfaces) and the **Presence Graph** (visual mesh topology). |
 | **Inspector** | Feature documentation. |
 
+**Layout is user-configurable** via Settings → "Split Presence view" (default OFF).
+Because the peers view / Presence Viewer is not selection-driven and needs the full
+width, OFF keeps it full-width at every window size — the subscriptions list opens from
+the modal Nav Drawer (drawer-mode widths) or the Presence toolbar's Subscriptions dialog
+(rail-mode widths). ON restores list-beside-peers at ≥600dp.
+
 | Part | Code |
 |---|---|
 | Rail item | `StudioNavItem.SUBSCRIPTIONS` → `SubscriptionsKey` |
 | List pane (Data Panel) | `ui/mainstudio/SubscriptionsListPane.kt`; section entry-point `ui/mainstudio/PresenceSection.kt` → `PresenceListSection` |
-| Content pane (Connected Peers) | `ui/mainstudio/PresenceSection.kt` → `PresenceContentSection`; tabs: "Peers List" (`ConnectedPeersScreen.kt`) + "Presence Viewer" (placeholder); pushed on compact via `PresenceContentKey` |
-| Presence Graph | **Not yet implemented** — Presence Viewer tab is a "Coming Soon" placeholder |
+| Content pane (Connected Peers) | `ui/mainstudio/PresenceSection.kt` → `PresenceContentSection`; tabs: "Peers List" (`ConnectedPeersScreen.kt`) + "Presence Viewer" (`PresenceGraphView.kt`). Not selection-driven: it is the default full-width view at every width (no compact drill-in key) |
+| Presence Graph | `ui/mainstudio/presence/PresenceGraphView.kt` (+ `PresenceGraphState.kt`, `PresenceGraphLayout.kt`, `PresenceGraphRenderer.kt`), wired into the "Presence Viewer" tab of `PresenceContentSection` |
 | Data layer | `data/repository/SubscriptionsRepositoryImpl.kt`, `data/repository/SystemRepositoryImpl.kt` (peers, sync status, transports) |
 | Inspector docs | `assets/help/subscription.md` |
 
@@ -72,7 +85,7 @@ The primary working surface: browse collections, write and run DQL, inspect resu
 |---|---|
 | Rail item | `StudioNavItem.QUERY` → `QueryKey` |
 | List pane (Collections, Data Panel) | `ui/mainstudio/CollectionsListPane.kt`; section entry-point `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchListSection`; data via `data/repository/CollectionsRepositoryImpl.kt` (doc counts, index add/remove) |
-| Content pane (Query Editor + Results) | `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchContentSection` hosting `QueryEditorScreen.kt`; Ctrl/Cmd+Enter runs query; state persists on session-scoped `QueryWorkbenchState`; pushed on compact via `QueryContentKey` |
+| Content pane (Query Editor + Results) | `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchContentSection` hosting `QueryEditorScreen.kt`; Ctrl/Cmd+Enter runs query; state persists on session-scoped `QueryWorkbenchState`; on compact the editor is the default full-width view and the collections list lives in the Nav Drawer (no drill-in key) |
 | Execution | `data/repository/QueryExecutionService.kt`; state in `viewmodel/QueryEditorViewModel.kt` |
 | Inspector | Rich `ui/mainstudio/inspector/QueryInspectorView.kt` (History / Favorites / JSON viewer / Metrics tabs); threaded via scaffold's `inspectorContent` slot |
 | Inspector — History | `ui/mainstudio/inspector/QueryHistoryInspector.kt`, `data/repository/HistoryRepositoryImpl.kt` |
@@ -145,20 +158,27 @@ Process-level health of the running app. No Data Panel — full-width Content Pa
 
 ## 6. Query Metrics
 
-EXPLAIN-level analysis of every query run since the app started.
+EXPLAIN-level analysis of every query run against the current database — records persist in Room across app restarts (200-record cap per database).
 
 | Region | Contents |
 |---|---|
-| **Data Panel** | List of queries executed since app start (statement, run count, duration). |
+| **Data Panel** | List of queries executed against the current database (statement, run count, duration) — persisted in Room across app restarts. |
 | **Content Pane** | Detailed information for the query selected in the Data Panel — full EXPLAIN output. |
 | **Inspector** | Feature documentation. |
+
+**Width adaptation** follows the Material 3 list-detail pattern: at ≥600dp (Medium and
+up — including flip phones when open, ~690dp) the `ListDetailSceneStrategy` renders the
+executed-query list and EXPLAIN detail side-by-side. Below 600dp (Compact — cover
+screens, narrow split-screen) the section body is the list alone; tapping a row pushes
+`QueryMetricDetailKey` as a full-screen drill-in with an Up arrow in the top bar, and
+system back returns to the list.
 
 | Part | Code |
 |---|---|
 | Rail item | `StudioNavItem.QUERY_METRICS` → `QueryMetricsKey` |
 | List pane (executed-query list, Data Panel) | `ui/mainstudio/metrics/QueryMetricsListPane.kt`; section entry-point `ui/mainstudio/QueryMetricsSection.kt` → `QueryMetricsListSection` |
 | Content pane (EXPLAIN detail) | `ui/mainstudio/metrics/QueryMetricsDetailPane.kt`; section entry-point `ui/mainstudio/QueryMetricsSection.kt` → `QueryMetricsDetailSection`; pushed via `QueryMetricDetailKey` |
-| Data layer | `data/repository/QueryMetricsRepositoryImpl.kt`; model `QueryMetrics` (auto-capture, 200-record cap) |
+| Data layer | `data/repository/QueryMetricsRepositoryImpl.kt`; model `QueryMetrics` (auto-capture, 200-record cap — `QueryMetricsRepositoryImpl.MAX_RECORDS`). Capture is gated by Settings → "Collect Metrics" (`AppPreferences.metricsEnabled`) AND the Query Workbench toolbar's "Capture query metrics" toggle; records persist in Room (`query_metrics` table, including the DQL text in `query_text`). |
 | Inspector docs | `assets/help/querymetrics.md` |
 
 ---
@@ -178,7 +198,7 @@ What the Ditto database costs on disk. No Data Panel — full-width Content Pane
 | Rail item | `StudioNavItem.DISK_USAGE` → `DiskUsageKey` |
 | Content pane (single-pane, full-width) | `ui/mainstudio/SinglePaneSections.kt` → `DiskUsageSection` → `ui/mainstudio/metrics/DiskUsageScreen.kt` |
 | State / refresh | `viewmodel/DiskUsageViewModel.kt` |
-| Data layer | `data/repository/AppMetricsRepositoryImpl.kt` (shared with App Metrics) |
+| Data layer | `data/repository/DatabaseMetricsRepositoryImpl.kt` |
 | Inspector docs | `assets/help/diskusage.md` |
 
 ---
@@ -187,7 +207,6 @@ What the Ditto database costs on disk. No Data Panel — full-width Content Pane
 
 | Item | Gap |
 |---|---|
-| Presence | **Presence Graph** view not implemented — Presence Viewer tab is a "Coming Soon" placeholder alongside the Connected Peers tab. |
 | Naming | UI labels now use the canonical names (`StudioNavItem.label`); only the code enum constants (`SUBSCRIPTIONS`, `DISK_USAGE`, `LOGGING`, `OBSERVERS`) retain legacy names — they are stable identifiers (persisted in SavedStateHandle) and intentionally unchanged. |
 
 ---

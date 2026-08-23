@@ -68,6 +68,20 @@ actor MCPSessionManager {
         sessions.removeValue(forKey: sessionId)
     }
 
+    /// Closes and removes every session. Called when the server stops so a
+    /// post-restart `hasSession` check can never match a pre-restart
+    /// sessionId whose connection is dead.
+    func removeAll() {
+        for session in sessions.values {
+            session.close()
+        }
+        sessions.removeAll()
+    }
+
+    func hasSession(_ sessionId: String) -> Bool {
+        sessions[sessionId] != nil
+    }
+
     func sendResponse(_ responseJSON: String, to sessionId: String) {
         sessions[sessionId]?.sendEvent("message", data: responseJSON)
     }
@@ -153,11 +167,6 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
     // MARK: Request Routing
 
     private func handleRequest(_ request: HTTPRequest) async {
-        if request.method == "OPTIONS" {
-            sendCORSPreflight()
-            return
-        }
-
         switch (request.method, request.path) {
         case ("GET", "/health"):
             sendTextResponse(status: 200, body: "OK")
@@ -185,7 +194,6 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
             "Content-Type: text/event-stream",
             "Cache-Control: no-cache",
             "Connection: keep-alive",
-            "Access-Control-Allow-Origin: *",
             "",
             ""
         ]
@@ -220,6 +228,23 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
     private func handlePostMessage(_ request: HTTPRequest) async {
         let sessionId = request.queryParams["sessionId"]
 
+        // A POST referencing an unknown (stale or never-established) session
+        // must be rejected BEFORE the JSON-RPC handler runs — otherwise
+        // mutating tools (execute_dql, set_sync, drop_index, …) would execute
+        // and only then would the client learn the session is gone, so a
+        // retrying client would apply the mutation twice. Requests without a
+        // sessionId are the documented stateless path (direct HTTP transport
+        // clients) and are exempt from this guard.
+        if let sessionId {
+            guard await MCPSessionManager.shared.hasSession(sessionId) else {
+                sendJSONResponse(
+                    status: 404,
+                    body: Data(#"{"error": "unknown sessionId — reconnect via GET /mcp"}"#.utf8)
+                )
+                return
+            }
+        }
+
         let (responseJSON, isNotification) = await MCPJSONRPCHandler.handle(request.body)
 
         if isNotification {
@@ -244,7 +269,6 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
             "Content-Type: application/json",
             "Content-Length: \(body.count)",
             "Connection: close",
-            "Access-Control-Allow-Origin: *",
             "",
             ""
         ]
@@ -264,7 +288,6 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
             "Content-Type: text/plain",
             "Content-Length: \(bodyData.count)",
             "Connection: close",
-            "Access-Control-Allow-Origin: *",
             "",
             ""
         ]
@@ -274,26 +297,6 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
             self?.connection.cancel()
             self?.releaseSelfRetain()
         })
-    }
-
-    private func sendCORSPreflight() {
-        let headerLines = [
-            "HTTP/1.1 204 No Content",
-            "Access-Control-Allow-Origin: *",
-            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers: Content-Type, Authorization",
-            "Content-Length: 0",
-            "Connection: close",
-            "",
-            ""
-        ]
-        connection.send(
-            content: Data(headerLines.joined(separator: "\r\n").utf8),
-            completion: .contentProcessed { [weak self] _ in
-                self?.connection.cancel()
-                self?.releaseSelfRetain()
-            }
-        )
     }
 
     private func statusDescription(_ code: Int) -> String {
@@ -327,7 +330,11 @@ actor MCPServerService {
 
     var port: UInt16 {
         let p = UserDefaults.standard.integer(forKey: "mcpServerPort")
-        return p > 0 ? UInt16(p) : 65269
+        // Clamp instead of trapping: `UInt16(p)` preconditions on
+        // p <= 65535, and a corrupt UserDefaults value must not crash the
+        // app — fall back to the default port.
+        guard p > 0, p <= Int(UInt16.max) else { return 65269 }
+        return UInt16(p)
     }
 
     private init() {}
@@ -343,6 +350,9 @@ actor MCPServerService {
 
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
+        // Bind to the loopback interface only — the MCP server must never be
+        // reachable from other machines on the network.
+        params.requiredInterfaceType = .loopback
 
         do {
             let newListener = try NWListener(using: params, on: nwPort)
@@ -381,6 +391,10 @@ actor MCPServerService {
         listener?.cancel()
         listener = nil
         isRunning = false
+        // Drain all SSE sessions — otherwise a pre-restart sessionId would
+        // still pass the hasSession guard after a restart and responses
+        // would be sent into dead connections.
+        await MCPSessionManager.shared.removeAll()
         Log.info("MCP Server stopped")
     }
 

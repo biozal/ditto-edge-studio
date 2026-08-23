@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.data.repository
 
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.DittoIndex
+import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.ditto.kotlin.Ditto
 import com.ditto.kotlin.DittoStoreObserver
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,116 @@ import org.json.JSONObject
 private const val QUERY_COLLECTIONS = "SELECT * FROM __collections"
 private const val QUERY_INDEXES = "SELECT * FROM system:indexes"
 private const val QUERY_COUNT_TMPL = "SELECT COUNT(*) as numDocs FROM %s"
+
+/**
+ * Builds the per-collection doc-count DQL. The collection name is backtick-quoted via
+ * [quoteIdentifier] so names containing dots, spaces, or backticks parse — a bare
+ * `%s` interpolation would break (or misparse) on e.g. `foo.bar`.
+ */
+internal fun buildDocCountQuery(collection: String): String =
+    QUERY_COUNT_TMPL.format(quoteIdentifier(collection))
+
+/**
+ * Trims whitespace and drops blank field names. Throws when nothing remains.
+ */
+internal fun normalizeIndexFields(fields: List<IndexField>): List<IndexField> {
+    val cleaned = fields.map { it.copy(name = it.name.trim()) }.filter { it.name.isNotEmpty() }
+    require(cleaned.isNotEmpty()) { "At least one field is required to create an index" }
+    return cleaned
+}
+
+/**
+ * Builds the `idx_{collection}_{field…}` name for an index. Dots/spaces/dashes →
+ * underscores (dots separate collection from index name in DQL identifiers).
+ */
+internal fun buildIndexName(collection: String, fields: List<IndexField>): String =
+    (listOf(collection) + fields.map { it.name })
+        .joinToString(separator = "_", prefix = "idx_")
+        .replace('.', '_')
+        .replace(' ', '_')
+        .replace('-', '_')
+
+/**
+ * Backtick-quotes a single DQL identifier, escaping embedded backticks by
+ * doubling — per the DQL tokenizer grammar.
+ */
+internal fun quoteIdentifier(name: String): String = "`${name.replace("`", "``")}`"
+
+/**
+ * Backtick-quotes one field path for DQL. Each dot-separated segment is quoted
+ * individually (`address.city` → `` `address`.`city` ``).
+ */
+internal fun quoteFieldPath(name: String): String =
+    name.split('.').joinToString(".") { quoteIdentifier(it) }
+
+/**
+ * Builds the CREATE INDEX DQL for one or more fields. Two or more fields produce a
+ * composite index; each key is emitted backtick-quoted with an explicit ASC/DESC
+ * direction. Blank field names are dropped. Collection, field, and index names are
+ * backtick-quoted so names with spaces, dashes, or backticks parse.
+ */
+internal fun buildCreateIndexDql(collection: String, fields: List<IndexField>): String {
+    val cleaned = normalizeIndexFields(fields)
+    val keys = cleaned.joinToString(", ") { "${quoteFieldPath(it.name)} ${if (it.ascending) "ASC" else "DESC"}" }
+    return "CREATE INDEX IF NOT EXISTS ${quoteIdentifier(buildIndexName(collection, cleaned))} ON ${quoteIdentifier(collection)} ($keys)"
+}
+
+/**
+ * Parses the `fields` array of a `system:indexes` row into index keys. Each entry is
+ * `{"direction": "asc"|"desc", "key": [path segments]}`; segments are joined with dots.
+ * Backticks around segments (emitted by older SDKs) are stripped. A plain string array
+ * is accepted as a legacy fallback.
+ */
+internal fun parseIndexFields(json: JSONObject): List<IndexField> {
+    val fieldsJson = json.optJSONArray("fields") ?: return emptyList()
+    return buildList {
+        for (i in 0 until fieldsJson.length()) {
+            when (val entry = fieldsJson.opt(i)) {
+                // SDK 5.x: {"direction": "asc", "key": ["fieldName"]}
+                is JSONObject -> {
+                    val keyArray = entry.optJSONArray("key")
+                    if (keyArray != null && keyArray.length() > 0) {
+                        val segments = buildList {
+                            for (j in 0 until keyArray.length()) {
+                                keyArray.optString(j)
+                                    .takeIf { it.isNotBlank() }
+                                    ?.let { add(unquoteSegment(it)) }
+                            }
+                        }
+                        if (segments.isNotEmpty()) {
+                            add(
+                                IndexField(
+                                    name = segments.joinToString("."),
+                                    ascending = !entry.optString("direction").equals("desc", ignoreCase = true),
+                                ),
+                            )
+                        }
+                    }
+                }
+                // Legacy: plain string array
+                is String -> entry.takeIf { it.isNotBlank() }?.let { add(IndexField(unquoteSegment(it))) }
+            }
+        }
+    }
+}
+
+/**
+ * Whether an existing index's keys exactly match the requested definition
+ * (same fields, same order, same directions).
+ */
+internal fun indexDefinitionsMatch(existing: List<IndexField>, requested: List<IndexField>): Boolean =
+    existing == requested
+
+/**
+ * Undoes DQL backtick-quoting for one stored path segment. Only segments that are
+ * actually quoted (older SDKs wrapped them; 5.1 stores raw values) are unwrapped,
+ * and escaped double-backticks inside them are collapsed. Raw segments pass through
+ * untouched.
+ */
+private fun unquoteSegment(segment: String): String {
+    if (segment.length < 2 || !segment.startsWith("`") || !segment.endsWith("`")) return segment
+    return segment.substring(1, segment.length - 1).replace("``", "`")
+}
 
 class CollectionsRepositoryImpl(
     private val scope: CoroutineScope,
@@ -50,13 +161,43 @@ class CollectionsRepositoryImpl(
         scope.launch(Dispatchers.IO) { refreshInternal() }
     }
 
-    override suspend fun createIndex(collection: String, fieldName: String) {
-        val safeName = "idx_${collection}_${fieldName}"
-            .replace('.', '_')
-            .replace(' ', '_')
-            .replace('-', '_')
-        val dql = "CREATE INDEX IF NOT EXISTS $safeName ON $collection ($fieldName)"
-        activeDitto?.store?.execute(dql)
+    override suspend fun createIndex(collection: String, fields: List<IndexField>) {
+        val ditto = activeDitto ?: throw IllegalStateException("No active Ditto instance")
+        val cleaned = normalizeIndexFields(fields)
+        val safeName = buildIndexName(collection, cleaned)
+
+        // IF NOT EXISTS only compares index NAMES — it silently succeeds without
+        // changing anything when an index of the same name exists with a different
+        // definition (e.g. flipped sort direction, or a field-name collision after
+        // sanitization). Detect that case and surface it instead of no-oping.
+        // Fail-closed: if this read fails, the error propagates rather than risking
+        // the silent no-op this check exists to prevent.
+        val existing = ditto.store.execute(
+            "SELECT * FROM system:indexes WHERE _id = :id",
+            mapOf("id" to "$collection.$safeName"),
+        ) { result ->
+            result.items.firstOrNull()?.let { item ->
+                // Dematerialize in finally so a parse throw can't leak the native item.
+                try {
+                    parseIndexFields(JSONObject(item.jsonString()))
+                } finally {
+                    item.dematerialize()
+                }
+            }
+        }
+
+        if (existing != null) {
+            if (indexDefinitionsMatch(existing, cleaned)) {
+                refreshInternal()
+                return // identical index already exists — idempotent success
+            }
+            throw IllegalStateException(
+                "An index named '$safeName' already exists on '$collection' with a different " +
+                    "field definition. Drop it before re-creating.",
+            )
+        }
+
+        ditto.store.execute(buildCreateIndexDql(collection, cleaned))
         refreshInternal()
     }
 
@@ -71,9 +212,13 @@ class CollectionsRepositoryImpl(
         val rawNames = runCatching {
             ditto.store.execute(QUERY_COLLECTIONS) { result ->
                 result.items.mapNotNull { item ->
-                    runCatching { JSONObject(item.jsonString()).optString("_id") }
-                        .getOrNull()
-                        ?.takeIf { it.isNotBlank() && !it.startsWith("__") }
+                    try {
+                        runCatching { JSONObject(item.jsonString()).optString("_id") }
+                            .getOrNull()
+                            ?.takeIf { it.isNotBlank() && !it.startsWith("__") }
+                    } finally {
+                        item.dematerialize()
+                    }
                 }
             }
         }.getOrDefault(emptyList())
@@ -103,14 +248,7 @@ class CollectionsRepositoryImpl(
                         val json = JSONObject(item.jsonString())
                         val id = json.optString("_id").takeIf { it.isNotBlank() } ?: return@runCatching
                         val collection = json.optString("collection").takeIf { it.isNotBlank() } ?: return@runCatching
-                        val fieldsJson = json.optJSONArray("fields")
-                        val fields = buildList {
-                            if (fieldsJson != null) {
-                                for (i in 0 until fieldsJson.length()) {
-                                    fieldsJson.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
-                                }
-                            }
-                        }
+                        val fields = parseIndexFields(json).map { it.name }
                         map.getOrPut(collection) { mutableListOf() }
                             .add(DittoIndex(id = id, collection = collection, fields = fields))
                     }
@@ -125,9 +263,13 @@ class CollectionsRepositoryImpl(
         val counts = mutableMapOf<String, Int>()
         for (name in names) {
             runCatching {
-                val count = ditto.store.execute(QUERY_COUNT_TMPL.format(name)) { result ->
-                    result.items.firstOrNull()?.let {
-                        JSONObject(it.jsonString()).optInt("numDocs", 0)
+                val count = ditto.store.execute(buildDocCountQuery(name)) { result ->
+                    result.items.firstOrNull()?.let { item ->
+                        try {
+                            JSONObject(item.jsonString()).optInt("numDocs", 0)
+                        } finally {
+                            item.dematerialize()
+                        }
                     } ?: 0
                 }
                 counts[name] = count

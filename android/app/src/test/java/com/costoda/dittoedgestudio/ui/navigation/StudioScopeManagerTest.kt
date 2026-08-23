@@ -87,7 +87,7 @@ class StudioScopeManagerTest {
         val databaseId = 42L
         val subtypes: List<StudioChildKey> = listOf(
             ObserverEventsKey(databaseId = databaseId, observerId = 1L),
-            QueryMetricDetailKey(databaseId = databaseId, historyId = 1L),
+            QueryMetricDetailKey(databaseId = databaseId, metricsId = 1L),
         )
         subtypes.forEach { childKey ->
             assertEquals(
@@ -116,7 +116,7 @@ class StudioScopeManagerTest {
         val stack = listOf(
             DatabaseListKey,
             QueryMetricsKey(databaseId = 7L),
-            QueryMetricDetailKey(databaseId = 7L, historyId = 42L),
+            QueryMetricDetailKey(databaseId = 7L, metricsId = 42L),
         )
         assertEquals(setOf(7L), activeStudioDatabaseIds(stack))
     }

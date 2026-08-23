@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.data.repository
 
 import android.os.Build
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
@@ -88,7 +89,9 @@ class SystemRepositoryImpl(
                 }
             }
         }.onFailure { e ->
-            Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
+            }
         }
 
         val localPeerKey = graph.localPeer.peerKey

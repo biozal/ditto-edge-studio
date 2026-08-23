@@ -13,6 +13,7 @@ struct SubscriptionObserverViewModelTests {
         let mocks = MockSet()
 
         let viewModel = SubscriptionObserverViewModel(
+            databaseId: "test-db",
             dittoManager: mocks.dittoManager,
             subscriptionsRepository: mocks.subscriptionsRepository,
             observableRepository: mocks.observableRepository
@@ -30,6 +31,7 @@ struct SubscriptionObserverViewModelTests {
     func `stageNewSubscription seeds an empty editorSubscription`() {
         let mocks = MockSet()
         let viewModel = SubscriptionObserverViewModel(
+            databaseId: "test-db",
             dittoManager: mocks.dittoManager,
             subscriptionsRepository: mocks.subscriptionsRepository,
             observableRepository: mocks.observableRepository
@@ -51,6 +53,7 @@ struct SubscriptionObserverViewModelTests {
         let mocks = MockSet()
         let appState = AppState()
         let viewModel = SubscriptionObserverViewModel(
+            databaseId: "test-db",
             dittoManager: mocks.dittoManager,
             subscriptionsRepository: mocks.subscriptionsRepository,
             observableRepository: mocks.observableRepository
@@ -72,6 +75,10 @@ struct SubscriptionObserverViewModelTests {
             if !saved.isEmpty {
                 #expect(saved.first?.name == "Active orders")
                 #expect(saved.first?.query == "SELECT * FROM orders WHERE active = true")
+                // The VM must forward the session database id captured at
+                // init so the repository can refuse stale cross-database writes.
+                let savedIds = await mocks.subscriptionsRepository.savedDatabaseIds
+                #expect(savedIds == ["test-db"])
                 return
             }
             try? await Task.sleep(for: .milliseconds(10))
@@ -84,6 +91,7 @@ struct SubscriptionObserverViewModelTests {
     func `reset clears all subscription/observer state`() {
         let mocks = MockSet()
         let viewModel = SubscriptionObserverViewModel(
+            databaseId: "test-db",
             dittoManager: mocks.dittoManager,
             subscriptionsRepository: mocks.subscriptionsRepository,
             observableRepository: mocks.observableRepository

@@ -34,26 +34,40 @@ val WindowSizeClass.showsRail: Boolean
     get() = isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
 
 /**
- * Expanded and up (≥840dp): the studio renders its full multi-pane layout —
+ * Expanded and up (≥840dp): the studio renders its full multi-pane CHROME —
  * `NavigationRail | listPane | detailPane | Inspector`.
  *
  * Below this breakpoint (Compact AND Medium — phones, floating windows, narrow split-screen)
- * the studio switches to **drawer mode**:
- *  - No rail column. A hamburger button on the top bar opens a [ModalNavigationDrawer].
- *  - The drawer contains BOTH the rail items (section nav) AND the current section's Data
- *    Panel content (Subscriptions list / Collections list / Observers list / Executed
- *    queries list). Selecting anything in the drawer closes it.
- *  - The Content Pane is the DEFAULT view (peers tabs, query editor+results, observer
- *    events, EXPLAIN detail) — matches the original pre-migration phone UX and the iPad
- *    "MainView is always the default" semantics.
- *  - Sections without a Data Panel (Logging / AppMetrics / DiskUsage) show rail items only
- *    in the drawer.
+ * the studio switches to **drawer mode** chrome:
+ *  - No rail column. A hamburger button on the top bar opens a [ModalNavigationDrawer]
+ *    with the rail items (section nav).
+ *  - At Compact (<600dp) the drawer ALSO hosts the current section's Data Panel content
+ *    (Subscriptions / Collections / Observers list) because the body is single-pane.
+ *    At Medium (600–839dp) the body already shows list + detail side-by-side
+ *    ([showsListDetail]), so the drawer carries section nav only.
  *
  * Keep [showsRail] for non-studio screens (e.g. DatabaseListScreen) that retain the 600dp
  * rail/no-rail behavior.
  */
 val WindowSizeClass.studioMultiPane: Boolean
     get() = isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
+
+/**
+ * Medium and up (≥600dp — e.g. an open flip phone at ~690dp, tablets, split-screen
+ * windows): section entries render their LIST pane and the `ListDetailSceneStrategy`
+ * is allowed two horizontal partitions, so list + detail sit side-by-side (the iPad
+ * `NavigationSplitView` two-column behavior).
+ *
+ * Below this breakpoint (Compact — phones, cover screens, narrow split-screen) each
+ * section shows a single pane: list-first with drill-in detail (an Up arrow appears in
+ * the top bar for pushed detail screens).
+ *
+ * This is deliberately separate from [studioMultiPane] (≥840dp), which only forks the
+ * studio CHROME (NavigationRail vs modal drawer). A Medium window gets drawer chrome
+ * with a two-pane list-detail body.
+ */
+val WindowSizeClass.showsListDetail: Boolean
+    get() = isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)
 
 /** Expanded and up: Data Panel defaults to visible. */
 val WindowSizeClass.dataPanelDefaultVisible: Boolean

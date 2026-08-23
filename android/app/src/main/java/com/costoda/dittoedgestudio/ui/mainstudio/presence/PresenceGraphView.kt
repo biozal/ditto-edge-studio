@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import android.util.Log
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.session.PeersUiState
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import kotlinx.coroutines.CoroutineScope
@@ -183,18 +184,22 @@ fun PresenceGraphView(
     val pxPerDp = density.density
     LaunchedEffect(graphModel.nodes, layoutResult.positions, pxPerDp) {
         if (draggingPeerId.value != null) {
-            Log.d(
-                TAG,
-                "Layout update deferred (peer drag in progress); nodes=${graphModel.nodes.size} " +
-                    "edges=${graphModel.edges.size}",
-            )
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    TAG,
+                    "Layout update deferred (peer drag in progress); nodes=${graphModel.nodes.size} " +
+                        "edges=${graphModel.edges.size}",
+                )
+            }
             deferredLayout.value = layoutResult
             return@LaunchedEffect
         }
-        Log.d(
-            TAG,
-            "Applying layout: nodes=${graphModel.nodes.size} edges=${graphModel.edges.size}",
-        )
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                TAG,
+                "Applying layout: nodes=${graphModel.nodes.size} edges=${graphModel.edges.size}",
+            )
+        }
         applyLayoutDiff(scope, peerStates, graphModel, layoutResult, pxPerDp)
         deferredLayout.value = null
     }
@@ -380,7 +385,7 @@ fun PresenceGraphView(
                                 selectedPeerId.value = null
                             }
                             if (isPeerDrag) {
-                                Log.d(TAG, "Drag end peer=${draggingPeerId.value}")
+                                if (BuildConfig.DEBUG) Log.d(TAG, "Drag end peer=${draggingPeerId.value}")
                                 draggingPeerId.value = null
                                 val deferred = deferredLayout.value
                                 if (deferred != null) {
@@ -420,7 +425,7 @@ fun PresenceGraphView(
                                 if (hitPeerId != null) {
                                     isPeerDrag = true
                                     draggingPeerId.value = hitPeerId
-                                    Log.d(TAG, "Drag start peer=$hitPeerId")
+                                    if (BuildConfig.DEBUG) Log.d(TAG, "Drag start peer=$hitPeerId")
                                 } else {
                                     isPanning = true
                                 }
@@ -578,7 +583,9 @@ fun PresenceGraphView(
                     }
                     .clickable {
                         val newValue = if (selectedPeerId.value == node.peerId) null else node.peerId
-                        Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                        if (BuildConfig.DEBUG) {
+                            Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                        }
                         selectedPeerId.value = newValue
                     },
             )

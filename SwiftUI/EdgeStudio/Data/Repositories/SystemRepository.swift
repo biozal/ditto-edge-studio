@@ -35,6 +35,10 @@ actor SystemRepository {
     private init() {}
 
     deinit {
+        // Defensive: the singleton never deinits in practice, but if it ever
+        // did, the SDK observers must be stopped, not just dereferenced.
+        syncStatusObserver?.stop()
+        connectionsPresenceObserver?.stop()
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
     }
@@ -230,6 +234,11 @@ actor SystemRepository {
         sessionId += 1
         let currentSession = sessionId
         Log.info("[SystemRepository] Registering syncStatus observer, sessionId=\(currentSession)")
+
+        // Stop any previous observer BEFORE replacing it. Assigning over the
+        // reference without `stop()` leaves the old SDK observer live — its
+        // callback keeps firing against a stale session.
+        syncStatusObserver?.stop()
 
         // Register presence observer for real-time peer connection changes.
         //
@@ -530,6 +539,10 @@ actor SystemRepository {
         let currentSession = sessionId
         Log.info("[SystemRepository] Registering connections observer, sessionId=\(currentSession)")
 
+        // Stop any previous observer BEFORE replacing it (see
+        // registerSyncStatusObserver for the rationale).
+        connectionsPresenceObserver?.stop()
+
         // Register presence observer for real-time connection updates
         connectionsPresenceObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
@@ -710,6 +723,9 @@ actor SystemRepository {
     /// callbacks. Only the backpressure pipeline state is reset so the next registration
     /// starts clean.
     func stopSyncStatusObserver() async {
+        // stop(), not just nil: dropping the reference alone leaves the SDK
+        // observer live and its callback firing against a stale session.
+        syncStatusObserver?.stop()
         syncStatusObserver = nil
         isProcessingUpdate = false
         hasPendingUpdate = false
@@ -733,6 +749,9 @@ actor SystemRepository {
     /// `setOnSyncStatusUpdate`, which drains any update that queued while the callback
     /// was nil.
     func stopObserver() async {
+        // stop(), not just nil — see stopSyncStatusObserver().
+        syncStatusObserver?.stop()
+        connectionsPresenceObserver?.stop()
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
         onSyncStatusUpdate = nil

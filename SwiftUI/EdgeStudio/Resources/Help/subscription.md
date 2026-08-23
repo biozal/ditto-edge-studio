@@ -15,10 +15,10 @@ SELECT * FROM collection-name
 It's always recommended to have a good sync strategy add and a [WHERE](https://docs.ditto.live/dql/select#where) clause to limit the amount of data you are syncing.
 
 **Adding a subscription:**
-Tap the **+** button in the bottom-left of the sidebar, then choose *Add Subscription*. Enter a name, a valid DQL query, and optional query arguments.
+On macOS / iPadOS, tap the **+** button in the bottom-left of the sidebar, then choose *Add Subscription*. On Android, tap the **+** floating action button (FAB) in the Subscriptions list. Enter a name, a valid DQL query, and optional query arguments.
 
 **Removing a subscription:**
-Swipe left on the subscription row (iPadOS) or right-click and choose *Delete* (macOS).
+Swipe left on the subscription row (iPadOS) or right-click and choose *Delete* (macOS). On Android, tap the delete (trash) icon on the subscription row.
 
 **Best practices:**
 - Keep subscription queries as specific as possible to minimize data transfer.

@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.ditto
 
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.repository.parseJsonToMap
 import com.costoda.dittoedgestudio.domain.model.AdvancedApplyResult
 import com.costoda.dittoedgestudio.domain.model.AdvancedSettingsDql
@@ -108,11 +109,13 @@ class AdvancedSettingsApplier(private val executor: DQLExecuting) {
             }
         }
 
-        if (applied.isEmpty() && skipped.isEmpty()) {
-            Log.i(TAG, "[Advanced] No startup settings to apply")
-        } else {
-            Log.i(TAG, "[Advanced] Startup settings applied=${applied.size} skipped=${skipped.size}")
-            skipped.forEach { Log.w(TAG, "[Advanced] Skipped startup setting '${it.name}': ${it.reason}") }
+        if (BuildConfig.DEBUG) {
+            if (applied.isEmpty() && skipped.isEmpty()) {
+                Log.i(TAG, "[Advanced] No startup settings to apply")
+            } else {
+                Log.i(TAG, "[Advanced] Startup settings applied=${applied.size} skipped=${skipped.size}")
+                skipped.forEach { Log.w(TAG, "[Advanced] Skipped startup setting '${it.name}': ${it.reason}") }
+            }
         }
         return AdvancedApplyResult(appliedSettings = applied, skippedSettings = skipped)
     }
@@ -165,25 +168,31 @@ class AdvancedSettingsApplier(private val executor: DQLExecuting) {
                 // leftover scope here means some other writer set it (a query the user ran),
                 // which we report rather than treat as our own success.
                 if (map.isEmpty() && actual.isNotEmpty()) {
-                    Log.w(
-                        TAG,
-                        "[Advanced] Requested no sync scopes but the instance still reports " +
-                            "${actual.size}: ${actual.keys.sorted().joinToString(", ")}",
-                    )
+                    if (BuildConfig.DEBUG) {
+                        Log.w(
+                            TAG,
+                            "[Advanced] Requested no sync scopes but the instance still reports " +
+                                "${actual.size}: ${actual.keys.sorted().joinToString(", ")}",
+                        )
+                    }
                     return 0 to false
                 }
-                Log.i(TAG, "[Advanced] Sync scopes verified for ${map.size} collection(s)")
+                if (BuildConfig.DEBUG) {
+                    Log.i(TAG, "[Advanced] Sync scopes verified for ${map.size} collection(s)")
+                }
                 map.size to true
             }
 
             ScopeReadback.Unavailable -> {
                 // The write succeeded; only the read-back is unusable. Don't block the
                 // open — but never report this as verified either.
-                Log.w(
-                    TAG,
-                    "[Advanced] Applied ${map.size} sync scope(s) but could NOT verify them via " +
-                        "'${AdvancedSettingsDql.SHOW_SYNC_SCOPES_QUERY}'. Treating as unverified.",
-                )
+                if (BuildConfig.DEBUG) {
+                    Log.w(
+                        TAG,
+                        "[Advanced] Applied ${map.size} sync scope(s) but could NOT verify them via " +
+                            "'${AdvancedSettingsDql.SHOW_SYNC_SCOPES_QUERY}'. Treating as unverified.",
+                    )
+                }
                 map.size to false
             }
         }
@@ -206,7 +215,9 @@ class AdvancedSettingsApplier(private val executor: DQLExecuting) {
         val rows = try {
             executor.runDQL(AdvancedSettingsDql.SHOW_SYNC_SCOPES_QUERY, emptyMap())
         } catch (e: Exception) {
-            Log.w(TAG, "[Advanced] Sync scope read-back query failed: ${e.message}")
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "[Advanced] Sync scope read-back query failed: ${e.message}")
+            }
             return ScopeReadback.Unavailable
         }
 
@@ -309,7 +320,7 @@ class AdvancedSettingsApplier(private val executor: DQLExecuting) {
      */
     suspend fun resetAllToDefaults() {
         executor.runDQL(AdvancedSettingsDql.RESET_ALL_QUERY, emptyMap())
-        Log.i(TAG, "[Advanced] ALTER SYSTEM RESET ALL issued")
+        if (BuildConfig.DEBUG) Log.i(TAG, "[Advanced] ALTER SYSTEM RESET ALL issued")
     }
 
     private companion object {

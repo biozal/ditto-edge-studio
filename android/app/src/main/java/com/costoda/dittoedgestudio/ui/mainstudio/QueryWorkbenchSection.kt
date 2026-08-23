@@ -73,11 +73,14 @@ import org.koin.core.parameter.parametersOf
 private fun rememberQueryEditorViewModelOrNull(
     viewModel: MainStudioViewModel,
 ): QueryEditorViewModel? {
-    val currentDittoId = viewModel.currentDittoId ?: return null
+    // Collect the session's flow (not the plain snapshot getter) so this composable
+    // recomposes when hydration completes — a plain read would never recompose.
+    val currentDittoId by viewModel.session.currentDittoIdFlow.collectAsStateWithLifecycle()
+    val dittoId = currentDittoId ?: return null
     val workbench = viewModel.session.uiState.queryWorkbench
     return koinViewModel(
-        key = "QueryEditorViewModel:$currentDittoId",
-        parameters = { parametersOf(currentDittoId, workbench) },
+        key = "QueryEditorViewModel:$dittoId",
+        parameters = { parametersOf(dittoId, workbench) },
     )
 }
 
@@ -141,6 +144,7 @@ fun QueryWorkbenchContentSection(
                     captureProfilingData = captureProfilingData,
                     captureQueryMetrics = captureQueryMetrics,
                     onRun = { queryVm.executeQuery() },
+                    onExplain = { queryVm.explainQuery() },
                     onModeSelect = { queryVm.setExecuteMode(it) },
                     onCaptureProfilingDataChange = { queryVm.setCaptureProfilingData(it) },
                     onCaptureQueryMetricsChange = { queryVm.setCaptureQueryMetrics(it) },
@@ -168,7 +172,8 @@ fun QueryWorkbenchContentSection(
     if (viewModel.showAddIndex) {
         AddIndexSheet(
             collections = collections,
-            onAdd = { collection, field -> viewModel.addIndex(collection, field) },
+            onAdd = { collection, fields -> viewModel.addIndex(collection, fields) },
+            // onAdd is suspend: the sheet awaits the result to show errors inline.
             onDismiss = { viewModel.showAddIndex = false },
         )
     }

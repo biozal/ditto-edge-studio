@@ -66,16 +66,6 @@ enum MetricsRepository {
         await InMemoryMetricsStore.shared.samplesForLabel(label)
     }
 
-    // MARK: - Prometheus lifecycle
-
-    static func startCollecting() async {
-        await PrometheusExportBackend.shared.startExporting()
-    }
-
-    static func stopCollecting() async {
-        await PrometheusExportBackend.shared.stopExporting()
-    }
-
     // MARK: - macOS Darwin helpers
 
     #if os(macOS)

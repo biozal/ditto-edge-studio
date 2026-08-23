@@ -6,6 +6,13 @@ data class DittoCollection(
     val indexes: List<DittoIndex> = emptyList(),
 )
 
+/** One key in a DQL index definition: a field path plus its sort direction.
+ * Two or more keys form a composite index (Ditto SDK 5.1+). */
+data class IndexField(
+    val name: String,
+    val ascending: Boolean = true,
+)
+
 data class DittoIndex(
     val id: String,
     val collection: String,

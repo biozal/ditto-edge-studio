@@ -25,9 +25,18 @@ class AppPreferences(private val store: DataStore<Preferences>) : AppPreferences
         store.edit { it[KEY_METRICS_ENABLED] = enabled }
     }
 
+    override val presenceSplitView: Flow<Boolean> =
+        store.data.map { it[KEY_PRESENCE_SPLIT_VIEW] ?: DEFAULT_PRESENCE_SPLIT_VIEW }
+
+    override suspend fun setPresenceSplitView(enabled: Boolean) {
+        store.edit { it[KEY_PRESENCE_SPLIT_VIEW] = enabled }
+    }
+
     companion object {
         private const val DEFAULT_METRICS_ENABLED = true
+        private const val DEFAULT_PRESENCE_SPLIT_VIEW = false
         private val KEY_METRICS_ENABLED = booleanPreferencesKey("metrics_enabled")
+        private val KEY_PRESENCE_SPLIT_VIEW = booleanPreferencesKey("presence_split_view")
     }
 }
 

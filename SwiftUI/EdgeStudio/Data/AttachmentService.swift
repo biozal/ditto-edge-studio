@@ -35,7 +35,8 @@ enum AttachmentError: LocalizedError {
         case let .httpDownloadFailed(message):
             return "HTTP attachment download failed: \(message)"
         case .invalidFieldName:
-            return "Invalid field name — must be a valid identifier"
+            return "Invalid collection or field name — must be a valid identifier "
+                + "(letters, numbers, and underscores; must not start with a number)."
         }
     }
 }
@@ -88,6 +89,13 @@ actor AttachmentService {
         documentId: String,
         fieldName: String
     ) async throws {
+        // collection and fieldName are interpolated directly into DQL below,
+        // and fieldName is free text from AttachmentPickerSheet — validate
+        // before any work so a bad identifier fails with a clear error
+        // instead of an opaque DQL error (mirrors the delete path's
+        // validation in AttachmentViewModel).
+        try Self.validateLinkIdentifiers(collection: collection, fieldName: fieldName)
+
         guard let ditto = await dittoManager.dittoSelectedApp else {
             throw AttachmentError.noDittoInstance
         }
@@ -206,6 +214,9 @@ actor AttachmentService {
         documentId: String,
         fieldName: String
     ) async throws {
+        // Same identifier validation as createAndLink — see the note there.
+        try Self.validateLinkIdentifiers(collection: collection, fieldName: fieldName)
+
         guard let appConfig = await dittoManager.dittoSelectedAppConfig else {
             throw AttachmentError.noDittoInstance
         }
@@ -239,7 +250,7 @@ actor AttachmentService {
             "args": ["att": attToken, "docId": documentId]
         ]
 
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
+        let urlString = QueryService.makeHttpExecuteURL(httpApiUrl: appConfig.httpApiUrl)
         guard let url = URL(string: urlString) else {
             throw AttachmentError.httpUploadFailed("Invalid URL: \(urlString)")
         }
@@ -270,7 +281,10 @@ actor AttachmentService {
     // MARK: - HTTP Upload (private)
 
     private func httpUpload(fileURL: URL, appConfig: DittoConfigForDatabase) async throws -> [String: Any] {
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/attachments/upload"
+        let urlString = QueryService.makeHttpApiURL(
+            httpApiUrl: appConfig.httpApiUrl,
+            path: "/api/v4/attachments/upload"
+        )
         guard let url = URL(string: urlString) else {
             throw AttachmentError.httpUploadFailed("Invalid upload URL: \(urlString)")
         }
@@ -325,7 +339,10 @@ actor AttachmentService {
             throw AttachmentError.noDittoInstance
         }
 
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v4/attachments/\(attachmentId)"
+        let urlString = QueryService.makeHttpApiURL(
+            httpApiUrl: appConfig.httpApiUrl,
+            path: "/api/v4/attachments/\(attachmentId)"
+        )
         guard let url = URL(string: urlString) else {
             throw AttachmentError.httpDownloadFailed("Invalid download URL: \(urlString)")
         }
@@ -367,5 +384,21 @@ actor AttachmentService {
 
     private func removeFetcher(id: String) {
         activeFetchers.removeValue(forKey: id)
+    }
+
+    /// Validates the collection and field name that `createAndLink` /
+    /// `createAndLinkViaHttp` interpolate into DQL. Internal (not private)
+    /// so the validation contract is unit-testable without a Ditto instance.
+    nonisolated static func validateLinkIdentifiers(collection: String, fieldName: String) throws {
+        // DQL identifiers interpolated into UPDATE statements must be plain
+        // identifiers — start with a letter or underscore, then letters,
+        // numbers, or underscores only. (Local constant: Regex is not
+        // Sendable, so it cannot be a shared static under Swift 6.)
+        let identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+        guard collection.wholeMatch(of: identifierPattern) != nil,
+              fieldName.wholeMatch(of: identifierPattern) != nil else
+        {
+            throw AttachmentError.invalidFieldName
+        }
     }
 }

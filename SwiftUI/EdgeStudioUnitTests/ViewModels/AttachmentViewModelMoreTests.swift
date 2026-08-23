@@ -43,6 +43,14 @@ struct AttachmentViewModelMoreTests {
         return false
     }
 
+    private static func isNoDittoInstance(_ error: Error?) -> Bool {
+        guard let attachmentError = error as? AttachmentError else { return false }
+        if case .noDittoInstance = attachmentError {
+            return true
+        }
+        return false
+    }
+
     /// A document JSON string carrying one valid attachment token in the
     /// `photo` field plus an unrelated scalar field.
     private static let docWithToken = """
@@ -235,11 +243,18 @@ struct AttachmentViewModelMoreTests {
 
     @Test(.tags(.fast))
     @MainActor
-    func `executeDeleteAttachment with valid inputs issues an UPDATE per field`() async {
+    func `executeDeleteAttachment with valid inputs but no open database sets noDittoInstance`() async {
         // ARRANGE — valid staged doc + collection + a legal identifier field.
+        // The mock DittoManager vends no live Ditto, so execution must stop
+        // at the SDK boundary with noDittoInstance. The actual DQL UPDATE is
+        // covered by integration tests; the statement construction itself is
+        // covered by the `deleteAttachmentStatement` suite below.
         let mocks = MockSet()
         let appState = AppState()
-        let viewModel = AttachmentViewModel(queryService: mocks.queryService)
+        let viewModel = AttachmentViewModel(
+            queryService: mocks.queryService,
+            dittoManager: mocks.dittoManager
+        )
         viewModel.stageDeleteAttachment(
             documentJson: "{\"_id\":\"doc-7\"}",
             currentQuery: "SELECT * FROM media"
@@ -257,11 +272,66 @@ struct AttachmentViewModelMoreTests {
             appState: appState
         )
 
-        // ASSERT — a null-out UPDATE was routed through the query service for
-        // the staged document. No error surfaced.
-        #expect(appState.error == nil)
-        let lastQuery = await mocks.queryService.lastLocalQuery
-        #expect(lastQuery == "UPDATE media SET photo = null WHERE _id = 'doc-7'")
+        // ASSERT
+        #expect(Self.isNoDittoInstance(appState.error))
+        #expect(viewModel.attachmentProgress.isActive == false)
+    }
+}
+
+// MARK: - deleteAttachmentStatement (DQL injection safety)
+
+/// Pure-decision tests for the null-out UPDATE builder. The security
+/// invariant: the document id is ALWAYS a bound argument (`:docId`), never
+/// interpolated — `_id` values come from synced document data, so a hostile
+/// peer could otherwise smuggle DQL through a crafted `_id`.
+@Suite("AttachmentViewModel.deleteAttachmentStatement — bound arguments", .serialized)
+struct DeleteAttachmentStatementTests {
+    @Test(.tags(.fast))
+    func `document id is bound as an argument, not interpolated`() {
+        // ARRANGE / ACT
+        let (query, arguments) = AttachmentViewModel.deleteAttachmentStatement(
+            collection: "media",
+            fieldName: "photo",
+            documentId: "doc-7"
+        )
+
+        // ASSERT
+        #expect(query == "UPDATE media SET photo = null WHERE _id = :docId")
+        #expect(arguments["docId"] as? String == "doc-7")
+    }
+
+    @Test(.tags(.fast))
+    func `hostile document id cannot break out of the statement`() {
+        // ARRANGE — an `_id` crafted to inject a second statement via quote
+        // breakout, as a malicious peer could write into synced data.
+        let hostileId = "x' ; DROP TABLE media ; --"
+
+        // ACT
+        let (query, arguments) = AttachmentViewModel.deleteAttachmentStatement(
+            collection: "media",
+            fieldName: "photo",
+            documentId: hostileId
+        )
+
+        // ASSERT — the statement text is untouched; the hostile value only
+        // ever reaches the store as a bound argument.
+        #expect(query == "UPDATE media SET photo = null WHERE _id = :docId")
+        #expect(!query.contains("DROP"))
+        #expect(arguments["docId"] as? String == hostileId)
+    }
+
+    @Test(.tags(.fast))
+    func `collection and field names are interpolated`() {
+        // ARRANGE / ACT — identifiers are interpolated by design; the caller
+        // validates them against the strict identifier regex first.
+        let (query, _) = AttachmentViewModel.deleteAttachmentStatement(
+            collection: "users",
+            fieldName: "avatar",
+            documentId: "d1"
+        )
+
+        // ASSERT
+        #expect(query == "UPDATE users SET avatar = null WHERE _id = :docId")
     }
 }
 

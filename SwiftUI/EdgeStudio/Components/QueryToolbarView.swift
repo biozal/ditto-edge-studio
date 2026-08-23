@@ -6,6 +6,10 @@ struct QueryToolbarView: View {
     @Binding var history: [DittoQueryHistory]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
+    /// Database this toolbar's session belongs to. Favorite saves forward it
+    /// to `FavoritesRepository.saveFavorite(_:databaseId:)`, which refuses
+    /// the write if the session has since switched databases.
+    var databaseId: String
 
     var body: some View {
         VStack {
@@ -53,7 +57,7 @@ struct QueryToolbarView: View {
                         }
                         Button("Favorite") {
                             Task {
-                                try await FavoritesRepository.shared.saveFavorite(query)
+                                try await FavoritesRepository.shared.saveFavorite(query, databaseId: databaseId)
                             }
                         }
                     }
@@ -62,7 +66,7 @@ struct QueryToolbarView: View {
                             Button(role: .cancel) {
                                 Task {
                                     try await FavoritesRepository.shared
-                                        .saveFavorite(query)
+                                        .saveFavorite(query, databaseId: databaseId)
                                 }
                             } label: {
                                 Label("Favorite", systemImage: "star")
@@ -182,6 +186,7 @@ struct QueryToolbarView: View {
             )
         ]),
         toolbarMode: .constant("collections"),
-        selectedQuery: .constant("SELECT * FROM movies")
+        selectedQuery: .constant("SELECT * FROM movies"),
+        databaseId: "preview-database"
     )
 }

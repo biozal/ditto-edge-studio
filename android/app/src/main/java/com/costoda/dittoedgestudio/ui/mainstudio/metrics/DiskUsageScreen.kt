@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -224,7 +225,7 @@ private fun StorageCard(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = category.label.uppercase(Locale.getDefault()),
+                text = category.label.uppercase(LocalConfiguration.current.locales[0] ?: Locale.ROOT),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

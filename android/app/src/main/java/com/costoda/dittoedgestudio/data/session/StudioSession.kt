@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.session
 
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -15,6 +16,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
+import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
@@ -24,6 +26,7 @@ import com.ditto.kotlin.DittoStoreObserver
 import com.ditto.kotlin.DittoSyncSubscription
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +42,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -84,11 +88,17 @@ class StudioSession(
     val uiState = StudioUiState()
 
     // ── Hydration / database state ────────────────────────────────────────────
-    var hydrateError: String? = null
-        private set
+    // StateFlow-backed so Compose readers (e.g. the Query Metrics section's loading
+    // gate in AppNavGraph) recompose when hydration completes or fails. The plain
+    // [hydrateError] / [currentDittoId] getters remain as snapshot reads for
+    // non-reactive callers (MainStudioViewModel's init gate, tests).
+    private val _hydrateError = MutableStateFlow<String?>(null)
+    val hydrateErrorFlow: StateFlow<String?> = _hydrateError.asStateFlow()
+    val hydrateError: String? get() = _hydrateError.value
 
-    var currentDittoId: String? = null
-        private set
+    private val _currentDittoId = MutableStateFlow<String?>(null)
+    val currentDittoIdFlow: StateFlow<String?> = _currentDittoId.asStateFlow()
+    val currentDittoId: String? get() = _currentDittoId.value
 
     private var currentDatabase: DittoDatabase? = null
     fun currentDatabase(): DittoDatabase? = currentDatabase
@@ -158,61 +168,83 @@ class StudioSession(
         get() = networkRepo.hasLocationOrNearbyPermission()
 
     /**
+     * Guards against concurrent [hydrate] runs. Two MainStudioViewModel instances
+     * (activity-store + Nav3 entry-store) can be constructed in the same composition
+     * pass and both call [hydrate] from their `init`; without a guard both coroutines
+     * would race DittoManager.hydrate on the same persistence directory.
+     */
+    private val hydrateMutex = Mutex()
+
+    /**
      * Hydrate the Ditto instance for this session's [databaseId]. Idempotent in the sense that
      * a hydration failure leaves [hydrateError] set; callers may choose to surface it. Starts
      * system + collections observers and pre-registers persisted subscriptions.
+     *
+     * Concurrency: if a hydrate is already in flight, the second call waits for it to
+     * finish and then returns WITHOUT re-running — the in-flight run already covers it.
      */
     fun hydrate() {
         sessionScope.launch {
-            hydrateError = null
-            runCatching {
-                // If a previous session for this databaseId is still closing Ditto on the
-                // teardown scope, wait for it to finish before opening the same persistence
-                // directory. Opening while the old instance still holds the file lock will
-                // fail; this guarantees reopen-after-close safety even with rapid re-entry.
-                DittoTeardownRegistry.awaitCloseFor(databaseId)
+            if (!hydrateMutex.tryLock()) {
+                // Another hydrate is in flight — join it rather than racing a second
+                // DittoManager.hydrate on the same persistence directory.
+                hydrateMutex.lock()
+                hydrateMutex.unlock()
+                return@launch
+            }
+            try {
+                _hydrateError.value = null
+                runCatching {
+                    // If a previous session for this databaseId is still closing Ditto on the
+                    // teardown scope, wait for it to finish before opening the same persistence
+                    // directory. Opening while the old instance still holds the file lock will
+                    // fail; this guarantees reopen-after-close safety even with rapid re-entry.
+                    DittoTeardownRegistry.awaitCloseFor(databaseId)
 
-                val database = databaseRepository.getById(databaseId)
-                    ?: error("Database not found: $databaseId")
-                currentDatabase = database
-                currentDittoId = database.databaseId
+                    val database = databaseRepository.getById(databaseId)
+                        ?: error("Database not found: $databaseId")
+                    currentDatabase = database
+                    _currentDittoId.value = database.databaseId
 
-                // Derive picker modes from credentials (mirrors SwiftUI QueryViewModel lines
-                // 86–98). HTTP only appears when both URL and key are non-blank. If the user's
-                // prior pick is no longer valid (e.g. credentials dropped mid-session), reset
-                // back to "Local" so the picker can't render a stale selection.
-                val modes = if (database.httpApiUrl.isBlank() || database.httpApiKey.isBlank()) {
-                    listOf("Local")
-                } else {
-                    listOf("Local", "HTTP")
-                }
-                uiState.queryWorkbench.executeModes.value = modes
-                if (uiState.queryWorkbench.executeMode.value !in modes) {
-                    uiState.queryWorkbench.executeMode.value = "Local"
-                }
-
-                _transportBluetoothEnabled.value = database.isBluetoothLeEnabled
-                _transportLanEnabled.value = database.isLanEnabled
-                _transportWifiAwareEnabled.value = database.isAwdlEnabled
-                _transportCloudSyncEnabled.value = database.isCloudSyncEnabled
-
-                val ditto = dittoManager.hydrate(database)
-                systemRepository.startObserving(ditto)
-                collectionsRepository.startObserving(ditto)
-                _syncEnabled.value = true
-                val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
-
-                saved.forEach { sub ->
-                    runCatching {
-                        val handle = ditto.sync.registerSubscription(sub.query)
-                        activeHandles[sub.id] = handle
+                    // Derive picker modes from credentials (mirrors SwiftUI QueryViewModel lines
+                    // 86–98). HTTP only appears when both URL and key are non-blank. If the user's
+                    // prior pick is no longer valid (e.g. credentials dropped mid-session), reset
+                    // back to "Local" so the picker can't render a stale selection.
+                    val modes = if (database.httpApiUrl.isBlank() || database.httpApiKey.isBlank()) {
+                        listOf("Local")
+                    } else {
+                        listOf("Local", "HTTP")
                     }
+                    uiState.queryWorkbench.executeModes.value = modes
+                    if (uiState.queryWorkbench.executeMode.value !in modes) {
+                        uiState.queryWorkbench.executeMode.value = "Local"
+                    }
+
+                    _transportBluetoothEnabled.value = database.isBluetoothLeEnabled
+                    _transportLanEnabled.value = database.isLanEnabled
+                    _transportWifiAwareEnabled.value = database.isAwdlEnabled
+                    _transportCloudSyncEnabled.value = database.isCloudSyncEnabled
+
+                    val ditto = dittoManager.hydrate(database)
+                    systemRepository.startObserving(ditto)
+                    collectionsRepository.startObserving(ditto)
+                    _syncEnabled.value = true
+                    val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
+
+                    saved.forEach { sub ->
+                        runCatching {
+                            val handle = ditto.sync.registerSubscription(sub.query)
+                            activeHandles[sub.id] = handle
+                        }
+                    }
+                    _subscriptions.value = saved
+                    val savedObservers = observableRepository.loadObservables(database.databaseId)
+                    _observers.value = savedObservers
+                }.onFailure { e ->
+                    _hydrateError.value = e.message
                 }
-                _subscriptions.value = saved
-                val savedObservers = observableRepository.loadObservables(database.databaseId)
-                _observers.value = savedObservers
-            }.onFailure { e ->
-                hydrateError = e.message
+            } finally {
+                hydrateMutex.unlock()
             }
         }
     }
@@ -266,8 +298,11 @@ class StudioSession(
                 _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
                 Unit
             }.onFailure { e ->
-                Log.e(TAG, "addSubscriptionSuspend failed: ${e.message}", e)
-                hydrateError = e.message
+                // Gated: the SDK error can embed the user's subscription DQL.
+                if (BuildConfig.DEBUG) {
+                    Log.e(TAG, "addSubscriptionSuspend failed: ${e.message}", e)
+                }
+                _hydrateError.value = e.message
             }
         }
     }
@@ -285,7 +320,7 @@ class StudioSession(
                 activeHandles[subscription.id] = handle
                 _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
                 Unit
-            }.onFailure { e -> hydrateError = e.message }
+            }.onFailure { e -> _hydrateError.value = e.message }
         }
     }
 
@@ -313,7 +348,7 @@ class StudioSession(
                     observableRepository.saveObservable(obs)
                 }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
+            }.onFailure { e -> _hydrateError.value = e.message }
         }
     }
 
@@ -328,7 +363,7 @@ class StudioSession(
                     observableRepository.updateObservable(updated)
                 }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
-            }.onFailure { e -> hydrateError = e.message }
+            }.onFailure { e -> _hydrateError.value = e.message }
         }
     }
 
@@ -395,15 +430,26 @@ class StudioSession(
         return _observerEvents.value.filter { it.observeId == obsId }
     }
 
-    fun addIndex(collection: String, fieldName: String) {
-        sessionScope.launch {
-            runCatching {
-                collectionsRepository.createIndex(collection, fieldName)
-            }.onFailure { e ->
-                hydrateError = e.message
+    /**
+     * Creates an index and returns the result so callers (e.g. the Add Index sheet)
+     * can surface failures inline. Runs on the session scope's IO dispatcher.
+     *
+     * [CancellationException] is rethrown rather than wrapped in the [Result]: a
+     * cancelled call (caller left composition, or this session's scope was cancelled
+     * by [close]) is not a "failed to create index" outcome, and wrapping it would
+     * both misreport it and break structured cancellation.
+     */
+    suspend fun addIndex(collection: String, fields: List<IndexField>): Result<Unit> =
+        withContext(sessionScope.coroutineContext) {
+            try {
+                collectionsRepository.createIndex(collection, fields)
+                Result.success(Unit)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                Result.failure(e)
             }
         }
-    }
 
     fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
         val ditto = dittoManager.currentInstance() ?: return
@@ -436,7 +482,9 @@ class StudioSession(
                 dittoManager.startSync()
                 systemRepository.startObserving(ditto)
             }.onFailure { e ->
-                Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                if (BuildConfig.DEBUG) {
+                    Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                }
             }
             _transportBluetoothEnabled.value = bt
             _transportLanEnabled.value = lan
@@ -490,16 +538,20 @@ class StudioSession(
                 val closeJob = launch {
                     runCatching { dittoManager.close() }
                         .onFailure { e ->
-                            Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
+                            if (BuildConfig.DEBUG) {
+                                Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
+                            }
                         }
                 }
                 val completedInTime = withTimeoutOrNull(CLOSE_WARN_TIMEOUT_MS) { closeJob.join() }
                 if (completedInTime == null) {
-                    Log.w(
-                        TAG,
-                        "Ditto close exceeded ${CLOSE_WARN_TIMEOUT_MS}ms for databaseId=$databaseId; " +
-                            "continuing to wait without abandoning the close.",
-                    )
+                    if (BuildConfig.DEBUG) {
+                        Log.w(
+                            TAG,
+                            "Ditto close exceeded ${CLOSE_WARN_TIMEOUT_MS}ms for databaseId=$databaseId; " +
+                                "continuing to wait without abandoning the close.",
+                        )
+                    }
                     closeJob.join()
                 }
             }

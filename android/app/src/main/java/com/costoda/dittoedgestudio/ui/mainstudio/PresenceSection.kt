@@ -4,29 +4,42 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
+import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresenceGraphView
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
+import org.koin.compose.koinInject
 
 /**
  * Scene-driven section composables for the Presence (canonical: Subscriptions) section
@@ -41,12 +54,15 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
  *                               `detailPlaceholder` (≥840dp) and the section-entry content
  *                               below 840dp (Content Pane is the default view).
  *
- * Design rationale: the content pane (Connected Peers) is NOT driven by list-item selection
- * — it shows peer state for the entire mesh and is always relevant, so it is the default
- * view at every width. At ≥840dp both panes are visible side-by-side via
- * [ListDetailSceneStrategy.listPane] + `detailPlaceholder`. Below 840dp the user sees the
- * peers content immediately on entering Presence; the subscriptions list lives in the drawer
- * (Rail + Data Panel) and tapping an item closes the drawer.
+ * Design rationale: the content pane (Connected Peers / Presence Viewer) is NOT driven by
+ * list-item selection — it shows peer state for the entire mesh and is always relevant, so
+ * it is the default view at every width. The "Split Presence view" setting
+ * (`AppPreferences.presenceSplitView`, default OFF) controls whether the subscriptions list
+ * sits beside the peers view at ≥600dp via [ListDetailSceneStrategy.listPane] +
+ * `detailPlaceholder`. When OFF, the peers content gets the full width and the
+ * subscriptions list is reached via the modal Nav Drawer (drawer-mode widths) or the
+ * header's Subscriptions dialog (rail-mode widths). Below 600dp the user always sees the
+ * peers content immediately on entering Presence, with the list in the drawer.
  */
 
 // ── List-pane entry-point ─────────────────────────────────────────────────────
@@ -101,6 +117,16 @@ fun PresenceContentSection(
     val networkInterfaces by viewModel.networkInterfaces.collectAsStateWithLifecycle()
     val p2pTransports by viewModel.p2pTransports.collectAsStateWithLifecycle()
 
+    // "Split Presence view" setting (Settings screen). When OFF at rail-mode widths
+    // (≥840dp) there is no drawer to host the subscriptions list, so the header offers
+    // a Subscriptions dialog instead. Below 840dp (drawer mode) the drawer already hosts
+    // the list when split is off, so the button would be a redundant affordance.
+    val appPreferences = koinInject<AppPreferencesGateway>()
+    val presenceSplitView by appPreferences.presenceSplitView
+        .collectAsStateWithLifecycle(initialValue = false)
+    val showSubscriptionsButton = studioWindowSizeClass().studioMultiPane && !presenceSplitView
+    var subscriptionsDialogVisible by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Connected button group (view switcher) + transport-config gear
         Row(
@@ -118,6 +144,15 @@ fun PresenceContentSection(
                 onSelect = { selectedTabIndex = it },
             )
             Spacer(modifier = Modifier.weight(1f))
+            if (showSubscriptionsButton) {
+                IconButton(onClick = { subscriptionsDialogVisible = true }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ViewList,
+                        contentDescription = "Subscriptions",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
             IconButton(onClick = { viewModel.transportConfigVisible = true }) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
@@ -148,6 +183,29 @@ fun PresenceContentSection(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
+        }
+    }
+
+    // Subscriptions dialog — shown when the split view is off at ≥600dp. A Dialog (not a
+    // ModalBottomSheet) so the SubscriptionEditorSheet bottom sheet can stack on top of it;
+    // the dialog dismisses as soon as add/edit is triggered, leaving only the editor sheet.
+    if (subscriptionsDialogVisible) {
+        Dialog(
+            onDismissRequest = { subscriptionsDialogVisible = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .width(400.dp)
+                    .fillMaxHeight(0.85f),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 8.dp,
+            ) {
+                SubscriptionsListPane(
+                    viewModel = viewModel,
+                    onAfterAddOrEditTriggered = { subscriptionsDialogVisible = false },
+                )
             }
         }
     }

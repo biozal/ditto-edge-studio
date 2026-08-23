@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.repository
 
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.db.dao.SubscriptionDao
 import com.costoda.dittoedgestudio.data.db.entity.SubscriptionEntity
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
@@ -24,23 +25,31 @@ class SubscriptionsRepositoryImpl(private val dao: SubscriptionDao) : Subscripti
     override suspend fun saveSubscription(subscription: DittoSubscription): Long =
         withContext(Dispatchers.IO) {
             val newId = dao.insert(subscription.toEntity())
-            Log.d(TAG, "INSERT sub: in=${subscription.id} → out=$newId dbId='${subscription.databaseId}'")
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "INSERT sub: in=${subscription.id} → out=$newId dbId='${subscription.databaseId}'")
+            }
             newId
         }
 
     override suspend fun updateSubscription(subscription: DittoSubscription) =
         withContext(Dispatchers.IO) {
-            Log.d(TAG, "UPDATE sub id=${subscription.id}")
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "UPDATE sub id=${subscription.id}")
+            }
             dao.update(subscription.toEntity())
         }
 
     override suspend fun removeSubscription(id: Long) = withContext(Dispatchers.IO) {
-        Log.w(TAG, "DELETE sub id=$id")
+        if (BuildConfig.DEBUG) {
+            Log.w(TAG, "DELETE sub id=$id")
+        }
         dao.deleteById(id)
     }
 
     override suspend fun removeAllSubscriptions(databaseId: String) = withContext(Dispatchers.IO) {
-        Log.w(TAG, "DELETE ALL subs for dbId='$databaseId'")
+        if (BuildConfig.DEBUG) {
+            Log.w(TAG, "DELETE ALL subs for dbId='$databaseId'")
+        }
         dao.deleteByDatabaseId(databaseId)
     }
 }

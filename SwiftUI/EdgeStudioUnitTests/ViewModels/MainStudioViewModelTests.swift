@@ -60,6 +60,7 @@ struct MainStudioViewModelTests {
     func `addQueryToHistory routes through the injected HistoryRepository`() async {
         // ARRANGE
         let config = DittoConfigForDatabase.new()
+        config.databaseId = "db-action-time"
         let mocks = MockSet()
         let appState = AppState()
         let viewModel = MainStudioView.ViewModel(
@@ -83,5 +84,9 @@ struct MainStudioViewModelTests {
         let savedQueries = await mocks.historyRepository.savedQueries
         #expect(savedQueries.count == 1)
         #expect(savedQueries.first?.query == "SELECT * FROM cars")
+        // The action-time database id is forwarded so the repository can
+        // refuse the write if the session switched databases mid-flight.
+        let savedIds = await mocks.historyRepository.savedDatabaseIds
+        #expect(savedIds == ["db-action-time"])
     }
 }

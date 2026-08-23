@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,6 +89,8 @@ private fun SwipeToDismissFavoriteItem(
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
     var showContextMenu by remember { mutableStateOf(false) }
+    // locales[0] is nullable for a pathological empty locale list — fall back to ROOT.
+    val locale = LocalConfiguration.current.locales[0] ?: Locale.ROOT
 
     LaunchedEffect(dismissState.currentValue) {
         if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
@@ -138,7 +141,7 @@ private fun SwipeToDismissFavoriteItem(
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(item.createdDate)),
+                        text = SimpleDateFormat("MMM d, HH:mm", locale).format(Date(item.createdDate)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

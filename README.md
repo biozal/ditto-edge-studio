@@ -36,6 +36,16 @@ Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it wi
 
 ## Getting Started from Source
 
+```bash
+git clone <this-repo>
+cd ditto-edge-studio/SwiftUI
+open "Edge Debug Helper.xcodeproj"
+```
+
+Select the **Edge Studio** scheme and build/run for macOS or iPadOS. The Ditto SDK is
+fetched via Swift Package Manager, so the first build may take a few minutes. See
+[docs/TESTING.md](docs/TESTING.md) for how to run the test suites.
+
 ## Development Tools
 
 Edge Studio uses industry-standard code quality tools to maintain code health and detect unused code. These tools help catch issues early and keep the codebase clean.
@@ -197,24 +207,17 @@ xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 
 ### Current Status
 
-- **Overall Coverage**: 15.96% (target: 50%)
-- **SQLCipherService**: 62.19% coverage ✅
-- **Total Tests**: 15+ unit tests, growing weekly
+Coverage measured 2026-08-21; test count measured 2026-08-23
+(see [docs/TESTING.md](docs/TESTING.md) for details):
+
+- **Overall App-Target Coverage**: 15.51% (target: 50%)
+- **SQLCipherService**: 93.13% coverage ✅
+- **Total Tests**: 761 Swift Testing tests (604 unit + 157 integration), plus 15 UI tests
 
 ### Coverage Enforcement
 
-Pre-push hook automatically enforces 50% minimum coverage:
-
-```bash
-# Enable pre-push hook
-chmod +x .git/hooks/pre-push
-
-# Now runs automatically before every push
-git push origin main
-
-# Bypass once (emergency only)
-git push --no-verify
-```
+There is no automated coverage gate (no pre-push hook). Coverage is measured manually
+via the scripts in `scripts/` and enforced during code review.
 
 ### Complete Documentation
 
@@ -299,10 +302,12 @@ Once connected and with a database selected in Edge Studio:
 | `drop_index` | Remove an index by name |
 | `get_query_metrics` | Recent query timing and EXPLAIN output (requires Metrics enabled in Settings) |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth, LAN, or AWDL transports |
 | `insert_documents_from_file` | Insert a local JSON file (array of objects with `_id`) into a collection; file must be in `~/Downloads` |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Snapshot of all connected peers with device, OS, SDK version, and transport details |
+| `get_app_logs` | Recent Edge Studio application log entries |
+| `get_ditto_logs` | Recent Ditto SDK log entries |
 
 > **Note:** All tools operate on the database currently selected in the Edge Studio UI. The MCP server stops automatically when Edge Studio quits.
 

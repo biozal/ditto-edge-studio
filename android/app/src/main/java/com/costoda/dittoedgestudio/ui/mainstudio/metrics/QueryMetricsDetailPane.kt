@@ -25,28 +25,41 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
+import kotlinx.coroutines.CancellationException
 
 /**
  * Content Pane (detail pane) for the Query Metrics scene-driven section (Task 4.3d).
  *
- * Fetches the [QueryMetrics] for [historyId] from [metricsRepository] and renders
- * the DQL statement, execution stats, and EXPLAIN output — the same content as the
- * `QueryMetricsDetail` private composable in the legacy self-contained QueryMetricsScreen.
+ * Fetches the [QueryMetrics] row with primary key [metricsId] from [metricsRepository]
+ * and renders the DQL statement, execution stats, and EXPLAIN output — the same content
+ * as the `QueryMetricsDetail` private composable in the legacy self-contained
+ * QueryMetricsScreen.
+ *
+ * Keyed on the metrics row's OWN primary key, not historyId: history dedups re-runs of
+ * the same query onto one history row, so a historyId-keyed `LIMIT 1` lookup could show
+ * an arbitrary older capture.
  *
  * Handles the metric-gone-after-clear-all case: if the metric is not found (null) after
  * loading it shows an empty-state message identical to the no-selection placeholder.
  */
 @Composable
 fun QueryMetricsDetailPane(
-    historyId: Long,
+    metricsId: Long,
     metricsRepository: QueryMetricsRepository,
     modifier: Modifier = Modifier,
 ) {
-    var record by remember(historyId) { mutableStateOf<QueryMetrics?>(null) }
-    var loaded by remember(historyId) { mutableStateOf(false) }
+    var record by remember(metricsId) { mutableStateOf<QueryMetrics?>(null) }
+    var loaded by remember(metricsId) { mutableStateOf(false) }
 
-    LaunchedEffect(historyId) {
-        runCatching { record = metricsRepository.getByHistoryId(historyId) }
+    LaunchedEffect(metricsId) {
+        record = try {
+            metricsRepository.getById(metricsId)
+        } catch (c: CancellationException) {
+            // Never swallow cancellation (runCatching would).
+            throw c
+        } catch (e: Exception) {
+            null
+        }
         loaded = true
     }
 
@@ -100,22 +113,31 @@ fun QueryMetricsDetailPane(
                     label = "Index",
                     value = if (metric.indexesUsed.isNotEmpty()) "✓ Yes" else "✗ No",
                     valueColor = if (metric.indexesUsed.isNotEmpty()) Color(0xFF4CAF50)
-                    else MaterialTheme.colorScheme.onSurface,
+                    else Color(0xFFFF9800),
                 )
+                QueryStatBadge(label = "At", value = formatQueryTimestamp(metric.capturedAt))
             }
         }
-        if (!metric.explainPlan.isNullOrBlank()) {
-            item {
-                Text(
-                    text = "EXPLAIN Output",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+        item {
+            Text(
+                text = "EXPLAIN Output",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (metric.explainPlan.isNullOrBlank()) {
+                    Text(
+                        text = "(no output)",
+                        modifier = Modifier.padding(8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
                     Text(
                         text = metric.explainPlan,
                         modifier = Modifier.padding(8.dp),

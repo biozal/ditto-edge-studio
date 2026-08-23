@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.costoda.dittoedgestudio.BuildConfig
 import androidx.lifecycle.viewModelScope
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.repository.DatabaseMetricsRepository
@@ -59,7 +60,9 @@ class DiskUsageViewModel(
                 // Preserve structured concurrency — never swallow a cancellation.
                 throw c
             } catch (t: Throwable) {
-                Log.w(TAG, "Database metrics snapshot failed", t)
+                if (BuildConfig.DEBUG) {
+                    Log.w(TAG, "Database metrics snapshot failed", t)
+                }
             } finally {
                 _isLoading.value = false
             }

@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
@@ -9,12 +10,14 @@ import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.data.repository.HistoryRepository
 import com.costoda.dittoedgestudio.data.repository.QueryExecutionService
 import com.costoda.dittoedgestudio.data.repository.QueryMetricsRepository
+import com.costoda.dittoedgestudio.data.repository.toSortedPrettyJson
 import com.costoda.dittoedgestudio.data.session.QueryWorkbenchState
 import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
 import com.costoda.dittoedgestudio.domain.model.DittoQueryHistory
 import com.costoda.dittoedgestudio.domain.model.QueryMetrics
 import com.costoda.dittoedgestudio.domain.model.QueryProfile
 import com.costoda.dittoedgestudio.domain.model.QueryResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -121,6 +124,8 @@ class QueryEditorViewModel(
                 val file = attachmentService.fetchToCache(info)
                 _cachedAttachments.update { it + (info.id to file) }
             }.onFailure { e ->
+                // Never surface cancellation as a phantom "… Job was cancelled" banner.
+                if (e is CancellationException) throw e
                 workbench.executionError.value = "Attachment fetch failed: ${e.message}"
             }
         }
@@ -186,6 +191,8 @@ class QueryEditorViewModel(
                 // we leave this as a known follow-up — the document row must be re-queried to
                 // reflect cleared fields.
             }.onFailure { e ->
+                // Never surface cancellation as a phantom "… Job was cancelled" banner.
+                if (e is CancellationException) throw e
                 workbench.executionError.value = "Delete attachment failed: ${e.message}"
             }
         }
@@ -238,6 +245,9 @@ class QueryEditorViewModel(
                     tempFile.delete()
                 }
             }.onFailure { e ->
+                // Never surface cancellation as a phantom "… Job was cancelled" banner.
+                // The temp-file cleanup above lives in a finally, so it still runs.
+                if (e is CancellationException) throw e
                 workbench.executionError.value = "Add attachment failed: ${e.message}"
             }
         }
@@ -269,32 +279,80 @@ class QueryEditorViewModel(
             workbench.isExecuting.value = true
             workbench.executionError.value = null
             try {
-                runCatching {
-                    val result = queryExecutionService.execute(effectiveQuery, mode = mode)
-                    workbench.queryResult.value = result
-                    workbench.queryProfile.value = result.profile
-                    workbench.currentPage.value = 0
+                val result = try {
+                    queryExecutionService.execute(effectiveQuery, mode = mode)
+                } catch (c: CancellationException) {
+                    // Never swallow cancellation — the scope is being torn down
+                    // (e.g. rail switch); the finally block still resets isExecuting.
+                    throw c
+                } catch (e: Exception) {
+                    workbench.executionError.value = e.message ?: "Unknown error"
+                    return@launch
+                }
+                workbench.queryResult.value = result
+                workbench.queryProfile.value = result.profile
+                workbench.currentPage.value = 0
+                // Post-execution bookkeeping (history write, metrics capture, aggregate
+                // counters) is isolated from the execution result: a Room/DataStore
+                // failure here must NOT escape this coroutine uncaught (→ crash AFTER a
+                // successful query) or flip the success into an error banner. At most we
+                // log; the result assigned above stands.
+                try {
                     // Save to history and record metrics using the ORIGINAL query text so
                     // history doesn't fill up with "PROFILE …" entries.
                     val historyId = historyRepository.addToHistory(databaseId, rawQuery)
                     workbench.lastHistoryId = historyId
-                    val metrics = QueryMetrics(
-                        historyId = historyId,
-                        executionTimeMs = result.executionTimeMs,
-                        docsExamined = result.totalCount,
-                        docsReturned = result.totalCount,
-                        indexesUsed = emptyList(),
-                        bytesRead = 0L,
-                        explainPlan = result.explainPlan,
-                        capturedAt = System.currentTimeMillis(),
-                        queryText = rawQuery,
-                    )
-                    metricsRepository.save(metrics)
-                    workbench.queryMetrics.value = metrics
-                    appMetricsRepository.incrementQueryCount()
-                    appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
-                }.onFailure { e ->
-                    workbench.executionError.value = e.message ?: "Unknown error"
+                    // Per-query metrics capture requires BOTH the app-wide "Collect
+                    // Metrics" preference (captureProfile) AND the toolbar's session-scoped
+                    // "Capture query metrics" toggle — mirrors SwiftUI's QueryService gating.
+                    // Local mode only: SwiftUI captures NO metrics for HTTP queries — the
+                    // timing comes from the remote HTTP API, and a plan from the local store
+                    // would describe a different execution.
+                    if (captureProfile && workbench.captureQueryMetrics.value && mode == "Local") {
+                        // Run EXPLAIN against the ORIGINAL query text (no PROFILE prefix) —
+                        // mirrors SwiftUI's QueryService, which captures explain output
+                        // separately from execution.
+                        val explainOutput = queryExecutionService.explainPlan(rawQuery)
+                        val metrics = QueryMetrics(
+                            historyId = historyId,
+                            databaseId = databaseId,
+                            executionTimeMs = result.executionTimeMs,
+                            docsExamined = result.totalCount,
+                            docsReturned = result.totalCount,
+                            indexesUsed = QueryMetrics.indexesUsedFromExplain(explainOutput),
+                            bytesRead = 0L,
+                            explainPlan = explainOutput,
+                            capturedAt = System.currentTimeMillis(),
+                            queryText = rawQuery,
+                        )
+                        // Isolated from the execution result: a Room failure here must not
+                        // flip a SUCCESSFUL query into a user-facing error banner. The
+                        // capture still shows in the inspector; only persistence is lost.
+                        try {
+                            metricsRepository.save(metrics)
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Metrics save failed: ${e.message}")
+                        }
+                        workbench.queryMetrics.value = metrics
+                    } else {
+                        // No fresh capture (toggle off, preference off, or HTTP mode) — clear
+                        // any previous record so the inspector's Metrics tab never shows a
+                        // stale capture next to the new results.
+                        workbench.queryMetrics.value = null
+                    }
+                    // Aggregate counters are also gated on "Collect Metrics" (SwiftUI parity).
+                    if (captureProfile) {
+                        appMetricsRepository.incrementQueryCount()
+                        appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
+                    }
+                } catch (c: CancellationException) {
+                    // Never swallow cancellation — the scope is being torn down
+                    // (e.g. rail switch); the finally block still resets isExecuting.
+                    throw c
+                } catch (e: Exception) {
+                    Log.w(TAG, "Post-execution bookkeeping failed: ${e.message}")
                 }
             } finally {
                 workbench.isExecuting.value = false
@@ -304,40 +362,84 @@ class QueryEditorViewModel(
 
     private fun isSelectStatement(q: String): Boolean {
         val upper = q.trimStart().uppercase()
-        return upper.startsWith("SELECT ") || upper == "SELECT"
+        if (!upper.startsWith("SELECT")) return false
+        // SwiftUI QueryService.isSelectStatement parity: the keyword must be followed by
+        // ANY whitespace boundary (space, newline, tab, …) or be the entire statement —
+        // a literal space is not required ("SELECT\n* FROM c" is a SELECT).
+        val next = upper.getOrNull("SELECT".length) ?: return true
+        return next.isWhitespace()
     }
 
     fun explainQuery() {
         val query = workbench.queryText.value.trim()
         if (query.isBlank()) return
         viewModelScope.launch {
+            val metricsEnabled = appPreferences.metricsEnabled.first()
             workbench.isExecuting.value = true
             workbench.executionError.value = null
             try {
-                runCatching {
-                    val result = queryExecutionService.explain(query)
-                    workbench.queryResult.value = result
-                    workbench.currentPage.value = 0
+                val result = try {
+                    queryExecutionService.explain(query)
+                } catch (c: CancellationException) {
+                    // Never swallow cancellation — the finally block resets isExecuting.
+                    throw c
+                } catch (e: Exception) {
+                    workbench.executionError.value = e.message ?: "Unknown error"
+                    return@launch
+                }
+                workbench.queryResult.value = result
+                workbench.currentPage.value = 0
+                // Post-execution bookkeeping is isolated from the execution result —
+                // a Room/DataStore failure here must not escape uncaught (→ crash after
+                // a successful EXPLAIN) or surface as an error banner (see executeQuery).
+                try {
                     val historyId = historyRepository.addToHistory(databaseId, "EXPLAIN $query")
                     workbench.lastHistoryId = historyId
-                    val metrics = QueryMetrics(
-                        historyId = historyId,
-                        executionTimeMs = result.executionTimeMs,
-                        docsExamined = result.totalCount,
-                        docsReturned = result.totalCount,
-                        indexesUsed = emptyList(),
-                        bytesRead = 0L,
-                        explainPlan = result.explainPlan,
-                        capturedAt = System.currentTimeMillis(),
-                        queryText = query,
-                    )
-                    metricsRepository.save(metrics)
-                    workbench.queryMetrics.value = metrics
-                    appMetricsRepository.incrementQueryCount()
-                    appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
-                    workbench.selectedInspectorTab.value = QueryInspectorTab.METRICS
-                }.onFailure { e ->
-                    workbench.executionError.value = e.message ?: "Unknown error"
+                    if (metricsEnabled && workbench.captureQueryMetrics.value) {
+                        // The explain result is already in hand — serialize its first row
+                        // rather than running EXPLAIN a second time.
+                        val explainOutput = result.documents.firstOrNull()
+                            ?.let { toSortedPrettyJson(it) }
+                            ?: "No explain output"
+                        val metrics = QueryMetrics(
+                            historyId = historyId,
+                            databaseId = databaseId,
+                            executionTimeMs = result.executionTimeMs,
+                            docsExamined = result.totalCount,
+                            docsReturned = result.totalCount,
+                            indexesUsed = QueryMetrics.indexesUsedFromExplain(explainOutput),
+                            bytesRead = 0L,
+                            explainPlan = explainOutput,
+                            capturedAt = System.currentTimeMillis(),
+                            queryText = query,
+                        )
+                        // Isolated from the execution result: a Room failure must not turn
+                        // a successful EXPLAIN into an error banner (see executeQuery).
+                        try {
+                            metricsRepository.save(metrics)
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Metrics save failed: ${e.message}")
+                        }
+                        workbench.queryMetrics.value = metrics
+                        // Only auto-open the Metrics inspector tab when fresh metrics
+                        // were actually captured — otherwise it would show a stale record.
+                        workbench.selectedInspectorTab.value = QueryInspectorTab.METRICS
+                    } else {
+                        // Capture skipped — clear any previous record so the inspector's
+                        // Metrics tab never shows a stale capture next to new results.
+                        workbench.queryMetrics.value = null
+                    }
+                    if (metricsEnabled) {
+                        appMetricsRepository.incrementQueryCount()
+                        appMetricsRepository.recordQueryLatency(result.executionTimeMs.toDouble())
+                    }
+                } catch (c: CancellationException) {
+                    // Never swallow cancellation — the finally block resets isExecuting.
+                    throw c
+                } catch (e: Exception) {
+                    Log.w(TAG, "Post-execution bookkeeping failed: ${e.message}")
                 }
             } finally {
                 workbench.isExecuting.value = false
@@ -349,6 +451,7 @@ class QueryEditorViewModel(
         workbench.queryResult.value = null
         workbench.executionError.value = null
         workbench.selectedDocument.value = null
+        workbench.queryMetrics.value = null
         workbench.currentPage.value = 0
     }
 
@@ -415,9 +518,20 @@ class QueryEditorViewModel(
     fun setCaptureProfilingData(enabled: Boolean) {
         viewModelScope.launch { appPreferences.setMetricsEnabled(enabled) }
     }
-    fun setCaptureQueryMetrics(enabled: Boolean) { workbench.captureQueryMetrics.value = enabled }
+    fun setCaptureQueryMetrics(enabled: Boolean) {
+        workbench.captureQueryMetrics.value = enabled
+        if (!enabled) {
+            // Toggling capture off must also drop the inspector's current capture —
+            // otherwise the last record keeps showing until the next run.
+            workbench.queryMetrics.value = null
+        }
+    }
 
     private fun checkFavorited(query: String) {
         workbench.isFavorited.value = favorites.value.any { it.query == query }
+    }
+
+    private companion object {
+        const val TAG = "QueryEditorViewModel"
     }
 }

@@ -21,6 +21,13 @@ final class SubscriptionObserverViewModel {
     @ObservationIgnored
     private let observableRepository: any ObservableRepositoryProtocol
 
+    /// Database this VM was constructed for. Captured at init (i.e. at
+    /// session start) so subscription saves that complete after the user
+    /// switched databases carry the ORIGINAL database id — the repository
+    /// refuses the write when it no longer matches the active session.
+    @ObservationIgnored
+    private let databaseId: String
+
     // MARK: - State
 
     var subscriptions: [DittoSubscription] = []
@@ -60,10 +67,12 @@ final class SubscriptionObserverViewModel {
     // MARK: - Init
 
     init(
+        databaseId: String,
         dittoManager: any DittoManagerProtocol = DittoManager.shared,
         subscriptionsRepository: any SubscriptionsRepositoryProtocol = SubscriptionsRepository.shared,
         observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared
     ) {
+        self.databaseId = databaseId
         self.dittoManager = dittoManager
         self.subscriptionsRepository = subscriptionsRepository
         self.observableRepository = observableRepository
@@ -191,9 +200,13 @@ final class SubscriptionObserverViewModel {
         // Clear the editor synchronously so a fast re-open can't observe stale
         // data while the async save is still in flight.
         editorSubscription = nil
-        Task { [subscriptionsRepository] in
+        Task { [subscriptionsRepository, databaseId] in
             do {
-                try await subscriptionsRepository.saveDittoSubscription(subscription)
+                try await subscriptionsRepository.saveDittoSubscription(subscription, databaseId: databaseId)
+            } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                // Expected race on database switch — the repository correctly
+                // refused the stale write. Log, don't alert the NEW session.
+                Log.info("Subscription save skipped: \(error.message)")
             } catch {
                 appState.setError(error)
             }
@@ -206,9 +219,12 @@ final class SubscriptionObserverViewModel {
         observer.query = query
         // Clear the editor synchronously (see formSaveSubscription).
         editorObservable = nil
-        Task { [observableRepository] in
+        Task { [observableRepository, databaseId] in
             do {
-                try await observableRepository.saveDittoObservable(observer)
+                try await observableRepository.saveDittoObservable(observer, databaseId: databaseId)
+            } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                // Expected race on database switch — log, don't alert.
+                Log.info("Observer save skipped: \(error.message)")
             } catch {
                 appState.setError(error)
             }
@@ -232,7 +248,10 @@ final class SubscriptionObserverViewModel {
             sub.name = item.name
             sub.query = item.query
             do {
-                try await subscriptionsRepository.saveDittoSubscription(sub)
+                try await subscriptionsRepository.saveDittoSubscription(sub, databaseId: databaseId)
+            } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                // Expected race on database switch — log, don't alert.
+                Log.info("Subscription import skipped: \(error.message)")
             } catch {
                 appState.setError(error)
             }
@@ -274,16 +293,34 @@ final class SubscriptionObserverViewModel {
 
     // MARK: - Store Observer Registration
 
+    /// Serial background queue the Ditto SDK delivers store-observer callbacks
+    /// on. `registerObserver` defaults `deliverOn:` to `.main` (verified in the
+    /// SDK 5.1 swiftinterface); the per-emission JSON serialization and
+    /// `DittoDiffer` diff are too heavy for the main thread, so delivery is
+    /// redirected here and only the coalesced state update hops to MainActor.
+    private static let storeObserverDeliveryQueue = DispatchQueue(
+        label: "io.ditto.EdgeStudio.storeObserverDelivery",
+        qos: .utility
+    )
+
     /// Registers a Ditto store observer for the given observable. Events are
     /// enqueued onto `pendingObservedEvents` and flushed every 100ms onto
     /// `eventStore` so SwiftUI sees coalesced updates rather than per-event
     /// invalidations.
     func registerStoreObserver(_ observable: DittoObservable) async throws {
-        guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
+        guard observerables.contains(where: { $0.id == observable.id }) else {
             throw InvalidStoreState(message: "Could not find observable")
         }
         guard let ditto = await dittoManager.dittoSelectedApp else {
             throw InvalidStateError(message: "Could not get ditto reference from manager")
+        }
+        // Re-lookup AFTER the await: `reset()` / `deleteObservable` can mutate
+        // `observerables` while this call was suspended, so an index captured
+        // before the await may be out of range or point at the wrong row.
+        // `registerObserver` below is synchronous, so this index stays valid
+        // through the assignment at the end of the function.
+        guard let index = observerables.firstIndex(where: { $0.id == observable.id }) else {
+            throw InvalidStoreState(message: "Observable was removed while registering")
         }
         if observerables[index].storeObserver != nil {
             throw InvalidStoreState(message: "Observer already registered")
@@ -295,13 +332,15 @@ final class SubscriptionObserverViewModel {
         // used for calculating the diffs
         let dittoDiffer = DittoDiffer()
 
-        // Deserialize arguments from JSON string. The observer callback runs
-        // on an SDK-determined thread (non-MainActor). Build the event from
-        // the results synchronously, then hop to the MainActor to mutate
-        // @Observable view-model state.
+        // The observer callback is delivered on `Self.storeObserverDeliveryQueue`
+        // (a dedicated serial background queue) via `deliverOn:` — NOT on the
+        // main thread, which is the SDK default. Build the event from the
+        // results synchronously on that queue, then hop to the MainActor to
+        // mutate @Observable view-model state.
         let observableId = observable.id
         let observer = try ditto.store.registerObserver(
-            query: observable.query
+            query: observable.query,
+            deliverOn: Self.storeObserverDeliveryQueue
         ) { [weak self] results in
             // Defensive guard: only proceed if the view model is still alive.
             // The callback can fire on a later emission after the observer

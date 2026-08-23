@@ -50,7 +50,11 @@ protocol SubscriptionsRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
     func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) async
     func loadSubscriptions(for databaseId: String) async throws -> [DittoSubscription]
-    func saveDittoSubscription(_ subscription: DittoSubscription) async throws
+    /// `databaseId` MUST be captured by the caller at user-action time. The
+    /// repository refuses the write when it no longer matches the active
+    /// session, so a save that completes after a database switch can't land
+    /// on the newly selected database.
+    func saveDittoSubscription(_ subscription: DittoSubscription, databaseId: String) async throws
     func removeDittoSubscription(_ subscription: DittoSubscription) async throws
     func clearCache() async
     func getCachedSubscriptions() async -> [DittoSubscription]
@@ -77,7 +81,11 @@ protocol HistoryRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
     func setOnHistoryUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) async
     func loadHistory(for databaseId: String) async throws -> [DittoQueryHistory]
-    func saveQueryHistory(_ history: DittoQueryHistory) async throws
+    /// `databaseId` MUST be captured by the caller at user-action time. The
+    /// repository refuses the write when it no longer matches the active
+    /// session, so a slow query that completes after a database switch can't
+    /// land in the newly selected database's history.
+    func saveQueryHistory(_ history: DittoQueryHistory, databaseId: String) async throws
     func clearCache() async
 }
 
@@ -87,7 +95,11 @@ protocol FavoritesRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
     func setOnFavoritesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) async
     func loadFavorites(for databaseId: String) async throws -> [DittoQueryHistory]
-    func saveFavorite(_ favorite: DittoQueryHistory) async throws
+    /// `databaseId` MUST be captured by the caller at user-action time. The
+    /// repository refuses the write when it no longer matches the active
+    /// session, so a save that completes after a database switch can't land
+    /// in the newly selected database's favorites.
+    func saveFavorite(_ favorite: DittoQueryHistory, databaseId: String) async throws
     func clearCache() async
 }
 
@@ -97,7 +109,11 @@ protocol ObservableRepositoryProtocol: Sendable {
     func setAppState(_ appState: AppState) async
     func setOnObservablesUpdate(_ callback: @escaping @MainActor @Sendable ([DittoObservable]) -> Void) async
     func loadObservers(for databaseId: String) async throws -> [DittoObservable]
-    func saveDittoObservable(_ observable: DittoObservable) async throws
+    /// `databaseId` MUST be captured by the caller at user-action time. The
+    /// repository refuses the write when it no longer matches the active
+    /// session, so a save that completes after a database switch can't land
+    /// in the newly selected database's observables.
+    func saveDittoObservable(_ observable: DittoObservable, databaseId: String) async throws
     func removeDittoObservable(_ observable: DittoObservable) async throws
     func clearCache() async
 }

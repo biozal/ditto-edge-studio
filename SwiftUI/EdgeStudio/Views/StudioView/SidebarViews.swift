@@ -233,7 +233,9 @@ extension MainStudioView {
                             HStack(spacing: 6) {
                                 Image(systemName: "capsule.fill")
                                     .foregroundStyle(.tertiary)
-                                Text(field.strippingBackticks)
+                                // Show sort direction for composite indexes
+                                // (e.g. "createdAt ↓"); ASC is the default.
+                                Text(field.strippingBackticks + (field.ascending ? "" : " ↓"))
                             }
                             .font(.caption2)
                             .foregroundStyle(.secondary)

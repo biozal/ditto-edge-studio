@@ -40,6 +40,12 @@ struct ContentView: View {
                     isClosingDatabase: $viewModel.isClosingDatabase,
                     dittoAppConfig: selectedApp
                 )
+                // Force a fresh view + @State storage (incl. the ViewModel in
+                // `@State(initialValue:)`) when the selected database changes.
+                // Without this, SwiftUI may reuse the previous session's state
+                // storage, and the new stale-write guards would then refuse
+                // every write from the reused ViewModel's captured databaseId.
+                .id(selectedApp._id)
                 .environment(appState)
                 #if os(macOS)
                     .frame(minWidth: 1400, minHeight: 820)
@@ -93,6 +99,30 @@ struct ContentView: View {
             } else if !viewModel.isClosingDatabase {
                 storedDatabaseId = nil
             }
+        }
+        // Destructive-delete gate: every delete trigger (context menu on both
+        // platforms, swipe action) only stages `appPendingDeletion` via
+        // `viewModel.deleteApp`; this dialog is the single path that actually
+        // deletes. `confirmationDialog` renders as a dialog on macOS and an
+        // action sheet on iOS, so one modifier covers both pickers.
+        .confirmationDialog(
+            "Delete \(viewModel.appPendingDeletion?.name ?? "Database")?",
+            isPresented: Binding(
+                get: { viewModel.appPendingDeletion != nil },
+                set: {
+                    if !$0 {
+                        viewModel.appPendingDeletion = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await viewModel.confirmPendingAppDeletion(appState: appState) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes the local database and all its Edge Studio data. This cannot be undone.")
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
@@ -639,7 +669,31 @@ extension ContentView {
             // Repository callback will be set up when loadApps is called
         }
 
+        /// Set when a delete has been triggered from any entry point (context
+        /// menu on macOS/iOS, swipe action). Drives the destructive-confirmation
+        /// dialog in `ContentView`; the actual deletion only runs from
+        /// `confirmPendingAppDeletion(appState:)`.
+        var appPendingDeletion: DittoConfigForDatabase?
+
+        /// Delete entry point for EVERY UI trigger. Does NOT delete directly:
+        /// deletion cascades through the SQLCipher config row (subscriptions,
+        /// history, favorites, observables) AND removes the on-disk Ditto
+        /// store, so the trigger only stages `appPendingDeletion`. The
+        /// confirmation dialog's destructive button calls
+        /// `confirmPendingAppDeletion(appState:)`.
+        ///
+        /// Keeps the historical name/signature so all existing call sites
+        /// (`ContentView`, `DatabaseListPanel`) route through
+        /// the confirmation gate unchanged.
         func deleteApp(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
+            appPendingDeletion = dittoApp
+        }
+
+        /// Performs the actual deletion after explicit user confirmation.
+        /// No-op when nothing is staged.
+        func confirmPendingAppDeletion(appState: AppState) async {
+            guard let dittoApp = appPendingDeletion else { return }
+            appPendingDeletion = nil
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
@@ -761,7 +815,13 @@ extension ContentView {
         }
 
         func showQRCode(_ config: DittoConfigForDatabase) async {
-            let favorites = await (try? favoritesRepository.loadFavorites(for: config.databaseId)) ?? []
+            // Non-stamping read via the concrete singleton: the QR may belong
+            // to a database that is NOT the active session (multi-window), and
+            // the protocol's loadFavorites stamps the shared favorites session
+            // (currentDatabaseId + cachedFavorites + UI notify) — breaking the
+            // active window's favorite saves (refused as stale) and pushing
+            // this list into its UI.
+            let favorites = await (try? FavoritesRepository.shared.favorites(for: config.databaseId)) ?? []
             qrCodeFavorites = favorites.map { FavoriteQueryItem(q: $0.query) }
             qrCodeConfig = config
             isShowingQRCode = true
@@ -775,7 +835,6 @@ extension ContentView {
             do {
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
-                    _ = try? await favoritesRepository.loadFavorites(for: config.databaseId)
                     for item in favorites {
                         let fav = DittoQueryHistory(
                             id: UUID().uuidString,
@@ -783,7 +842,13 @@ extension ContentView {
                             createdDate: Date.now.ISO8601Format()
                         )
                         do {
-                            try await favoritesRepository.saveFavorite(fav)
+                            // Non-stamping write via the concrete singleton
+                            // (see showQRCode): the imported database is not
+                            // the active session, so the guarded saveFavorite
+                            // would be refused as stale — and the stamping
+                            // loadFavorites that used to precede it hijacked
+                            // the active window's favorites session.
+                            try await FavoritesRepository.shared.importFavorite(fav, for: config.databaseId)
                         } catch {
                             Log.warning("Failed to save imported favorite: \(error.localizedDescription)")
                         }

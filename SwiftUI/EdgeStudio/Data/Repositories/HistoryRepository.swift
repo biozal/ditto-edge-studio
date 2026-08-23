@@ -66,19 +66,33 @@ actor HistoryRepository {
     }
 
     /// Saves a query to history (write-through to SQLCipher)
-    /// - Parameter history: Query history item to save
-    /// - Throws: Error if save fails
-    func saveQueryHistory(_ history: DittoQueryHistory) async throws {
-        guard let databaseId = currentDatabaseId else {
+    /// - Parameters:
+    ///   - history: Query history item to save
+    ///   - databaseId: Database the query was executed against, captured by the
+    ///     caller at user-action time. The write is refused when the session has
+    ///     since switched to a different database — otherwise a slow query on
+    ///     database A that completes after the user switched to database B would
+    ///     land in B's history and corrupt B's in-memory cache.
+    /// - Throws: Error if save fails, or `InvalidStateError` for a stale session
+    func saveQueryHistory(_ history: DittoQueryHistory, databaseId: String) async throws {
+        guard let currentDatabaseId else {
             throw InvalidStateError(message: "No database selected - call loadHistory() first")
+        }
+        guard currentDatabaseId == databaseId else {
+            throw InvalidStateError(
+                message: "Stale session - database switched from \(databaseId) before the save completed"
+            )
         }
 
         do {
             // Dedup against the in-memory cache (authoritative for the session) —
-            // avoids a full SQLCipher round-trip on every query execution.
-            if let match = cachedHistory.first(where: { $0.query == history.query }) {
-                try await sqlCipher.deleteHistory(id: match.id)
-                cachedHistory.removeAll { $0.id == match.id }
+            // avoids a full SQLCipher round-trip on every query execution. The
+            // cache removal is deferred until after the post-await re-guard
+            // below: while these awaits are suspended the session may switch,
+            // and the shared cache then belongs to the NEW database.
+            let existingMatch = cachedHistory.first(where: { $0.query == history.query })
+            if let existingMatch {
+                try await sqlCipher.deleteHistory(id: existingMatch.id)
             }
 
             // Insert with current timestamp
@@ -91,7 +105,21 @@ actor HistoryRepository {
             )
             try await sqlCipher.insertHistory(row)
 
+            // The awaits above suspended the actor: a concurrent
+            // `loadHistory(for:)` may have switched the session to a
+            // different database. The persisted row is correctly keyed by the
+            // explicit databaseId and may stay — but the shared cache and UI
+            // now belong to the NEW session, so refuse to touch them.
+            guard self.currentDatabaseId == databaseId else {
+                throw InvalidStateError(
+                    message: "Stale session - database switched from \(databaseId) before the save completed"
+                )
+            }
+
             // Maintain most-recent-first ordering in memory — no DB reload needed.
+            if let existingMatch {
+                cachedHistory.removeAll { $0.id == existingMatch.id }
+            }
             cachedHistory.insert(
                 DittoQueryHistory(id: history.id, query: history.query, createdDate: createdDate),
                 at: 0
@@ -101,6 +129,11 @@ actor HistoryRepository {
             await notifyHistoryUpdate()
 
             Log.debug("Saved query history: \(history.query.prefix(50))...")
+        } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+            // Expected race on database switch — the caller logs it. Don't
+            // alert the user in the NEW session for a correctly refused write.
+            Log.info("History save refused: \(error.message)")
+            throw error
         } catch {
             Log.error("Failed to save query history: \(error)")
             await appState?.setError(error)

@@ -192,6 +192,54 @@ class QrCodeDecoderTest {
     }
 
     @Test
+    fun `decode rejects payload that inflates past the size cap`() {
+        // Zip-bomb guard: highly compressible data that decompresses past the 1 MB
+        // cap must be rejected, not OOM the process.
+        val big = ByteArray(2 * 1024 * 1024) { 'a'.code.toByte() }
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(big)
+        deflater.finish()
+        val output = ByteArray(big.size + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects valid zlib of non-JSON garbage`() {
+        val garbage = "this is not a config payload".toByteArray(Charsets.UTF_8)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(garbage)
+        deflater.finish()
+        val output = ByteArray(garbage.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v2 payload with blank database name`() {
+        val raw = buildV2Payload(name = "   ", databaseId = "db-123")
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v2 payload with blank databaseId`() {
+        val raw = buildV2Payload(name = "Test DB", databaseId = "")
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v1 payload with blank databaseId`() {
+        val raw = buildV1Payload(name = "Legacy DB", databaseId = " ")
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
     fun `decode empty string returns null`() {
         val result = QrCodeDecoder.decode("")
         assertNull(result)

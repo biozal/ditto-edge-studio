@@ -55,6 +55,7 @@ fun QueryWorkbenchTopToolbar(
     captureProfilingData: Boolean,
     captureQueryMetrics: Boolean,
     onRun: () -> Unit,
+    onExplain: () -> Unit,
     onModeSelect: (String) -> Unit,
     onCaptureProfilingDataChange: (Boolean) -> Unit,
     onCaptureQueryMetricsChange: (Boolean) -> Unit,
@@ -163,8 +164,23 @@ fun QueryWorkbenchTopToolbar(
                 onDismissRequest = { optionsExpanded = false },
                 modifier = Modifier.width(280.dp),
             ) {
+                // Runs EXPLAIN against the editor text (SwiftUI parity: the capture
+                // auto-opens the Metrics inspector tab — handled by the ViewModel).
                 DropdownMenuItem(
-                    text = { Text("Capture profiling data") },
+                    text = { Text("Run EXPLAIN") },
+                    enabled = !isExecuting && queryText.isNotBlank(),
+                    onClick = {
+                        optionsExpanded = false
+                        keyboardController?.hide()
+                        onExplain()
+                    },
+                    modifier = Modifier.testTag("QueryOptions.RunExplain"),
+                )
+                // This switch writes the same DataStore pref as Settings →
+                // "Collect Metrics" — keep the label identical so users can
+                // recognize it as the same setting.
+                DropdownMenuItem(
+                    text = { Text("Collect Metrics") },
                     onClick = { onCaptureProfilingDataChange(!captureProfilingData) },
                     trailingIcon = {
                         Switch(
@@ -174,12 +190,17 @@ fun QueryWorkbenchTopToolbar(
                         )
                     },
                 )
+                // Per-query capture is gated on Collect Metrics in the VM — a live
+                // switch here would silently no-op while Collect Metrics is off, so
+                // disable it to make the dependency visible.
                 DropdownMenuItem(
                     text = { Text("Capture query metrics") },
+                    enabled = captureProfilingData,
                     onClick = { onCaptureQueryMetricsChange(!captureQueryMetrics) },
                     trailingIcon = {
                         Switch(
                             checked = captureQueryMetrics,
+                            enabled = captureProfilingData,
                             onCheckedChange = { onCaptureQueryMetricsChange(it) },
                             modifier = Modifier.testTag("QueryOptions.CaptureMetrics"),
                         )

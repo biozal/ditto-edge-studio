@@ -6,7 +6,7 @@ Query Metrics record per-query `EXPLAIN` analysis so you can understand how the 
 
 ## Enabling Metrics
 
-Metrics are opt-in. Toggle **Enable Metrics** in **Settings** to show or hide the App Metrics and Query Metrics items in the sidebar. The sidebar updates dynamically — no restart required.
+Metrics are on by default (opt-out). Toggle **Collect Metrics** in **Settings** to show or hide the App Metrics and Query Metrics items in the navigation menu (the sidebar on macOS / iPadOS, the navigation rail/drawer on Android). The navigation menu updates dynamically — no restart required.
 
 ---
 
@@ -14,11 +14,11 @@ Metrics are opt-in. Toggle **Enable Metrics** in **Settings** to show or hide th
 
 - Every DQL query you run is automatically analysed with `EXPLAIN`
 - Results appear as a scrollable list, newest first
-- Up to **200 records** are kept in memory; older records are dropped automatically
+- Up to **200 records** are kept; older records are dropped automatically. On Android the cap is **per database** (each configured database keeps its own 200); on macOS / iPadOS a single in-memory store holds records for the currently selected app. On macOS / iPadOS records are kept in memory for the current session; on Android they are persisted in a local on-device database.
 
 ## Reading the List
 
-- **Execution time** is colour-coded — green for fast queries, orange for moderate, red for slow
+- **Execution time** is colour-coded — green for fast queries (under 10 ms), the default text colour for moderate, orange for slow (100 ms and above)
 - **Index usage indicator** — a green badge means the query used an index; an orange badge means a full collection scan was performed
 
 ## Viewing Details
@@ -28,6 +28,8 @@ Select any record in the list to see the full DQL statement and the complete `EX
 ---
 
 ## Prometheus Export
+
+> **macOS / iPadOS only.** Prometheus export is not available on Android.
 
 Push metrics to a **Prometheus Pushgateway** for aggregation by Prometheus and visualisation in Grafana or any compatible dashboard.
 
@@ -75,4 +77,4 @@ Both features share the **Collect Metrics** Settings toggle as their on/off swit
 - **Query Metrics** (this screen) — historical view across many queries; great for spotting which queries are slow over time.
 - **Execution Profile** (Query → Profile tab) — deep dive into one query; great for finding the bottleneck operator inside a slow plan.
 
-See the User Guide for the full Execution Profile reference, or jump straight to the Profile tab next to Raw and Table after running any `SELECT`.
+On macOS / iPadOS, see the User Guide for the full Execution Profile reference (the User Guide is not shipped on Android), or jump straight to the Profile tab next to Raw and Table after running any `SELECT`.

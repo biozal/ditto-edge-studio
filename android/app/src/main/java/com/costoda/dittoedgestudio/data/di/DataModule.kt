@@ -8,6 +8,7 @@ import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.logging.LoggingService
 import com.costoda.dittoedgestudio.data.preferences.AppPreferences
+import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
 import com.costoda.dittoedgestudio.data.preferences.appPreferencesDataStore
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
 import com.costoda.dittoedgestudio.data.repository.AppMetricsRepositoryImpl
@@ -44,6 +45,7 @@ import com.costoda.dittoedgestudio.viewmodel.DatabaseListViewModel
 import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
+import com.costoda.dittoedgestudio.viewmodel.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,6 +94,7 @@ val dataModule = module {
     single<ObservableRepository> { ObservableRepositoryImpl(get()) }
     single { LoggingService(androidContext()) }
     single { AppPreferences(androidContext().appPreferencesDataStore) }
+    single<AppPreferencesGateway> { get<AppPreferences>() }
     single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
     single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
     single<SystemRepository> {
@@ -208,6 +211,7 @@ val dataModule = module {
     // Koin doesn't try to resolve a CoroutineDispatcher binding it doesn't have.
     viewModel { AppHealthViewModel(get(), get()) }
     viewModelOf(::DatabaseListViewModel)
+    viewModel { SettingsViewModel(get()) }
     viewModel { (editId: Long) -> DatabaseEditorViewModel(editId, get(), get()) }
     // Studio session scope — one StudioSession instance per scope id ("studio:<databaseId>").
     // The session is *not* a ViewModel: Koin scopes don't drive `onCleared`, they fire

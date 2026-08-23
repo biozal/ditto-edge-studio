@@ -38,7 +38,9 @@ Returns: `[{ id, name, databaseId, mode }]` — never returns credentials.
 ```
 No arguments
 ```
-Returns: `{ name, databaseId, mode, transport: { bluetoothLE, lan, awdl, cloudSync } }`
+Returns: `{ name, databaseId, mode, url, httpApiUrl, httpApiConfigured, allowUntrustedCerts, logLevel, transport: { bluetoothLE, lan, awdl, cloudSync } }`
+
+Credentials (token, httpApiKey, secretKey) are never included — `httpApiConfigured` is a boolean telling you whether both HTTP API fields are set, not the key itself.
 
 Fails with error if no database is selected in Edge Studio.
 
@@ -57,8 +59,9 @@ Creates `idx_{collection}_{field}` index. Field paths: `"name"`, `"address.city"
 ### `drop_index` — Remove an index
 ```
 Required: index_name (string)
+Optional: collection (string)
 ```
-Use the `name` value from `list_collections` (e.g. `"idx_orders_status"`).
+Use the `name` value from `list_collections` or `list_indexes` (e.g. `"idx_orders_status"`). The owning collection is resolved automatically; pass `collection` only if the same index name exists on multiple collections.
 
 ### `get_query_metrics` — Recent query performance
 ```
@@ -74,9 +77,46 @@ Returns: `{ database, connectedPeers, transport: { bluetoothLE, lan, awdl, cloud
 
 ### `configure_transport` — Change sync transports
 ```
-Optional: bluetooth, lan, awdl, cloud (all boolean)
+Optional: bluetooth, lan, awdl (all boolean)
 ```
-Only specified parameters change; others keep current values. Automatically stops and restarts sync.
+Only specified parameters change; others keep current values. Automatically stops and restarts sync. There is no `cloud` parameter — only the three peer-to-peer transports are toggled.
+
+### `insert_documents_from_file` — Bulk insert from JSON
+```
+Required: file_path (string), collection (string)
+Optional: mode — "insert" (default, upserts) or "insert_initial" (skips existing _ids)
+```
+The file must be a JSON array of objects with an `_id` field, located in `~/Downloads` (macOS sandbox). Returns `{ inserted, failed, mode, collection, errors }`.
+
+### `set_sync` — Start or stop sync
+```
+Required: enabled (boolean)
+```
+Returns `{ sync: "started"|"stopped", enabled: bool }`. Use to pause sync before bulk operations.
+
+### `get_peers` — Connected peer snapshot
+```
+No arguments
+```
+One-time snapshot of all connected remote peers: device name, OS, SDK version, connection types, distances, metadata. Returns `{ "peers": [], "count": 0 }` when no peers are connected.
+
+### `list_indexes` — All indexes across collections
+```
+No arguments
+```
+Returns a flat array of `{ name, fullName, collection, fields }` for every index in the active database.
+
+### `get_app_logs` — Edge Studio app logs
+```
+Optional: lines (int, default 200), filter (string, case-insensitive substring)
+```
+Reads the most recent Edge Studio application log entries (plain text).
+
+### `get_ditto_logs` — Ditto SDK logs
+```
+Optional: lines (int, default 200), filter (string), level (error|warning|info|debug|verbose)
+```
+Reads structured log entries (`{ timestamp, level, component, message }`) from the active database's Ditto SDK log files.
 
 ---
 
@@ -87,8 +127,8 @@ Only specified parameters change; others keep current values. Automatically stop
 | Explore data | `list_collections` → `execute_dql` |
 | Query performance | `execute_dql` + `get_query_metrics` |
 | Index management | `list_collections` (see existing) → `create_index` / `drop_index` |
-| Debug sync | `get_sync_status` |
-| Test offline behavior | `configure_transport` (disable cloud) |
+| Debug sync | `get_sync_status` + `get_app_logs` / `get_ditto_logs` |
+| Test offline behavior | `configure_transport` (disable bluetooth/lan/awdl) |
 | Switch databases | Tell user to select one in Edge Studio UI |
 
 ---
@@ -112,13 +152,13 @@ Only specified parameters change; others keep current values. Automatically stop
 5. execute_dql again → compare execution time
 ```
 
-### Test P2P sync without cloud
+### Test local-only behavior (all P2P transports off)
 ```
 1. get_sync_status → note current settings
-2. configure_transport → { "cloud": false }
+2. configure_transport → { "bluetooth": false, "lan": false, "awdl": false }
 3. execute_dql → INSERT test data
-4. get_sync_status → verify cloud is disabled
-5. configure_transport → { "cloud": true } to restore
+4. get_sync_status → verify transports are disabled
+5. configure_transport → restore the original values from step 1
 ```
 
 ---

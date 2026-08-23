@@ -161,6 +161,7 @@ extension MainStudioView {
             )
             attachmentVM = AttachmentViewModel(queryService: queryService)
             subObsVM = SubscriptionObserverViewModel(
+                databaseId: dittoAppConfig.databaseId,
                 dittoManager: dittoManager,
                 subscriptionsRepository: subscriptionsRepository,
                 observableRepository: observableRepository

@@ -9,9 +9,10 @@ actor DittoManager {
     /// The persistence directory of the currently active database, used for log file access.
     private(set) var activePersistenceDirectory: URL?
 
-    /// Cached URLSession that accepts untrusted certificates. Lazily created on first use.
+    /// Cached URLSessions that accept untrusted certificates, keyed by the
+    /// configured host each bypass is scoped to. Lazily created on first use.
     /// Actor isolation serializes access — no external lock needed.
-    private var cachedUntrustedSession: URLSession?
+    private var cachedUntrustedSessions: [String: URLSession] = [:]
 
     /// Outcome of the most recent Advanced Configuration apply, so the UI can surface
     /// skipped startup settings instead of leaving them buried in the log file.
@@ -597,20 +598,46 @@ actor DittoManager {
 // MARK: - URL Session
 
 extension DittoManager {
+    /// Extracts the host the untrusted-cert bypass should be scoped to from a
+    /// configured HTTP API URL. `httpApiUrl` is stored as a bare `host[:port]`
+    /// (callers prepend `https://`), but a full URL is tolerated too.
+    /// `nonisolated static` so the decision is unit-testable without a live
+    /// `Ditto` — same pattern as `createDatabaseConfig`.
+    nonisolated static func expectedHost(fromHttpApiUrl httpApiUrl: String) -> String? {
+        let withScheme = httpApiUrl.contains("://") ? httpApiUrl : "https://\(httpApiUrl)"
+        guard let host = URL(string: withScheme)?.host(percentEncoded: false),
+              !host.isEmpty else
+        {
+            return nil
+        }
+        return host.lowercased()
+    }
+
+    /// Session whose delegate accepts untrusted certificates **only** for the
+    /// currently selected database's HTTP API host. Cached per host so
+    /// switching databases never reuses a bypass scoped to another host.
+    /// Falls back to the shared (fully validating) session when no host can
+    /// be determined — in that case the bypass simply does not apply.
     func getCachedUntrustedSession() -> URLSession {
         // Actor isolation already serializes access — no lock needed.
-        if let cachedSession = cachedUntrustedSession {
+        guard let appConfig = dittoSelectedAppConfig,
+              let host = Self.expectedHost(fromHttpApiUrl: appConfig.httpApiUrl) else
+        {
+            return .shared
+        }
+
+        if let cachedSession = cachedUntrustedSessions[host] {
             return cachedSession
         }
 
         // Create new session with delegate for untrusted certificates
-        let delegate = AllowUntrustedCertsDelegate()
+        let delegate = AllowUntrustedCertsDelegate(expectedHost: host)
         let session = URLSession(
             configuration: .default,
             delegate: delegate,
             delegateQueue: nil
         )
-        cachedUntrustedSession = session
+        cachedUntrustedSessions[host] = session
         return session
     }
 }

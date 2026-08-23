@@ -16,19 +16,23 @@ import org.koin.compose.koinInject
  *  - [QueryMetricsListSection]   — list-pane content (used by entry<QueryMetricsKey>)
  *  - [QueryMetricsDetailSection] — detail-pane content (used by entry<QueryMetricDetailKey>)
  *
- * The list pane owns loading/clearing state. The detail pane fetches by historyId from the
- * repository so it remains self-contained (no VM coupling needed).
+ * The list pane collects the repository's per-database Flow so new captures appear live.
+ * The detail pane fetches by the metrics row's own primary key ([QueryMetrics.id]) so it
+ * remains self-contained (no VM coupling needed) and immune to the history-dedup
+ * ambiguity of the old historyId-keyed lookup.
  *
  * [QueryMetricsRepository] is injected via Koin (no session scope — it is a singleton
- * repository backed by the global Room database, identical to how the legacy
- * the legacy QueryMetricsScreen obtained it).
+ * repository backed by the Room database, identical to how the legacy
+ * QueryMetricsScreen obtained it). Both sections take the DITTO databaseId string
+ * (not the Room row id carried by the nav keys) and only show that database's captures.
  */
 
 /**
  * List-pane content for the Query Metrics section.
  *
- * @param selectedHistoryId The historyId currently shown in the detail pane (for row
- *   highlight). Pass null when nothing is selected.
+ * @param databaseId The Ditto databaseId string whose captures are listed.
+ * @param selectedMetricsId The metrics-row id currently shown in the detail pane (for
+ *   row highlight). Pass null when nothing is selected.
  * @param onMetricPicked Called when the user taps a row. The caller (AppNavGraph) will
  *   push [com.costoda.dittoedgestudio.ui.navigation.QueryMetricDetailKey] onto the back
  *   stack; at ≥600dp the ListDetailSceneStrategy renders it side-by-side automatically.
@@ -37,7 +41,8 @@ import org.koin.compose.koinInject
  */
 @Composable
 fun QueryMetricsListSection(
-    selectedHistoryId: Long?,
+    databaseId: String,
+    selectedMetricsId: Long?,
     onMetricPicked: (QueryMetrics) -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
@@ -45,7 +50,8 @@ fun QueryMetricsListSection(
     val repository: QueryMetricsRepository = koinInject()
     QueryMetricsListPane(
         metricsRepository = repository,
-        selectedHistoryId = selectedHistoryId,
+        databaseId = databaseId,
+        selectedMetricsId = selectedMetricsId,
         onMetricSelected = onMetricPicked,
         onClearAll = onClearAll,
         modifier = modifier.fillMaxSize(),
@@ -55,17 +61,18 @@ fun QueryMetricsListSection(
 /**
  * Detail-pane content for a single executed query.
  *
- * Fetches the metric by [historyId] from the repository. If the metric was deleted
- * (e.g. the user hit "Clear all" while this pane was visible) the empty state is shown.
+ * Fetches the metric by its own primary key ([metricsId]) from the repository. If the
+ * metric was deleted (e.g. the user hit "Clear all" while this pane was visible) the
+ * empty state is shown.
  */
 @Composable
 fun QueryMetricsDetailSection(
-    historyId: Long,
+    metricsId: Long,
     modifier: Modifier = Modifier,
 ) {
     val repository: QueryMetricsRepository = koinInject()
     QueryMetricsDetailPane(
-        historyId = historyId,
+        metricsId = metricsId,
         metricsRepository = repository,
         modifier = modifier.fillMaxSize(),
     )

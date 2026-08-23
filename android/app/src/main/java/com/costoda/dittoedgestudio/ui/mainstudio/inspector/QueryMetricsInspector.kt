@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -108,7 +109,9 @@ fun QueryMetricsInspector(
             else -> Color(0xFFF44336)
         }
         val indexUsed = metrics.indexesUsed.isNotEmpty()
-        val atFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
+        // locales[0] is nullable for a pathological empty locale list — fall back to ROOT.
+        val locale = LocalConfiguration.current.locales[0] ?: Locale.ROOT
+        val atFormatted = SimpleDateFormat("MMM d, HH:mm", locale)
             .format(Date(metrics.capturedAt))
 
         FlowRow(

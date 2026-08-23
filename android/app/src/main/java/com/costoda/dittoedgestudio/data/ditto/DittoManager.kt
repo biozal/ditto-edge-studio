@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.ditto
 
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.domain.model.AdvancedApplyResult
 import com.costoda.dittoedgestudio.domain.model.AuthMode
@@ -120,7 +121,9 @@ class DittoManager(
     suspend fun resetSystemSettingsToDefaults(database: DittoDatabase) {
         val instance = ditto
         if (instance == null || activeDatabase?.id != database.id) {
-            Log.i(TAG, "[Advanced] Reset requested for a database that is not open — no action needed")
+            if (BuildConfig.DEBUG) {
+                Log.i(TAG, "[Advanced] Reset requested for a database that is not open — no action needed")
+            }
             return
         }
         // Adopt the saved config first: everything below re-applies from it, and the
@@ -134,7 +137,7 @@ class DittoManager(
         // SDK also requires scopes to be set before `start_sync()`, so re-applying them
         // to a running session may not take effect at all.
         withContext(Dispatchers.IO) { instance.sync.stop() }
-        Log.i(TAG, "[Advanced] Sync stopped for system-settings reset")
+        if (BuildConfig.DEBUG) Log.i(TAG, "[Advanced] Sync stopped for system-settings reset")
 
         AdvancedSettingsApplier(DittoDQLExecutor(instance)).resetAllToDefaults()
 
@@ -155,7 +158,10 @@ class DittoManager(
         ).run(database.startupSettings, database.collectionSyncScopes)
         lastAdvancedApplyResult = result
         if (result.hasFailures || result.scopesUnverified) {
-            Log.w(TAG, "[Advanced] Open sequence completed with issues: $result")
+            // Operational summary (includes setting/collection names) — debug only.
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "[Advanced] Open sequence completed with issues: $result")
+            }
         }
         return result
     }
@@ -164,7 +170,9 @@ class DittoManager(
         when (database.mode) {
             AuthMode.SERVER -> {
                 ditto.auth?.expirationHandler = { d, secondsRemaining ->
-                    Log.i(TAG, "[Auth] Handler called, secondsRemaining=$secondsRemaining")
+                    if (BuildConfig.DEBUG) {
+                        Log.i(TAG, "[Auth] Handler called, secondsRemaining=$secondsRemaining")
+                    }
                     d.auth?.login(
                         token = database.token,
                         provider = DittoAuthenticationProvider.development(),
@@ -175,7 +183,10 @@ class DittoManager(
                 if (database.token.isNotEmpty()) {
                     runCatching { ditto.setOfflineOnlyLicenseToken(database.token) }
                         .onFailure { e ->
-                            Log.e(TAG, "[Auth] Failed to set offline license token: ${e.message}")
+                            // Auth-adjacent — gated in case the SDK error echoes token material.
+                            if (BuildConfig.DEBUG) {
+                                Log.e(TAG, "[Auth] Failed to set offline license token: ${e.message}")
+                            }
                         }
                 }
             }

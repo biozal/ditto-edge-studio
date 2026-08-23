@@ -60,7 +60,16 @@ in these regions, see [`RAIL_FEATURES.md`](RAIL_FEATURES.md).
 └───────┴──────────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Android (<840dp — phones & floating windows) — Rail + Data Panel merged into the Nav Drawer
+### Android (600–839dp — Medium, e.g. open flip phone) — drawer chrome + two-pane body
+
+At Medium widths the studio keeps the **drawer chrome** (hamburger, no rail column) but
+the body still renders **Data Panel + Content Pane side-by-side** (the
+`ListDetailSceneStrategy` gets two partitions via
+`calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth`). The drawer holds rail items
+only. Exception: **Presence** with "Split Presence view" off (the default) keeps the
+peers view full-width; its subscriptions list stays in the drawer.
+
+### Android (<600dp — Compact phones, cover screens, narrow split-screen) — Nav Drawer + single pane
 
 ```
 ┌──────────────────────────┐      ┌──────────────────────────┐
@@ -74,20 +83,21 @@ in these regions, see [`RAIL_FEATURES.md`](RAIL_FEATURES.md).
 │  Query  → editor+results │      │▓  merged  ▓│              │
 │  Pres.  → peers/tabs     │      │▓         ▓│              │
 │  Obs.   → events+detail  │      │▓         ▓│              │
-│  Metrics→ detail or empty│      │▓         ▓│              │
+│  Metrics→ list first     │      │▓         ▓│              │
 └──────────────────────────┘      └───────────┴──────────────┘
 ```
 
-Below 840dp the studio runs in **drawer mode**:
+Below 600dp the studio runs in **single-pane drawer mode**:
 - The TopAppBar shows a hamburger (left) and the inspector toggle (rightmost action,
-  with sync + close between title and inspector toggle).
+  with sync + close between title and inspector toggle). On pushed drill-in detail
+  screens (e.g. a Query Metrics record) the hamburger becomes an Up arrow.
 - The modal drawer contains BOTH the rail items (section nav) AND the current section's
-  Data Panel content (Subscriptions list / Collections list / Observers list / executed
-  queries list). Rail items at top, divider, Data Panel below. Sections without a Data
-  Panel (Logging / AppMetrics / DiskUsage) show rail items only.
+  Data Panel content (Subscriptions list / Collections list / Observers list). Rail
+  items at top, divider, Data Panel below. Sections without a Data Panel (Logging /
+  AppMetrics / Query Metrics / DiskUsage) show rail items only.
 - The Content Pane is the DEFAULT view — peers tabs, query editor + results, observer
-  events, EXPLAIN detail. Mirrors the iPad app and the original pre-migration phone UX
-  where "MainView is always the default view".
+  events — except Query Metrics, which is list-first: the executed-query list is the
+  body and tapping a row pushes the EXPLAIN detail as a drill-in (system back returns).
 - Selecting anything in the drawer (a section OR a Data Panel item) closes the drawer.
 
 ---
@@ -97,8 +107,8 @@ Below 840dp the studio runs in **drawer mode**:
 | iOS (SwiftUI) | Android (Edge Studio) | Android code | Material Design term |
 |---|---|---|---|
 | Sidebar — segmented picker | **Rail** | `NavigationRail` in `StudioScaffold` (≥840dp) | Navigation Rail |
-| Sidebar — content list | **Data Panel** | `ListDetailSceneStrategy.listPane` in `AppNavGraph` at ≥840dp; below 840dp lives inside the Nav Drawer below the rail items | List pane (list-detail layout) |
-| MainView | **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`); default view at every width (full-width below 840dp) | Detail pane / content pane |
+| Sidebar — content list | **Data Panel** | `ListDetailSceneStrategy.listPane` in `AppNavGraph` at ≥600dp; below 600dp lives inside the Nav Drawer below the rail items | List pane (list-detail layout) |
+| MainView | **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`); side-by-side with the Data Panel at ≥600dp, full-width below 600dp | Detail pane / content pane |
 | Inspector | **Inspector** | Inspector column in `StudioScaffold`; 300dp (<1200dp) / 360dp (≥1200dp) / 400dp (≥1600dp); `ModalBottomSheet` below 840dp | Side sheet / supporting pane |
 | — (iPadOS uses sidebar) | **Nav Drawer** (<840dp only) | `ModalNavigationDrawer` in `StudioScaffold`: Rail items + Data Panel merged below 840dp | Modal navigation drawer |
 | Toolbar | **Top Bar** | `TopAppBar` in `StudioScaffold` | Top app bar |
@@ -110,10 +120,10 @@ Below 840dp the studio runs in **drawer mode**:
 
 | Behavior | iOS | Android |
 |---|---|---|
-| Data Panel visibility | Always visible | Visible side-by-side at ≥840dp (Expanded+); below 840dp folded into the modal Nav Drawer (alongside rail items) |
+| Data Panel visibility | Always visible | Visible side-by-side at ≥600dp (Medium+); below 600dp folded into the modal Nav Drawer (alongside rail items). Presence is configurable via Settings → "Split Presence view" |
 | Inspector visibility | Toggle via toolbar button | Default-visible at ≥1200dp (Large); toggle via top-bar button; `ModalBottomSheet` below 840dp |
 | Navigation switcher | Segmented picker (48pt SF Symbols) | Rail items (Material icons, `SulfurYellow` indicator); visible as a column at ≥840dp; folded into the Nav Drawer below 840dp |
-| Phone / floating-window adaptation | n/a (iPadOS/macOS only) | Below 840dp: Rail + Data Panel merge into the modal Nav Drawer; Content Pane is the default view (full width) |
+| Phone / floating-window adaptation | n/a (iPadOS/macOS only) | 600–839dp: drawer chrome + two-pane list-detail body. Below 600dp: Rail + Data Panel merge into the modal Nav Drawer; single-pane body with drill-in details |
 | Status/utility bar | Persistent bottom status bar | Floating `QueryWorkbenchBottomBar` in Query section (run, pagination, peers, overflow) |
 
 ---

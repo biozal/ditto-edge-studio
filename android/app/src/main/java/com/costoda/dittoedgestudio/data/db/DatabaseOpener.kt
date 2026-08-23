@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.data.db
 
 import android.content.Context
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 
 /**
  * Single seam that builds the [AppDatabase] and proves it can actually be opened with
@@ -73,7 +74,11 @@ class DatabaseOpener(
             }
             DatabaseOpenResult.Ok(db)
         } catch (t: Throwable) {
-            Log.e(TAG, "Database open/probe failed: ${t.javaClass.simpleName}: ${t.message}", t)
+            // Gated: SQLCipher/native error text can embed file paths and key-material
+            // diagnostics. The user-facing summary still flows via DatabaseOpenResult.
+            if (BuildConfig.DEBUG) {
+                Log.e(TAG, "Database open/probe failed: ${t.javaClass.simpleName}: ${t.message}", t)
+            }
             DatabaseOpenResult.KeyFailure(
                 throwable = t,
                 errorSummary = summarize(t),

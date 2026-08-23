@@ -393,7 +393,10 @@ extension MainStudioView {
                         Button("Add to Favorites") {
                             Task {
                                 do {
-                                    try await FavoritesRepository.shared.saveFavorite(query)
+                                    try await FavoritesRepository.shared.saveFavorite(
+                                        query,
+                                        databaseId: viewModel.selectedApp.databaseId
+                                    )
                                 } catch {
                                     Log.error("Failed to add favorite: \(error.localizedDescription)")
                                     appState.setError(error)

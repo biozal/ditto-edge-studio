@@ -12,12 +12,14 @@ import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import io.mockk.coVerify
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -172,6 +174,91 @@ class StudioSessionTest {
         assertTrue("teardown should have completed", teardownJob.isCompleted)
         assertNull(DittoTeardownRegistry.inFlightJob(42L))
         coVerify(exactly = 1) { dittoManager.close() }
+    }
+
+    @Test
+    fun `addIndex returns success when the repository succeeds`() = runTest {
+        val session = newSession()
+        coEvery { collectionsRepository.createIndex(any(), any()) } returns Unit
+
+        val result = session.addIndex("tasks", listOf(IndexField("status")))
+
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun `addIndex wraps repository failures in Result`() = runTest {
+        val session = newSession()
+        coEvery { collectionsRepository.createIndex(any(), any()) } throws
+            IllegalStateException("No active Ditto instance")
+
+        val result = session.addIndex("tasks", listOf(IndexField("status")))
+
+        assertTrue(result.isFailure)
+        assertEquals("No active Ditto instance", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `addIndex rethrows CancellationException instead of wrapping it in Result`() = runTest {
+        val session = newSession()
+        coEvery { collectionsRepository.createIndex(any(), any()) } throws
+            CancellationException("caller gone")
+
+        val outcome = runCatching { session.addIndex("tasks", listOf(IndexField("status"))) }
+
+        assertTrue(
+            "CancellationException must propagate, not become a fake failure",
+            outcome.exceptionOrNull() is CancellationException,
+        )
+    }
+
+    @Test
+    fun `addIndex on a closed session throws CancellationException to the caller`() = runTest {
+        val session = newSession()
+        coEvery { dittoManager.close() } returns Unit
+        session.close()
+        advanceUntilIdle()
+
+        val outcome = runCatching { session.addIndex("tasks", listOf(IndexField("status"))) }
+
+        assertTrue(
+            "A closed session must cancel the call, not hang or report a fake failure",
+            outcome.exceptionOrNull() is CancellationException,
+        )
+    }
+
+    @Test
+    fun `concurrent hydrate calls run DittoManager hydrate exactly once`() = runTest {
+        // Two MainStudioViewModel instances (activity-store + entry-store) constructed in
+        // the same composition pass both call hydrate() from init. The second must join
+        // the in-flight run, not race a second DittoManager.hydrate on the same directory.
+        val session = newSession()
+        val gate = CompletableDeferred<Unit>()
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+        )
+        coEvery { dittoManager.hydrate(any()) } coAnswers {
+            // Hold the first hydrate open so the second call overlaps in flight.
+            gate.await()
+            mockk(relaxed = true)
+        }
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        session.hydrate()
+        session.hydrate()
+        // First hydrate is parked on the gate inside dittoManager.hydrate; the second
+        // must be parked on the in-flight guard — not inside DittoManager.
+        runCurrent()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { dittoManager.hydrate(any()) }
+        assertEquals("db-42", session.currentDittoId)
+        assertEquals("db-42", session.currentDittoIdFlow.value)
+        assertNull(session.hydrateError)
     }
 
     @Test

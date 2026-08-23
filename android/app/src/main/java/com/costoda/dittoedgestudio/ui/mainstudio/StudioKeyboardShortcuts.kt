@@ -10,13 +10,18 @@ import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
  * Maps a keyboard digit key code (1-indexed) to a [StudioNavItem], or returns null if the
  * index is out of range. This pure function is the testable core of the Ctrl+1..7 shortcut.
  *
- * @param oneBasedIndex 1-based digit pressed (1 = first entry, 7 = last entry).
+ * @param oneBasedIndex 1-based digit pressed (1 = first visible item, N = last visible item).
+ * @param items The rail items currently visible. When "Collect Metrics" is disabled the
+ *   metrics items are hidden, so callers pass [StudioNavItem.visibleEntries] to keep digit
+ *   positions aligned with what the user sees.
  * @return The [StudioNavItem] at that position, or null if [oneBasedIndex] is out of range.
  */
-fun studioNavItemForDigit(oneBasedIndex: Int): StudioNavItem? {
+fun studioNavItemForDigit(
+    oneBasedIndex: Int,
+    items: List<StudioNavItem> = StudioNavItem.entries,
+): StudioNavItem? {
     val zeroBasedIndex = oneBasedIndex - 1
-    val entries = StudioNavItem.entries
-    return if (zeroBasedIndex in entries.indices) entries[zeroBasedIndex] else null
+    return if (zeroBasedIndex in items.indices) items[zeroBasedIndex] else null
 }
 
 /**
@@ -38,7 +43,10 @@ fun studioNavItemForDigit(oneBasedIndex: Int): StudioNavItem? {
  * be meaningfully unit-tested on the JVM without a full Compose runtime. The pure key→digit
  * mapping is extracted into [studioNavItemForDigit] which is testable without Android.
  */
-fun studioShortcutFor(event: KeyEvent): StudioNavItem? {
+fun studioShortcutFor(
+    event: KeyEvent,
+    items: List<StudioNavItem> = StudioNavItem.entries,
+): StudioNavItem? {
     if (!event.isCtrlPressed) return null
     val digit = when (event.key) {
         Key.One -> 1
@@ -50,5 +58,5 @@ fun studioShortcutFor(event: KeyEvent): StudioNavItem? {
         Key.Seven -> 7
         else -> return null
     }
-    return studioNavItemForDigit(digit)
+    return studioNavItemForDigit(digit, items)
 }

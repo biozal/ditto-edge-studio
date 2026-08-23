@@ -1,9 +1,9 @@
 import Foundation
 import Testing
-
 @testable import Ditto_Edge_Studio
 
 // MARK: - QueryService Tests
+
 //
 // Tests cover:
 // - Local query error paths (no database selected)
@@ -20,27 +20,26 @@ import Testing
 
 @Suite("QueryService Tests", .serialized)
 struct QueryServiceTests {
-
     // MARK: - Local Query Error Path Tests
 
     @Suite("Local Query Error Path Tests", .serialized)
     struct LocalQueryErrorPathTests {
-
-        @Test("Returns no results when no database is selected", .tags(.service))
-        func testNoSelectedDatabase() async throws {
+        @Test(.tags(.service))
+        func `Returns 'No Ditto app selected' when no database is selected`() async throws {
             // ARRANGE: No database is selected (fresh test environment)
             let service = QueryService.shared
 
             // ACT: Execute query with no selected database
             let results = try await service.executeSelectedAppQuery(query: "SELECT * FROM users")
 
-            // ASSERT: Returns graceful fallback, not a crash
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            // ASSERT: Returns the dedicated sentinel (distinct from an empty
+            // result set's "No results found") — the MCP formatQueryResults
+            // special-cases this exact string.
+            #expect(results == ["No Ditto app selected"])
         }
 
-        @Test("SELECT query returns no results when no database selected", .tags(.service, .fast))
-        func testSelectQueryNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `SELECT query returns sentinel when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
@@ -48,60 +47,55 @@ struct QueryServiceTests {
             let results = try await service.executeSelectedAppQuery(query: QueryFixtures.simpleSelect)
 
             // ASSERT
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            #expect(results == ["No Ditto app selected"])
         }
 
-        @Test("INSERT query returns no results when no database selected", .tags(.service, .fast))
-        func testInsertQueryNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `INSERT query returns sentinel when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
             // ACT
             let results = try await service.executeSelectedAppQuery(query: QueryFixtures.insertSingle)
 
-            // ASSERT: No crash, returns fallback
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            // ASSERT: No crash, returns sentinel
+            #expect(results == ["No Ditto app selected"])
         }
 
-        @Test("UPDATE query returns no results when no database selected", .tags(.service, .fast))
-        func testUpdateQueryNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `UPDATE query returns sentinel when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
             // ACT
             let results = try await service.executeSelectedAppQuery(query: QueryFixtures.updateSingle)
 
-            // ASSERT: No crash, returns fallback
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            // ASSERT: No crash, returns sentinel
+            #expect(results == ["No Ditto app selected"])
         }
 
-        @Test("DELETE query returns no results when no database selected", .tags(.service, .fast))
-        func testDeleteQueryNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `DELETE query returns sentinel when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
             // ACT
             let results = try await service.executeSelectedAppQuery(query: QueryFixtures.deleteSingle)
 
-            // ASSERT: No crash, returns fallback
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            // ASSERT: No crash, returns sentinel
+            #expect(results == ["No Ditto app selected"])
         }
 
-        @Test("Empty query string returns no results when no database selected", .tags(.service, .fast))
-        func testEmptyQueryNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `Empty query string returns sentinel when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
             // ACT
             let results = try await service.executeSelectedAppQuery(query: QueryFixtures.emptyQuery)
 
-            // ASSERT: No crash, returns fallback
-            #expect(results.count == 1)
-            #expect(results[0] == "No results found")
+            // ASSERT: No crash, returns sentinel
+            #expect(results == ["No Ditto app selected"])
         }
     }
 
@@ -115,9 +109,8 @@ struct QueryServiceTests {
     /// QueryExecutionResult return shape.
     @Suite("PROFILE injection", .serialized)
     struct ProfileInjectionTests {
-
-        @Test("Returns empty result and nil profile when no database selected", .tags(.service, .fast))
-        func testWithProfileNoDatabase() async throws {
+        @Test(.tags(.service, .fast))
+        func `Returns empty result and nil profile when no database selected`() async throws {
             // ARRANGE
             let service = QueryService.shared
 
@@ -127,7 +120,7 @@ struct QueryServiceTests {
             )
 
             // ASSERT — graceful fallback matches the legacy method's shape
-            #expect(result.items == ["No results found"])
+            #expect(result.items == ["No Ditto app selected"])
             #expect(result.profile == nil)
         }
 
@@ -240,9 +233,8 @@ struct QueryServiceTests {
 
     @Suite("HTTP Query Error Path Tests", .serialized)
     struct HttpQueryErrorPathTests {
-
-        @Test("Returns error when no app config is selected", .tags(.service))
-        func testNoSelectedAppConfig() async throws {
+        @Test(.tags(.service))
+        func `Returns error when no app config is selected`() async throws {
             // ARRANGE: No database is selected (no config available)
             let service = QueryService.shared
 
@@ -254,8 +246,8 @@ struct QueryServiceTests {
             #expect(results[0].contains("No Ditto SelectedApp available"))
         }
 
-        @Test("HTTP query with SELECT returns error when no config", .tags(.service, .fast))
-        func testHttpSelectNoConfig() async throws {
+        @Test(.tags(.service, .fast))
+        func `HTTP query with SELECT returns error when no config`() async throws {
             // ARRANGE
             let service = QueryService.shared
 
@@ -267,8 +259,8 @@ struct QueryServiceTests {
             #expect(results[0].contains("No Ditto SelectedApp available"))
         }
 
-        @Test("HTTP query with INSERT returns error when no config", .tags(.service, .fast))
-        func testHttpInsertNoConfig() async throws {
+        @Test(.tags(.service, .fast))
+        func `HTTP query with INSERT returns error when no config`() async throws {
             // ARRANGE
             let service = QueryService.shared
 
@@ -280,8 +272,8 @@ struct QueryServiceTests {
             #expect(results[0].contains("No Ditto SelectedApp available"))
         }
 
-        @Test("HTTP error response format uses 'HTTP Error:' prefix", .tags(.service, .fast))
-        func testHttpErrorResponseFormat() {
+        @Test(.tags(.service, .fast))
+        func `HTTP error response format uses 'HTTP Error:' prefix`() {
             // ARRANGE: Simulate the format the service uses for HTTP error responses
             let errorBody = "Unauthorized"
 
@@ -294,13 +286,118 @@ struct QueryServiceTests {
         }
     }
 
+    // MARK: - HTTP Execute URL Construction Tests
+
+    @Suite("HTTP Execute URL Construction", .serialized)
+    struct HttpExecuteURLTests {
+        @Test(.tags(.service, .fast))
+        func `plain host:port is used as-is`() {
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "example.ditto.live:8080")
+                    == "https://example.ditto.live:8080/api/v5/store/execute"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `https scheme prefix is stripped`() {
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "https://example.ditto.live")
+                    == "https://example.ditto.live/api/v5/store/execute"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `http scheme prefix is stripped`() {
+            // A user pasting "http://host" previously produced
+            // "https://http://host/api/v5/store/execute" — malformed.
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "http://example.ditto.live")
+                    == "https://example.ditto.live/api/v5/store/execute"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `trailing slashes are stripped`() {
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "example.ditto.live/")
+                    == "https://example.ditto.live/api/v5/store/execute"
+            )
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "https://example.ditto.live//")
+                    == "https://example.ditto.live/api/v5/store/execute"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `surrounding whitespace is trimmed`() {
+            #expect(
+                QueryService.makeHttpExecuteURL(httpApiUrl: "  example.ditto.live  ")
+                    == "https://example.ditto.live/api/v5/store/execute"
+            )
+        }
+    }
+
+    // MARK: - Shared HTTP API URL Construction Tests (makeHttpApiURL)
+
+    /// `makeHttpApiURL(httpApiUrl:path:)` is the shared sanitization helper
+    /// behind `makeHttpExecuteURL` and AttachmentService's `/api/v4/…` URLs.
+    @Suite("HTTP API URL Construction (shared helper)", .serialized)
+    struct HttpApiURLTests {
+        @Test(.tags(.service, .fast))
+        func `plain host composes with an /api/v4 path`() {
+            #expect(
+                QueryService.makeHttpApiURL(
+                    httpApiUrl: "example.ditto.live:8080",
+                    path: "/api/v4/attachments/upload"
+                ) == "https://example.ditto.live:8080/api/v4/attachments/upload"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `scheme and trailing slash are stripped before composing the path`() {
+            // A pasted "https://host/" previously produced
+            // "https://https://host//api/v4/…" — malformed.
+            #expect(
+                QueryService.makeHttpApiURL(
+                    httpApiUrl: "https://example.ditto.live/",
+                    path: "/api/v4/attachments/att-1"
+                ) == "https://example.ditto.live/api/v4/attachments/att-1"
+            )
+            #expect(
+                QueryService.makeHttpApiURL(
+                    httpApiUrl: "http://example.ditto.live//",
+                    path: "/api/v4/attachments/upload"
+                ) == "https://example.ditto.live/api/v4/attachments/upload"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `path without a leading slash is normalized`() {
+            #expect(
+                QueryService.makeHttpApiURL(
+                    httpApiUrl: "example.ditto.live",
+                    path: "api/v4/attachments/upload"
+                ) == "https://example.ditto.live/api/v4/attachments/upload"
+            )
+        }
+
+        @Test(.tags(.service, .fast))
+        func `makeHttpExecuteURL matches the shared helper for the execute path`() {
+            for input in ["example.ditto.live", "https://example.ditto.live/", " http://example.ditto.live "] {
+                #expect(
+                    QueryService.makeHttpExecuteURL(httpApiUrl: input)
+                        == QueryService.makeHttpApiURL(httpApiUrl: input, path: "/api/v5/store/execute")
+                )
+            }
+        }
+    }
+
     // MARK: - Result Format Tests
 
     @Suite("Result Format Tests", .serialized)
     struct ResultFormatTests {
-
-        @Test("Document ID format uses 'Document ID: ' prefix", .tags(.service, .fast))
-        func testDocumentIdFormatPrefix() {
+        @Test(.tags(.service, .fast))
+        func `Document ID format uses 'Document ID: ' prefix`() {
             // ARRANGE: Known document ID value
             let documentId = "abc123def456"
 
@@ -312,8 +409,8 @@ struct QueryServiceTests {
             #expect(resultString == "Document ID: abc123def456")
         }
 
-        @Test("Commit ID format uses 'Commit ID: ' prefix", .tags(.service, .fast))
-        func testCommitIdFormatPrefix() {
+        @Test(.tags(.service, .fast))
+        func `Commit ID format uses 'Commit ID: ' prefix`() {
             // ARRANGE: Known commit ID value
             let commitId = "xyz789uvw"
 
@@ -325,17 +422,16 @@ struct QueryServiceTests {
             #expect(resultString == "Commit ID: xyz789uvw")
         }
 
-        @Test("Commit ID fallback when nil is 'Commit ID: N/A'", .tags(.service, .fast))
-        func testCommitIdNilFallback() {
+        @Test(.tags(.service, .fast))
+        func `Commit ID fallback when nil is 'Commit ID: N/A'`() {
             // ARRANGE: Simulate nil commitID case
             let commitID: String? = nil
 
             // ACT: Construct the fallback string as QueryService does
-            let resultString: String
-            if let commitID {
-                resultString = "Commit ID: \(commitID)"
+            let resultString = if let commitID {
+                "Commit ID: \(commitID)"
             } else {
-                resultString = "Commit ID: N/A"
+                "Commit ID: N/A"
             }
 
             // ASSERT: Fallback uses the expected literal
@@ -343,8 +439,8 @@ struct QueryServiceTests {
             #expect(resultString.hasPrefix("Commit ID: "))
         }
 
-        @Test("HTTP mutation result format maps document IDs correctly", .tags(.service, .fast))
-        func testHttpMutationDocumentIdMapping() {
+        @Test(.tags(.service, .fast))
+        func `HTTP mutation result format maps document IDs correctly`() {
             // ARRANGE: Simulate mutatedDocumentIds from HTTP response parsing
             let mutatedDocumentIds = ["id-aaa", "id-bbb", "id-ccc"]
 
@@ -354,15 +450,19 @@ struct QueryServiceTests {
             // ASSERT: All entries have correct prefix and value
             #expect(resultStrings.count == 3)
             for (index, resultString) in resultStrings.enumerated() {
-                #expect(resultString.hasPrefix("Document ID: "),
-                        "Entry \(index) must have 'Document ID: ' prefix")
-                #expect(resultString == "Document ID: \(mutatedDocumentIds[index])",
-                        "Entry \(index) must match expected document ID value")
+                #expect(
+                    resultString.hasPrefix("Document ID: "),
+                    "Entry \(index) must have 'Document ID: ' prefix"
+                )
+                #expect(
+                    resultString == "Document ID: \(mutatedDocumentIds[index])",
+                    "Entry \(index) must match expected document ID value"
+                )
             }
         }
 
-        @Test("HTTP mutation result appends commit ID when present", .tags(.service, .fast))
-        func testHttpMutationCommitIdAppended() {
+        @Test(.tags(.service, .fast))
+        func `HTTP mutation result appends commit ID when present`() {
             // ARRANGE: Simulate mutatedDocumentIds + commitId from HTTP response
             let mutatedDocumentIds = ["doc-001", "doc-002"]
             let commitId = "commit-abc-xyz"
@@ -379,8 +479,8 @@ struct QueryServiceTests {
             #expect(resultStrings[2].hasPrefix("Commit ID: "))
         }
 
-        @Test("No results fallback string is 'No results found'", .tags(.service, .fast))
-        func testNoResultsFallbackString() {
+        @Test(.tags(.service, .fast))
+        func `No results fallback string is 'No results found'`() {
             // ARRANGE + ACT: The fallback string used throughout QueryService
             let noResults = ["No results found"]
 
@@ -389,8 +489,8 @@ struct QueryServiceTests {
             #expect(noResults[0] == "No results found")
         }
 
-        @Test("No items fallback string is 'No items found'", .tags(.service, .fast))
-        func testNoItemsFallbackString() {
+        @Test(.tags(.service, .fast))
+        func `No items fallback string is 'No items found'`() {
             // ARRANGE + ACT: The HTTP path uses 'No items found' for empty items array
             let noItems = ["No items found"]
 
@@ -404,9 +504,8 @@ struct QueryServiceTests {
 
     @Suite("Fetch Small Peer Info Tests", .serialized)
     struct FetchSmallPeerInfoTests {
-
-        @Test("fetchSmallPeerInfo returns empty array when no database selected", .tags(.service))
-        func testFetchSmallPeerInfoNoDatabase() async throws {
+        @Test(.tags(.service))
+        func `fetchSmallPeerInfo returns empty array when no database selected`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
@@ -420,8 +519,8 @@ struct QueryServiceTests {
             #expect(peerInfos.isEmpty)
         }
 
-        @Test("fetchSmallPeerInfo is idempotent with no database", .tags(.service))
-        func testFetchSmallPeerInfoIdempotent() async throws {
+        @Test(.tags(.service))
+        func `fetchSmallPeerInfo is idempotent with no database`() async throws {
             // ARRANGE: No database is selected
             let service = QueryService.shared
 
@@ -437,6 +536,7 @@ struct QueryServiceTests {
 }
 
 // MARK: - Integration Test Stubs
+
 // TODO: Add full HTTP response parsing tests to EdgeStudioIntegrationTests:
 //
 // class QueryServiceIntegrationTests: XCTestCase {

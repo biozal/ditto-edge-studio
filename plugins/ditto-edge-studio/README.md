@@ -45,7 +45,7 @@ curl -X POST http://localhost:65269/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-Should return a JSON array of 9 tools.
+Should return a JSON array of 15 tools.
 
 ## Usage
 
@@ -69,7 +69,13 @@ Once connected, ask your agent naturally:
 | `drop_index` | Drop an index by name |
 | `get_query_metrics` | Recent query performance and EXPLAIN output |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth, LAN, or AWDL transports |
+| `insert_documents_from_file` | Insert documents from a local JSON file |
+| `set_sync` | Start or stop sync for the active database |
+| `get_peers` | Snapshot of all connected peers with full details |
+| `list_indexes` | List all indexes across every collection |
+| `get_app_logs` | Read recent Edge Studio application log entries |
+| `get_ditto_logs` | Read Ditto SDK log entries for the active database |
 
 For detailed parameter and return value docs, see [`skills/use-edge-studio/SKILL.md`](./skills/use-edge-studio/SKILL.md) or [`docs/MCP_SERVER.md`](../../docs/MCP_SERVER.md).
 

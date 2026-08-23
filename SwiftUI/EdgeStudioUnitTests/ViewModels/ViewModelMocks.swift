@@ -26,6 +26,7 @@ struct MockSet {
     }
 
     let queryService = MockQueryService()
+    let databaseRepository = MockDatabaseRepository()
     let subscriptionsRepository = MockSubscriptionsRepository()
     let systemRepository = MockSystemRepository()
     let historyRepository = MockHistoryRepository()
@@ -128,8 +129,37 @@ actor MockQueryService: QueryServiceProtocol {
     }
 }
 
+actor MockDatabaseRepository: DatabaseRepositoryProtocol {
+    /// Configs passed to `deleteDittoAppConfig`, in call order. Lets tests
+    /// prove a deletion reached the repository — or (for the confirmation
+    /// gate) that it did NOT.
+    private(set) var deletedConfigs: [DittoConfigForDatabase] = []
+
+    /// Canned configs returned by `loadDatabaseConfigs`.
+    var stubbedConfigs: [DittoConfigForDatabase] = []
+
+    func setAppState(_: AppState) {}
+    func loadDatabaseConfigs() async throws -> [DittoConfigForDatabase] {
+        stubbedConfigs
+    }
+
+    func addDittoAppConfig(_: DittoConfigForDatabase) async throws {}
+    func updateDittoAppConfig(_: DittoConfigForDatabase) async throws {}
+
+    func deleteDittoAppConfig(_ appConfig: DittoConfigForDatabase) async throws {
+        deletedConfigs.append(appConfig)
+    }
+
+    func setOnDittoDatabaseConfigUpdate(
+        _: @escaping @MainActor @Sendable ([DittoConfigForDatabase]) -> Void
+    ) {}
+}
+
 actor MockSubscriptionsRepository: SubscriptionsRepositoryProtocol {
     private(set) var savedSubscriptions: [DittoSubscription] = []
+    /// Database ids passed alongside each save — lets tests prove the VM
+    /// forwarded the action-time database id (stale-session guard).
+    private(set) var savedDatabaseIds: [String] = []
 
     func setAppState(_: AppState) {}
     func setOnSubscriptionsUpdate(_: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) {}
@@ -137,8 +167,9 @@ actor MockSubscriptionsRepository: SubscriptionsRepositoryProtocol {
         []
     }
 
-    func saveDittoSubscription(_ subscription: DittoSubscription) async throws {
+    func saveDittoSubscription(_ subscription: DittoSubscription, databaseId: String) async throws {
         savedSubscriptions.append(subscription)
+        savedDatabaseIds.append(databaseId)
     }
 
     func removeDittoSubscription(_: DittoSubscription) async throws {}
@@ -166,6 +197,9 @@ actor MockSystemRepository: SystemRepositoryProtocol {
 
 actor MockHistoryRepository: HistoryRepositoryProtocol {
     private(set) var savedQueries: [DittoQueryHistory] = []
+    /// Database ids passed alongside each save — lets tests prove the VM
+    /// forwarded the action-time database id (stale-session guard).
+    private(set) var savedDatabaseIds: [String] = []
 
     func setAppState(_: AppState) {}
     func setOnHistoryUpdate(_: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {}
@@ -173,26 +207,39 @@ actor MockHistoryRepository: HistoryRepositoryProtocol {
         []
     }
 
-    func saveQueryHistory(_ history: DittoQueryHistory) async throws {
+    func saveQueryHistory(_ history: DittoQueryHistory, databaseId: String) async throws {
         savedQueries.append(history)
+        savedDatabaseIds.append(databaseId)
     }
 
     func clearCache() {}
 }
 
 actor MockFavoritesRepository: FavoritesRepositoryProtocol {
+    private(set) var savedFavorites: [DittoQueryHistory] = []
+    /// Database ids passed alongside each save — lets tests prove the VM
+    /// forwarded the action-time database id (stale-session guard).
+    private(set) var savedDatabaseIds: [String] = []
+
     func setAppState(_: AppState) {}
     func setOnFavoritesUpdate(_: @escaping @MainActor @Sendable ([DittoQueryHistory]) -> Void) {}
     func loadFavorites(for _: String) async throws -> [DittoQueryHistory] {
         []
     }
 
-    func saveFavorite(_: DittoQueryHistory) async throws {}
+    func saveFavorite(_ favorite: DittoQueryHistory, databaseId: String) async throws {
+        savedFavorites.append(favorite)
+        savedDatabaseIds.append(databaseId)
+    }
+
     func clearCache() {}
 }
 
 actor MockObservableRepository: ObservableRepositoryProtocol {
     private(set) var savedObservables: [DittoObservable] = []
+    /// Database ids passed alongside each save — lets tests prove the VM
+    /// forwarded the action-time database id (stale-session guard).
+    private(set) var savedDatabaseIds: [String] = []
 
     func setAppState(_: AppState) {}
     func setOnObservablesUpdate(_: @escaping @MainActor @Sendable ([DittoObservable]) -> Void) {}
@@ -200,8 +247,9 @@ actor MockObservableRepository: ObservableRepositoryProtocol {
         []
     }
 
-    func saveDittoObservable(_ observable: DittoObservable) async throws {
+    func saveDittoObservable(_ observable: DittoObservable, databaseId: String) async throws {
         savedObservables.append(observable)
+        savedDatabaseIds.append(databaseId)
     }
 
     func removeDittoObservable(_: DittoObservable) async throws {}

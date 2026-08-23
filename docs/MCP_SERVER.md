@@ -95,10 +95,13 @@ curl -X POST http://localhost:65269/mcp \
 | `drop_index` | Drop an index by name |
 | `get_query_metrics` | Get recent query execution metrics and EXPLAIN output |
 | `get_sync_status` | Get peer count and transport configuration |
-| `configure_transport` | Enable/disable Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Enable/disable Bluetooth, LAN, or AWDL transports |
 | `insert_documents_from_file` | Insert documents from a local JSON file |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Get a one-time snapshot of all connected peers with full details |
+| `list_indexes` | List all indexes across every collection |
+| `get_app_logs` | Read recent Edge Studio application log entries |
+| `get_ditto_logs` | Read Ditto SDK log entries from the active database's log files |
 
 ### Tool Details
 
@@ -129,8 +132,17 @@ Note: Never returns credentials (token, httpApiKey, secretKey)
 #### `get_active_database`
 ```
 Arguments: (none)
-Returns: { name, databaseId, mode, transport: { bluetoothLE, lan, awdl, cloudSync } }
-Note: Returns error if no database is selected in Edge Studio
+Returns: {
+    name, databaseId, mode,
+    url, httpApiUrl,
+    httpApiConfigured,   // true when both httpApiUrl and httpApiKey are set
+    allowUntrustedCerts, // TLS setting
+    logLevel,
+    transport: { bluetoothLE, lan, awdl, cloudSync }
+  }
+Note: Credentials are never included — token, httpApiKey, and secretKey are
+      stripped; httpApiConfigured is a boolean, not the key itself.
+      Returns error if no database is selected in Edge Studio
 ```
 
 #### `list_collections`
@@ -148,8 +160,11 @@ Example field paths: "name", "address.city", "tags[*]"
 
 #### `drop_index`
 ```
-Arguments: { "index_name": "idx_myCollection_name" }
+Arguments: { "index_name": "idx_myCollection_name", "collection": "myCollection"? }
 Returns: Success or error message
+Note: The owning collection is resolved automatically from the database's index
+      metadata. Pass "collection" only to disambiguate when several collections
+      have an index with the same name.
 ```
 
 #### `get_query_metrics`
@@ -167,9 +182,11 @@ Returns: { database, connectedPeers, transport: { bluetoothLE, lan, awdl, cloudS
 
 #### `configure_transport`
 ```
-Arguments: { "bluetooth": bool?, "lan": bool?, "awdl": bool?, "cloud": bool? }
+Arguments: { "bluetooth": bool?, "lan": bool?, "awdl": bool? }
 Returns: Applied configuration summary
 Note: Omitted parameters are unchanged. Stops and restarts sync automatically.
+      There is no "cloud" parameter — this tool only toggles the three
+      peer-to-peer transports.
 ```
 
 #### `insert_documents_from_file`
@@ -229,6 +246,32 @@ Notes:
   - distanceMeters is only present for Bluetooth LE connections
   - syncedUpToCommitId may be empty if sync info is unavailable
   - identityMetadata and peerMetadata are JSON strings (empty string if absent)
+```
+
+#### `list_indexes`
+```
+Arguments: (none)
+Returns: Flat array of { name, fullName, collection, fields } for every index
+         across all collections in the active database
+```
+
+#### `get_app_logs`
+```
+Arguments: { "lines": int?, "filter": string? }
+Returns: The most recent Edge Studio application log entries (plain text,
+         newest last). "lines" defaults to 200; "filter" is a case-insensitive
+         substring match (e.g. "[Peers]", "error").
+Note: Reads the app's own log files written by Log.info/warning/error/debug.
+```
+
+#### `get_ditto_logs`
+```
+Arguments: { "lines": int?, "filter": string?, "level": string? }
+Returns: JSON array of { timestamp, level, component, message } parsed from
+         the active database's Ditto SDK log files (.log and .log.gz).
+         "level" is a minimum severity: error|warning|info|debug|verbose.
+Note: Requires an active database. Reads the SDK logs from the database's
+      persistence directory.
 ```
 
 ---
@@ -326,8 +369,9 @@ Queries are sent to the Ditto HTTP API endpoint configured on the active databas
 
 ## Security Considerations
 
-- The server only binds to `127.0.0.1` (localhost) — not accessible from other machines on your network
+- The server binds to the loopback interface only (`NWParameters.requiredInterfaceType = .loopback`) — not accessible from other machines on your network
 - No authentication by default — any process on your Mac can connect
+- The server emits no CORS headers and does not answer CORS preflight requests — browser-based clients are not supported; MCP clients are CLI agents, not browsers
 - All tools target the **currently selected database in the Edge Studio UI** — be mindful of what database is active
 - The `execute_dql` tool can perform writes (INSERT, UPDATE, EVICT) — use with care
 - `set_sync(enabled: false)` stops all replication for the active database until re-enabled
@@ -370,8 +414,8 @@ No peers are currently connected to the active database. Check sync status with 
 The MCP server implements the [MCP SSE transport](https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/) using Apple's Network.framework:
 
 - **`GET /mcp`** — SSE endpoint; responds with `event: endpoint` pointing to the message URL
-- **`POST /mcp?sessionId=<id>`** — JSON-RPC message handler; response delivered via SSE stream
+- **`POST /mcp?sessionId=<id>`** — JSON-RPC message handler; response delivered via SSE stream. An unknown (stale or never-established) `sessionId` is rejected with `404` **before** the message is processed, so mutating tools never execute for dead sessions. All sessions are drained when the server stops, so `sessionId`s never survive a restart.
 - **`POST /mcp`** — Direct JSON-RPC (for HTTP transport clients); response in HTTP body
 - **`GET /health`** — Simple health check returning `200 OK`
 
-No external Swift packages are required. The implementation is ~600 lines across three files in `Edge Debug Helper/Data/MCPServer/`.
+No external Swift packages are required. The implementation is ~1400 lines across four files in `EdgeStudio/Data/MCPServer/`.

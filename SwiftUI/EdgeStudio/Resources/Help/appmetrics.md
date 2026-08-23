@@ -6,25 +6,22 @@ App Metrics show live resource usage for the currently running Edge Studio proce
 
 ## Enabling Metrics
 
-Metrics are opt-in. Toggle **Enable Metrics** in **Settings** to show or hide the App Metrics and Query Metrics items in the sidebar. The sidebar updates dynamically — no restart required.
+Metrics are on by default (opt-out). Toggle **Collect Metrics** in **Settings** to show or hide the App Metrics and Query Metrics items in the navigation menu (the sidebar on macOS / iPadOS, the navigation rail/drawer on Android). The navigation menu updates dynamically — no restart required.
 
 ---
 
 ## Process Resources
 
-**Available on macOS:**
+**Available on macOS and Android** (the Process section is not shown on iOS / iPadOS):
 - **Resident Memory** — physical RAM currently in use by the process
 - **Virtual Memory** — total virtual address space allocated
 - **CPU Time** — cumulative processor time used since launch
 - **Open File Descriptors** — number of open file handles
 - **Process Uptime** — time since the process started
 
-**Available on iOS / iPadOS:**
-- **Process Uptime** — time since the process started
-
-**Query Performance (both platforms):**
+**Query Performance (all platforms):**
 - **Total Queries** — number of DQL queries executed in this session
-- **Average Latency** — rolling average execution time across all queries, displayed with a sparkline chart showing recent trends
+- **Average Latency** — rolling average execution time across all queries; on macOS / iPadOS this is displayed with a sparkline chart showing recent trends (Android shows the value only, no sparkline)
 - **Last Latency** — execution time of the most recent query
 
 App Metrics **auto-refresh every 15 seconds**. You can also trigger a manual refresh using the refresh button.
@@ -32,6 +29,8 @@ App Metrics **auto-refresh every 15 seconds**. You can also trigger a manual ref
 ---
 
 ## Storage
+
+> **macOS / iPadOS only.** On Android, storage and per-collection breakdown live under the **Database Metrics** section instead of App Metrics.
 
 The Storage section shows how much disk space the currently selected Ditto database is using. All values are read directly from the local filesystem — no network request, no sync delay.
 

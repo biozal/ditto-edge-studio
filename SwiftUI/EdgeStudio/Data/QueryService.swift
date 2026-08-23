@@ -32,7 +32,9 @@ actor QueryService {
 
     func executeSelectedAppQuery(query: String) async throws -> [String] {
         guard let ditto = await dittoManager.dittoSelectedApp else {
-            return ["No results found"]
+            // Distinct from an empty result set ("No results found") — the MCP
+            // formatQueryResults special-cases this exact string.
+            return ["No Ditto app selected"]
         }
 
         // Instrument: measure execution time
@@ -118,7 +120,8 @@ actor QueryService {
     /// `.profile` is nil — same wire behaviour as the legacy method.
     func executeSelectedAppQueryWithProfile(query: String) async throws -> QueryExecutionResult {
         guard let ditto = await dittoManager.dittoSelectedApp else {
-            return QueryExecutionResult(items: ["No results found"], profile: nil)
+            // Same sentinel as executeSelectedAppQuery — see note there.
+            return QueryExecutionResult(items: ["No Ditto app selected"], profile: nil)
         }
 
         let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
@@ -248,6 +251,30 @@ actor QueryService {
         return next.isWhitespace || next.isNewline
     }
 
+    /// Sanitizes a user-entered `httpApiUrl` and composes it with an HTTP
+    /// API path. Users sometimes paste the URL with a scheme (`http://host`)
+    /// or a trailing slash; both would produce a malformed URL if
+    /// interpolated directly, so strip them before composing. Shared by
+    /// QueryService (`/api/v5/store/execute`) and AttachmentService
+    /// (`/api/v4/attachments/…`).
+    nonisolated static func makeHttpApiURL(httpApiUrl: String, path: String) -> String {
+        var host = httpApiUrl.trimmingCharacters(in: .whitespaces)
+        for scheme in ["https://", "http://"] where host.lowercased().hasPrefix(scheme) {
+            host = String(host.dropFirst(scheme.count))
+            break
+        }
+        while host.hasSuffix("/") {
+            host.removeLast()
+        }
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        return "https://\(host)\(normalizedPath)"
+    }
+
+    /// Builds the HTTP API execute URL from a user-entered `httpApiUrl`.
+    nonisolated static func makeHttpExecuteURL(httpApiUrl: String) -> String {
+        makeHttpApiURL(httpApiUrl: httpApiUrl, path: "/api/v5/store/execute")
+    }
+
     private func runExplain(ditto: Ditto, query: String) async -> String {
         // Guard against recursive EXPLAIN calls
         guard !query.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("EXPLAIN") else {
@@ -274,7 +301,7 @@ actor QueryService {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"]
         }
 
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
+        let urlString = Self.makeHttpExecuteURL(httpApiUrl: appConfig.httpApiUrl)
         let authorization = "Bearer \(appConfig.httpApiKey)"
 
         guard let url = URL(string: urlString) else {

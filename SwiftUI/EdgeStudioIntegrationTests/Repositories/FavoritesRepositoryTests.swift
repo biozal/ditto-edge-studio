@@ -1,5 +1,4 @@
 import Testing
-
 @testable import Ditto_Edge_Studio
 
 /// Helper: inserts a parent DatabaseConfigRow into SQLCipher to satisfy the
@@ -37,14 +36,12 @@ private func insertFavoritesParentConfig(dbId: String) async throws {
 /// Target: 80% code coverage for FavoritesRepository.
 @Suite("FavoritesRepository Tests", .serialized)
 struct FavoritesRepositoryTests {
-
     // MARK: - Load Tests
 
     @Suite("Load")
     struct LoadTests {
-
-        @Test("Fresh database returns empty favorites", .tags(.repository, .database))
-        func testFreshDatabaseEmpty() async throws {
+        @Test(.tags(.repository, .database))
+        func `Fresh database returns empty favorites`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -58,8 +55,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Load returns item saved before load", .tags(.repository, .database))
-        func testLoadAfterSave() async throws {
+        @Test(.tags(.repository, .database))
+        func `Load returns item saved before load`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -74,7 +71,7 @@ struct FavoritesRepositoryTests {
                 )
 
                 // ACT
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
                 let favorites = try await repo.loadFavorites(for: dbId)
 
                 // ASSERT
@@ -83,8 +80,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Favorites are scoped per databaseId", .tags(.repository, .database))
-        func testFavoritesScopedByDatabase() async throws {
+        @Test(.tags(.repository, .database))
+        func `Favorites are scoped per databaseId`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -95,7 +92,7 @@ struct FavoritesRepositoryTests {
                 try await insertFavoritesParentConfig(dbId: dbId1)
                 _ = try await repo.loadFavorites(for: dbId1)
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "FAV-Q1", createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId1)
 
                 // Switch to dbId2 — should see empty
                 let favs2 = try await repo.loadFavorites(for: dbId2)
@@ -105,8 +102,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Multiple favorites are all returned", .tags(.repository, .database))
-        func testLoadMultipleFavorites() async throws {
+        @Test(.tags(.repository, .database))
+        func `Multiple favorites are all returned`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -121,7 +118,7 @@ struct FavoritesRepositoryTests {
                         query: "FAVORITE QUERY \(i)",
                         createdDate: Date().ISO8601Format()
                     )
-                    try await repo.saveFavorite(fav)
+                    try await repo.saveFavorite(fav, databaseId: dbId)
                 }
                 let favorites = try await repo.loadFavorites(for: dbId)
 
@@ -135,9 +132,8 @@ struct FavoritesRepositoryTests {
 
     @Suite("Save")
     struct SaveTests {
-
-        @Test("Saved favorite is persisted to SQLCipher", .tags(.repository, .database))
-        func testSavePersistsToDisk() async throws {
+        @Test(.tags(.repository, .database))
+        func `Saved favorite is persisted to SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -152,7 +148,7 @@ struct FavoritesRepositoryTests {
                 )
 
                 // ACT
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
 
                 // Verify via SQLCipher directly
                 let service = SQLCipherContext.current
@@ -164,8 +160,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Saving duplicate query throws InvalidStateError", .tags(.repository, .database))
-        func testSaveDuplicateThrows() async throws {
+        @Test(.tags(.repository, .database))
+        func `Saving duplicate query throws InvalidStateError`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -176,17 +172,17 @@ struct FavoritesRepositoryTests {
                 let query = "SELECT * FROM users"
                 let fav1 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: query, createdDate: Date().ISO8601Format())
                 let fav2 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: query, createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav1)
+                try await repo.saveFavorite(fav1, databaseId: dbId)
 
                 // ACT & ASSERT — saving same query should throw
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveFavorite(fav2)
+                    try await repo.saveFavorite(fav2, databaseId: dbId)
                 }
             }
         }
 
-        @Test("Save without prior load throws InvalidStateError", .tags(.repository, .database))
-        func testSaveWithoutLoadThrows() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save without prior load throws InvalidStateError`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -196,7 +192,7 @@ struct FavoritesRepositoryTests {
 
                 // ACT & ASSERT
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveFavorite(fav)
+                    try await repo.saveFavorite(fav, databaseId: "no-active-session")
                 }
             }
         }
@@ -206,9 +202,8 @@ struct FavoritesRepositoryTests {
 
     @Suite("Delete")
     struct DeleteTests {
-
-        @Test("Delete removes specific favorite", .tags(.repository, .database))
-        func testDeleteRemovesFavorite() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete removes specific favorite`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -217,7 +212,7 @@ struct FavoritesRepositoryTests {
                 _ = try await repo.loadFavorites(for: dbId)
 
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "DEL Q", createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
 
                 // ACT
                 let loaded = try await repo.loadFavorites(for: dbId)
@@ -229,8 +224,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Delete non-existent ID is safe", .tags(.repository, .database))
-        func testDeleteNonExistentIsSafe() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete non-existent ID is safe`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -242,8 +237,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("Delete one entry does not remove others", .tags(.repository, .database))
-        func testDeleteOnePreservesOthers() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete one entry does not remove others`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -253,8 +248,8 @@ struct FavoritesRepositoryTests {
 
                 let fav1 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "KEEP THIS", createdDate: Date().ISO8601Format())
                 let fav2 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "REMOVE THIS", createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav1)
-                try await repo.saveFavorite(fav2)
+                try await repo.saveFavorite(fav1, databaseId: dbId)
+                try await repo.saveFavorite(fav2, databaseId: dbId)
 
                 let all = try await repo.loadFavorites(for: dbId)
                 let toDelete = all.first(where: { $0.query == "REMOVE THIS" })!.id
@@ -274,9 +269,8 @@ struct FavoritesRepositoryTests {
 
     @Suite("Cache")
     struct CacheTests {
-
-        @Test("clearCache resets currentDatabaseId so save throws", .tags(.repository, .database))
-        func testClearCacheResetsDatabaseId() async throws {
+        @Test(.tags(.repository, .database))
+        func `clearCache resets currentDatabaseId so save throws`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -289,13 +283,13 @@ struct FavoritesRepositoryTests {
                 // ASSERT — saving should now throw (no currentDatabaseId)
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "Q", createdDate: Date().ISO8601Format())
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveFavorite(fav)
+                    try await repo.saveFavorite(fav, databaseId: dbId)
                 }
             }
         }
 
-        @Test("After clearCache load re-fetches from disk", .tags(.repository, .database))
-        func testLoadAfterClearCacheRefetchesFromDisk() async throws {
+        @Test(.tags(.repository, .database))
+        func `After clearCache load re-fetches from disk`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -304,7 +298,7 @@ struct FavoritesRepositoryTests {
                 _ = try await repo.loadFavorites(for: dbId)
 
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "PERSISTED FAV", createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
 
                 // ACT — clear cache and reload
                 await repo.clearCache()
@@ -321,9 +315,8 @@ struct FavoritesRepositoryTests {
 
     @Suite("Observer Callback")
     struct ObserverCallbackTests {
-
-        @Test("setOnFavoritesUpdate callback fires when favorite is saved", .tags(.repository, .database))
-        func testCallbackFiresOnSave() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnFavoritesUpdate callback fires when favorite is saved`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -339,7 +332,7 @@ struct FavoritesRepositoryTests {
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "OBS-FAV", createdDate: Date().ISO8601Format())
 
                 // ACT
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
 
                 // ASSERT
                 #expect(callbackResult.value.count == 1)
@@ -347,8 +340,8 @@ struct FavoritesRepositoryTests {
             }
         }
 
-        @Test("setOnFavoritesUpdate callback fires when favorite is deleted", .tags(.repository, .database))
-        func testCallbackFiresOnDelete() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnFavoritesUpdate callback fires when favorite is deleted`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = FavoritesRepository.shared
@@ -357,7 +350,7 @@ struct FavoritesRepositoryTests {
                 _ = try await repo.loadFavorites(for: dbId)
 
                 let fav = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "DEL-FAV", createdDate: Date().ISO8601Format())
-                try await repo.saveFavorite(fav)
+                try await repo.saveFavorite(fav, databaseId: dbId)
 
                 let callbackCount = TestCounter()
                 await repo.setOnFavoritesUpdate { _ in

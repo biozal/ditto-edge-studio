@@ -74,7 +74,8 @@ result as "unverified" rather than fatal, so a shape surprise degrades safely.
   (rename / value edit / Boolean seeding), reset/undo, corrupt-scope blocking.
 - `QrCodeEncoderTest` / `QrCodeDecoderTest` — advanced settings excluded in both
   directions, including a crafted hostile payload.
-- `MigrationTest` (instrumented) — v1→v4 chain and v3→v4 column defaults.
+- `MigrationTest` (instrumented) — v1→v6 chain (through `MIGRATION_5_6`) and
+  v3→v4 column defaults.
 - `AdvancedConfigurationUiTest` (instrumented, 22 tests) — disclosure and summary,
   scope/setting row editing, inline validation messages, Save gating, sensitive
   acknowledgement (grant, revoke on rename, withdraw), boolean dropdown seeding,

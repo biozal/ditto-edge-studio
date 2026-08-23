@@ -24,6 +24,8 @@ final class AttachmentViewModel {
 
     @ObservationIgnored
     private let queryService: any QueryServiceProtocol
+    @ObservationIgnored
+    private let dittoManager: any DittoManagerProtocol
 
     // MARK: - Progress
 
@@ -51,8 +53,12 @@ final class AttachmentViewModel {
 
     // MARK: - Init
 
-    init(queryService: any QueryServiceProtocol = QueryService.shared) {
+    init(
+        queryService: any QueryServiceProtocol = QueryService.shared,
+        dittoManager: any DittoManagerProtocol = DittoManager.shared
+    ) {
         self.queryService = queryService
+        self.dittoManager = dittoManager
     }
 
     // MARK: - Parsers (pure helpers exposed for unit testability)
@@ -155,9 +161,31 @@ final class AttachmentViewModel {
         }
     }
 
-    /// Issues `UPDATE collection SET field = null WHERE _id = ...` for each
-    /// selected attachment field. Validates collection / field names against a
-    /// strict identifier regex to keep DQL injection-safe.
+    /// Builds the null-out UPDATE that deletes an attachment field. The
+    /// document id is ALWAYS passed as a bound argument (`:docId`), never
+    /// interpolated into the statement: `_id` values come from synced document
+    /// data, so a hostile peer could otherwise smuggle DQL through a crafted
+    /// `_id`. `collection` and `fieldName` are interpolated and must therefore
+    /// already be validated against the identifier regex by the caller.
+    ///
+    /// `nonisolated static` so the injection-safety decision is unit-testable
+    /// without a live `Ditto` — same pattern as `DittoManager.createDatabaseConfig`.
+    nonisolated static func deleteAttachmentStatement(
+        collection: String,
+        fieldName: String,
+        documentId: String
+    ) -> (query: String, arguments: [String: Any]) {
+        (
+            "UPDATE \(collection) SET \(fieldName) = null WHERE _id = :docId",
+            ["docId": documentId]
+        )
+    }
+
+    /// Issues `UPDATE collection SET field = null WHERE _id = :docId` for each
+    /// selected attachment field. Collection / field names are validated
+    /// against a strict identifier regex; the document id is bound as an
+    /// argument (see `deleteAttachmentStatement`) so synced `_id` values
+    /// cannot inject DQL.
     func executeDeleteAttachment(
         selectedAttachments: [AttachmentInfo],
         appState: AppState
@@ -186,14 +214,29 @@ final class AttachmentViewModel {
         attachmentProgress.fractionCompleted = 0.0
 
         do {
-            for (index, att) in selectedAttachments.enumerated() {
+            // Validate every identifier up front, so a hostile field or
+            // collection name rejects the whole batch before any UPDATE runs.
+            for att in selectedAttachments {
                 guard att.fieldName.wholeMatch(of: identifierPattern) != nil,
                       collection.wholeMatch(of: identifierPattern) != nil else
                 {
                     throw AttachmentError.invalidFieldName
                 }
-                let query = "UPDATE \(collection) SET \(att.fieldName) = null WHERE _id = '\(docIdString)'"
-                _ = try await queryService.executeSelectedAppQuery(query: query)
+            }
+
+            // Bound arguments require the live Ditto store — the QueryService
+            // protocol surface only accepts a pre-baked query string.
+            guard let ditto = await dittoManager.dittoSelectedApp else {
+                throw AttachmentError.noDittoInstance
+            }
+
+            for (index, att) in selectedAttachments.enumerated() {
+                let (query, arguments) = Self.deleteAttachmentStatement(
+                    collection: collection,
+                    fieldName: att.fieldName,
+                    documentId: docIdString
+                )
+                try await ditto.store.execute(query: query, arguments: arguments)
                 attachmentProgress.fractionCompleted = Double(index + 1) / Double(selectedAttachments.count)
             }
             attachmentProgress.message = "Deleted \(selectedAttachments.count) field(s) — re-run query to see changes"

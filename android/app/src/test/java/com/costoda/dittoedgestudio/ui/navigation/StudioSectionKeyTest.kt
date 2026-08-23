@@ -84,7 +84,7 @@ class StudioSectionKeyTest {
 
     @Test
     fun `QueryMetricDetailKey parentNavItem maps to QUERY_METRICS`() {
-        val key: StudioChildKey = QueryMetricDetailKey(databaseId = 1L, historyId = 9L)
+        val key: StudioChildKey = QueryMetricDetailKey(databaseId = 1L, metricsId = 9L)
         assertEquals(StudioNavItem.QUERY_METRICS, key.parentNavItem)
     }
 }

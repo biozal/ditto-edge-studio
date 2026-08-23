@@ -23,6 +23,9 @@ data class DatabaseEditorKey(val id: Long = -1L) : NavKey
 @Serializable
 data object QrScannerKey : NavKey
 
+@Serializable
+data object SettingsKey : NavKey
+
 // ---------------------------------------------------------------------------
 // Studio rail section keys
 // ---------------------------------------------------------------------------
@@ -62,14 +65,17 @@ sealed interface StudioChildKey : NavKey {
 /**
  * Compact-width drill-in: the EXPLAIN / stats detail for a single executed query.
  *
- * At ≥600dp this content is rendered as the [ListDetailSceneStrategy.detailPane] and the
- * ListDetailSceneStrategy places it side-by-side with [QueryMetricsKey]; no back-stack push
- * occurs. At compact widths it is pushed on top of [QueryMetricsKey] so the user reaches the
- * detail via a normal drill-in.
+ * Selecting a metric ALWAYS pushes this key onto the back stack. At ≥600dp the
+ * [ListDetailSceneStrategy] renders the pushed entry as the detail pane side-by-side
+ * with [QueryMetricsKey]; at compact widths the pushed entry covers the list
+ * full-screen as a normal drill-in (system back pops it).
  *
- * [historyId] matches [com.costoda.dittoedgestudio.domain.model.QueryMetrics.historyId] (Long).
+ * [metricsId] matches [com.costoda.dittoedgestudio.domain.model.QueryMetrics.id] (Long) —
+ * the metrics row's own primary key. It is NOT the history id: history dedups re-runs of
+ * the same query onto one history row, so keying the detail on historyId could show an
+ * arbitrary older capture and multi-highlight every row of a repeated query.
  */
-@Serializable data class QueryMetricDetailKey(override val databaseId: Long, val historyId: Long) : StudioChildKey
+@Serializable data class QueryMetricDetailKey(override val databaseId: Long, val metricsId: Long) : StudioChildKey
 
 // ---------------------------------------------------------------------------
 // Mapping helpers between StudioNavItem enum and StudioSectionKey

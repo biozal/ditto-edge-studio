@@ -126,7 +126,7 @@ struct AppMetricsDetailView: View {
                     systemImage: "text.magnifyingglass",
                     currentValue: "\(Int(querySnapshot.totalQueryCount))",
                     samples: [],
-                    helpText: "The number of DQL queries executed against the selected Ditto database since the app launched, including queries run automatically by the app on startup."
+                    helpText: "The number of DQL queries executed against the selected Ditto database since the app launched. Queries the app runs automatically for its own housekeeping are not counted."
                 )
                 if let avg = querySnapshot.avgQueryLatencyMs {
                     MetricCard(

@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -197,6 +198,7 @@ fun QrScannerScreen(
     }
 }
 
+@androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
 @Composable
 private fun CameraPreview(
     modifier: Modifier = Modifier,

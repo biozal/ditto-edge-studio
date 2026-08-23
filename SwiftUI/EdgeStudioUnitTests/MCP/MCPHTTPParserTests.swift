@@ -13,11 +13,10 @@ import Testing
 /// No server, no database required — pure Swift logic.
 @Suite("MCP HTTP Parser Tests", .tags(.mcp))
 struct MCPHTTPParserTests {
-
     // MARK: - GET Requests
 
-    @Test("Parses complete GET request", .tags(.mcp, .fast))
-    func testParsesCompleteGETRequest() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses complete GET request`() {
         // ARRANGE
         let raw = "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -31,8 +30,8 @@ struct MCPHTTPParserTests {
         #expect(request?.path == "/health")
     }
 
-    @Test("GET request body is empty", .tags(.mcp, .fast))
-    func testGETRequestBodyIsEmpty() {
+    @Test(.tags(.mcp, .fast))
+    func `GET request body is empty`() {
         // ARRANGE
         let raw = "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -46,8 +45,8 @@ struct MCPHTTPParserTests {
 
     // MARK: - POST Requests
 
-    @Test("Parses complete POST request with body", .tags(.mcp, .fast))
-    func testParsesCompletePOSTWithBody() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses complete POST request with body`() {
         // ARRANGE
         let body = "{\"hello\":\"ok\"}"
         let raw = "POST /mcp HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
@@ -63,8 +62,8 @@ struct MCPHTTPParserTests {
         #expect(request?.body == Data(body.utf8))
     }
 
-    @Test("POST with zero Content-Length has empty body", .tags(.mcp, .fast))
-    func testPOSTWithZeroContentLengthHasEmptyBody() {
+    @Test(.tags(.mcp, .fast))
+    func `POST with zero Content-Length has empty body`() {
         // ARRANGE
         let raw = "POST /mcp HTTP/1.1\r\nContent-Length: 0\r\n\r\n"
         let data = Data(raw.utf8)
@@ -77,10 +76,66 @@ struct MCPHTTPParserTests {
         #expect(request?.body.isEmpty == true)
     }
 
+    // MARK: - Chunked Transfer Encoding
+
+    @Test(.tags(.mcp, .fast))
+    func `Parses chunked POST body`() {
+        // ARRANGE — "hello world" split into two chunks
+        let raw = "POST /mcp HTTP/1.1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n"
+        let data = Data(raw.utf8)
+
+        // ACT
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT
+        #expect(request != nil)
+        #expect(request?.body == Data("hello world".utf8))
+    }
+
+    @Test(.tags(.mcp, .fast))
+    func `Parses single-chunk POST body`() {
+        // ARRANGE
+        let body = "{\"jsonrpc\":\"2.0\"}"
+        let raw = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n\(String(body.utf8.count, radix: 16))\r\n\(body)\r\n0\r\n\r\n"
+        let data = Data(raw.utf8)
+
+        // ACT
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT
+        #expect(request?.body == Data(body.utf8))
+    }
+
+    @Test(.tags(.mcp, .fast))
+    func `Returns nil when chunked body is incomplete`() {
+        // ARRANGE — chunk declares 10 bytes, only 3 present, no terminator
+        let raw = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\na\r\nabc"
+        let data = Data(raw.utf8)
+
+        // ACT
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT
+        #expect(request == nil)
+    }
+
+    @Test(.tags(.mcp, .fast))
+    func `Returns nil when terminating chunk has not arrived`() {
+        // ARRANGE — one complete chunk, but no zero-length terminator yet
+        let raw = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n"
+        let data = Data(raw.utf8)
+
+        // ACT
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT
+        #expect(request == nil)
+    }
+
     // MARK: - Incomplete Data (must return nil)
 
-    @Test("Returns nil for incomplete headers (no CRLF-CRLF)", .tags(.mcp, .fast))
-    func testReturnsNilForIncompleteHeaders() {
+    @Test(.tags(.mcp, .fast))
+    func `Returns nil for incomplete headers (no CRLF-CRLF)`() {
         // ARRANGE — half a request line, no header terminator
         let raw = "GET /health HTTP/1.1\r\nHost: loc"
         let data = Data(raw.utf8)
@@ -92,8 +147,8 @@ struct MCPHTTPParserTests {
         #expect(request == nil)
     }
 
-    @Test("Returns nil when body not yet fully received", .tags(.mcp, .fast))
-    func testReturnsNilWhenBodyIncomplete() {
+    @Test(.tags(.mcp, .fast))
+    func `Returns nil when body not yet fully received`() {
         // ARRANGE — Content-Length says 100 bytes, but only 10 bytes of body are present
         let partialBody = "0123456789"
         let raw = "POST /mcp HTTP/1.1\r\nContent-Length: 100\r\n\r\n\(partialBody)"
@@ -106,8 +161,8 @@ struct MCPHTTPParserTests {
         #expect(request == nil)
     }
 
-    @Test("Returns nil for empty data", .tags(.mcp, .fast))
-    func testReturnsNilForEmptyData() {
+    @Test(.tags(.mcp, .fast))
+    func `Returns nil for empty data`() {
         // ACT
         let request = MCPHTTPParser.tryParse(Data())
 
@@ -117,8 +172,8 @@ struct MCPHTTPParserTests {
 
     // MARK: - Query Parameters
 
-    @Test("Parses single query parameter", .tags(.mcp, .fast))
-    func testParsesSingleQueryParameter() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses single query parameter`() {
         // ARRANGE
         let raw = "GET /mcp?sessionId=abc123 HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -130,8 +185,8 @@ struct MCPHTTPParserTests {
         #expect(request?.queryParams["sessionId"] == "abc123")
     }
 
-    @Test("Path does not include query string", .tags(.mcp, .fast))
-    func testPathDoesNotIncludeQueryString() {
+    @Test(.tags(.mcp, .fast))
+    func `Path does not include query string`() {
         // ARRANGE
         let raw = "GET /mcp?sessionId=abc123 HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -143,8 +198,8 @@ struct MCPHTTPParserTests {
         #expect(request?.path == "/mcp")
     }
 
-    @Test("Parses multiple query parameters", .tags(.mcp, .fast))
-    func testParsesMultipleQueryParameters() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses multiple query parameters`() {
         // ARRANGE
         let raw = "GET /mcp?sessionId=abc&version=2 HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -157,8 +212,8 @@ struct MCPHTTPParserTests {
         #expect(request?.queryParams["version"] == "2")
     }
 
-    @Test("No query string produces empty queryParams", .tags(.mcp, .fast))
-    func testNoQueryStringProducesEmptyParams() {
+    @Test(.tags(.mcp, .fast))
+    func `No query string produces empty queryParams`() {
         // ARRANGE
         let raw = "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)
@@ -172,8 +227,8 @@ struct MCPHTTPParserTests {
 
     // MARK: - Headers
 
-    @Test("Parses headers with lowercase keys", .tags(.mcp, .fast))
-    func testParsesHeadersAsLowercased() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses headers with lowercase keys`() {
         // ARRANGE — send mixed-case header
         let raw = "POST /mcp HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"
         let data = Data(raw.utf8)
@@ -186,8 +241,8 @@ struct MCPHTTPParserTests {
         #expect(request?.headers["content-length"] == "0")
     }
 
-    @Test("Parses OPTIONS method", .tags(.mcp, .fast))
-    func testParsesOPTIONSMethod() {
+    @Test(.tags(.mcp, .fast))
+    func `Parses OPTIONS method`() {
         // ARRANGE
         let raw = "OPTIONS /mcp HTTP/1.1\r\nHost: localhost\r\n\r\n"
         let data = Data(raw.utf8)

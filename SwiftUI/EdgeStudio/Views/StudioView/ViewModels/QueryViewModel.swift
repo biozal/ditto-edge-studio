@@ -18,6 +18,13 @@ final class QueryViewModel {
     @ObservationIgnored
     private let favoritesRepository: any FavoritesRepositoryProtocol
 
+    /// Database this VM was constructed for. Captured at init (i.e. at
+    /// session start) so history saves that complete after the user switched
+    /// databases carry the ORIGINAL database id — the repository refuses the
+    /// write when it no longer matches the active session.
+    @ObservationIgnored
+    private let databaseId: String
+
     // MARK: - Editor State
 
     var selectedQuery: String
@@ -81,6 +88,7 @@ final class QueryViewModel {
         self.queryService = queryService
         self.historyRepository = historyRepository
         self.favoritesRepository = favoritesRepository
+        databaseId = dittoAppConfig.databaseId
 
         // Initial editor state mirrors what the prior god-VM init produced.
         selectedQuery = ""
@@ -230,7 +238,12 @@ final class QueryViewModel {
             createdDate: Date.now.ISO8601Format()
         )
         do {
-            try await historyRepository.saveQueryHistory(queryHistory)
+            try await historyRepository.saveQueryHistory(queryHistory, databaseId: databaseId)
+        } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+            // Expected race: the user switched databases while the query was
+            // running and the repository correctly refused the stale write.
+            // Log it — don't show an error alert in the NEW session.
+            Log.info("History save skipped: \(error.message)")
         } catch {
             appState.setError(error)
         }

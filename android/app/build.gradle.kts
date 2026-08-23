@@ -15,8 +15,8 @@ android {
         applicationId = "com.costoda.dittoedgestudio"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0b5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,6 +36,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Required for BuildConfig.DEBUG gating of operational Log.* calls.
+        buildConfig = true
     }
     packaging {
         resources {
@@ -88,6 +90,9 @@ val syncHelpDocs by tasks.registering(Copy::class) {
     from(rootProject.file("../docs/help"))
     into(layout.projectDirectory.dir("src/main/assets/help"))
     include("*.md")
+    // UserGuide.md is macOS/iPadOS-only content (⌘ shortcuts, Settings menu, MCP
+    // server) and is unreferenced by the Android UI — SwiftUI ships it, Android does not.
+    exclude("UserGuide.md")
 }
 
 tasks.named("preBuild") {

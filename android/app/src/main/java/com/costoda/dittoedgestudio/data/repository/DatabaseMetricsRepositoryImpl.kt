@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.data.repository
 
 import android.util.Log
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.domain.model.CollectionPayloadInfo
 import com.costoda.dittoedgestudio.domain.model.DatabaseMetrics
 import com.costoda.dittoedgestudio.domain.model.StorageCategory
@@ -70,7 +71,7 @@ class DatabaseMetricsRepositoryImpl : DatabaseMetricsRepository {
             Log.w(TAG, "Failed to list __collections", t)
             return emptyList()
         }
-        Log.i(TAG, "Found ${names.size} collection names: $names")
+        if (BuildConfig.DEBUG) Log.i(TAG, "Found ${names.size} collection names: $names")
 
         val breakdown = names.mapNotNull { name ->
             try {
@@ -83,7 +84,9 @@ class DatabaseMetricsRepositoryImpl : DatabaseMetricsRepository {
                         docCount++
                         item.dematerialize()
                     }
-                    Log.i(TAG, "Collection '$name': $docCount docs, $cborBytes bytes")
+                    if (BuildConfig.DEBUG) {
+                        Log.i(TAG, "Collection '$name': $docCount docs, $cborBytes bytes")
+                    }
                     CollectionPayloadInfo(
                         name = name,
                         documentCount = docCount,

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,20 +26,20 @@ import com.costoda.dittoedgestudio.ui.mainstudio.currentCollectionFromQuery
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryInspectorTab
 
-private val INSPECTOR_TAB_ICONS: List<ImageVector> = listOf(
-    Icons.Outlined.History,
-    Icons.Outlined.BookmarkBorder,
-    Icons.Outlined.Code,
-    Icons.Outlined.Analytics,
-    Icons.AutoMirrored.Outlined.HelpOutline,
+private val INSPECTOR_TAB_ICONS: Map<QueryInspectorTab, ImageVector> = mapOf(
+    QueryInspectorTab.HISTORY to Icons.Outlined.History,
+    QueryInspectorTab.FAVORITES to Icons.Outlined.BookmarkBorder,
+    QueryInspectorTab.JSON to Icons.Outlined.Code,
+    QueryInspectorTab.METRICS to Icons.Outlined.Analytics,
+    QueryInspectorTab.HELP to Icons.AutoMirrored.Outlined.HelpOutline,
 )
 
-private val INSPECTOR_TAB_DESCRIPTIONS: List<String> = listOf(
-    "History",
-    "Favorites",
-    "JSON",
-    "Metrics",
-    "Help",
+private val INSPECTOR_TAB_DESCRIPTIONS: Map<QueryInspectorTab, String> = mapOf(
+    QueryInspectorTab.HISTORY to "History",
+    QueryInspectorTab.FAVORITES to "Favorites",
+    QueryInspectorTab.JSON to "JSON",
+    QueryInspectorTab.METRICS to "Metrics",
+    QueryInspectorTab.HELP to "Help",
 )
 
 @Composable
@@ -52,6 +53,31 @@ fun QueryInspectorView(
     val selectedDocument by viewModel.selectedDocument.collectAsStateWithLifecycle()
     val metrics by viewModel.queryMetrics.collectAsStateWithLifecycle()
     val cachedAtt by viewModel.cachedAttachments.collectAsStateWithLifecycle()
+    val queryText by viewModel.queryText.collectAsStateWithLifecycle()
+    // "Collect Metrics" preference (exposed as captureProfilingData on the VM). When off,
+    // the Metrics tab is hidden — mirrors SwiftUI's buildQueryInspectorItems(metricsEnabled:).
+    val metricsEnabled by viewModel.captureProfilingData.collectAsStateWithLifecycle()
+
+    val visibleTabs = remember(metricsEnabled) {
+        if (metricsEnabled) QueryInspectorTab.entries
+        else QueryInspectorTab.entries.filter { it != QueryInspectorTab.METRICS }
+    }
+
+    // Auto-navigate away from the Metrics tab when collection is disabled while it is
+    // selected (mirrors SwiftUI's MainStudioView.onChange(metricsEnabled)). The effective
+    // tab is ALSO derived synchronously below so the frame between the pref change and
+    // this effect never renders Metrics content under a History highlight.
+    LaunchedEffect(metricsEnabled) {
+        if (!metricsEnabled && viewModel.selectedInspectorTab.value == QueryInspectorTab.METRICS) {
+            viewModel.setInspectorTab(QueryInspectorTab.HISTORY)
+        }
+    }
+    val effectiveTab =
+        if (!metricsEnabled && selectedTab == QueryInspectorTab.METRICS) {
+            QueryInspectorTab.HISTORY
+        } else {
+            selectedTab
+        }
 
     // State: non-null while the Delete sheet is open. Holds the triggering AttachmentInfo so the
     // sheet can pre-populate; the sheet itself re-derives all attachments from selectedDocument.
@@ -61,14 +87,14 @@ fun QueryInspectorView(
         // Icon-only connected button group — fits the narrow 300-400dp inspector column
         // without wrapping; selection is conveyed by SulfurYellow container + shape morph.
         DittoConnectedIconButtonGroup(
-            icons = INSPECTOR_TAB_ICONS,
-            contentDescriptions = INSPECTOR_TAB_DESCRIPTIONS,
-            selectedIndex = selectedTab.ordinal,
-            onSelect = { viewModel.setInspectorTab(QueryInspectorTab.entries[it]) },
+            icons = visibleTabs.map { INSPECTOR_TAB_ICONS.getValue(it) },
+            contentDescriptions = visibleTabs.map { INSPECTOR_TAB_DESCRIPTIONS.getValue(it) },
+            selectedIndex = visibleTabs.indexOf(effectiveTab).coerceAtLeast(0),
+            onSelect = { viewModel.setInspectorTab(visibleTabs[it]) },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
-        when (selectedTab) {
+        when (effectiveTab) {
             QueryInspectorTab.HISTORY -> QueryHistoryInspector(
                 viewModel = viewModel,
                 history = history,
@@ -102,7 +128,7 @@ fun QueryInspectorView(
     val pending = pendingDeleteFor
     if (pending != null) {
         val docId = (selectedDocument?.get("_id") as? String)
-        val collectionGuess = currentCollectionFromQuery(viewModel.queryText.value)
+        val collectionGuess = currentCollectionFromQuery(queryText)
 
         val allAttachments = remember(selectedDocument) {
             selectedDocument?.let { AttachmentInfo.detectTokens(it) } ?: emptyList()

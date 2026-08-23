@@ -550,7 +550,7 @@
 				CODE_SIGN_ENTITLEMENTS = EdgeStudio/Edge_Studio.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_APP_SANDBOX = YES;
@@ -583,7 +583,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = "1. ";
+				MARKETING_VERSION = 1.0b5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio.debug;
 				PRODUCT_NAME = "Ditto Edge Studio";
 				REGISTER_APP_GROUPS = YES;
@@ -608,7 +608,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_APP_SANDBOX = YES;
@@ -641,7 +641,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = "1. ";
+				MARKETING_VERSION = 1.0b5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "Ditto Edge Studio";
 				PROVISIONING_PROFILE_SPECIFIER = "";

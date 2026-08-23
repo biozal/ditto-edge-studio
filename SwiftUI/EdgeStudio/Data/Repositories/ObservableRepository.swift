@@ -71,44 +71,59 @@ actor ObservableRepository {
     }
 
     /// Saves an observable subscription (write-through to SQLCipher)
-    /// - Parameter observable: Observable to save
-    /// - Throws: Error if save fails
-    func saveDittoObservable(_ observable: DittoObservable) async throws {
-        guard let databaseId = currentDatabaseId else {
+    /// - Parameters:
+    ///   - observable: Observable to save
+    ///   - databaseId: Database the observable belongs to, captured by the
+    ///     caller at user-action time. The save is refused when the session has
+    ///     since switched to a different database — otherwise a stale save
+    ///     would persist under the wrong database and corrupt the newly
+    ///     selected database's in-memory cache.
+    /// - Throws: Error if save fails, or `InvalidStateError` for a stale session
+    func saveDittoObservable(_ observable: DittoObservable, databaseId: String) async throws {
+        guard let currentDatabaseId else {
             throw InvalidStateError(message: "No database selected - call loadObservers() first")
+        }
+        guard currentDatabaseId == databaseId else {
+            throw InvalidStateError(
+                message: "Stale session - database switched from \(databaseId) before the save completed"
+            )
         }
 
         do {
             // Check the in-memory cache (authoritative for the session) instead of
             // issuing a full SQLCipher read on every save.
-            if cachedObservables.contains(where: { $0.id == observable.id }) {
+            let existingIndex = cachedObservables.firstIndex(where: { $0.id == observable.id })
+            let row = SQLCipherService.ObservableRow(
+                _id: observable.id,
+                databaseId: databaseId,
+                name: observable.name,
+                query: observable.query,
+                isActive: observable.isActive,
+                lastUpdated: observable.lastUpdated ?? Date.now.ISO8601Format()
+            )
+            if existingIndex != nil {
                 // Update existing observable
-                let row = SQLCipherService.ObservableRow(
-                    _id: observable.id,
-                    databaseId: databaseId,
-                    name: observable.name,
-                    query: observable.query,
-                    isActive: observable.isActive,
-                    lastUpdated: observable.lastUpdated ?? Date.now.ISO8601Format()
-                )
                 try await sqlCipher.updateObservable(row)
-
-                // Update in-memory cache
-                if let existingIndex = cachedObservables.firstIndex(where: { $0.id == observable.id }) {
-                    cachedObservables[existingIndex] = observable
-                }
             } else {
                 // Insert new observable
-                let row = SQLCipherService.ObservableRow(
-                    _id: observable.id,
-                    databaseId: databaseId,
-                    name: observable.name,
-                    query: observable.query,
-                    isActive: observable.isActive,
-                    lastUpdated: observable.lastUpdated ?? Date.now.ISO8601Format()
-                )
                 try await sqlCipher.insertObservable(row)
+            }
 
+            // The awaits above suspended the actor: a concurrent
+            // `loadObservers(for:)` may have switched the session to a
+            // different database. The persisted row is correctly keyed by the
+            // explicit databaseId and may stay — but the shared cache and UI
+            // now belong to the NEW session, so refuse to touch them.
+            guard self.currentDatabaseId == databaseId else {
+                throw InvalidStateError(
+                    message: "Stale session - database switched from \(databaseId) before the save completed"
+                )
+            }
+
+            if let existingIndex {
+                // Update in-memory cache
+                cachedObservables[existingIndex] = observable
+            } else {
                 // Add to in-memory cache
                 cachedObservables.append(observable)
             }
@@ -117,6 +132,11 @@ actor ObservableRepository {
             await notifyObservablesUpdate()
 
             Log.debug("Saved observable: \(observable.name)")
+        } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+            // Expected race on database switch — the caller logs it. Don't
+            // alert the user in the NEW session for a correctly refused write.
+            Log.info("Observable save refused: \(error.message)")
+            throw error
         } catch {
             Log.error("Failed to save observable: \(error)")
             await appState?.setError(error)

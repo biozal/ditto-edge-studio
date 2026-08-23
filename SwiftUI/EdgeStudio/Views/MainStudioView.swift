@@ -120,7 +120,7 @@ struct MainStudioView: View {
             ImportSubscriptionsView(
                 isPresented: importSubscriptionsBinding,
                 existingSubscriptions: viewModel.subObsVM.subscriptions,
-                selectedAppId: viewModel.selectedApp._id
+                databaseId: viewModel.selectedApp.databaseId
             )
             .environment(appState)
         case .subscriptionQRDisplay:

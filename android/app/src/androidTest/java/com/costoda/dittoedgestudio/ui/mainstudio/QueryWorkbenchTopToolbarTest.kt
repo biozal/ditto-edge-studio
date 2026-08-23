@@ -40,6 +40,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -61,6 +62,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -82,6 +84,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -103,6 +106,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -124,6 +128,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -148,6 +153,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = true,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = { selectedMode.value = it },
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -171,6 +177,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = false,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = {},
                     onCaptureQueryMetricsChange = {},
@@ -195,6 +202,7 @@ class QueryWorkbenchTopToolbarTest {
                     captureProfilingData = profiling.value,
                     captureQueryMetrics = true,
                     onRun = {},
+                    onExplain = {},
                     onModeSelect = {},
                     onCaptureProfilingDataChange = { profiling.value = it },
                     onCaptureQueryMetricsChange = {},
@@ -204,6 +212,54 @@ class QueryWorkbenchTopToolbarTest {
         rule.onNodeWithTag("QueryToolbar.Options").performClick()
         rule.onNodeWithTag("QueryOptions.CaptureProfiling").performClick()
         rule.runOnIdle { assertEquals(false, profiling.value) }
+    }
+
+    @Test
+    fun runExplainMenuItemInvokesCallback() {
+        var explained = false
+        rule.setContent {
+            MaterialTheme {
+                QueryWorkbenchTopToolbar(
+                    queryText = "SELECT 1",
+                    isExecuting = false,
+                    executeMode = "Local",
+                    executeModes = listOf("Local"),
+                    captureProfilingData = true,
+                    captureQueryMetrics = true,
+                    onRun = {},
+                    onExplain = { explained = true },
+                    onModeSelect = {},
+                    onCaptureProfilingDataChange = {},
+                    onCaptureQueryMetricsChange = {},
+                )
+            }
+        }
+        rule.onNodeWithTag("QueryToolbar.Options").performClick()
+        rule.onNodeWithTag("QueryOptions.RunExplain").assertIsEnabled().performClick()
+        rule.runOnIdle { assertTrue("onExplain must be invoked", explained) }
+    }
+
+    @Test
+    fun runExplainMenuItemIsDisabledWhenQueryTextIsBlank() {
+        rule.setContent {
+            MaterialTheme {
+                QueryWorkbenchTopToolbar(
+                    queryText = "",
+                    isExecuting = false,
+                    executeMode = "Local",
+                    executeModes = listOf("Local"),
+                    captureProfilingData = true,
+                    captureQueryMetrics = true,
+                    onRun = {},
+                    onExplain = {},
+                    onModeSelect = {},
+                    onCaptureProfilingDataChange = {},
+                    onCaptureQueryMetricsChange = {},
+                )
+            }
+        }
+        rule.onNodeWithTag("QueryToolbar.Options").performClick()
+        rule.onNodeWithTag("QueryOptions.RunExplain").assertIsNotEnabled()
     }
 
     @Test
@@ -225,6 +281,7 @@ class QueryWorkbenchTopToolbarTest {
                         captureProfilingData = true,
                         captureQueryMetrics = true,
                         onRun = { ranOnRun = true },
+                        onExplain = {},
                         onModeSelect = {},
                         onCaptureProfilingDataChange = {},
                         onCaptureQueryMetricsChange = {},

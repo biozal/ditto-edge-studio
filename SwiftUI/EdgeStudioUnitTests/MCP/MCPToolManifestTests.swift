@@ -11,16 +11,15 @@ import Testing
 /// No server, no database required — reads a static array.
 @Suite("MCP Tool Manifest Tests", .tags(.mcp, .mcpTools))
 struct MCPToolManifestTests {
-
     // MARK: - Count & Uniqueness
 
-    @Test("All 15 tools are registered", .tags(.mcp, .fast))
-    func testAllTenToolsRegistered() {
+    @Test(.tags(.mcp, .fast))
+    func `All 15 tools are registered`() {
         #expect(MCPToolHandlers.allTools.count == 15)
     }
 
-    @Test("No duplicate tool names", .tags(.mcp, .fast))
-    func testNoDuplicateToolNames() {
+    @Test(.tags(.mcp, .fast))
+    func `No duplicate tool names`() {
         // ARRANGE
         let names = MCPToolHandlers.allTools.map(\.name)
 
@@ -30,22 +29,22 @@ struct MCPToolManifestTests {
 
     // MARK: - Required Fields
 
-    @Test("Every tool has a non-empty name", .tags(.mcp, .fast))
-    func testEveryToolHasNonEmptyName() {
+    @Test(.tags(.mcp, .fast))
+    func `Every tool has a non-empty name`() {
         for tool in MCPToolHandlers.allTools {
             #expect(!tool.name.isEmpty, "Tool has empty name")
         }
     }
 
-    @Test("Every tool has a non-empty description", .tags(.mcp, .fast))
-    func testEveryToolHasNonEmptyDescription() {
+    @Test(.tags(.mcp, .fast))
+    func `Every tool has a non-empty description`() {
         for tool in MCPToolHandlers.allTools {
             #expect(!tool.description.isEmpty, "Tool '\(tool.name)' has empty description")
         }
     }
 
-    @Test("Every tool has a non-empty inputSchema", .tags(.mcp, .fast))
-    func testEveryToolHasNonEmptyInputSchema() {
+    @Test(.tags(.mcp, .fast))
+    func `Every tool has a non-empty inputSchema`() {
         for tool in MCPToolHandlers.allTools {
             #expect(!tool.inputSchema.isEmpty, "Tool '\(tool.name)' has empty inputSchema")
         }
@@ -53,14 +52,14 @@ struct MCPToolManifestTests {
 
     // MARK: - Specific Tool: insert_documents_from_file
 
-    @Test("insert_documents_from_file is registered", .tags(.mcp, .fast))
-    func testInsertFromFileIsRegistered() {
+    @Test(.tags(.mcp, .fast))
+    func `insert_documents_from_file is registered`() {
         let tool = MCPToolHandlers.allTools.first { $0.name == "insert_documents_from_file" }
         #expect(tool != nil)
     }
 
-    @Test("insert_documents_from_file has file_path in required", .tags(.mcp, .fast))
-    func testInsertFromFileHasFilePathRequired() {
+    @Test(.tags(.mcp, .fast))
+    func `insert_documents_from_file has file_path in required`() {
         // ARRANGE
         guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "insert_documents_from_file" }) else {
             Issue.record("insert_documents_from_file tool not found")
@@ -72,8 +71,8 @@ struct MCPToolManifestTests {
         #expect(required.contains("file_path"))
     }
 
-    @Test("insert_documents_from_file has collection in required", .tags(.mcp, .fast))
-    func testInsertFromFileHasCollectionRequired() {
+    @Test(.tags(.mcp, .fast))
+    func `insert_documents_from_file has collection in required`() {
         // ARRANGE
         guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "insert_documents_from_file" }) else {
             Issue.record("insert_documents_from_file tool not found")
@@ -85,8 +84,8 @@ struct MCPToolManifestTests {
         #expect(required.contains("collection"))
     }
 
-    @Test("insert_documents_from_file mode enum has exactly 2 values", .tags(.mcp, .fast))
-    func testInsertFromFileModeEnumHasTwoValues() {
+    @Test(.tags(.mcp, .fast))
+    func `insert_documents_from_file mode enum has exactly 2 values`() {
         // ARRANGE
         guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "insert_documents_from_file" }) else {
             Issue.record("insert_documents_from_file tool not found")
@@ -104,8 +103,8 @@ struct MCPToolManifestTests {
 
     // MARK: - Specific Tool: execute_dql
 
-    @Test("execute_dql has query in required", .tags(.mcp, .fast))
-    func testExecuteDQLHasQueryRequired() {
+    @Test(.tags(.mcp, .fast))
+    func `execute_dql has query in required`() {
         // ARRANGE
         guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "execute_dql" }) else {
             Issue.record("execute_dql tool not found")
@@ -119,8 +118,8 @@ struct MCPToolManifestTests {
 
     // MARK: - Specific Tool: create_index
 
-    @Test("create_index has collection and field in required", .tags(.mcp, .fast))
-    func testCreateIndexHasCollectionAndFieldRequired() {
+    @Test(.tags(.mcp, .fast))
+    func `create_index has collection and field in required`() {
         // ARRANGE
         guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "create_index" }) else {
             Issue.record("create_index tool not found")
@@ -133,12 +132,42 @@ struct MCPToolManifestTests {
         #expect(required.contains("field"))
     }
 
+    // MARK: - Specific Tool: drop_index
+
+    @Test(.tags(.mcp, .fast))
+    func `drop_index has index_name in required`() {
+        // ARRANGE
+        guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "drop_index" }) else {
+            Issue.record("drop_index tool not found")
+            return
+        }
+        let required = tool.inputSchema["required"] as? [String] ?? []
+
+        // ASSERT
+        #expect(required.contains("index_name"))
+    }
+
+    @Test(.tags(.mcp, .fast))
+    func `drop_index offers optional collection argument`() {
+        // ARRANGE
+        guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "drop_index" }) else {
+            Issue.record("drop_index tool not found")
+            return
+        }
+        let properties = tool.inputSchema["properties"] as? [String: Any]
+        let required = tool.inputSchema["required"] as? [String] ?? []
+
+        // ASSERT — collection is offered but not required
+        #expect(properties?["collection"] != nil)
+        #expect(!required.contains("collection"))
+    }
+
     // MARK: - Known Tool Names
 
-    @Test("All expected tool names are present", .tags(.mcp, .fast))
-    func testAllExpectedToolNamesPresent() {
+    @Test(.tags(.mcp, .fast))
+    func `All expected tool names are present`() {
         let names = Set(MCPToolHandlers.allTools.map(\.name))
-        let expected: Set<String> = [
+        let expected: Set = [
             "execute_dql",
             "list_databases",
             "get_active_database",

@@ -150,7 +150,7 @@ Displays live resource usage for the Edge Studio process and disk usage for the 
 
 Records per-query `EXPLAIN` analysis for every DQL query you run — helping you understand index usage and query planner behaviour.
 
-- Queries are colour-coded by execution time (green / orange / red).
+- Queries are colour-coded by execution time: green under 10 ms, default text colour from 10–100 ms, and orange at 100 ms or more.
 - An index-usage badge shows whether each query used an index or performed a full collection scan.
 - Select any record to see the full DQL statement and `EXPLAIN` output.
 - Prometheus export is configured from the Inspector **Export** tab.
@@ -231,10 +231,12 @@ With the server running and a database selected:
 | `drop_index` | Remove an index by name |
 | `get_query_metrics` | Recent query timing and EXPLAIN output (requires Metrics enabled in Settings) |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth LE, LAN, or AWDL transports (sync restarts automatically) |
 | `insert_documents_from_file` | Insert a local JSON file into a collection |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Snapshot of all connected peers with device, OS, and transport details |
+| `get_app_logs` | Recent Edge Studio application log entries, with optional line count and substring filter |
+| `get_ditto_logs` | Recent Ditto SDK log entries (timestamp, level, component, message), with optional level and substring filters |
 
 > All tools operate on the database **currently selected** in the Edge Studio UI. The server stops automatically when Edge Studio quits.
 
@@ -286,7 +288,7 @@ Returns a flat JSON array of every index across all collections in the active da
 
 Useful for auditing index coverage across the entire database in one call, without iterating collection by collection.
 
-For full setup, troubleshooting, and security considerations see [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md).
+For full setup, troubleshooting, and security considerations see `docs/MCP_SERVER.md` in the repository.
 
 ---
 

@@ -6,11 +6,11 @@ struct ImportSubscriptionsView: View {
     @Binding var isPresented: Bool
     @State private var viewModel: ViewModel
 
-    init(isPresented: Binding<Bool>, existingSubscriptions: [DittoSubscription], selectedAppId: String) {
+    init(isPresented: Binding<Bool>, existingSubscriptions: [DittoSubscription], databaseId: String) {
         _isPresented = isPresented
         _viewModel = State(initialValue: ViewModel(
             existingSubscriptions: existingSubscriptions,
-            selectedAppId: selectedAppId
+            databaseId: databaseId
         ))
     }
 
@@ -171,11 +171,15 @@ extension ImportSubscriptionsView {
 
         private let queryService = QueryService.shared
         private let existingSubscriptions: [DittoSubscription]
-        private let selectedAppId: String
+        /// Database the import targets, captured when the sheet is presented
+        /// (user-action time). Passed to the repository so a save that
+        /// completes after a database switch is refused instead of landing
+        /// on the newly selected database.
+        private let databaseId: String
 
-        init(existingSubscriptions: [DittoSubscription], selectedAppId: String) {
+        init(existingSubscriptions: [DittoSubscription], databaseId: String) {
             self.existingSubscriptions = existingSubscriptions
-            self.selectedAppId = selectedAppId
+            self.databaseId = databaseId
         }
 
         func loadDevicesAndSubscriptions() async {
@@ -255,7 +259,16 @@ extension ImportSubscriptionsView {
                 newSubscription.name = "Imported: \(sub.collectionName)"
                 newSubscription.query = sub.query
 
-                try await SubscriptionsRepository.shared.saveDittoSubscription(newSubscription)
+                do {
+                    try await SubscriptionsRepository.shared.saveDittoSubscription(newSubscription, databaseId: databaseId)
+                } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                    // Expected race on database switch — the repository
+                    // correctly refused the write. Log it and keep importing
+                    // the remaining selections instead of aborting the batch
+                    // (and instead of alerting in the NEW session).
+                    Log.info("Subscription import skipped: \(error.message)")
+                    continue
+                }
             }
 
             importStatus = "Import complete!"

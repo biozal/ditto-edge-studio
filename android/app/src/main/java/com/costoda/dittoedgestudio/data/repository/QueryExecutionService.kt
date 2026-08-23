@@ -19,4 +19,11 @@ class QueryExecutionService(
         if (mode == "HTTP") http.execute(query) else local.execute(query)
 
     suspend fun explain(query: String): QueryResult = local.explain(query)
+
+    /**
+     * EXPLAIN output for [query] as pretty-printed JSON, for Query Metrics capture.
+     * Local-only (like [explain]); never throws — failures come back as
+     * "EXPLAIN failed: …" strings. See [LocalQueryExecutionService.explainPlan].
+     */
+    suspend fun explainPlan(query: String): String = local.explainPlan(query)
 }

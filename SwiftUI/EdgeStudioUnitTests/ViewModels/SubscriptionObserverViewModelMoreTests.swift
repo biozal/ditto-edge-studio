@@ -21,6 +21,7 @@ struct SubscriptionObserverViewModelMoreTests {
     @MainActor
     private func makeViewModel(_ mocks: MockSet) -> SubscriptionObserverViewModel {
         SubscriptionObserverViewModel(
+            databaseId: "test-db",
             dittoManager: mocks.dittoManager,
             subscriptionsRepository: mocks.subscriptionsRepository,
             observableRepository: mocks.observableRepository
@@ -265,6 +266,10 @@ struct SubscriptionObserverViewModelMoreTests {
         let saved = await mocks.subscriptionsRepository.savedSubscriptions
         #expect(saved.count == 2)
         #expect(saved.map(\.name).sorted() == ["A", "B"])
+
+        // ...each tagged with the session database id captured at init.
+        let savedIds = await mocks.subscriptionsRepository.savedDatabaseIds
+        #expect(savedIds == ["test-db", "test-db"])
 
         // ...and progress fired once per item with the running count.
         #expect(progressCalls.count == 2)

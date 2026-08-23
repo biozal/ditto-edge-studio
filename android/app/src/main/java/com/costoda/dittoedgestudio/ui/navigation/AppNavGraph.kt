@@ -10,19 +10,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
-import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -46,16 +50,18 @@ import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchInspector
 import com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.StudioScaffold
 import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
-import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
+import com.costoda.dittoedgestudio.ui.adaptive.showsListDetail
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
 import com.costoda.dittoedgestudio.ui.recovery.KeyFailureScreen
+import com.costoda.dittoedgestudio.ui.settings.SettingsScreen
 import com.costoda.dittoedgestudio.viewmodel.AppHealthViewModel
 import com.costoda.dittoedgestudio.viewmodel.DbHealthState
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 
@@ -75,16 +81,18 @@ import org.koin.core.qualifier.named
  *
  * ## Layout adaptation
  *
- * The studio adapts at the **840dp** breakpoint (see
- * [com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane]):
+ * The studio adapts at two breakpoints:
  *
- *  - **≥840dp (multi-pane)**: scene-driven layout. Each section renders its `listPane` +
- *    `detailPane` (or `detailPlaceholder`) side-by-side via [ListDetailSceneStrategy] under a
- *    single [StudioScaffold] (Rail + top bar + Inspector).
- *  - **<840dp (drawer mode)**: no rail column. Each section entry renders ONLY its content
- *    pane as the body; the rail items AND the section's Data Panel (list pane) live inside
- *    the modal Nav Drawer attached to the top-bar hamburger. The Content Pane is the
- *    default view at every section.
+ *  - **≥840dp (Expanded, multi-pane chrome)** — see
+ *    [com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane]: scene-driven layout under a
+ *    single [StudioScaffold] with NavigationRail + top bar + Inspector.
+ *  - **600–839dp (Medium — e.g. an open flip phone)**: drawer chrome (hamburger, no rail),
+ *    but the `ListDetailSceneStrategy` still gets two horizontal partitions
+ *    ([com.costoda.dittoedgestudio.ui.adaptive.showsListDetail]), so each section shows its
+ *    listPane + detailPane side-by-side — the iPad `NavigationSplitView` two-column behavior.
+ *  - **<600dp (Compact)**: single-pane. Section bodies render list-first; detail screens
+ *    are pushed as drill-ins with a top-bar Up arrow. The rail items AND the section's
+ *    Data Panel live inside the modal Nav Drawer.
  *
  * ## Chrome hoisting
  *
@@ -142,18 +150,55 @@ fun AppNavGraph() {
 
     val backStack = rememberNavBackStack(DatabaseListKey)
 
+    // Derive the active studio context from the back-stack top. When the top key is a
+    // studio key (section or child), we wrap the NavDisplay in the StudioScaffold so the
+    // chrome (Rail + top bar + Inspector) is shared across every studio entry. Non-studio
+    // destinations render the NavDisplay alone. Computed BEFORE the pane directive below
+    // because the Presence layout preference depends on the current section.
+    val topKey = backStack.lastOrNull()
+    val studioContext: Pair<StudioNavItem, Long>? = when (topKey) {
+        is StudioSectionKey -> topKey.navItem to topKey.databaseId
+        is StudioChildKey -> topKey.parentNavItem to topKey.databaseId
+        else -> null
+    }
+
+    // App-wide preferences (Settings screen). metricsEnabled mirrors SwiftUI's
+    // metricsEnabled AppStorage and drives rail-item visibility in StudioScaffold plus
+    // the redirect further below; presenceSplitView gates the Presence two-pane layout.
+    val appPreferences = koinInject<com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway>()
+    val metricsEnabled by appPreferences.metricsEnabled
+        .collectAsStateWithLifecycle(initialValue = true)
+    val presenceSplitView by appPreferences.presenceSplitView
+        .collectAsStateWithLifecycle(initialValue = false)
+
+    // At Medium+ widths (≥600dp — includes an open flip phone at ~690dp) allow the
+    // ListDetailSceneStrategy two horizontal partitions so list + detail sit side-by-side
+    // (iPad NavigationSplitView behavior); below that, single-pane drill-in.
+    // Exception: Presence with "Split Presence view" off stays single-pane so the peers
+    // view / Presence Viewer gets the full width (see allowedHorizontalPartitions).
     // At Large+ widths (≥1200dp) we cap the list pane's preferred width to 320dp so the
-    // detail/editor pane receives the surplus space. Below Large the strategy's own default
+    // detail/editor pane receives the surplus space; at Medium a slightly narrower 300dp
+    // cap keeps the detail pane usable. Below Medium the strategy's own default
     // (360dp from PaneScaffoldDirective.DefaultPreferredWidth) is used.
     val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
     val windowSizeClass = windowAdaptiveInfo.windowSizeClass
-    val baseDirective = calculatePaneScaffoldDirective(windowAdaptiveInfo)
-    val listDetailDirective = if (windowSizeClass.inspectorDefaultVisible) {
-        // Large/XL: cap list-pane preferred width to leave room for detail + inspector.
-        baseDirective.copy(defaultPanePreferredWidth = 320.dp)
-    } else {
-        baseDirective
-    }
+    // The "two panes on Medium width" variant of the directive: Medium gets 2 partitions
+    // with the M3-recommended 24dp pane spacer (the plain variant gives Medium 1 partition
+    // with a 0dp spacer). We then override the partition count for the Presence-split-off
+    // case and cap the list-pane width at Medium/Large.
+    val baseDirective = calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth(windowAdaptiveInfo)
+    val listDetailDirective = baseDirective.copy(
+        maxHorizontalPartitions = allowedHorizontalPartitions(
+            showsListDetail = windowSizeClass.showsListDetail,
+            currentSection = studioContext?.first,
+            presenceSplitView = presenceSplitView,
+        ),
+        defaultPanePreferredWidth = when {
+            windowSizeClass.inspectorDefaultVisible -> 320.dp // Large/XL: room for inspector
+            windowSizeClass.showsListDetail -> 300.dp         // Medium: two panes, no rail
+            else -> baseDirective.defaultPanePreferredWidth
+        },
+    )
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = listDetailDirective)
 
     // Drive the Koin scope lifecycle from the current back stack contents. Must be inside
@@ -163,7 +208,16 @@ fun AppNavGraph() {
     // The NavDisplay itself — wrapped in movableContentOf so it preserves composition state
     // whether it ends up inside the StudioScaffold (studio destinations) or bare (database
     // list, editor, QR scanner).
-    val navDisplay = remember(listDetailStrategy) {
+    //
+    // The movable content MUST NOT be keyed on the strategy: the directive depends on the
+    // current section (Presence split-off forces one partition), so keying
+    // `remember(listDetailStrategy)` would replace the movableContentOf instance on every
+    // Presence↔other rail switch at ≥600dp — disposing the whole NavDisplay subtree
+    // (saveable-state holder, scene/transition state) on routine navigation. A stable
+    // movableContentOf + rememberUpdatedState propagates directive changes by plain
+    // recomposition instead.
+    val currentStrategy by rememberUpdatedState(listDetailStrategy)
+    val navDisplay = remember {
         movableContentOf {
             NavDisplay(
                 backStack = backStack,
@@ -172,7 +226,7 @@ fun AppNavGraph() {
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator(),
                 ),
-                sceneStrategy = listDetailStrategy,
+                sceneStrategy = currentStrategy,
                 entryProvider = entryProvider {
                     entry<DatabaseListKey> {
                         DatabaseListScreen(
@@ -183,7 +237,12 @@ fun AppNavGraph() {
                                 backStack.add(SubscriptionsKey(databaseId = db.id))
                             },
                             onScanQrCode = { backStack.add(QrScannerKey) },
+                            onOpenSettings = { backStack.add(SettingsKey) },
                         )
+                    }
+
+                    entry<SettingsKey> {
+                        SettingsScreen(onBack = { backStack.removeLastOrNull() })
                     }
 
                     entry<DatabaseEditorKey> { key ->
@@ -207,12 +266,12 @@ fun AppNavGraph() {
                             databaseId = key.databaseId,
                             section = StudioNavItem.OBSERVERS,
                         ) { viewModel ->
-                            // Below 840dp: section entry renders the CONTENT pane (observer
+                            // Below 600dp: section entry renders the CONTENT pane (observer
                             // events for the currently selected observer; "select an observer"
                             // empty state when none).
-                            // ≥840dp: section entry renders the LIST pane; selection pushes
+                            // ≥600dp: section entry renders the LIST pane; selection pushes
                             // ObserverEventsKey which the scene strategy places side-by-side.
-                            if (studioWindowSizeClass().studioMultiPane) {
+                            if (studioWindowSizeClass().showsListDetail) {
                                 ObserversListSection(
                                     viewModel = viewModel,
                                     onObserverPicked = { observer ->
@@ -276,7 +335,7 @@ fun AppNavGraph() {
                                     ?.databaseId
                                 if (databaseId != null) {
                                     val viewModel = rememberStudioViewModel(databaseId)
-                                    remember(viewModel) { viewModel.selectedNavItem = StudioNavItem.SUBSCRIPTIONS }
+                                    SideEffect { viewModel.selectedNavItem = StudioNavItem.SUBSCRIPTIONS }
                                     PresenceContentSection(viewModel = viewModel)
                                 }
                             },
@@ -286,10 +345,13 @@ fun AppNavGraph() {
                             databaseId = key.databaseId,
                             section = StudioNavItem.SUBSCRIPTIONS,
                         ) { viewModel ->
-                            // ≥840dp: scene shows list (subscriptions) + detail placeholder
-                            // (peers). Below 840dp: the section body renders the CONTENT pane
-                            // (peers) as the default; the subscriptions list lives in the drawer.
-                            if (studioWindowSizeClass().studioMultiPane) {
+                            // ≥600dp with "Split Presence view" ON: scene shows list
+                            // (subscriptions) + detail placeholder (peers) side-by-side.
+                            // Otherwise the body renders the CONTENT pane (peers / Viewer)
+                            // full-width; the subscriptions list lives in the drawer
+                            // (<600dp, or drawer-mode widths when split is off) and in the
+                            // Presence toolbar's Subscriptions dialog (rail-mode widths).
+                            if (studioWindowSizeClass().showsListDetail && presenceSplitView) {
                                 PresenceListSection(viewModel = viewModel)
                             } else {
                                 PresenceContentSection(viewModel = viewModel)
@@ -306,23 +368,57 @@ fun AppNavGraph() {
                         StudioSectionContainer(
                             databaseId = key.databaseId,
                             section = StudioNavItem.QUERY_METRICS,
-                        ) { _ ->
-                            val selectedHistoryId = backStack
-                                .filterIsInstance<QueryMetricDetailKey>()
-                                .lastOrNull()
-                                ?.historyId
-                            // ≥840dp: list pane; selection pushes detail key.
-                            // <840dp: section body shows the selected detail (or placeholder).
-                            // The list lives in the drawer; tapping a row closes the drawer.
-                            if (studioWindowSizeClass().studioMultiPane) {
+                        ) { viewModel ->
+                            // Metrics are scoped per database by the DITTO databaseId
+                            // string (same source QueryWorkbenchSection uses for
+                            // QueryEditorViewModel); the nav key only carries the Room
+                            // row id. Null while the session is still hydrating.
+                            // Collect the session's StateFlows (not the plain snapshot
+                            // getters) so this recomposes when hydration finishes/fails.
+                            val dittoDatabaseId by viewModel.session.currentDittoIdFlow
+                                .collectAsStateWithLifecycle()
+                            val hydrateError by viewModel.session.hydrateErrorFlow
+                                .collectAsStateWithLifecycle()
+                            if (hydrateError != null) {
+                                // Hydration failed — a spinner here would spin forever.
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Failed to open database: $hydrateError",
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            } else if (dittoDatabaseId == null) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            } else {
+                                // Local capture — a delegated `by` val can't smart-cast.
+                                val dittoId = dittoDatabaseId!!
+                                val selectedMetricsId = backStack
+                                    .filterIsInstance<QueryMetricDetailKey>()
+                                    .lastOrNull { it.databaseId == key.databaseId }
+                                    ?.metricsId
+                                // The section body is ALWAYS the executed-query list.
+                                // ≥600dp: tapping a row pushes QueryMetricDetailKey and the
+                                //   ListDetailSceneStrategy renders list + detail side-by-side.
+                                // <600dp: M3 list-detail drill-in — the pushed detail covers
+                                //   the list full-screen; system back (or the top-bar Up arrow)
+                                //   returns to the list.
                                 QueryMetricsListSection(
-                                    selectedHistoryId = selectedHistoryId,
+                                    databaseId = dittoId,
+                                    selectedMetricsId = selectedMetricsId,
                                     onMetricPicked = { metric ->
                                         backStack.removeIf { it is QueryMetricDetailKey }
                                         backStack.add(
                                             QueryMetricDetailKey(
                                                 databaseId = key.databaseId,
-                                                historyId = metric.historyId,
+                                                metricsId = metric.id,
                                             ),
                                         )
                                     },
@@ -330,12 +426,6 @@ fun AppNavGraph() {
                                         backStack.removeIf { it is QueryMetricDetailKey }
                                     },
                                 )
-                            } else {
-                                if (selectedHistoryId != null) {
-                                    QueryMetricsDetailSection(historyId = selectedHistoryId)
-                                } else {
-                                    QueryMetricsDetailPlaceholder()
-                                }
                             }
                         }
                     }
@@ -347,7 +437,7 @@ fun AppNavGraph() {
                             databaseId = key.databaseId,
                             section = StudioNavItem.QUERY_METRICS,
                         ) { _ ->
-                            QueryMetricsDetailSection(historyId = key.historyId)
+                            QueryMetricsDetailSection(metricsId = key.metricsId)
                         }
                     }
 
@@ -361,7 +451,7 @@ fun AppNavGraph() {
                                     ?.databaseId
                                 if (databaseId != null) {
                                     val viewModel = rememberStudioViewModel(databaseId)
-                                    remember(viewModel) { viewModel.selectedNavItem = StudioNavItem.QUERY }
+                                    SideEffect { viewModel.selectedNavItem = StudioNavItem.QUERY }
                                     QueryWorkbenchContentSection(viewModel = viewModel)
                                 }
                             },
@@ -371,9 +461,9 @@ fun AppNavGraph() {
                             databaseId = key.databaseId,
                             section = StudioNavItem.QUERY,
                         ) { viewModel ->
-                            // ≥840dp: scene shows collections list + editor detail-placeholder.
-                            // <840dp: editor is the default view; collections live in the drawer.
-                            if (studioWindowSizeClass().studioMultiPane) {
+                            // ≥600dp: scene shows collections list + editor detail-placeholder.
+                            // <600dp: editor is the default view; collections live in the drawer.
+                            if (studioWindowSizeClass().showsListDetail) {
                                 QueryWorkbenchListSection(viewModel = viewModel)
                             } else {
                                 QueryWorkbenchContentSection(viewModel = viewModel)
@@ -385,77 +475,70 @@ fun AppNavGraph() {
         }
     }
 
-    // Derive the active studio context from the back-stack top. When the top key is a
-    // studio key (section or child), we wrap the NavDisplay in the StudioScaffold so the
-    // chrome (Rail + top bar + Inspector) is shared across every studio entry. Non-studio
-    // destinations render the NavDisplay alone.
-    val topKey = backStack.lastOrNull()
-    val studioContext: Pair<StudioNavItem, Long>? = when (topKey) {
-        is StudioSectionKey -> topKey.navItem to topKey.databaseId
-        is StudioChildKey -> topKey.parentNavItem to topKey.databaseId
-        else -> null
+    // Mirror SwiftUI's MainStudioView.onChange(metricsEnabled): when collection is turned
+    // off while the user sits on a metrics section, auto-navigate to the default section
+    // (Presence) so a hidden rail item is never left on screen.
+    LaunchedEffect(metricsEnabled, studioContext) {
+        val (section, databaseId) = studioContext ?: return@LaunchedEffect
+        if (!metricsEnabled && section.isMetricsDestination) {
+            backStack.removeIf { it is StudioChildKey }
+            backStack[backStack.lastIndex] = SubscriptionsKey(databaseId)
+        }
     }
 
     if (studioContext != null) {
         val (section, databaseId) = studioContext
         val viewModel = rememberStudioViewModel(databaseId)
-        // Set selectedNavItem synchronously during composition (not via LaunchedEffect) so the
-        // correct section is active on the first frame — avoids a one-frame flash.
-        remember(viewModel, section) { viewModel.selectedNavItem = section }
+        // SideEffect runs during the apply phase of a successful composition — before the
+        // first frame draws — so the correct section is active immediately (no one-frame
+        // flash, unlike LaunchedEffect) and the write is rolled back if composition fails
+        // (unlike remember, which lint forbids for Unit-returning mutations). Note it
+        // re-applies after EVERY recomposition: nothing else may set selectedNavItem while
+        // an entry is on top, or it will be overwritten here.
+        SideEffect { viewModel.selectedNavItem = section }
 
-        // Below 840dp the section's Data Panel goes inside the modal Nav Drawer; build
+        // Below 600dp the section's Data Panel goes inside the modal Nav Drawer; build
         // the slot here so the drawer-aware variant (with closeDrawer plumbed through) is
-        // available to the scaffold. Sections without a list pane (Logging / AppMetrics /
-        // DiskUsage) pass null.
-        val dataPanelSlot: (@Composable (closeDrawer: () -> Unit) -> Unit)? = when (section) {
-            StudioNavItem.SUBSCRIPTIONS -> { closeDrawer ->
-                PresenceListSection(
-                    viewModel = viewModel,
-                    onAfterAddOrEditTriggered = closeDrawer,
-                )
+        // available to the scaffold. At 600dp+ the body already renders list + detail
+        // side-by-side, so the drawer carries section nav only (null slot) — EXCEPT
+        // Presence with "Split Presence view" off, which keeps its subscriptions list in
+        // the drawer at every drawer-mode width. Sections without a list pane
+        // (Logging / AppMetrics / QueryMetrics / DiskUsage) pass null.
+        val dataPanelSlot: (@Composable (closeDrawer: () -> Unit) -> Unit)? = when {
+            // Presence: the subscriptions list lives in the drawer whenever it is NOT
+            // beside the peers view — below 600dp (single-pane) or when the "Split
+            // Presence view" setting is off.
+            section == StudioNavItem.SUBSCRIPTIONS &&
+                (!windowSizeClass.showsListDetail || !presenceSplitView) -> {
+                { closeDrawer ->
+                    PresenceListSection(
+                        viewModel = viewModel,
+                        onAfterAddOrEditTriggered = closeDrawer,
+                    )
+                }
             }
-            StudioNavItem.QUERY -> { closeDrawer ->
-                QueryWorkbenchListSection(
-                    viewModel = viewModel,
-                    onAfterTriggerAddIndex = closeDrawer,
-                )
+            !windowSizeClass.showsListDetail -> when (section) {
+                StudioNavItem.QUERY -> { closeDrawer ->
+                    QueryWorkbenchListSection(
+                        viewModel = viewModel,
+                        onAfterTriggerAddIndex = closeDrawer,
+                    )
+                }
+                StudioNavItem.OBSERVERS -> { closeDrawer ->
+                    ObserversListSection(
+                        viewModel = viewModel,
+                        onObserverPicked = { observer ->
+                            viewModel.selectObserver(observer)
+                            closeDrawer()
+                        },
+                        onAfterAddTriggered = closeDrawer,
+                    )
+                }
+                // Single-pane sections (no Data Panel). Query Metrics' section body is
+                // the list itself, so there is nothing left to host in the drawer.
+                else -> null
             }
-            StudioNavItem.OBSERVERS -> { closeDrawer ->
-                ObserversListSection(
-                    viewModel = viewModel,
-                    onObserverPicked = { observer ->
-                        viewModel.selectObserver(observer)
-                        closeDrawer()
-                    },
-                    onAfterAddTriggered = closeDrawer,
-                )
-            }
-            StudioNavItem.QUERY_METRICS -> { closeDrawer ->
-                val selectedHistoryId = backStack
-                    .filterIsInstance<QueryMetricDetailKey>()
-                    .lastOrNull()
-                    ?.historyId
-                QueryMetricsListSection(
-                    selectedHistoryId = selectedHistoryId,
-                    onMetricPicked = { metric ->
-                        backStack.removeIf { it is QueryMetricDetailKey }
-                        backStack.add(
-                            QueryMetricDetailKey(
-                                databaseId = databaseId,
-                                historyId = metric.historyId,
-                            ),
-                        )
-                        closeDrawer()
-                    },
-                    onClearAll = {
-                        backStack.removeIf { it is QueryMetricDetailKey }
-                    },
-                )
-            }
-            // Single-pane sections (no Data Panel).
-            StudioNavItem.LOGGING,
-            StudioNavItem.APP_METRICS,
-            StudioNavItem.DISK_USAGE -> null
+            else -> null
         }
 
         StudioScaffold(
@@ -486,6 +569,16 @@ fun AppNavGraph() {
                 { QueryWorkbenchInspector(viewModel = viewModel) }
             } else null,
             dataPanelContent = dataPanelSlot,
+            metricsEnabled = metricsEnabled,
+            // Single-pane drill-in (e.g. a query-metric detail pushed on top of the
+            // list below 600dp): the top bar shows an Up arrow that pops back to the
+            // list. At 600dp+ list and detail sit side-by-side, where M3 list-detail
+            // layouts must NOT show a back arrow on the detail pane.
+            onNavigateUp = if (topKey is StudioChildKey && !windowSizeClass.showsListDetail) {
+                { backStack.removeLastOrNull() }
+            } else {
+                null
+            },
         ) {
             navDisplay()
         }
@@ -509,9 +602,10 @@ private fun StudioSectionContainer(
     content: @Composable (MainStudioViewModel) -> Unit,
 ) {
     val viewModel = rememberStudioViewModel(databaseId)
-    // Set selectedNavItem synchronously during composition so the correct section is active
-    // on the first frame.
-    remember(viewModel, section) { viewModel.selectedNavItem = section }
+    // SideEffect applies the selection after a successful composition but before the first
+    // frame draws, so the correct section is active immediately. The assignment is
+    // idempotent — recomposition with the same section does not trigger further writes.
+    SideEffect { viewModel.selectedNavItem = section }
     content(viewModel)
 }
 
@@ -550,6 +644,26 @@ private fun ObserverEventsPlaceholder() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/**
+ * How many horizontal partitions the [ListDetailSceneStrategy] may use for the current
+ * context. Two panes are allowed at Medium+ widths (≥600dp) — EXCEPT while the Presence
+ * section is on top with the "Split Presence view" setting off: Presence's detail (peers
+ * list / Presence Viewer) is not selection-driven and needs the full width to be
+ * effective, so the strategy is held to a single partition and the subscriptions list is
+ * reached via the drawer / Presence toolbar dialog instead.
+ *
+ * Extracted as a pure function so the policy is unit-testable without a Compose runtime.
+ */
+internal fun allowedHorizontalPartitions(
+    showsListDetail: Boolean,
+    currentSection: StudioNavItem?,
+    presenceSplitView: Boolean,
+): Int = when {
+    !showsListDetail -> 1
+    currentSection == StudioNavItem.SUBSCRIPTIONS && !presenceSplitView -> 1
+    else -> 2
 }
 
 /**

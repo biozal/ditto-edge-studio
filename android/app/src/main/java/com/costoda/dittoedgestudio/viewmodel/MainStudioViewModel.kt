@@ -24,6 +24,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
+import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,17 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
         APP_METRICS -> "appmetrics.md"
         QUERY_METRICS -> "querymetrics.md"
         DISK_USAGE -> "diskusage.md"
+    }
+
+    /** True when this item only appears while "Collect Metrics" is enabled — mirrors
+     *  SwiftUI's `SidebarDestination.isMetricsDestination`. */
+    val isMetricsDestination: Boolean get() = this == APP_METRICS || this == QUERY_METRICS
+
+    companion object {
+        /** Rail items visible for the given "Collect Metrics" setting — mirrors SwiftUI's
+         *  `MainStudioView.availableDestinations`. */
+        fun visibleEntries(metricsEnabled: Boolean): List<StudioNavItem> =
+            entries.filter { metricsEnabled || !it.isMetricsDestination }
     }
 }
 
@@ -240,10 +252,16 @@ class MainStudioViewModel(
         return session.observerEventsFor(obsId)
     }
 
-    fun addIndex(collection: String, fieldName: String) {
-        session.addIndex(collection, fieldName)
-        showAddIndex = false
-    }
+    /**
+     * Creates an index. Returns null on success or the error message on failure;
+     * the caller (Add Index sheet) is responsible for dismissing on success and
+     * displaying the error otherwise.
+     */
+    suspend fun addIndex(collection: String, fields: List<IndexField>): String? =
+        session.addIndex(collection, fields).fold(
+            onSuccess = { null },
+            onFailure = { it.message ?: "Failed to create index" },
+        )
 
     fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
         session.applyTransportSettings(bt, lan, wifiAware)

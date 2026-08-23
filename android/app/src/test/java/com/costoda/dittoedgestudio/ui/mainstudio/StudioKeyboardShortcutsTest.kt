@@ -101,4 +101,18 @@ class StudioKeyboardShortcutsTest {
         val mapped = (1..7).mapNotNull { studioNavItemForDigit(it) }
         assertEquals(StudioNavItem.entries.toList(), mapped)
     }
+
+    // ---------------------------------------------------------------------------
+    // Filtered item lists (metrics hidden when "Collect Metrics" is disabled)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `digit positions follow the visible items list when metrics are hidden`() {
+        val visible = StudioNavItem.visibleEntries(metricsEnabled = false)
+        // With APP_METRICS and QUERY_METRICS hidden, DISK_USAGE shifts from digit 7 to 5.
+        assertEquals(StudioNavItem.DISK_USAGE, studioNavItemForDigit(5, visible))
+        assertNull(studioNavItemForDigit(6, visible))
+        assertNull(studioNavItemForDigit(7, visible))
+    }
+
 }

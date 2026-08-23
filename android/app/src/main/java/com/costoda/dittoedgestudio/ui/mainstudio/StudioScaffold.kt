@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Menu
@@ -70,14 +71,16 @@ import kotlinx.coroutines.launch
  *  - **≥840dp (Expanded+)**: [NavigationRail] on the start edge, optional inspector column
  *    on the end edge (default-visible at Large widths), `content` slot in between (which
  *    hosts the scene-driven `listPane | detailPane` layout).
- *  - **<840dp (drawer mode — Compact AND Medium)**: rail collapses into a
- *    [ModalNavigationDrawer] that contains BOTH the rail items (section nav) AND the current
- *    section's Data Panel (e.g. Subscriptions list, Collections list, Observers list,
- *    executed queries list) — rail items at top, divider, Data Panel below. Sections without
- *    a Data Panel (Logging / AppMetrics / DiskUsage) show rail items only. The Content Pane
- *    is the DEFAULT view (peers tabs, query editor+results, observer events, EXPLAIN
- *    detail). Selecting anything in the drawer closes it. Inspector renders as a
- *    [ModalBottomSheet].
+ *  - **600–839dp (Medium — e.g. an open flip phone)**: drawer chrome (hamburger, no rail
+ *    column), but the `content` slot still hosts the two-pane `listPane | detailPane`
+ *    scene — the drawer carries rail items only. Exception: Presence with "Split Presence
+ *    view" off keeps its Data Panel (subscriptions) in the drawer at these widths too.
+ *  - **<600dp (Compact)**: rail collapses into a [ModalNavigationDrawer] that contains
+ *    BOTH the rail items (section nav) AND the current section's Data Panel — rail items
+ *    at top, divider, Data Panel below. The body is single-pane (list-first drill-in for
+ *    Query Metrics / Observation; Content Pane default elsewhere). Pushed drill-in
+ *    details show an Up arrow in place of the hamburger. Selecting anything in the
+ *    drawer closes it. Inspector renders as a [ModalBottomSheet].
  *
  * The scaffold does NOT own session state; it takes a [StudioSession] purely for the
  * sync-toggle top-bar button (so the new shell behaves identically to the legacy one for
@@ -90,11 +93,13 @@ import kotlinx.coroutines.launch
  * help as one of its tabs — see [com.costoda.dittoedgestudio.ui.mainstudio.inspector.QueryInspectorView]
  * usage in [com.costoda.dittoedgestudio.ui.mainstudio.QueryWorkbenchSection]).
  *
- * @param dataPanelContent Below 840dp, the Data Panel (section list) is rendered inside the
- *   drawer below the rail items. The lambda receives a `closeDrawer` callback that the list
- *   content should invoke when the user picks an item so the drawer closes and the chosen
- *   item drives the Content Pane. Pass null for sections without a Data Panel (Logging,
- *   AppMetrics, DiskUsage). Ignored at ≥840dp (the scene strategy provides the listPane).
+ * @param dataPanelContent Below 600dp (and at drawer-mode widths for Presence with
+ *   "Split Presence view" off), the Data Panel (section list) is rendered inside the
+ *   drawer below the rail items. The lambda receives a `closeDrawer` callback that the
+ *   list content should invoke when the user picks an item so the drawer closes and the
+ *   chosen item drives the Content Pane. Pass null for sections without a Data Panel
+ *   (Logging, AppMetrics, QueryMetrics, DiskUsage). Ignored at ≥840dp (the scene
+ *   strategy provides the listPane).
  */
 @Composable
 fun StudioScaffold(
@@ -104,6 +109,14 @@ fun StudioScaffold(
     onSectionSelect: (StudioNavItem) -> Unit,
     inspectorContent: (@Composable () -> Unit)? = null,
     dataPanelContent: (@Composable (closeDrawer: () -> Unit) -> Unit)? = null,
+    // "Collect Metrics" setting — when false the App Metrics / Query Metrics rail items
+    // are hidden (mirrors SwiftUI's MainStudioView.availableDestinations). Defaults to
+    // true so existing call sites and layout tests compile unchanged.
+    metricsEnabled: Boolean = true,
+    // Drawer mode only: when non-null a compact-width drill-in (StudioChildKey) is on top
+    // and the top bar shows an Up arrow instead of the hamburger (M3 list-detail: pushed
+    // detail screens get a back affordance; side-by-side panes never do).
+    onNavigateUp: (() -> Unit)? = null,
     // Optional override for testability: pass a fixed WindowSizeClass in Compose UI tests to
     // exercise both layout branches without needing a real device window of a specific size.
     // Production code omits this arg and lets studioWindowSizeClass() read the real window.
@@ -120,6 +133,9 @@ fun StudioScaffold(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+
+    // Rail items actually shown — metrics sections drop out when collection is disabled.
+    val railItems = remember(metricsEnabled) { StudioNavItem.visibleEntries(metricsEnabled) }
 
     // Back button: when the drawer is open, the back press should close the
     // drawer (matches the long-standing Android pattern), NOT pop the whole
@@ -145,7 +161,7 @@ fun StudioScaffold(
         .focusRequester(railFocus)
         .onPreviewKeyEvent { event ->
             if (event.type == KeyEventType.KeyDown) {
-                val target = studioShortcutFor(event)
+                val target = studioShortcutFor(event, railItems)
                 if (target != null) {
                     onSectionSelect(target)
                     return@onPreviewKeyEvent true
@@ -160,7 +176,7 @@ fun StudioScaffold(
             // Rail — tagged "StudioRail" so instrumented layout tests can assert its presence
             // (multi-pane) or absence (drawer mode) without depending on implementation details.
             NavigationRail(modifier = Modifier.testTag("StudioRail")) {
-                StudioNavItem.entries.forEach { item ->
+                railItems.forEach { item ->
                     NavigationRailItem(
                         selected = currentSection == item,
                         onClick = { onSectionSelect(item) },
@@ -240,7 +256,7 @@ fun StudioScaffold(
                         Column(modifier = Modifier.fillMaxSize()) {
                             // Section nav (rail items). The list of rail items is short and
                             // doesn't need its own scroll container.
-                            StudioNavItem.entries.forEach { item ->
+                            railItems.forEach { item ->
                                 androidx.compose.material3.NavigationDrawerItem(
                                     icon = { Icon(item.icon, contentDescription = item.label) },
                                     label = { Text(item.label) },
@@ -273,11 +289,20 @@ fun StudioScaffold(
                         TopAppBar(
                             title = { Text(currentSection.label) },
                             navigationIcon = {
-                                IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Menu,
-                                        contentDescription = "Open menu",
-                                    )
+                                if (onNavigateUp != null) {
+                                    IconButton(onClick = onNavigateUp) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                            contentDescription = "Back",
+                                        )
+                                    }
+                                } else {
+                                    IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Menu,
+                                            contentDescription = "Open menu",
+                                        )
+                                    }
                                 }
                             },
                             actions = {

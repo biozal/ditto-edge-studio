@@ -38,14 +38,12 @@ private func insertHistoryParentConfig(dbId: String) async throws {
 /// Target: 80% code coverage for HistoryRepository.
 @Suite("HistoryRepository Tests", .serialized)
 struct HistoryRepositoryTests {
-
     // MARK: - Load Tests
 
     @Suite("Load")
     struct LoadTests {
-
-        @Test("Fresh database returns empty history", .tags(.repository, .database))
-        func testFreshDatabaseEmpty() async throws {
+        @Test(.tags(.repository, .database))
+        func `Fresh database returns empty history`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -59,8 +57,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Load returns item saved before load", .tags(.repository, .database))
-        func testLoadAfterSave() async throws {
+        @Test(.tags(.repository, .database))
+        func `Load returns item saved before load`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -77,7 +75,7 @@ struct HistoryRepositoryTests {
                 )
 
                 // ACT
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
                 let history = try await repo.loadHistory(for: dbId)
 
                 // ASSERT
@@ -86,8 +84,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("History is scoped per databaseId", .tags(.repository, .database))
-        func testHistoryScopedByDatabase() async throws {
+        @Test(.tags(.repository, .database))
+        func `History is scoped per databaseId`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -98,7 +96,7 @@ struct HistoryRepositoryTests {
                 try await insertHistoryParentConfig(dbId: dbId1)
                 _ = try await repo.loadHistory(for: dbId1)
                 let entry1 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "Q-DB1", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry1)
+                try await repo.saveQueryHistory(entry1, databaseId: dbId1)
 
                 // Switch to dbId2 — should see empty
                 let history2 = try await repo.loadHistory(for: dbId2)
@@ -108,8 +106,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Multiple entries are returned in load", .tags(.repository, .database))
-        func testLoadMultipleEntries() async throws {
+        @Test(.tags(.repository, .database))
+        func `Multiple entries are returned in load`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -124,7 +122,7 @@ struct HistoryRepositoryTests {
                         query: "SELECT \(i) FROM table\(i)",
                         createdDate: Date().ISO8601Format()
                     )
-                    try await repo.saveQueryHistory(entry)
+                    try await repo.saveQueryHistory(entry, databaseId: dbId)
                 }
                 let history = try await repo.loadHistory(for: dbId)
 
@@ -138,9 +136,8 @@ struct HistoryRepositoryTests {
 
     @Suite("Save")
     struct SaveTests {
-
-        @Test("Save query is persisted to SQLCipher", .tags(.repository, .database))
-        func testSavePersistsToDisk() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save query is persisted to SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -155,7 +152,7 @@ struct HistoryRepositoryTests {
                 )
 
                 // ACT
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 // Verify via SQLCipher directly
                 let service = SQLCipherContext.current
@@ -167,8 +164,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Saving same query replaces existing entry (no duplicate)", .tags(.repository, .database))
-        func testSaveSameQueryNoDuplicate() async throws {
+        @Test(.tags(.repository, .database))
+        func `Saving same query replaces existing entry (no duplicate)`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -181,8 +178,8 @@ struct HistoryRepositoryTests {
                 let entry2 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: query, createdDate: Date().ISO8601Format())
 
                 // ACT
-                try await repo.saveQueryHistory(entry1)
-                try await repo.saveQueryHistory(entry2)
+                try await repo.saveQueryHistory(entry1, databaseId: dbId)
+                try await repo.saveQueryHistory(entry2, databaseId: dbId)
 
                 let history = try await repo.loadHistory(for: dbId)
 
@@ -191,8 +188,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Save without prior load throws InvalidStateError", .tags(.repository, .database))
-        func testSaveWithoutLoadThrows() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save without prior load throws InvalidStateError`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -207,7 +204,7 @@ struct HistoryRepositoryTests {
 
                 // ACT & ASSERT — should throw because no currentDatabaseId
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveQueryHistory(entry)
+                    try await repo.saveQueryHistory(entry, databaseId: "no-active-session")
                 }
             }
         }
@@ -217,9 +214,8 @@ struct HistoryRepositoryTests {
 
     @Suite("Delete")
     struct DeleteTests {
-
-        @Test("Delete removes specific item", .tags(.repository, .database))
-        func testDeleteRemovesItem() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete removes specific item`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -232,7 +228,7 @@ struct HistoryRepositoryTests {
                     query: "SELECT * FROM items",
                     createdDate: Date().ISO8601Format()
                 )
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 // ACT
                 let idToDelete = try await repo.loadHistory(for: dbId).first!.id
@@ -244,8 +240,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Delete non-existent ID is safe (no crash)", .tags(.repository, .database))
-        func testDeleteNonExistentIsSafe() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete non-existent ID is safe (no crash)`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -257,8 +253,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("Delete one entry does not remove others", .tags(.repository, .database))
-        func testDeleteOneDoesNotRemoveOthers() async throws {
+        @Test(.tags(.repository, .database))
+        func `Delete one entry does not remove others`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -268,8 +264,8 @@ struct HistoryRepositoryTests {
 
                 let entry1 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "SELECT 1", createdDate: Date().ISO8601Format())
                 let entry2 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "SELECT 2", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry1)
-                try await repo.saveQueryHistory(entry2)
+                try await repo.saveQueryHistory(entry1, databaseId: dbId)
+                try await repo.saveQueryHistory(entry2, databaseId: dbId)
 
                 let loaded = try await repo.loadHistory(for: dbId)
                 let idToDelete = loaded.last!.id // delete the older one
@@ -288,9 +284,8 @@ struct HistoryRepositoryTests {
 
     @Suite("Clear")
     struct ClearTests {
-
-        @Test("clearQueryHistory removes all items for current database", .tags(.repository, .database))
-        func testClearRemovesAll() async throws {
+        @Test(.tags(.repository, .database))
+        func `clearQueryHistory removes all items for current database`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -300,7 +295,7 @@ struct HistoryRepositoryTests {
 
                 for i in 1 ... 3 {
                     let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "SELECT \(i)", createdDate: Date().ISO8601Format())
-                    try await repo.saveQueryHistory(entry)
+                    try await repo.saveQueryHistory(entry, databaseId: dbId)
                 }
 
                 // ACT
@@ -312,8 +307,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("clearQueryHistory does not remove items for other databases", .tags(.repository, .database))
-        func testClearScopedToCurrentDatabase() async throws {
+        @Test(.tags(.repository, .database))
+        func `clearQueryHistory does not remove items for other databases`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -324,13 +319,13 @@ struct HistoryRepositoryTests {
                 try await insertHistoryParentConfig(dbId: dbId1)
                 _ = try await repo.loadHistory(for: dbId1)
                 let entry1 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "Q1", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry1)
+                try await repo.saveQueryHistory(entry1, databaseId: dbId1)
 
                 // Add to dbId2
                 try await insertHistoryParentConfig(dbId: dbId2)
                 _ = try await repo.loadHistory(for: dbId2)
                 let entry2 = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "Q2", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry2)
+                try await repo.saveQueryHistory(entry2, databaseId: dbId2)
 
                 // Clear while on dbId2
                 try await repo.clearQueryHistory()
@@ -347,9 +342,8 @@ struct HistoryRepositoryTests {
 
     @Suite("Cache")
     struct CacheTests {
-
-        @Test("clearCache resets currentDatabaseId so save throws", .tags(.repository, .database))
-        func testClearCacheResetsDatabaseId() async throws {
+        @Test(.tags(.repository, .database))
+        func `clearCache resets currentDatabaseId so save throws`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -362,13 +356,13 @@ struct HistoryRepositoryTests {
                 // ASSERT — trying to save without loading should now throw
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "Q", createdDate: Date().ISO8601Format())
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveQueryHistory(entry)
+                    try await repo.saveQueryHistory(entry, databaseId: "no-active-session")
                 }
             }
         }
 
-        @Test("After clearCache load re-fetches from disk", .tags(.repository, .database))
-        func testLoadAfterClearCacheRefetchesFromDisk() async throws {
+        @Test(.tags(.repository, .database))
+        func `After clearCache load re-fetches from disk`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -376,7 +370,7 @@ struct HistoryRepositoryTests {
                 try await insertHistoryParentConfig(dbId: dbId)
                 _ = try await repo.loadHistory(for: dbId)
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "CACHED Q", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 // ACT — clear cache then reload
                 await repo.clearCache()
@@ -393,9 +387,8 @@ struct HistoryRepositoryTests {
 
     @Suite("Observer Callback")
     struct ObserverCallbackTests {
-
-        @Test("setOnHistoryUpdate callback fires when entry is saved", .tags(.repository, .database))
-        func testCallbackFiresOnSave() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnHistoryUpdate callback fires when entry is saved`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -411,7 +404,7 @@ struct HistoryRepositoryTests {
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "OBS-Q", createdDate: Date().ISO8601Format())
 
                 // ACT
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 // ASSERT — callback should have been called with the new item
                 #expect(callbackResult.value.count == 1)
@@ -419,8 +412,8 @@ struct HistoryRepositoryTests {
             }
         }
 
-        @Test("setOnHistoryUpdate callback fires when entry is deleted", .tags(.repository, .database))
-        func testCallbackFiresOnDelete() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnHistoryUpdate callback fires when entry is deleted`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = HistoryRepository.shared
@@ -429,7 +422,7 @@ struct HistoryRepositoryTests {
                 _ = try await repo.loadHistory(for: dbId)
 
                 let entry = DittoQueryHistory(id: TestHelpers.uniqueTestId(), query: "DEL-Q", createdDate: Date().ISO8601Format())
-                try await repo.saveQueryHistory(entry)
+                try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 let callbackCount = TestCounter()
                 await repo.setOnHistoryUpdate { _ in
