@@ -7,6 +7,11 @@ cd "$PROJECT_DIR/SwiftUI"
 
 echo "🧪 Running tests with coverage..."
 
+# xcodebuild refuses to write to an existing -resultBundlePath, so a leftover
+# bundle from the previous run makes every subsequent run fail before a single
+# test executes — which reads as "coverage check failed" in the pre-push hook.
+rm -rf "TestResults.xcresult" "coverage.json"
+
 # Run tests with code coverage enabled
 xcodebuild test \
     -project "Edge Debug Helper.xcodeproj" \
