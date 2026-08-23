@@ -11,14 +11,34 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 - Disk usage monitoring and permissions health checking
 - Import/export functionality 
 
+## Download
+
+Prebuilt apps are attached to each [GitHub release](https://github.com/biozal/ditto-edge-studio/releases).
+
+| Platform | Asset | Requirements |
+|---|---|---|
+| macOS | `Ditto Edge Studio <version>.dmg` | macOS 26.0+, **Apple Silicon only** |
+| Android | `EdgeStudio-<version>-arm64.apk` | Android 9 (API 28)+, 64-bit ARM |
+
+**macOS** — open the DMG and drag the app to Applications. It's signed with a
+Developer ID certificate and notarized by Apple, so it opens normally. There is
+no Intel build: the Ditto SDK ships an arm64-only macOS framework.
+
+**Android** — the APK is distributed directly rather than through the Play
+Store, so you'll need to sideload it. Download the APK, open it, and when
+prompted enable **Settings → Install unknown apps** for your browser or file
+manager, then tap Install. Android will show it as coming from an unverified
+developer; that's expected for a direct download.
+
 ## Requirements
 
 ### Ditto Portal Account:
 - You need a Ditto Portal account.  You can sign up for a free account at [Ditto Portal](https://portal.ditto.live/create-account?_gl=1*gkhgpr*_gcl_au*MTE4OTI1ODI0OS4xNzQ3MzEzNTc4*_ga*MTM3NDExNTUyOS4xNzMzMTQ4MTc5*_ga_D8PMW3CCL2*czE3NTAzNTA2MjYkbzE2MyRnMCR0MTc1MDM1MDYyNyRqNTkkbDAkaDA.).
 
 ### App Requirements
-- A Mac with MacOS 26.0 or higher installed
+- A Mac with MacOS 26.0 or higher installed (Apple Silicon)
 - An iPad with OS 26.0  or higher installed
+- An Android device or tablet running Android 9 (API 28) or higher, 64-bit ARM
 
 ### Build REquirements
 - Xcode 26.2 or higher installed

@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Release signing — credentials and keystores never belong in git.
+# keystore.properties points at a .jks stored outside the repo (~/.keystores/).
+keystore.properties
+*.jks
+*.keystore

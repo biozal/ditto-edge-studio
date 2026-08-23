@@ -1,4 +1,17 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// Release signing credentials, kept out of git (see android/.gitignore).
+// The keystore itself lives outside the repo; keystore.properties points at it.
+// Absent on contributor machines and CI — release builds there stay unsigned
+// rather than failing the whole configuration phase.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystoreProperties.getProperty("storeFile")?.let { file(it).exists() } == true
 
 plugins {
     alias(libs.plugins.android.application)
@@ -21,6 +34,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // v1 is required for API < 24; minSdk is 28, so v2+v3 suffice and
+                // keep the 300 MB+ APK from carrying a redundant JAR manifest.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -28,6 +57,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
+
+            // Ship arm64-v8a only. libdittoffi.so alone is ~55 MB per ABI, and a
+            // universal APK came to 316 MB — 138 MB of which was x86/x86_64, which
+            // only ever runs on Intel emulators. arm64-v8a covers every real device
+            // shipped in roughly the last decade AND Apple Silicon emulators.
+            // Debug builds keep all ABIs so Intel emulators still work locally.
+            ndk { abiFilters += "arm64-v8a" }
         }
     }
     compileOptions {

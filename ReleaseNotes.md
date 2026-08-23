@@ -2,6 +2,13 @@
 
 ## 1.0b5 — August 2026
 
+**First Android release.** This version ships a sideloadable Android APK
+(`arm64-v8a`, Android 9 / API 28+) alongside the macOS DMG. See
+[`RELEASE_NOTES_v1.0b5.md`](RELEASE_NOTES_v1.0b5.md) for install instructions.
+
+> **macOS is Apple Silicon only.** The Ditto SDK ships an arm64-only framework
+> for macOS, so there is no Intel build. The DMG is signed and notarized.
+
 ### SwiftUI (macOS / iPadOS)
 
 **Per-database Advanced Configuration (new)**

@@ -4,6 +4,10 @@
 # This script builds a release version of the app and submits it for notarization
 
 set -e  # Exit on error
+# Without pipefail, `xcodebuild ... | xcpretty` reports xcpretty's exit status,
+# so a failed archive looks like a successful build. That is not hypothetical:
+# it masked a hard ARCHIVE FAILED for the entire 1.0b5 cycle.
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -22,9 +26,34 @@ APP_NAME="Ditto Edge Studio.app"
 BUNDLE_ID="com.costoda.ditto-edge-studio"
 DEVELOPER_ID="Developer ID Application: Aaron LaBeau (E3FRN9JNGJ)"
 
-# Apple ID for notarization (you'll need to provide this)
-APPLE_ID="${APPLE_ID:-your-apple-id@example.com}"
+# Apple ID for notarization. Only used in the help text below — the actual
+# submission authenticates via the `notarytool-profile` keychain item.
+APPLE_ID="${APPLE_ID:-alabeau@gmail.com}"
 TEAM_ID="E3FRN9JNGJ"
+NOTARY_PROFILE="notarytool-profile"
+
+# ARCHS=arm64 is mandatory, not an optimization: DittoSwift.xcframework ships a
+# macos-arm64 slice only. Release defaults to ARCHS_STANDARD (arm64 + x86_64),
+# and the x86_64 pass fails to find a matching framework slice. Likewise the
+# destination must be "generic/platform=macOS" — SUPPORTED_PLATFORMS lists
+# iphoneos first, so an unqualified archive builds against the iOS SDK and dies
+# asking for a provisioning profile.
+
+# Preflight: fail loudly and early rather than 10 minutes into a build.
+if ! security find-identity -v -p codesigning | grep -q "${DEVELOPER_ID}"; then
+    echo -e "${RED}✗${NC} Signing identity not found in keychain:"
+    echo -e "    ${DEVELOPER_ID}"
+    exit 1
+fi
+
+if ! xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠${NC}  No '${NOTARY_PROFILE}' keychain credential found."
+    echo -e "    The build will succeed but notarization will not be possible."
+    echo -e "    Create one with an app-specific password from appleid.apple.com:"
+    echo -e "      xcrun notarytool store-credentials \"${NOTARY_PROFILE}\" \\"
+    echo -e "        --apple-id ${APPLE_ID} --team-id ${TEAM_ID}"
+    echo ""
+fi
 
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   Edge Studio - Release Build       ║${NC}"
@@ -47,7 +76,9 @@ if command -v xcpretty &> /dev/null; then
         -scheme "${SCHEME}" \
         -configuration "${CONFIGURATION}" \
         -archivePath "${ARCHIVE_PATH}" \
-        -destination "platform=macOS,arch=arm64" \
+        -destination "generic/platform=macOS" \
+        ARCHS=arm64 \
+        ONLY_ACTIVE_ARCH=NO \
         CODE_SIGN_IDENTITY="${DEVELOPER_ID}" \
         CODE_SIGN_STYLE=Manual \
         DEVELOPMENT_TEAM="${TEAM_ID}" \
@@ -58,7 +89,9 @@ else
         -scheme "${SCHEME}" \
         -configuration "${CONFIGURATION}" \
         -archivePath "${ARCHIVE_PATH}" \
-        -destination "platform=macOS,arch=arm64" \
+        -destination "generic/platform=macOS" \
+        ARCHS=arm64 \
+        ONLY_ACTIVE_ARCH=NO \
         CODE_SIGN_IDENTITY="${DEVELOPER_ID}" \
         CODE_SIGN_STYLE=Manual \
         DEVELOPMENT_TEAM="${TEAM_ID}"
@@ -142,7 +175,7 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     # Submit for notarization
     NOTARIZE_RESPONSE=$(xcrun notarytool submit "${DMG_PATH}" \
-        --keychain-profile "notarytool-profile" \
+        --keychain-profile "${NOTARY_PROFILE}" \
         --wait)
 
     echo "$NOTARIZE_RESPONSE"

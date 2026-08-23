@@ -17,7 +17,7 @@ XCODE_PROJECT="${PROJECT_DIR}/SwiftUI/Edge Debug Helper.xcodeproj"
 SCHEME="Edge Studio"
 CONFIGURATION="Release"
 BUILD_DIR="${PROJECT_DIR}/build/Release"
-APP_NAME="Edge Debug Helper.app"
+APP_NAME="Ditto Edge Studio.app"
 DEVELOPER_ID="Developer ID Application: Aaron LaBeau (E3FRN9JNGJ)"
 TEAM_ID="E3FRN9JNGJ"
 
@@ -29,6 +29,7 @@ xcodebuild clean build \
     -scheme "${SCHEME}" \
     -configuration "${CONFIGURATION}" \
     -destination "platform=macOS,arch=arm64" \
+    ARCHS=arm64 \
     CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
     CODE_SIGN_IDENTITY="${DEVELOPER_ID}" \
     CODE_SIGN_STYLE=Manual \
@@ -55,7 +56,7 @@ echo -e "${YELLOW}Re-signing app bundle...${NC}"
 codesign --force --deep --sign "${DEVELOPER_ID}" \
     --timestamp \
     --options runtime \
-    --entitlements "${PROJECT_DIR}/SwiftUI/Edge Debug Helper/Edge_Studio.entitlements" \
+    --entitlements "${PROJECT_DIR}/SwiftUI/EdgeStudio/Edge_Studio.entitlements" \
     "${BUILD_DIR}/${APP_NAME}"
 
 # Verify signature
@@ -89,14 +90,14 @@ cp -R "${BUILD_DIR}/${APP_NAME}" "${DMG_TEMP}/"
 ln -s /Applications "${DMG_TEMP}/Applications"
 
 # DMG name with version
-DMG_NAME="Edge Debug Helper ${VERSION}.dmg"
+DMG_NAME="Ditto Edge Studio ${VERSION}.dmg"
 DMG_PATH="${PROJECT_DIR}/scripts/${DMG_NAME}"
 
 # Remove existing DMG if present
 rm -f "${DMG_PATH}"
 
 # Create DMG
-hdiutil create -volname "Edge Debug Helper ${VERSION}" \
+hdiutil create -volname "Ditto Edge Studio ${VERSION}" \
     -srcfolder "${DMG_TEMP}" \
     -ov -format UDZO \
     "${DMG_PATH}"
