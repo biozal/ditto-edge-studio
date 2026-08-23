@@ -397,6 +397,10 @@ extension MainStudioView {
                                         query,
                                         databaseId: viewModel.selectedApp.databaseId
                                     )
+                                } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                                    // Correctly refused after a database switch —
+                                    // don't alert in the NEW session.
+                                    Log.info("Favorite save refused: \(error.message)")
                                 } catch {
                                     Log.error("Failed to add favorite: \(error.localizedDescription)")
                                     appState.setError(error)

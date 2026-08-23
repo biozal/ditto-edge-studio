@@ -132,6 +132,22 @@ struct MCPHTTPParserTests {
         #expect(request == nil)
     }
 
+    @Test(.tags(.mcp, .fast))
+    func `Oversized chunk-size line is treated as incomplete, not a crash`() {
+        // ARRANGE — regression: "7FFFFFFFFFFFFFFF" parses to Int.max, and the
+        // old `size + crlf.count` availability check trapped on signed
+        // overflow (SIGTRAP) before the comparison.
+        let raw = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n7FFFFFFFFFFFFFFF\r\n"
+        let data = Data(raw.utf8)
+
+        // ACT — must not trap
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT — the declared chunk can never fully arrive, so the parser
+        // waits for more data exactly like any other incomplete body
+        #expect(request == nil)
+    }
+
     // MARK: - Incomplete Data (must return nil)
 
     @Test(.tags(.mcp, .fast))

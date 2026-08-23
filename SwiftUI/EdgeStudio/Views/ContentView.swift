@@ -100,8 +100,8 @@ struct ContentView: View {
                 storedDatabaseId = nil
             }
         }
-        // Destructive-delete gate: every delete trigger (context menu on both
-        // platforms, swipe action) only stages `appPendingDeletion` via
+        // Destructive-delete gate: every delete trigger (the context menu on
+        // both platforms) only stages `appPendingDeletion` via
         // `viewModel.deleteApp`; this dialog is the single path that actually
         // deletes. `confirmationDialog` renders as a dialog on macOS and an
         // action sheet on iOS, so one modifier covers both pickers.
@@ -669,8 +669,8 @@ extension ContentView {
             // Repository callback will be set up when loadApps is called
         }
 
-        /// Set when a delete has been triggered from any entry point (context
-        /// menu on macOS/iOS, swipe action). Drives the destructive-confirmation
+        /// Set when a delete has been triggered from any entry point (the
+        /// context menu on macOS/iOS). Drives the destructive-confirmation
         /// dialog in `ContentView`; the actual deletion only runs from
         /// `confirmPendingAppDeletion(appState:)`.
         var appPendingDeletion: DittoConfigForDatabase?

@@ -42,7 +42,7 @@
 
 **Sync & lifecycle**
 - Close → reopen no longer leaves the database file locked (cleanup teardown is now serialised: repositories first, manager second, presence observer explicitly released).
-- Deleting a database configuration now removes all of its on-disk files, and every delete path (context menu, swipe) is gated behind a single **confirmation dialog**.
+- Deleting a database configuration now removes all of its on-disk files, and every delete path is gated behind a single **confirmation dialog**.
 - Fixed several **observer crashes**: activating an observer no longer crashes on documents `jsonData()` can't serialise, result items are dematerialised in the live-query callback, and observers are cancelled on reset.
 
 **Query & history fixes**

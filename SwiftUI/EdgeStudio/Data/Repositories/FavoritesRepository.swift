@@ -146,8 +146,17 @@ actor FavoritesRepository {
                 )
             }
 
-            // Reload cache from SQLCipher (to maintain proper ordering)
-            cachedFavorites = try await fetchFavorites(for: databaseId)
+            // Reload from SQLCipher (to maintain proper ordering) into a local
+            // first: this fetch suspends too, and a session switch landing
+            // inside it would otherwise assign the OLD database's list into
+            // the cache the NEW session now owns, then notify its UI.
+            let reloaded = try await fetchFavorites(for: databaseId)
+            guard self.currentDatabaseId == databaseId else {
+                throw InvalidStateError(
+                    message: "Stale session - database switched from \(databaseId) before the save completed"
+                )
+            }
+            cachedFavorites = reloaded
 
             // Notify UI
             await notifyFavoritesUpdate()

@@ -104,7 +104,12 @@ enum MCPHTTPParser {
                 return decoded
             }
 
-            guard data.distance(from: offset, to: data.endIndex) >= size + crlf.count else { return nil }
+            // Compare as a subtraction: a hostile chunk-size line (e.g.
+            // "7FFFFFFFFFFFFFFF" → Int.max) would trap on overflow in
+            // `size + crlf.count`. A negative rhs simply fails the guard —
+            // the body is treated as incomplete, same as any short read.
+            let remaining = data.distance(from: offset, to: data.endIndex)
+            guard size <= remaining - crlf.count else { return nil }
             decoded.append(data[offset ..< data.index(offset, offsetBy: size)])
             offset = data.index(offset, offsetBy: size + crlf.count)
         }

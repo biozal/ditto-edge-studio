@@ -299,10 +299,12 @@ class StudioSession(
                 Unit
             }.onFailure { e ->
                 // Gated: the SDK error can embed the user's subscription DQL.
+                // Never write save failures to _hydrateError: that channel is
+                // reserved for open-failure and gates the Query Metrics
+                // section. The returned Result surfaces the error inline.
                 if (BuildConfig.DEBUG) {
                     Log.e(TAG, "addSubscriptionSuspend failed: ${e.message}", e)
                 }
-                _hydrateError.value = e.message
             }
         }
     }
@@ -320,7 +322,12 @@ class StudioSession(
                 activeHandles[subscription.id] = handle
                 _subscriptions.value = subscriptionsRepository.loadSubscriptions(db.databaseId)
                 Unit
-            }.onFailure { e -> _hydrateError.value = e.message }
+            }.onFailure { e ->
+                // Surfaced via the returned Result — see addSubscriptionSuspend.
+                if (BuildConfig.DEBUG) {
+                    Log.e(TAG, "updateSubscriptionSuspend failed: ${e.message}", e)
+                }
+            }
         }
     }
 
@@ -348,7 +355,13 @@ class StudioSession(
                     observableRepository.saveObservable(obs)
                 }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
-            }.onFailure { e -> _hydrateError.value = e.message }
+            }.onFailure { e ->
+                // Never via _hydrateError (reserved for open-failure) — see
+                // addSubscriptionSuspend.
+                if (BuildConfig.DEBUG) {
+                    Log.e(TAG, "addObserver failed: ${e.message}", e)
+                }
+            }
         }
     }
 
@@ -363,7 +376,13 @@ class StudioSession(
                     observableRepository.updateObservable(updated)
                 }
                 _observers.value = observableRepository.loadObservables(db.databaseId)
-            }.onFailure { e -> _hydrateError.value = e.message }
+            }.onFailure { e ->
+                // Never via _hydrateError (reserved for open-failure) — see
+                // addSubscriptionSuspend.
+                if (BuildConfig.DEBUG) {
+                    Log.e(TAG, "updateObserver failed: ${e.message}", e)
+                }
+            }
         }
     }
 
