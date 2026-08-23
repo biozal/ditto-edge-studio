@@ -85,8 +85,12 @@ actor NetworkDiagnosticsService {
 
         // WiFi first, then Ethernet; alphabetical within each group
         return results.sorted {
-            if $0.kind == .wifi, $1.kind != .wifi { return true }
-            if $0.kind != .wifi, $1.kind == .wifi { return false }
+            if $0.kind == .wifi, $1.kind != .wifi {
+                return true
+            }
+            if $0.kind != .wifi, $1.kind == .wifi {
+                return false
+            }
             return $0.interfaceName < $1.interfaceName
         }
     }
@@ -138,6 +142,15 @@ actor NetworkDiagnosticsService {
         var isUp = false
     }
 
+    /// Reads a null-terminated `[CChar]` buffer (e.g. from `getnameinfo`) into a
+    /// String via the non-deprecated `UnsafePointer<CChar>` `cString` overload.
+    private func string(fromCBuffer buffer: [CChar]) -> String {
+        buffer.withUnsafeBufferPointer { ptr in
+            guard let base = ptr.baseAddress else { return "" }
+            return String(cString: base)
+        }
+    }
+
     private func buildAddressMap() -> [String: AddrEntry] {
         var result: [String: AddrEntry] = [:]
 
@@ -174,7 +187,9 @@ actor NetworkDiagnosticsService {
                         .map { String(format: "%02x", raw.load(fromByteOffset: macOffset + $0, as: UInt8.self)) }
                         .joined(separator: ":")
                 }
-                if let mac { result[name, default: AddrEntry()].mac = mac }
+                if let mac {
+                    result[name, default: AddrEntry()].mac = mac
+                }
 
             case AF_INET:
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -187,7 +202,7 @@ actor NetworkDiagnosticsService {
                     0,
                     NI_NUMERICHOST
                 )
-                result[name, default: AddrEntry()].ipv4 = String(cString: host)
+                result[name, default: AddrEntry()].ipv4 = string(fromCBuffer: host)
 
             case AF_INET6:
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -200,7 +215,7 @@ actor NetworkDiagnosticsService {
                     0,
                     NI_NUMERICHOST
                 )
-                let v6 = String(cString: host)
+                let v6 = string(fromCBuffer: host)
                 // Prefer link-local (fe80::) for display; keep first seen if none recorded
                 let existing = result[name]?.ipv6
                 if existing == nil || v6.lowercased().hasPrefix("fe80") {

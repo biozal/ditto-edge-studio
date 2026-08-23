@@ -4,8 +4,10 @@ import Foundation
 
 /// Centralized logging service for Edge Debug Helper
 /// Provides file-based logging with rotation and retrieval capabilities for debugging and user support
-/// Thread-safe: CocoaLumberjack handles all thread synchronization internally
-class LoggingService {
+/// Thread-safe: CocoaLumberjack handles all thread synchronization internally,
+/// so this is safe to share across actors (`@unchecked Sendable`). Its only
+/// stored property is an immutable `DDFileLogger`, itself thread-safe.
+final class LoggingService: @unchecked Sendable {
     static let shared = LoggingService()
 
     private let fileLogger: DDFileLogger

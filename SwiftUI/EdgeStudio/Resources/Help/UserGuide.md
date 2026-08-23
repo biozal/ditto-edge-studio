@@ -15,6 +15,41 @@ Welcome to **Ditto Edge Studio**, a macOS and iPadOS tool for querying, monitori
    - **Small Peers Only** — no cloud, fully local mesh
 3. Fill in your credentials and tap **Save**.
 
+### Advanced Configuration
+
+The **Advanced Configuration** section of the Register/Edit Database screen holds two
+optional settings. Both are stored per database and re-applied every time you open it.
+
+**Collection Sync Scopes** control where each collection is allowed to synchronize:
+
+- **All Peers** — Ditto Server and Small Peers (the default)
+- **Big Peer Only** — Ditto Server only
+- **Small Peers Only** — Small Peers only
+- **Local Peer Only** — never leaves this device
+
+Changes take effect the next time the database is opened. If a sync scope cannot be
+applied, Edge Studio **refuses to open the database** rather than risk syncing data you
+marked device-local.
+
+**Startup System Settings** apply `ALTER SYSTEM` parameters after Ditto opens and before
+sync starts. Enter a parameter name, pick its type (String, JSON, Integer, Double or
+Boolean), and enter the value. Run `SHOW ALL` in the query editor to see every available
+parameter and its current value. Parameters that Edge Studio manages through its own UI
+(strict mode, transports, sync scopes) are blocked here, and parameters that can expose
+data on the network or reduce durability ask you to confirm first. If one of these
+settings fails, the database still opens and the failure is reported.
+
+**Reset to SDK Defaults** clears both lists; **Undo Reset** puts them back. If the
+database is open at the time, saving also restores every system parameter to Ditto's
+defaults and re-applies Edge Studio's own settings.
+
+If the sync scopes saved for a database ever become unreadable, Edge Studio keeps the
+database in the list but refuses to open it, and says so — rather than opening it with no
+scopes and syncing data you had marked device-local. Re-enter the scopes to recover.
+
+Advanced settings are **not** included when you share a database by QR code — re-enter
+them on the receiving device.
+
 ### Opening a Database
 
 Tap any database card to open the Studio. On first launch you may be prompted for Bluetooth and local network permissions — grant these for full sync functionality.
@@ -50,13 +85,47 @@ Write and run **DQL (Ditto Query Language)** queries against your Ditto database
 
 - **Collections** appear in the sidebar once documents exist (via INSERT or sync from a peer).
 - **SELECT**, **INSERT**, **UPDATE**, **EVICT**, and index management are all supported.
-- Results display in **Raw** (JSON) or **Table** mode with pagination.
+- Results display in **Raw** (JSON), **Table**, or **Profile** mode (see below) with pagination.
 - Queries are automatically saved to **History**; you can star any query to add it to **Favorites**.
 - Open the Inspector **?** tab for a full DQL reference including syntax examples and index management.
 
 #### Local vs HTTP execution
 
 Queries run against the **local embedded database** by default. If you have configured an **HTTP API URL** and **HTTP API Key** on the database (edit the database card → *Ditto Server – HTTP API* section), a second option — **HTTP** — appears in the execute-mode picker next to the Run button. Selecting HTTP routes the query through the Ditto HTTP API instead of the local store, which is useful for querying the BigPeer directly or comparing results between the cloud and your local replica.
+
+#### Execution Profile
+
+The third tab next to **Raw** and **Table** captures an **execution-plan profile** for the last query you ran. Profiles let you see how Ditto's query engine planned and executed your statement — which operators ran, how many documents they processed, and where the time went.
+
+**When it captures.** A profile is captured automatically when **all three** conditions hold:
+1. **Collect Metrics** is enabled in Settings (this is the same toggle that drives App Metrics and Query Metrics — see Settings below).
+2. The statement is a **`SELECT`** — Ditto's `PROFILE` keyword only supports SELECT today. `INSERT`, `UPDATE`, `DELETE`, and `EVICT` won't capture a profile.
+3. You ran the query through the **Local** execute mode (not HTTP).
+
+If any condition fails, the Profile tab explains what's missing and (for the Collect Metrics case) gives you a one-tap **Open Settings…** button.
+
+**Card view** — the default. Renders each operator in the plan as a card with:
+- The operator name (`scan`, `sequence`, `limit`, `finalProjection`, …) and a row of coloured badges summarising `in` / `out` document counts and per-phase timings.
+- The operator's attributes below — `collection`, `alias`, `datasource`, `limit`, etc. Selectable so you can copy values.
+- Child operators nested inside the parent card so the tree structure stays visible.
+
+**Plan view** — the high-level shape. Renders each operator as a box, connected top-down by T-junction lines: root at the top, children below. Box contents are condensed (operator name + key attribute + **exec time** + in/out counts). Every operator with a reported `exec` time gets a **percent badge** (e.g. `(31.5%)`) next to its time showing its **% of operator execution time** — the operator's share of the plan's total CPU work. Badges across the visible tree sum to 100% so you can read which operator owns which fraction of the CPU at a glance. This is the same conceptual metric SQL Server's "% of total plan cost" and Snowflake's "% of overall compute time" use; it's *not* a "% of total wall-clock" reading the way Postgres `EXPLAIN ANALYZE` would phrase it. An operator's box turns **orange** when its share exceeds 50% — that operator is dominating the plan's CPU work and is your bottleneck. Switch to Card view if you want the full exec/recv/send breakdown per operator.
+
+**Reading the badges:** `in` (documents flowing in), `out` (documents flowing out), `exec` (CPU time inside the operator), `recv` (time waiting on upstream operators to feed input), `send` (time pushing output downstream). All times are auto-scaled to the most readable unit — milliseconds for ≥ 1 ms, microseconds for sub-ms, nanoseconds for sub-µs.
+
+For the full Ditto reference, see [docs.ditto.live/dql/profile](https://docs.ditto.live/dql/profile).
+
+#### Attachments
+
+Ditto documents can reference **binary attachments** — files (images, PDFs, audio, etc.) that live alongside the document and sync between peers on demand. Edge Studio lets you add, view, and remove attachments directly from the query results pane.
+
+**Adding an attachment.** Right-click any document row in the **Raw** or **Table** viewer and choose **Add Attachment…**. Pick a file in the system file picker, then enter the field name to store the attachment under (e.g. `photo`, `invoice_pdf`). Edge Studio uploads the file, writes the resulting attachment token onto the document, and refreshes the row. A progress overlay shows upload status — large files may take a few seconds.
+
+**Viewing attachments.** Select any row that has attachment fields. The **Attachment Viewer** section appears in the Document Viewer (Inspector → JSON Viewer) listing every detected attachment field with its size and download state. Click **Open** on any field to fetch the attachment locally and open it with the system default app for that file type.
+
+**Deleting an attachment.** Right-click the document row and choose **Delete Attachment…**. A sheet lists every detected attachment field on that document with a toggle next to each one. Select the field(s) to remove and tap **Delete**. Edge Studio runs `UPDATE <collection> SET <field> = null WHERE _id = '<docId>'` for each selected field. The attachment binary is left on disk and will be reclaimed by Ditto's normal eviction cycle.
+
+> **Note:** Edge Studio detects attachment fields by inspecting the field value's shape — an attachment token has a recognisable structure. If you store attachments under a non-standard field name, they're still detected as long as the value is a real Ditto attachment token.
 
 ### Observers
 
@@ -81,7 +150,7 @@ Displays live resource usage for the Edge Studio process and disk usage for the 
 
 Records per-query `EXPLAIN` analysis for every DQL query you run — helping you understand index usage and query planner behaviour.
 
-- Queries are colour-coded by execution time (green / orange / red).
+- Queries are colour-coded by execution time: green under 10 ms, default text colour from 10–100 ms, and orange at 100 ms or more.
 - An index-usage badge shows whether each query used an index or performed a full collection scan.
 - Select any record to see the full DQL statement and `EXPLAIN` output.
 - Prometheus export is configured from the Inspector **Export** tab.
@@ -99,7 +168,7 @@ Toggles performance data collection. When enabled, **App Metrics** and **Query M
 
 ### Enable MCP Server
 
-Starts the built-in Model Context Protocol server on port **65269**, letting AI agents (Claude Code, Cursor, etc.) query your active Ditto database. Disabled by default. A green status dot in Settings confirms the server is running.
+Starts the built-in Model Context Protocol server on port **65269**, letting AI agents (Codex, Claude Code, Cursor, etc.) query your active Ditto database. Disabled by default. A green status dot in Settings confirms the server is running.
 
 See **MCP Integration** below for connection instructions.
 
@@ -107,13 +176,19 @@ See **MCP Integration** below for connection instructions.
 
 ## MCP Integration (AI Agents)
 
-Edge Studio includes a built-in **MCP (Model Context Protocol) server** that lets Claude Code and other AI agents query and manage your Ditto databases directly — no separate binary or CLI setup required.
+Edge Studio includes a built-in **MCP (Model Context Protocol) server** that lets Codex, Claude Code, and other AI agents query and manage your Ditto databases directly — no separate binary or CLI setup required.
 
 ### Enabling
 
 1. Open **Edge Studio → Settings…** (⌘,)
 2. Toggle **Enable MCP Server** ON
 3. A green dot confirms it is running on **port 65269**
+
+### Connecting Codex
+
+This repository includes a project-scoped `.codex/config.toml`. After enabling
+the server, restart Codex and verify the connection with `/mcp` or
+`codex mcp list`.
 
 ### Connecting Claude Code
 
@@ -131,7 +206,7 @@ claude mcp add ditto-edge-studio --transport sse http://localhost:65269/mcp
 
 Verify: `claude mcp list` — you should see `ditto-edge-studio (sse) http://localhost:65269/mcp`.
 
-### What You Can Ask Claude
+### What You Can Ask Your Agent
 
 With the server running and a database selected:
 
@@ -156,10 +231,12 @@ With the server running and a database selected:
 | `drop_index` | Remove an index by name |
 | `get_query_metrics` | Recent query timing and EXPLAIN output (requires Metrics enabled in Settings) |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth LE, LAN, or AWDL transports (sync restarts automatically) |
 | `insert_documents_from_file` | Insert a local JSON file into a collection |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Snapshot of all connected peers with device, OS, and transport details |
+| `get_app_logs` | Recent Edge Studio application log entries, with optional line count and substring filter |
+| `get_ditto_logs` | Recent Ditto SDK log entries (timestamp, level, component, message), with optional level and substring filters |
 
 > All tools operate on the database **currently selected** in the Edge Studio UI. The server stops automatically when Edge Studio quits.
 
@@ -211,7 +288,7 @@ Returns a flat JSON array of every index across all collections in the active da
 
 Useful for auditing index coverage across the entire database in one call, without iterating collection by collection.
 
-For full setup, troubleshooting, and security considerations see [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md).
+For full setup, troubleshooting, and security considerations see `docs/MCP_SERVER.md` in the repository.
 
 ---
 

@@ -3,6 +3,7 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 
 **Key Features:**
 - Multi-app connection management with local storage
+- Advanced per-database configuration: collection sync scopes and startup `ALTER SYSTEM` settings
 - Real-time query execution with history and favorites
 - Active subscriptions and observables management
 - Connection status bar with transport-level statistics
@@ -10,14 +11,34 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 - Disk usage monitoring and permissions health checking
 - Import/export functionality 
 
+## Download
+
+Prebuilt apps are attached to each [GitHub release](https://github.com/biozal/ditto-edge-studio/releases).
+
+| Platform | Asset | Requirements |
+|---|---|---|
+| macOS | `Ditto Edge Studio <version>.dmg` | macOS 26.0+, **Apple Silicon only** |
+| Android | `EdgeStudio-<version>-arm64.apk` | Android 9 (API 28)+, 64-bit ARM |
+
+**macOS** — open the DMG and drag the app to Applications. It's signed with a
+Developer ID certificate and notarized by Apple, so it opens normally. There is
+no Intel build: the Ditto SDK ships an arm64-only macOS framework.
+
+**Android** — the APK is distributed directly rather than through the Play
+Store, so you'll need to sideload it. Download the APK, open it, and when
+prompted enable **Settings → Install unknown apps** for your browser or file
+manager, then tap Install. Android will show it as coming from an unverified
+developer; that's expected for a direct download.
+
 ## Requirements
 
 ### Ditto Portal Account:
 - You need a Ditto Portal account.  You can sign up for a free account at [Ditto Portal](https://portal.ditto.live/create-account?_gl=1*gkhgpr*_gcl_au*MTE4OTI1ODI0OS4xNzQ3MzEzNTc4*_ga*MTM3NDExNTUyOS4xNzMzMTQ4MTc5*_ga_D8PMW3CCL2*czE3NTAzNTA2MjYkbzE2MyRnMCR0MTc1MDM1MDYyNyRqNTkkbDAkaDA.).
 
 ### App Requirements
-- A Mac with MacOS 26.0 or higher installed
+- A Mac with MacOS 26.0 or higher installed (Apple Silicon)
 - An iPad with OS 26.0  or higher installed
+- An Android device or tablet running Android 9 (API 28) or higher, 64-bit ARM
 
 ### Build REquirements
 - Xcode 26.2 or higher installed
@@ -26,14 +47,24 @@ Edge Studio is a set of tools and an application that allows you to create a loc
 - [Periphery](https://github.com/peripheryapp/periphery) Installed
 
 ### Ditto SDK
-This project uses **Ditto SDK 5.0** (currently 5.0.0-preview.5).
+This project uses **Ditto SDK 5.1** (currently 5.1.0).
 
-API Reference: https://software.ditto.live/cocoa/DittoSwift/5.0.0-preview.5/api-reference/documentation/dittoswift/
+API Reference: https://software.ditto.live/cocoa/DittoSwift/5.1.0/api-reference/documentation/dittoswift/
 
 Note: The SwiftUI app is only officially supports MacOS and iPadOS.  While it will build and run on iOS, it has not been tested on iOS and there are known issues with the SwiftUI app on iOS.
 
 
 ## Getting Started from Source
+
+```bash
+git clone <this-repo>
+cd ditto-edge-studio/SwiftUI
+open "Edge Debug Helper.xcodeproj"
+```
+
+Select the **Edge Studio** scheme and build/run for macOS or iPadOS. The Ditto SDK is
+fetched via Swift Package Manager, so the first build may take a few minutes. See
+[docs/TESTING.md](docs/TESTING.md) for how to run the test suites.
 
 ## Development Tools
 
@@ -196,24 +227,17 @@ xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 
 ### Current Status
 
-- **Overall Coverage**: 15.96% (target: 50%)
-- **SQLCipherService**: 62.19% coverage ✅
-- **Total Tests**: 15+ unit tests, growing weekly
+Coverage measured 2026-08-21; test count measured 2026-08-23
+(see [docs/TESTING.md](docs/TESTING.md) for details):
+
+- **Overall App-Target Coverage**: 15.51% (target: 50%)
+- **SQLCipherService**: 93.13% coverage ✅
+- **Total Tests**: 761 Swift Testing tests (604 unit + 157 integration), plus 15 UI tests
 
 ### Coverage Enforcement
 
-Pre-push hook automatically enforces 50% minimum coverage:
-
-```bash
-# Enable pre-push hook
-chmod +x .git/hooks/pre-push
-
-# Now runs automatically before every push
-git push origin main
-
-# Bypass once (emergency only)
-git push --no-verify
-```
+There is no automated coverage gate (no pre-push hook). Coverage is measured manually
+via the scripts in `scripts/` and enforced during code review.
 
 ### Complete Documentation
 
@@ -225,9 +249,11 @@ git push --no-verify
 - Coverage best practices
 - Troubleshooting guide
 
-## Claude Code MCP Integration
+## AI Agent MCP Integration
 
-Edge Studio embeds an MCP (Model Context Protocol) server that lets Claude Code query and manage your Ditto databases directly — no separate setup, no CLI binary. When Edge Studio is running with MCP enabled, Claude Code connects automatically.
+Edge Studio embeds an MCP (Model Context Protocol) server that lets Codex,
+Claude Code, and other MCP clients query and manage your Ditto databases
+directly. No separate server binary is required.
 
 ### Enable in Edge Studio
 
@@ -235,6 +261,21 @@ Edge Studio embeds an MCP (Model Context Protocol) server that lets Claude Code 
 2. Go to **Edge Studio → Settings…** (⌘,)
 3. Toggle **Enable MCP Server** ON
 4. A green dot confirms it's running on port 65269
+
+### Connect Codex
+
+This repository includes `.codex/config.toml`, which Codex loads for trusted
+projects. Restart Codex after enabling the server, then verify it with
+`/mcp` in the Codex TUI or:
+
+```bash
+codex mcp list
+```
+
+To make the server available outside this repository, add it to your global
+Codex configuration using the MCP server UI in Codex or a
+`[mcp_servers.ditto-edge-studio]` entry in `~/.codex/config.toml` with
+`url = "http://localhost:65269/mcp"`.
 
 ### Connect Claude Code
 
@@ -255,7 +296,7 @@ claude mcp list
 # ditto-edge-studio (sse) http://localhost:65269/mcp
 ```
 
-### What you can ask Claude
+### What you can ask your agent
 
 Once connected and with a database selected in Edge Studio:
 
@@ -281,10 +322,12 @@ Once connected and with a database selected in Edge Studio:
 | `drop_index` | Remove an index by name |
 | `get_query_metrics` | Recent query timing and EXPLAIN output (requires Metrics enabled in Settings) |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth, LAN, or AWDL transports |
 | `insert_documents_from_file` | Insert a local JSON file (array of objects with `_id`) into a collection; file must be in `~/Downloads` |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Snapshot of all connected peers with device, OS, SDK version, and transport details |
+| `get_app_logs` | Recent Edge Studio application log entries |
+| `get_ditto_logs` | Recent Ditto SDK log entries |
 
 > **Note:** All tools operate on the database currently selected in the Edge Studio UI. The MCP server stops automatically when Edge Studio quits.
 
@@ -308,5 +351,3 @@ By using this software, you acknowledge and agree that:
 - The authors are not liable for any damages resulting from use of this software
 
 For official Ditto support and documentation, please visit [Ditto Documentation](https://docs.ditto.live/).
-
-

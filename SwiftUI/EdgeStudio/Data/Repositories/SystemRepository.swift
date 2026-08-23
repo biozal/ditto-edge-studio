@@ -16,13 +16,29 @@ actor SystemRepository {
     private var pendingStatusItems: [SyncStatusInfo]?
     private var sessionId = 0
 
-    // Store the callback inside the actor
-    private var onSyncStatusUpdate: (([SyncStatusInfo], @escaping () -> Void) -> Void)?
-    private var onConnectionsUpdate: ((ConnectionsByTransport) -> Void)?
+    #if DEBUG
+    /// Diagnostic counter for the `[PresenceDiag]` log lines added while
+    /// investigating an empty Peers List on the 5.0.0-experimental-conn-limit
+    /// SDK. Remove this and the diagnostic block in `registerSyncStatusObserver`
+    /// once the root cause is identified.
+    private var presenceDiagFireCount = 0
+    #endif
+
+    // Store the callback inside the actor. Both callbacks are @MainActor so
+    // call sites get a compile-time guarantee that mutations to @Observable
+    // view-model state happen on the main thread. The completion handler is
+    // @Sendable because it must cross from the @MainActor caller back to this
+    // actor's executor.
+    private var onSyncStatusUpdate: (@MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void)?
+    private var onConnectionsUpdate: (@MainActor @Sendable (ConnectionsByTransport) -> Void)?
 
     private init() {}
 
     deinit {
+        // Defensive: the singleton never deinits in practice, but if it ever
+        // did, the SDK observers must be stopped, not just dereferenced.
+        syncStatusObserver?.stop()
+        connectionsPresenceObserver?.stop()
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
     }
@@ -34,12 +50,15 @@ actor SystemRepository {
         Log.info("[Close:SystemRepo] Session invalidated, new sessionId=\(sessionId)")
     }
 
-    private func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
+    /// Pure mapping — reads no actor state, so keep it nonisolated to avoid an
+    /// actor hop per connection inside the presence-update loop.
+    private nonisolated func convertConnectionType(_ dittoType: DittoConnectionType) -> ConnectionType {
         switch dittoType {
         case .bluetooth: return .bluetooth
         case .accessPoint: return .accessPoint
         case .p2pWiFi: return .p2pWiFi
         case .webSocket: return .webSocket
+        case .multicast: return .multicast
         @unknown default: return .unknown("\(dittoType)")
         }
     }
@@ -56,6 +75,9 @@ actor SystemRepository {
         case .accessPoint: return config.isLanEnabled
         case .p2pWiFi: return config.isAwdlEnabled
         case .webSocket: return config.isCloudSyncEnabled
+        // Multicast (beta, SDK 5.1.0) is configured via `DittoPeerToPeer.multicastBeta`, which the
+        // app does not currently expose, so there is no per-database flag to filter against.
+        case .multicast: return true
         case .unknown: return true
         }
     }
@@ -213,10 +235,29 @@ actor SystemRepository {
         let currentSession = sessionId
         Log.info("[SystemRepository] Registering syncStatus observer, sessionId=\(currentSession)")
 
-        // Register presence observer for real-time peer connection changes
+        // Stop any previous observer BEFORE replacing it. Assigning over the
+        // reference without `stop()` leaves the old SDK observer live — its
+        // callback keeps firing against a stale session.
+        syncStatusObserver?.stop()
+
+        // Register presence observer for real-time peer connection changes.
+        //
+        // IMPORTANT: do NOT capture `ditto` strongly in the closure or Task.
+        // Re-acquire it from `dittoManager.dittoSelectedApp` inside the Task
+        // and bail if nil. Strong-capturing `ditto` here means every fired
+        // callback holds the SDK Ditto instance for the duration of its DQL
+        // query — which can be tens of seconds while session-storage SQLite
+        // databases recover dirty WAL. That delays `Ditto.deinit` (which
+        // calls `ditto_shutdown` and checkpoints SQLite) past database close
+        // and creates the very dirty-WAL state that makes the next session's
+        // DQL hang.
         syncStatusObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
                 guard let self else { return }
+                guard let ditto = await dittoManager.dittoSelectedApp else {
+                    Log.info("[SystemRepository] syncStatus callback bailed: no active Ditto")
+                    return
+                }
                 let capturedSession = await sessionId
 
                 // Step 1: Extract directly connected peers from presence graph (source of truth).
@@ -224,6 +265,18 @@ actor SystemRepository {
                 // multihop). Filter to only peers where the local device is an endpoint of at
                 // least one connection to avoid showing peers we never directly communicated with.
                 let localPeerKeyString = presenceGraph.localPeer.peerKeyString
+
+                #if DEBUG
+                // Diagnostic for empty-Peers-List on 5.0.0-experimental-conn-limit.
+                // Dumps raw presence-graph contents BEFORE filtering so we can
+                // see whether `peer.connections` is populated and whether the
+                // local-endpoint match succeeds. The actual work runs inside
+                // `logPresenceDiagnostics` so it has actor-isolated access to
+                // `presenceDiagFireCount`. Remove with the counter property
+                // and the helper once the root cause is identified.
+                await logPresenceDiagnostics(graph: presenceGraph)
+                #endif
+
                 let connectedPeers = presenceGraph.remotePeers.filter { peer in
                     peer.connections.contains {
                         $0.peerKeyString1 == localPeerKeyString || $0.peerKeyString2 == localPeerKeyString
@@ -384,6 +437,20 @@ actor SystemRepository {
 
     /// Processes sync status updates with backpressure handling
     private func processSyncStatusUpdate(_ statusItems: [SyncStatusInfo]) async {
+        #if DEBUG
+        // Diagnostic for empty-Peers-List investigation. Logs the state of the
+        // dispatch pipeline so we can see whether items are reaching it, the
+        // callback is wired, and the pipeline is locked. Remove with the rest
+        // of the [PresenceDiag] instrumentation once resolved.
+        Log.info(
+            "[PresenceDiag] dispatch: " +
+                "items=\(statusItems.count) " +
+                "hasCallback=\(onSyncStatusUpdate != nil) " +
+                "isProcessing=\(isProcessingUpdate) " +
+                "hasPending=\(hasPendingUpdate)"
+        )
+        #endif
+
         if isProcessingUpdate {
             // Already processing - queue this update as pending (drops any previous pending)
             hasPendingUpdate = true
@@ -403,7 +470,7 @@ actor SystemRepository {
         // Mark as processing and send to UI
         isProcessingUpdate = true
 
-        callback(statusItems) { [weak self] in
+        await callback(statusItems) { [weak self] in
             Task {
                 guard let self else { return }
 
@@ -441,7 +508,7 @@ actor SystemRepository {
     /// Function to set the callback from outside the actor.
     /// Drains any pending update that queued up before the callback was registered
     /// (e.g. when the presence observer fires before the new session's callback is set).
-    func setOnSyncStatusUpdate(_ callback: @escaping ([SyncStatusInfo], @escaping () -> Void) -> Void) {
+    func setOnSyncStatusUpdate(_ callback: @escaping @MainActor @Sendable ([SyncStatusInfo], @escaping @Sendable () -> Void) -> Void) {
         onSyncStatusUpdate = callback
 
         // If a pending update arrived while the callback was nil, process it now.
@@ -472,6 +539,10 @@ actor SystemRepository {
         let currentSession = sessionId
         Log.info("[SystemRepository] Registering connections observer, sessionId=\(currentSession)")
 
+        // Stop any previous observer BEFORE replacing it (see
+        // registerSyncStatusObserver for the rationale).
+        connectionsPresenceObserver?.stop()
+
         // Register presence observer for real-time connection updates
         connectionsPresenceObserver = ditto.presence.observe { [weak self] presenceGraph in
             Task { [weak self] in
@@ -489,6 +560,7 @@ actor SystemRepository {
                 var totalBluetooth = 0
                 var totalP2PWiFi = 0
                 var totalWebSocket = 0
+                var totalMulticast = 0
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
                 let appConfig = await dittoManager.dittoSelectedAppConfig
@@ -506,7 +578,7 @@ actor SystemRepository {
                             connection.peerKeyString2 == localPeerKeyString else { continue }
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }
 
-                        let connectionType = await convertConnectionType(connection.type)
+                        let connectionType = convertConnectionType(connection.type)
 
                         // Skip connections for disabled transports (SDK bug workaround: presence
                         // graph retains stale connections after transport config changes)
@@ -523,6 +595,8 @@ actor SystemRepository {
                             totalP2PWiFi += 1
                         case .webSocket:
                             totalWebSocket += 1
+                        case .multicast:
+                            totalMulticast += 1
                         case .unknown:
                             break
                         }
@@ -535,7 +609,8 @@ actor SystemRepository {
                     bluetooth: totalBluetooth,
                     dittoServer: dittoServerCount,
                     p2pWiFi: totalP2PWiFi,
-                    webSocket: totalWebSocket
+                    webSocket: totalWebSocket,
+                    multicast: totalMulticast
                 )
 
                 // Call the callback to update the ViewModel's published property
@@ -544,7 +619,7 @@ actor SystemRepository {
         }
     }
 
-    func setOnConnectionsUpdate(_ callback: @escaping (ConnectionsByTransport) -> Void) {
+    func setOnConnectionsUpdate(_ callback: @escaping @MainActor @Sendable (ConnectionsByTransport) -> Void) {
         onConnectionsUpdate = callback
     }
 
@@ -557,7 +632,7 @@ actor SystemRepository {
     /// - Returns: An array of serializable peer dictionaries, or an empty array if no peers
     ///   are connected or no database is active. Commit IDs are omitted gracefully if the
     ///   `system:data_sync_info` query fails (e.g. sync is stopped).
-    func fetchPeersOnce() async -> [[String: Any]] {
+    func fetchPeersOnce() async -> sending [[String: Any]] {
         guard let ditto = await dittoManager.dittoSelectedApp else {
             return []
         }
@@ -614,6 +689,7 @@ actor SystemRepository {
                 case .accessPoint: "Access Point"
                 case .p2pWiFi: "P2P WiFi"
                 case .webSocket: "WebSocket"
+                case .multicast: "Multicast"
                 case let .unknown(t): t
                 }
                 var entry: [String: Any] = ["type": typeName]
@@ -647,6 +723,9 @@ actor SystemRepository {
     /// callbacks. Only the backpressure pipeline state is reset so the next registration
     /// starts clean.
     func stopSyncStatusObserver() async {
+        // stop(), not just nil: dropping the reference alone leaves the SDK
+        // observer live and its callback firing against a stale session.
+        syncStatusObserver?.stop()
         syncStatusObserver = nil
         isProcessingUpdate = false
         hasPendingUpdate = false
@@ -664,15 +743,60 @@ actor SystemRepository {
     ///    the backpressure pipeline permanently locked — all new updates queued as pending
     ///    but were never drained.
     ///
-    /// Callbacks (`onSyncStatusUpdate`, `onConnectionsUpdate`) are intentionally NOT cleared:
-    /// the new session's `setOn*` calls replace them, and `setOnSyncStatusUpdate` drains
-    /// any pending update that arrived before the new callback was registered.
+    /// Callbacks (`onSyncStatusUpdate`, `onConnectionsUpdate`) ARE cleared here so a
+    /// closed session's ViewModel closures don't outlive the session during rapid
+    /// database switching. This is safe because the next session re-registers via
+    /// `setOnSyncStatusUpdate`, which drains any update that queued while the callback
+    /// was nil.
     func stopObserver() async {
+        // stop(), not just nil — see stopSyncStatusObserver().
+        syncStatusObserver?.stop()
+        connectionsPresenceObserver?.stop()
         syncStatusObserver = nil
         connectionsPresenceObserver = nil
+        onSyncStatusUpdate = nil
+        onConnectionsUpdate = nil
         dittoServerCount = 0
         isProcessingUpdate = false
         hasPendingUpdate = false
         pendingStatusItems = nil
     }
+
+    #if DEBUG
+    /// Actor-isolated diagnostic logger. Called via `await` from the
+    /// non-isolated presence observer Task so `presenceDiagFireCount` can be
+    /// mutated and read safely. Each fire emits one summary line plus one
+    /// line per remote peer enumerating `peer.connections`. Remove with the
+    /// counter property and call site in `registerSyncStatusObserver` once
+    /// the experimental-conn-limit Peers-List empty issue is resolved.
+    private func logPresenceDiagnostics(graph: DittoPresenceGraph) {
+        presenceDiagFireCount += 1
+        let fireNum = presenceDiagFireCount
+        let rawLocalKey = graph.localPeer.peerKey
+        let localPeerKeyString = graph.localPeer.peerKeyString
+        let allConnsCount = graph.allConnectionsByID().count
+        Log.info(
+            "[PresenceDiag] fire=#\(fireNum) " +
+                "local.peerKey=\(rawLocalKey) " +
+                "local.peerKeyString=\(localPeerKeyString) " +
+                "remote_count=\(graph.remotePeers.count) " +
+                "graph.allConnectionsByID.count=\(allConnsCount)"
+        )
+        for peer in graph.remotePeers {
+            let connsDesc = peer.connections
+                .map { "\($0.peer1)<->\($0.peer2)/\($0.type.rawValue)" }
+                .joined(separator: ", ")
+            Log.info(
+                "[PresenceDiag] fire=#\(fireNum)   " +
+                    "peer.peerKey=\(peer.peerKey) " +
+                    "connections.count=\(peer.connections.count) " +
+                    "[\(connsDesc)]"
+            )
+        }
+    }
+    #endif
 }
+
+// MARK: - Protocol Conformance
+
+extension SystemRepository: SystemRepositoryProtocol {}

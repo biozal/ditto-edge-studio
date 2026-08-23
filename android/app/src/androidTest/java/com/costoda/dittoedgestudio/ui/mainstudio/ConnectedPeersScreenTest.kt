@@ -8,7 +8,7 @@ import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
-import com.costoda.dittoedgestudio.viewmodel.PeersUiState
+import com.costoda.dittoedgestudio.data.session.PeersUiState
 import org.junit.Rule
 import org.junit.Test
 
@@ -18,7 +18,7 @@ class ConnectedPeersScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `Initializing state shows progress indicator`() {
+    fun initializingStateShowsProgressIndicator() {
         composeTestRule.setContent {
             EdgeStudioTheme {
                 ConnectedPeersScreen(
@@ -35,7 +35,7 @@ class ConnectedPeersScreenTest {
     }
 
     @Test
-    fun `Active state with localPeer shows LocalPeerCard with device name`() {
+    fun activeStateWithLocalPeerShowsLocalPeerCardWithDeviceName() {
         val localPeer = LocalPeerInfo(
             peerId = "abc123",
             deviceName = "Google Pixel 9",
@@ -60,7 +60,7 @@ class ConnectedPeersScreenTest {
     }
 
     @Test
-    fun `Active state with remote peer shows RemotePeerCard`() {
+    fun activeStateWithRemotePeerShowsRemotePeerCard() {
         val remotePeer = SyncStatusInfo(
             peerId = "remote-peer-key",
             deviceName = "iPhone 16",
@@ -82,7 +82,7 @@ class ConnectedPeersScreenTest {
     }
 
     @Test
-    fun `WiFi interface card shows location permission warning when permission denied`() {
+    fun wifiInterfaceCardShowsLocationPermissionWarningWhenPermissionDenied() {
         val wifiIface = makeWifiInterface(locationPermissionGranted = false)
 
         composeTestRule.setContent {
@@ -100,7 +100,7 @@ class ConnectedPeersScreenTest {
     }
 
     @Test
-    fun `WiFi interface card shows RSSI when available`() {
+    fun wifiInterfaceCardShowsRssiWhenAvailable() {
         val wifiIface = makeWifiInterface(rssi = -65, signalLevel = 3, locationPermissionGranted = false)
 
         composeTestRule.setContent {
@@ -118,7 +118,7 @@ class ConnectedPeersScreenTest {
     }
 
     @Test
-    fun `P2P transport cards appear when hardware is available`() {
+    fun p2pTransportCardsAppearWhenHardwareIsAvailable() {
         val wifiAware = P2PTransportInfo(
             kind = P2PTransportInfo.Kind.WifiAware,
             isHardwareAvailable = true,

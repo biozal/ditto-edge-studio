@@ -4,11 +4,10 @@ using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.ViewModels;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class SubscriptionFormWindow : SukiWindow, IRecipient<HideSubscriptionFormMessage>
+    public partial class SubscriptionFormWindow : Window, IRecipient<HideSubscriptionFormMessage>
     {
         private SubscriptionViewModel? _viewModel;
         

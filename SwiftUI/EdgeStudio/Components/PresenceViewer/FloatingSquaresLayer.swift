@@ -2,6 +2,11 @@ import SpriteKit
 
 /// Manages a layer of animated floating squares for background decoration
 /// Inspired by the ditto.com website design with subtle data block visualization
+///
+/// `@MainActor`: this only ever runs inside `PresenceNetworkScene` (an `SKScene`,
+/// which is main-actor-isolated) and drives SpriteKit node APIs that must be used
+/// on the main actor.
+@MainActor
 class FloatingSquaresLayer {
     private var squares: [SKSpriteNode] = []
     private var parentScene: SKScene?
@@ -123,10 +128,18 @@ class FloatingSquaresLayer {
 
         // Wrap around within ±600 range (centered at 0,0)
         let maxRange: CGFloat = 600
-        if newX < -maxRange { newX += (maxRange * 2) }
-        if newX > maxRange { newX -= (maxRange * 2) }
-        if newY < -maxRange { newY += (maxRange * 2) }
-        if newY > maxRange { newY -= (maxRange * 2) }
+        if newX < -maxRange {
+            newX += (maxRange * 2)
+        }
+        if newX > maxRange {
+            newX -= (maxRange * 2)
+        }
+        if newY < -maxRange {
+            newY += (maxRange * 2)
+        }
+        if newY > maxRange {
+            newY -= (maxRange * 2)
+        }
 
         let move = SKAction.move(to: CGPoint(x: newX, y: newY), duration: duration)
         move.timingMode = .easeInEaseOut

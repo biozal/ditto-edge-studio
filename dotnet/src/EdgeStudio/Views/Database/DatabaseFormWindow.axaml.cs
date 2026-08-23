@@ -4,11 +4,10 @@ using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.ViewModels;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class DatabaseFormWindow : SukiWindow, IRecipient<HideDatabaseFormMessage>
+    public partial class DatabaseFormWindow : Window, IRecipient<HideDatabaseFormMessage>
     {
         private MainWindowViewModel? _viewModel;
         

@@ -1,5 +1,8 @@
 # CLAUDE.md — Android
 
+> Shared Android agent rules live in [`AGENTS.md`](AGENTS.md). This file retains
+> supplementary project detail for Claude Code.
+
 This file provides guidance to Claude Code when working with the Android project in this directory.
 
 ## Project Overview
@@ -9,8 +12,8 @@ Edge Studio for Android is a Jetpack Compose application for querying and managi
 - **Package:** `com.costoda.dittoedgestudio`
 - **Module:** `app` (single-module project)
 - **Min SDK:** 28 (Android 9 Pie)
-- **Target/Compile SDK:** 36
-- **Language:** Kotlin 2.1.20
+- **Target SDK:** 36 / **Compile SDK:** 37
+- **Language:** Kotlin 2.3.21 (AGP built-in Kotlin)
 - **UI framework:** Jetpack Compose (Material3)
 
 ## Repository Conventions
@@ -66,6 +69,8 @@ When the user references a screenshot by filename, always look for it in `screen
 
 **Working directory:** Always run Gradle commands from `android/` (this directory), not the repo root.
 
+**Device targeting (CRITICAL):** with multiple devices attached, ALWAYS prefix Gradle install/test commands with `ANDROID_SERIAL=<serial>` — it is the only supported mechanism (`-PdeviceSerial` does not exist and silently targets every device). Never run `adb uninstall` / `pm clear` / `pm uninstall` against a device holding a real configuration — uninstalling destroys app-private data (saved database configs). `connectedAndroidTest` removes and reinstalls the app **by design**; run it only on the designated wipe-safe test device. A PreToolUse hook in `.claude/settings.json` enforces these rules in Claude Code sessions (it also matches these literal patterns in prose typed through Bash — use the Edit tool for documentation).
+
 ## Android Studio
 
 - **Run configuration:** `app` (stored in `.idea/runConfigurations/app.xml`)
@@ -95,30 +100,44 @@ app/src/main/java/com/costoda/dittoedgestudio/
 ├── MainApplication.kt               # Koin startKoin{}
 ├── MainActivity.kt                  # Entry point, sets up Compose content
 ├── domain/
-│   └── model/
-│       ├── AuthMode.kt              # enum: SERVER, SMALL_PEERS_ONLY
-│       ├── DittoDatabase.kt         # Database configuration model
-│       ├── DittoSubscription.kt
-│       ├── DittoObservable.kt
-│       └── DittoQueryHistory.kt
+│   └── model/                       # Pure Kotlin domain models (no Android/Room imports)
 ├── data/
 │   ├── db/
 │   │   ├── AppDatabase.kt           # Room + SQLCipher
 │   │   ├── DatabaseKeyManager.kt    # Keystore AES-256 key management
-│   │   ├── entity/                  # Room entities (5 tables)
-│   │   └── dao/                     # Room DAOs (5 DAOs, each with Flow queries)
-│   ├── repository/                  # 5 interfaces + 5 implementations
+│   │   ├── entity/                  # Room entities
+│   │   └── dao/                     # Room DAOs (Flow queries)
+│   ├── repository/                  # Repository interfaces + implementations
+│   ├── session/
+│   │   ├── StudioSession.kt         # Koin "studio" scope per databaseId (Ditto lifecycle)
+│   │   └── StudioUiState.kt         # Ephemeral cross-section UI state (queryWorkbench, etc.)
 │   └── di/
 │       └── DataModule.kt            # Koin module
 ├── ui/
-│   ├── home/
-│   │   └── HomeScreen.kt            # Home screen Composable
+│   ├── adaptive/
+│   │   └── WindowSize.kt            # Single source of truth for WindowSizeClass decisions
+│   ├── database/                    # DatabaseListScreen, DatabaseEditorScreen, DatabaseCard
+│   ├── mainstudio/
+│   │   ├── StudioScaffold.kt        # Chrome: Rail (≥600dp) / Nav Drawer + top bar + inspector
+│   │   ├── *Section.kt              # Scene-driven section entry-points (one per rail item)
+│   │   ├── *ListPane.kt             # List-pane composables (SubscriptionsListPane, etc.)
+│   │   ├── *Screen.kt               # Leaf screens (ConnectedPeersScreen, LoggingScreen, etc.)
+│   │   ├── inspector/               # Inspector composables (QueryInspectorView, HelpContentView)
+│   │   └── metrics/                 # AppMetricsScreen, DiskUsageScreen, QueryMetrics*Pane
+│   ├── navigation/
+│   │   ├── AppNavGraph.kt           # NavDisplay + ListDetailSceneStrategy + entryProvider
+│   │   ├── NavKeys.kt               # All NavKey types (DatabaseListKey, StudioSectionKey, etc.)
+│   │   └── StudioScopeManager.kt    # Koin studio-scope lifecycle manager
+│   ├── qrcode/                      # QR scanner + display
 │   └── theme/
 │       ├── Color.kt                 # Brand color definitions (RAL palette)
 │       ├── Theme.kt                 # Light/Dark MaterialTheme setup
 │       └── Type.kt                  # Typography
 └── viewmodel/
-    └── HomeViewModel.kt             # Home screen ViewModel
+    ├── MainStudioViewModel.kt       # Shared studio VM; owns StudioNavItem enum
+    ├── AppMetricsViewModel.kt
+    ├── DiskUsageViewModel.kt
+    └── QueryEditorViewModel.kt
 ```
 
 ### Layer Responsibilities
@@ -138,6 +157,22 @@ app/src/main/java/com/costoda/dittoedgestudio/
 - Use `StateFlow` for UI state, `Flow` for streams
 - All DAO calls wrapped in `withContext(Dispatchers.IO)` in repository impls
 
+## UI Layout Terminology
+
+The studio is implemented in `ui/mainstudio/StudioScaffold.kt` (chrome) hosting a Navigation 3 `NavDisplay` in `ui/navigation/AppNavGraph.kt` with Material 3 Adaptive `ListDetailSceneStrategy` scenes. These are the **canonical terms** for each region — when a task references one of these terms, it means exactly this region:
+
+| Term | Code | Description | iOS (SwiftUI app) equivalent |
+|------|------|-------------|------------------------------|
+| **Rail** | `NavigationRail` in `StudioScaffold` | Vertical strip of navigation icons (`StudioNavItem` entries); visible as a column at ≥840dp; folded into the Nav Drawer below 840dp; selection = the current `StudioSectionKey` on the Nav3 back stack (replace-top on switch; back exits the studio) | Sidebar segmented picker |
+| **Data Panel** | `ListDetailSceneStrategy.listPane` (scene-managed width; preferred 320dp at ≥1200dp) | Feature/info menu for the selected Rail item; visible side-by-side at ≥840dp; below 840dp lives inside the Nav Drawer alongside the rail items | Sidebar content list |
+| **Content Pane** | `ListDetailSceneStrategy.detailPane` (or `detailPlaceholder`) | Main working area (query editor, results, observers, etc.). **Default view at every width** (full-width below 840dp) | MainView / detail area |
+| **Inspector** | Inspector column in `StudioScaffold`; width: 300dp (<1200dp), 360dp (≥1200dp), 400dp (≥1600dp); default-visible at ≥1200dp (Large+); `ModalBottomSheet` below 840dp | Trailing slide-out panel; toggleable | Inspector |
+| **Nav Drawer** | `ModalNavigationDrawer` in `StudioScaffold` | Below 840dp: holds Rail items + the section's Data Panel (rail items at top, divider, Data Panel below); selecting any item closes the drawer | — |
+
+Material/Android mapping for reference: Rail = Navigation Rail, Data Panel = list pane (of a list-detail layout), Content Pane = detail pane, Inspector = side sheet / supporting pane.
+
+Adaptivity source of truth: `ui/adaptive/WindowSize.kt` (uses `currentWindowAdaptiveInfoV2`, Large/XL enabled). The Gradle `check` task `forbidNonAdaptiveSizeApis` forbids `screenWidthDp` outside `ui/adaptive/`.
+
 ## Dependency Catalog
 
 All versions and dependencies are declared in `gradle/libs.versions.toml`. Never hardcode version strings in `build.gradle.kts` files — always add entries to the TOML catalog first.
@@ -146,10 +181,10 @@ All versions and dependencies are declared in `gradle/libs.versions.toml`. Never
 
 | Dependency | Version |
 |-----------|---------|
-| Android Gradle Plugin | 8.9.0 |
-| Kotlin | 2.1.20 |
-| KSP | 2.1.20-1.0.32 |
-| Compose BOM | 2025.12.00 |
+| Android Gradle Plugin | 9.2.1 (built-in Kotlin — no kotlin-android plugin) |
+| Kotlin | 2.3.21 |
+| KSP | 2.3.9 |
+| Compose BOM | 2026.05.01 |
 | Core KTX | 1.16.0 |
 | Activity Compose | 1.10.1 |
 | Lifecycle / ViewModel | 2.9.0 |
@@ -228,7 +263,8 @@ Always use these named tokens — never hardcode hex values in UI code.
 
 - Single activity: `MainActivity` (launcher)
 - `windowSoftInputMode="adjustResize"` — keyboard pushes content up
-- `configChanges="orientation|screenSize"` — activity handles rotation without recreation
+- `resizeableActivity="true"` — required for Android 16 desktop windowing / connected displays
+- `configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density"` — activity handles rotation and window-resize/density changes (monitor plug/unplug) without recreation
 
 ## QR Code Import & Export
 
@@ -282,5 +318,5 @@ The **QR display** (export) is triggered from the `DatabaseCard` context menu �
 
 Set in `gradle.properties`:
 - `org.gradle.jvmargs=-Xmx2048m` — increase if large builds OOM
-- `android.suppressUnsupportedCompileSdk=36` — suppress SDK 36 preview warnings
+- `android.suppressUnsupportedCompileSdk=37` — suppress SDK 37 warnings until AGP officially supports it
 - `kotlin.code.style=official`

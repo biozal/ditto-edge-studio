@@ -1,14 +1,35 @@
 import Foundation
 
+/// One key in a DQL index definition: a field path plus its sort direction.
+/// Two or more keys form a composite index (Ditto SDK 5.1+).
+struct IndexField: Equatable, Hashable, Sendable {
+    var name: String
+    var ascending: Bool
+
+    init(name: String, ascending: Bool = true) {
+        self.name = name
+        self.ascending = ascending
+    }
+
+    /// Field name without SDK backtick-quoting. Keeps the
+    /// `fields.map(\.strippingBackticks)` keypath call sites (e.g. the MCP
+    /// tool handlers) compiling now that `DittoIndex.fields` is `[IndexField]`.
+    var strippingBackticks: String {
+        name.strippingBackticks
+    }
+}
+
 struct DittoIndex: Identifiable {
     let _id: String // index name (from system:indexes)
     let collection: String
-    let fields: [String]
+    /// Index keys with sort direction — direction is preserved so the UI can
+    /// show ASC/DESC for composite indexes.
+    let fields: [IndexField]
     var id: String {
         _id
     }
 
-    init(id: String, collection: String, fields: [String]) {
+    init(id: String, collection: String, fields: [IndexField]) {
         _id = id
         self.collection = collection
         self.fields = fields

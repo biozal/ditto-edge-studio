@@ -55,9 +55,23 @@ enum MCPHTTPParser {
             }
         }
 
+        // Chunked transfer encoding has no Content-Length — decode the chunks.
+        if headers["transfer-encoding"]?.lowercased().contains("chunked") == true {
+            guard let decoded = decodeChunkedBody(bodyData) else { return nil }
+            return HTTPRequest(
+                method: method,
+                path: path,
+                queryParams: queryParams,
+                headers: headers,
+                body: decoded
+            )
+        }
+
         // Wait for full body before returning a request
         let contentLength = Int(headers["content-length"] ?? "0") ?? 0
-        if contentLength > 0, bodyData.count < contentLength { return nil }
+        if contentLength > 0, bodyData.count < contentLength {
+            return nil
+        }
 
         return HTTPRequest(
             method: method,
@@ -66,6 +80,39 @@ enum MCPHTTPParser {
             headers: headers,
             body: contentLength > 0 ? Data(bodyData.prefix(contentLength)) : Data()
         )
+    }
+
+    /// Decodes an HTTP/1.1 chunked body. Returns `nil` while the terminating
+    /// zero-length chunk (or any chunk data) has not fully arrived yet.
+    private static func decodeChunkedBody(_ data: Data) -> Data? {
+        let crlf = Data("\r\n".utf8)
+        var decoded = Data()
+        var offset = data.startIndex
+
+        while true {
+            // Chunk header: hex size (optional ";ext" suffix) terminated by CRLF
+            guard let lineEnd = data.range(of: crlf, in: offset ..< data.endIndex),
+                  let sizeLine = String(data: data[offset ..< lineEnd.lowerBound], encoding: .utf8),
+                  let size = Int(sizeLine.split(separator: ";").first.map(String.init) ?? "", radix: 16) else { return nil }
+
+            offset = lineEnd.upperBound
+
+            // Zero-size chunk terminates the body; wait for the final CRLF
+            // (trailers, if any, are ignored).
+            if size == 0 {
+                guard data.range(of: crlf, in: offset ..< data.endIndex) != nil else { return nil }
+                return decoded
+            }
+
+            // Compare as a subtraction: a hostile chunk-size line (e.g.
+            // "7FFFFFFFFFFFFFFF" → Int.max) would trap on overflow in
+            // `size + crlf.count`. A negative rhs simply fails the guard —
+            // the body is treated as incomplete, same as any short read.
+            let remaining = data.distance(from: offset, to: data.endIndex)
+            guard size <= remaining - crlf.count else { return nil }
+            decoded.append(data[offset ..< data.index(offset, offsetBy: size)])
+            offset = data.index(offset, offsetBy: size + crlf.count)
+        }
     }
 }
 #endif

@@ -1,7 +1,7 @@
 import DittoSwift
 import Foundation
 
-public struct DittoObservable: Identifiable {
+public struct DittoObservable: Identifiable, Sendable {
     public var id: String
     public var name: String
     public var query: String

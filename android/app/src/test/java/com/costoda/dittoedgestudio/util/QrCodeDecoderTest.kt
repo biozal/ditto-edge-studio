@@ -7,6 +7,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -136,9 +137,106 @@ class QrCodeDecoderTest {
     }
 
     @Test
+    fun `decode drops advanced settings even when the payload contains them`() {
+        // Advanced settings are excluded from QR sharing on BOTH sides (see
+        // docs/ADVANCED_DATABASE_CONFIG.md): importing another device's sync scopes
+        // would silently change what replicates, in both directions. A payload crafted
+        // by another client must decode with both lists empty.
+        val json = """
+            {
+              "version": 2,
+              "config": {
+                "_id": "",
+                "name": "Hostile",
+                "databaseId": "db-hostile",
+                "token": "tok_abc",
+                "authUrl": "https://auth.example.com",
+                "websocketUrl": "wss://ws.example.com",
+                "httpApiUrl": "",
+                "httpApiKey": "",
+                "mode": "server",
+                "allowUntrustedCerts": false,
+                "secretKey": "",
+                "isBluetoothLeEnabled": true,
+                "isLanEnabled": true,
+                "isAwdlEnabled": false,
+                "isCloudSyncEnabled": true,
+                "logLevel": "info",
+                "collectionSyncScopes": [{"collection":"orders","scope":"AllPeers","id":"x"}],
+                "startupSettings": [{"parameter":"some_port","type":"String","value":"9000","isAcknowledged":true,"id":"y"}]
+              },
+              "favorites": []
+            }
+        """.trimIndent()
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(bytes)
+        deflater.finish()
+        val output = ByteArray(bytes.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertTrue(result!!.database.collectionSyncScopes.isEmpty())
+        assertTrue(result.database.startupSettings.isEmpty())
+        assertFalse(result.database.hasCorruptSyncScopes)
+    }
+
+    @Test
     fun `decode invalid string returns null`() {
         val result = QrCodeDecoder.decode("not-a-valid-qr-payload")
         assertNull(result)
+    }
+
+    @Test
+    fun `decode rejects payload that inflates past the size cap`() {
+        // Zip-bomb guard: highly compressible data that decompresses past the 1 MB
+        // cap must be rejected, not OOM the process.
+        val big = ByteArray(2 * 1024 * 1024) { 'a'.code.toByte() }
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(big)
+        deflater.finish()
+        val output = ByteArray(big.size + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects valid zlib of non-JSON garbage`() {
+        val garbage = "this is not a config payload".toByteArray(Charsets.UTF_8)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(garbage)
+        deflater.finish()
+        val output = ByteArray(garbage.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        val raw = "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v2 payload with blank database name`() {
+        val raw = buildV2Payload(name = "   ", databaseId = "db-123")
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v2 payload with blank databaseId`() {
+        val raw = buildV2Payload(name = "Test DB", databaseId = "")
+        assertNull(QrCodeDecoder.decode(raw))
+    }
+
+    @Test
+    fun `decode rejects v1 payload with blank databaseId`() {
+        val raw = buildV1Payload(name = "Legacy DB", databaseId = " ")
+        assertNull(QrCodeDecoder.decode(raw))
     }
 
     @Test

@@ -11,11 +11,10 @@ using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Messages;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.StudioView
 {
-    public partial class ImportDataWindow : SukiWindow
+    public partial class ImportDataWindow : Window
     {
         private readonly IImportService _importService;
         private readonly ICollectionsRepository _collectionsRepository;

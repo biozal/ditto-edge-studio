@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
-import com.costoda.dittoedgestudio.viewmodel.PeersUiState
+import com.costoda.dittoedgestudio.data.session.PeersUiState
 
 @Composable
 fun ConnectedPeersScreen(

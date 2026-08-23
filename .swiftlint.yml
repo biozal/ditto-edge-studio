@@ -3,16 +3,38 @@
 # Documentation: https://realm.github.io/SwiftLint/
 
 # Files to include/exclude
+#
+# The test targets are included DELIBERATELY. This config is what the Xcode SwiftLint
+# build phase runs, and that phase is now fatal (no `|| true`), so anything listed here
+# breaks the build when it regresses. Linting production only meant "lint clean" was a
+# true statement about the config and a false one about the code — a test file could
+# violate the sync-scope custom rules and nothing would notice.
+#
+# WHAT "CLEAN" MEANS HERE, precisely — measured 2026-08-22, not asserted:
+# `swiftlint lint --config .swiftlint.yml` reports `142 violations, 0 serious in 216 files`
+# and exits 0. **Zero errors** is the gate the fatal build phase enforces; the 142 are
+# warnings, every one of them in the test targets, none in production. So do NOT add
+# `--strict` to the build phase: it promotes those 142 to errors and fails every build.
+# The `--strict` invocation in `docs/CODE_QUALITY_GUIDE.md` and the remediation plan's §8 is
+# for an explicit *changed-file* list, which is clean at strict severity. A cached run of
+# the phase costs ~0.2s.
 included:
-  - SwiftUI/Edge Debug Helper
+  - SwiftUI/EdgeStudio
+  - SwiftUI/EdgeStudioUnitTests
+  - SwiftUI/EdgeStudioIntegrationTests
+  - SwiftUI/EdgeStudioUITests
 
 excluded:
   - Pods
   - .build
   - DerivedData
-  - SwiftUI/Edge Debug Helper/Utilities/FontAwesomeIcons.swift  # Generated file
+  - SwiftUI/EdgeStudio/Utilities/FontAwesomeIcons.swift  # Generated file
   - SwiftUI/POC  # Proof-of-concept files
-  - "*/Tests/*"  # Exclude test files from some rules
+  # NOTE: "*/Tests/*" below matches nothing — this project's test directories are named
+  # EdgeStudioUnitTests / EdgeStudioIntegrationTests / EdgeStudioUITests, with no `Tests`
+  # path component. Kept only so removing it isn't mistaken for a policy change; the
+  # test targets are intentionally linted (see `included:` above).
+  - "*/Tests/*"
 
 # Disabled rules (too strict or not relevant)
 disabled_rules:
@@ -38,7 +60,16 @@ opt_in_rules:
   - force_unwrapping  # Warning only
   - redundant_nil_coalescing
   - redundant_type_annotation
-  - sorted_imports
+  # NOT sorted_imports. It is mutually unsatisfiable with SwiftFormat for any file
+  # containing `@testable`: this rule sorts `@testable import X` FIRST, while
+  # `.swiftformat`'s `--importgrouping testable-bottom` + `--enable sortImports` put it
+  # LAST. Verified end to end — `swiftlint --fix` moves it up, `swiftformat` moves it
+  # back down, and this rule errors again; the two tools revert each other forever, and
+  # CLAUDE.md's own pre-commit sequence (`swiftlint --fix; swiftformat .; swiftlint`)
+  # runs both. All 12 violations were in `@testable` files and nowhere else.
+  # Import ordering is still enforced — by SwiftFormat's `sortImports`, which is the
+  # formatting authority here (see the `trailing_whitespace` / `opening_brace` entries
+  # above, conceded to SwiftFormat for the same reason).
   - unneeded_break_in_switch
   - vertical_whitespace_closing_braces
   - vertical_whitespace_opening_braces
@@ -57,6 +88,16 @@ force_unwrapping:
   severity: warning  # Don't fail build, just warn
 
 force_cast:
+  severity: warning
+
+# `empty_count` defaults to ERROR severity, which is unusually harsh for a style
+# preference — and with the build phase now fatal it would break the build on 9
+# pre-existing test-code sites, none of which can be mechanically converted:
+# `XCUIElementQuery` (e.g. `app.alerts.count > 0`) is not a Collection and has no
+# `isEmpty`, and `ids.count >= 0` is a tautology whose meaning `isEmpty` would change.
+# Downgraded so it still surfaces without gating the build. Production has zero
+# violations of this rule, so nothing changes there.
+empty_count:
   severity: warning
 
 # Custom reporter (xcode format shows in Xcode GUI)
@@ -86,6 +127,61 @@ type_name:
 
 # Custom rules (project-specific)
 custom_rules:
+  # Sync scopes are a data-containment control: a collection marked LocalPeerOnly must
+  # never replicate. That holds only if every path that starts sync goes through
+  # AdvancedSettingsApplier.OpenSequence, which applies and verifies the scopes first.
+  #
+  # WHAT THIS RULE ACTUALLY GUARANTEES — do not overstate it. It catches the direct
+  # textual form `x.sync.start(`. It does NOT catch an aliased call
+  # (`let s = ditto.sync; try s.start()`); no regex can. It is a speed bump, not a proof.
+  # The enforceable guarantees are the `AdvancedSettingsApplier.OpenSequence` type and
+  # its ordering tests, which assert that `startSync` is never reached when scopes fail.
+  #
+  # `match_kinds: [identifier]` is load-bearing: without it SwiftLint matches EVERY
+  # syntax kind, so prose in a comment ("...if it got as far as `sync.start()`") and
+  # string literals in log lines are reported as violations. With the build phase fatal
+  # (see project.pbxproj), that would fail the build on documentation.
+  #
+  # Legitimate new sync-start paths belong inside an OpenSequence `startSync:` closure;
+  # if you must call it elsewhere, justify it with an inline disable.
+  sync_start_choke_point:
+    name: "Sync start must route through OpenSequence"
+    regex: "sync\\s*\\.\\s*start\\s*\\("
+    match_kinds:
+      - identifier
+    # `DittoManager.swift` is NO LONGER excluded. It used to be, which made the rule dead
+    # inside the only file that contains any `sync.start()` call at all — the exclusion
+    # exempted exactly what it was written to guard. Verified: with the exclusion in place
+    # a rogue `try ditto.sync.start()` added to that file produced no violation (only a
+    # `superfluous_disable_command` warning about the funnel's own inline disable); with it
+    # dropped, the same rogue call is reported as an error and fails the build.
+    #
+    # This became possible once C3 funnelled all nine start/stop sites through
+    # `DittoManager.startSyncNow` / `stopSyncNow`, leaving exactly one legitimate
+    # `sync.start(` in the file, carrying an inline disable.
+    excluded: ".*/AdvancedSettingsApplier\\.swift"
+    message: "Start sync via AdvancedSettingsApplier.OpenSequence so collection sync scopes are applied and verified first (docs/ADVANCED_DATABASE_CONFIG.md)."
+    severity: error
+
+  # The sync-scope parameter must only ever be written by the applier, which verifies
+  # the result with a read-back. A direct write elsewhere bypasses that check.
+  #
+  # `excluded_match_kinds` rather than `match_kinds: [identifier]`: the statement this
+  # rule guards IS a string literal (AdvancedSettingsDQL.setSyncScopesQuery), so
+  # restricting to identifiers would make the rule a permanent no-op that reports clean
+  # forever. It must keep matching strings; it just must not match comments.
+  # `(?i)` because DQL parameter names are case-insensitive on write and read back
+  # lowercased, so a lowercase `user_collection_sync_scopes` must be caught too.
+  sync_scopes_via_applier:
+    name: "Sync scopes must be applied by AdvancedSettingsApplier"
+    regex: "(?i)SET\\s+USER_COLLECTION_SYNC_SCOPES"
+    excluded_match_kinds:
+      - comment
+      - doccomment
+    excluded: ".*/AdvancedDatabaseSettings\\.swift"
+    message: "Set USER_COLLECTION_SYNC_SCOPES through AdvancedSettingsApplier, which verifies it by read-back."
+    severity: error
+
   # Detect TODO/FIXME comments
   todos_fixmes:
     name: "TODO and FIXME"

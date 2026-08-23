@@ -1,12 +1,10 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:suki="https://github.com/kikipoulet/SukiUI"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="EdgeStudio.App"
              xmlns:local="using:EdgeStudio"
              Name="Edge Studio"
              RequestedThemeVariant="Default">
-             <!-- RequestedThemeVariant set to Default to let SukiTheme control it -->
 
     <!-- Application-level native menu for macOS (About, Preferences, etc.) -->
     <NativeMenu.Menu>
@@ -32,10 +30,11 @@
 
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
 
-        <!-- SukiUI theme (no built-in ThemeColor — Ditto themes registered in App.axaml.cs) -->
-        <suki:SukiTheme />
+        <!-- Studio theme (replaces SukiTheme) -->
+        <StyleInclude Source="avares://EdgeStudio.UI/Themes/StudioTheme.axaml" />
 
         <!-- Ditto brand button styling — must come after SukiTheme to take precedence -->
         <StyleInclude Source="avares://EdgeStudio/Styles/ButtonStyles.axaml" />

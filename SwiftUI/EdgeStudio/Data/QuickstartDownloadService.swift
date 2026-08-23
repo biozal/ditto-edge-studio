@@ -13,6 +13,7 @@ struct QuickstartProject: Identifiable {
 
 // MARK: - QuickstartDownloadService
 
+@MainActor
 @Observable
 final class QuickstartDownloadService {
     // MARK: - State
@@ -71,6 +72,11 @@ final class QuickstartDownloadService {
 
     @MainActor
     func setError(_ message: String) {
+        // Flip `isDownloading` off before surfacing the error so the progress
+        // sheet's dismiss gate (`.interactiveDismissDisabled(...)`) re-enables
+        // immediately and the OK button's enable state is in sync with the
+        // visible error UI.
+        isDownloading = false
         hasError = true
         errorMessage = message
         statusMessage = "Error"
@@ -123,25 +129,29 @@ final class QuickstartDownloadService {
             statusMessage = "Extracting archive..."
         }
 
-        // Extract zip using /usr/bin/unzip (macOS only)
+        // Extract zip using /usr/bin/unzip (macOS only). Run the blocking
+        // `waitUntilExit()` on a detached utility thread so it never blocks the
+        // cooperative concurrency pool. The non-Sendable Process is created and
+        // consumed entirely inside the closure; only Sendable Strings cross in.
         #if os(macOS)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-o", localZipURL.path, "-d", destination.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        let zipPath = localZipURL.path
+        let destinationPath = destination.path
+        let exitCode: Int32 = try await Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            process.arguments = ["-o", zipPath, "-d", destinationPath]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
 
-        try process.run()
-        process.waitUntilExit()
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        }.value
 
-        let exitCode = process.terminationStatus
         if exitCode != 0 {
             Log.error("QuickstartDownloadService: Extraction failed with exit code \(exitCode)")
             throw QuickstartError.extractionFailed("Unzip failed with exit code \(exitCode)")
         }
-        #else
-        throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
-        #endif
 
         // Clean up temp zip
         try? FileManager.default.removeItem(at: localZipURL)
@@ -154,6 +164,9 @@ final class QuickstartDownloadService {
         let extractedPath = destination.appendingPathComponent(Self.extractedFolderName)
         Log.info("QuickstartDownloadService: Extracted to \(extractedPath.path)")
         return extractedPath
+        #else
+        throw QuickstartError.extractionFailed("Zip extraction via Process is not supported on this platform")
+        #endif
     }
 
     // MARK: - Configure .env Files
@@ -163,8 +176,7 @@ final class QuickstartDownloadService {
         in repoRoot: URL,
         databaseId: String,
         token: String,
-        authUrl: String,
-        websocketUrl: String
+        authUrl: String
     ) {
         // Build env content without leading whitespace on each line
         let envLines = [
@@ -173,8 +185,7 @@ final class QuickstartDownloadService {
             "# Auto-configured by Edge Studio",
             "DITTO_APP_ID=\"\(databaseId)\"",
             "DITTO_PLAYGROUND_TOKEN=\"\(token)\"",
-            "DITTO_AUTH_URL=\"\(authUrl)\"",
-            "DITTO_WEBSOCKET_URL=\"\(websocketUrl)\""
+            "DITTO_AUTH_URL=\"\(authUrl)\""
         ]
         let envContent = envLines.joined(separator: "\n")
 

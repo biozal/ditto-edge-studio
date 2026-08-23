@@ -56,21 +56,6 @@ val directConnections = peer.connections.filter { conn ->
 
 Connection endpoint field names (SDK v4/v5): `peer1` / `peer2`
 
-### C# (.NET — SDK 4.13.0)
-
-```csharp
-var localPeerKey = presenceGraph.LocalPeer.PeerKeyString;
-
-// Filter connections within a peer (for transport counts)
-var directConnections = peer.Connections
-    .Where(c => c.PeerKeyString1 == localPeerKey || c.PeerKeyString2 == localPeerKey);
-```
-
-Connection endpoint field names (SDK 4.13.0): `PeerKeyString1` / `PeerKeyString2`
-⚠️ Verify these property names compile against the installed SDK version. If they are
-not available, use `presenceGraph.LocalPeer.Connections` to obtain the set of directly
-connected remote peer keys as a fallback.
-
 ## Cloud Server Exemption
 
 Peers with `isDittoServer = true` (Ditto Cloud / Big Peer) are always directly connected
@@ -83,9 +68,6 @@ presence graph filtering, so they are exempt from this filter on all platforms.
 |----------|-------------|----------------|-----------------|-----------------|
 | SwiftUI  | v5          | `localPeer.peerKeyString` | `peerKeyString1` | `peerKeyString2` |
 | Android  | v4/v5       | `localPeer.peerKey` | `peer1` | `peer2` |
-| .NET     | 4.13.0      | `LocalPeer.PeerKeyString` | `PeerKeyString1`* | `PeerKeyString2`* |
-
-*Verify against installed SDK version.
 
 ## Implementation Locations
 
@@ -93,4 +75,3 @@ presence graph filtering, so they are exempt from this filter on all platforms.
 |----------|------|--------|
 | SwiftUI  | `SwiftUI/EdgeStudio/Data/Repositories/SystemRepository.swift` | `registerSyncStatusObserver`, `registerConnectionsPresenceObserver`, `extractPeerEnrichment` |
 | Android  | `android/app/src/main/java/com/costoda/dittoedgestudio/data/repository/SystemRepositoryImpl.kt` | `updatePresence` (peer list filter), `buildConnectionCounts` |
-| .NET     | `dotnet/src/EdgeStudio.Shared/Data/Repositories/SystemRepository.cs` | `PublishConnectionCounts`, `MergeSyncInfoWithPresenceGraph` |

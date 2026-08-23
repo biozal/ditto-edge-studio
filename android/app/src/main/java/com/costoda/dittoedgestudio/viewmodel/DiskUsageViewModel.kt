@@ -1,54 +1,75 @@
 package com.costoda.dittoedgestudio.viewmodel
 
-import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.costoda.dittoedgestudio.BuildConfig
 import androidx.lifecycle.viewModelScope
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
-import com.costoda.dittoedgestudio.data.repository.AppMetricsRepository
-import com.costoda.dittoedgestudio.domain.model.AppMetrics
+import com.costoda.dittoedgestudio.data.repository.DatabaseMetricsRepository
+import com.costoda.dittoedgestudio.domain.model.DatabaseMetrics
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * VM for the "Database Metrics" rail item (the screen target shown in
+ * `screens/database-metrics-vsc.png`). Snapshots are expensive — the repo walks
+ * the SDK disk-usage tree and reads every document's CBOR payload — so this VM
+ * intentionally has **no auto-refresh**. The first snapshot runs on construction
+ * and subsequent updates are triggered manually via [refresh].
+ */
 class DiskUsageViewModel(
-    private val context: Context,
-    private val appMetricsRepository: AppMetricsRepository,
     private val dittoManager: DittoManager,
+    private val repo: DatabaseMetricsRepository,
 ) : ViewModel() {
 
-    private val _metrics = MutableStateFlow<AppMetrics?>(null)
-    val metrics: StateFlow<AppMetrics?> = _metrics.asStateFlow()
+    private val _metrics = MutableStateFlow<DatabaseMetrics?>(null)
+    val metrics: StateFlow<DatabaseMetrics?> = _metrics.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _lastUpdatedText = MutableStateFlow("Never")
-    val lastUpdatedText: StateFlow<String> = _lastUpdatedText.asStateFlow()
+    /** Epoch-millis of the last successful snapshot, or null if none yet. */
+    private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
+    val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
+
+    /** Tracks the in-flight refresh so concurrent invocations (double-tap, etc.) are ignored. */
+    private var refreshJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        // Synchronous guard: if a snapshot is already running, drop this request rather than
+        // launching an overlapping one. The IconButton is also disabled while isLoading,
+        // but the flag is set inside the coroutine — this check closes the dispatch gap.
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
             _isLoading.value = true
-            runCatching {
-                val snapshot = appMetricsRepository.snapshot(context, dittoManager.currentInstance())
-                _metrics.value = snapshot
-                _lastUpdatedText.value = formatRelativeTime(snapshot.capturedAt)
+            try {
+                val ditto = dittoManager.currentInstance()
+                    ?: error("No active Ditto instance")
+                val snap = repo.snapshot(ditto)
+                _metrics.value = snap
+                _lastUpdatedAt.value = snap.capturedAt
+            } catch (c: CancellationException) {
+                // Preserve structured concurrency — never swallow a cancellation.
+                throw c
+            } catch (t: Throwable) {
+                if (BuildConfig.DEBUG) {
+                    Log.w(TAG, "Database metrics snapshot failed", t)
+                }
+            } finally {
+                _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 
-    private fun formatRelativeTime(capturedAtMs: Long): String {
-        val elapsedSecs = (System.currentTimeMillis() - capturedAtMs) / 1000
-        return when {
-            elapsedSecs < 5 -> "Just now"
-            elapsedSecs < 60 -> "${elapsedSecs}s ago"
-            elapsedSecs < 3600 -> "${elapsedSecs / 60}m ago"
-            else -> "Long ago"
-        }
+    private companion object {
+        const val TAG = "DiskUsageVM"
     }
 }

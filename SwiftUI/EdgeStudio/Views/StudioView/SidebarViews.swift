@@ -25,71 +25,34 @@ extension MainStudioView {
             // ── Top Navigation Items ─────────────────────────────────────
             // Like Apple Music's Search / Home / New / Radio rows — these
             // are the primary way to switch the detail view on the right.
+            // Metrics destinations are filtered into `availableDestinations`
+            // by `metricsEnabled`, so a single ForEach covers both cases.
             Section {
-                ForEach(viewModel.sidebarMenuItems) { item in
+                ForEach(availableDestinations) { destination in
+                    let isSelected = viewModel.selectedSidebarDestination == destination
                     Button {
-                        viewModel.selectedSidebarMenuItem = item
+                        viewModel.selectedSidebarDestination = destination
                     } label: {
-                        Label(item.name, systemImage: item.systemIcon)
-                        #if os(iOS)
-                            .font(.subheadline)
-                        #endif
-                            .foregroundStyle(
-                                viewModel.selectedSidebarMenuItem == item
-                                    ? Color.primary
-                                    : Color.primary
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        viewModel.selectedSidebarMenuItem == item
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
-                    )
-                }
-                // ── Metrics Content Section (when enabled) ───────────────────
-                if metricsEnabled {
-                    Button {
-                        viewModel.selectedSidebarMenuItem = MenuItem(
-                            id: 4,
-                            name: "App Metrics",
-                            systemIcon: "cpu"
-                        )
-                    } label: {
-                        Label("App Metrics", systemImage: "cpu")
-                        #if os(iOS)
-                            .font(.subheadline)
-                        #endif
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        viewModel.selectedSidebarMenuItem.name
-                            == "App Metrics"
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
-                    )
-
-                    Button {
-                        viewModel.selectedSidebarMenuItem = MenuItem(
-                            id: 5,
-                            name: "Query Metrics",
-                            systemIcon: "text.magnifyingglass"
-                        )
-                    } label: {
-                        Label(
-                            "Query Metrics",
-                            systemImage: "text.magnifyingglass"
-                        )
+                        Label {
+                            Text(destination.displayName)
+                                .foregroundStyle(isSelected ? Color.black : .primary)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                        } icon: {
+                            Image(systemName: destination.systemIcon)
+                                .foregroundStyle(isSelected ? Color.black : .secondary)
+                        }
                         #if os(iOS)
                         .font(.subheadline)
                         #endif
                     }
                     .buttonStyle(.plain)
+                    // Stable per-destination identifier for XCUITest (NavItem_query, …).
+                    .accessibilityIdentifier("NavItem_\(destination.rawValue)")
                     .listRowBackground(
-                        viewModel.selectedSidebarMenuItem.name
-                            == "Query Metrics"
-                            ? Color.accentColor.opacity(0.18)
-                            : Color.clear
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(isSelected ? Color.dittoYellow : Color.clear)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
                     )
                 }
             }
@@ -104,11 +67,19 @@ extension MainStudioView {
                             .foregroundStyle(.secondary)
                     }
                     .listRowBackground(Color.clear)
-                } else if viewModel.subscriptions.isEmpty {
-                    Text("No Subscriptions")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                } else if viewModel.subObsVM.subscriptions.isEmpty {
+                    SidebarEmptyStateRow(
+                        icon: "arrow.trianglehead.2.clockwise.rotate.90",
+                        title: "No Subscriptions",
+                        description: "Subscriptions sync data from the server in real time."
+                    ) {
+                        DittoYellowButton(title: "Add Subscription", systemIcon: "plus") {
+                            presentNewSubscriptionEditor()
+                        }
+                        .accessibilityIdentifier("EmptySubscriptionsAddButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     subscriptionTreeRows()
                 }
@@ -120,24 +91,32 @@ extension MainStudioView {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        showingSubscriptionQRDisplay = true
+                        activeSheet = .subscriptionQRDisplay
                     } label: {
                         Image(systemName: "qrcode")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .disabled(viewModel.subscriptions.isEmpty)
+                    .disabled(viewModel.subObsVM.subscriptions.isEmpty)
                 }
             }
 
             // ── Collections Content Section ──────────────────────────────
             Section {
                 if viewModel.collections.isEmpty {
-                    Text("No Collections")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                    SidebarEmptyStateRow(
+                        icon: "tray",
+                        title: "No Collections",
+                        description: "Collections appear once data is synced or imported into this database."
+                    ) {
+                        DittoYellowButton(title: "Run a Query", systemIcon: "macpro.gen2") {
+                            viewModel.selectedSidebarDestination = .query
+                        }
+                        .accessibilityIdentifier("EmptyCollectionsQueryButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     collectionTreeRows()
                 }
@@ -166,11 +145,19 @@ extension MainStudioView {
 
             // ── Observers Content Section ────────────────────────────────
             Section {
-                if viewModel.observerables.isEmpty {
-                    Text("No Observers")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+                if viewModel.subObsVM.observerables.isEmpty {
+                    SidebarEmptyStateRow(
+                        icon: "eye",
+                        title: "No Observers",
+                        description: "Observers stream real-time changes for a saved query."
+                    ) {
+                        DittoYellowButton(title: "Add Observer", systemIcon: "plus") {
+                            presentNewObserverEditor()
+                        }
+                        .accessibilityIdentifier("EmptyObserversAddButton")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     observerTreeRows()
                 }
@@ -192,7 +179,7 @@ extension MainStudioView {
     // MARK: - Subscription Tree
 
     private func subscriptionTreeRows() -> some View {
-        ForEach(viewModel.subscriptions) { sub in
+        ForEach(viewModel.subObsVM.subscriptions) { sub in
             DisclosureGroup(isExpanded: expandedSubscriptionBinding(for: sub)) {
                 HStack(spacing: 6) {
                     Image(systemName: "note.text")
@@ -206,13 +193,8 @@ extension MainStudioView {
                 .padding(.leading, 4)
             } label: {
                 Button {
-                    expandedSubscriptionIds.formSymmetricDifference([sub.id])
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first {
-                            $0.name == "Subscriptions"
-                        }
-                        ?? viewModel
-                        .sidebarMenuItems[0]
+                    toggleSubscriptionExpansion(sub.id)
+                    viewModel.selectedSidebarDestination = .subscriptions
                 } label: {
                     HStack(spacing: 8) {
                         Image(
@@ -228,11 +210,11 @@ extension MainStudioView {
                 .buttonStyle(.plain)
             }
             .contextMenu {
-                Button("Edit") { viewModel.showSubscriptionEditor(sub) }
+                Button("Edit") { presentSubscriptionEditor(sub) }
                 Divider()
                 Button("Delete", role: .destructive) {
                     Task {
-                        do { try await viewModel.deleteSubscription(sub) } catch
+                        do { try await viewModel.subObsVM.deleteSubscription(sub) } catch
                         { appState.setError(error) }
                     }
                 }
@@ -251,7 +233,9 @@ extension MainStudioView {
                             HStack(spacing: 6) {
                                 Image(systemName: "capsule.fill")
                                     .foregroundStyle(.tertiary)
-                                Text(field.strippingBackticks)
+                                // Show sort direction for composite indexes
+                                // (e.g. "createdAt ↓"); ASC is the default.
+                                Text(field.strippingBackticks + (field.ascending ? "" : " ↓"))
                             }
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -279,7 +263,7 @@ extension MainStudioView {
                     if let count = collection.documentCount {
                         Text("\(count)")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(
+                            .foregroundStyle(
                                 colorScheme == .dark
                                     ? .black : Color.dittoYellow
                             )
@@ -294,18 +278,14 @@ extension MainStudioView {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
-                            ?? viewModel.sidebarMenuItems[0]
+                    viewModel.queryVM.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.selectedSidebarDestination = .query
                 }
             }
             .contextMenu {
                 Button {
-                    viewModel.selectedQuery = "SELECT * FROM \(collection.name)"
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first { $0.name == "Query" }
-                            ?? viewModel.sidebarMenuItems[0]
+                    viewModel.queryVM.selectedQuery = "SELECT * FROM \(collection.name)"
+                    viewModel.selectedSidebarDestination = .query
                 } label: {
                     Label("SELECT * FROM \(collection.name)", systemImage: "arrow.right.doc.on.clipboard")
                 }
@@ -316,7 +296,7 @@ extension MainStudioView {
     // MARK: - Observer Tree
 
     private func observerTreeRows() -> some View {
-        ForEach(viewModel.observerables) { observer in
+        ForEach(viewModel.subObsVM.observerables) { observer in
             DisclosureGroup(isExpanded: expandedObserverBinding(for: observer)) {
                 HStack(spacing: 6) {
                     Image(systemName: "note.text")
@@ -329,13 +309,9 @@ extension MainStudioView {
                 .padding(.leading, 4)
             } label: {
                 Button {
-                    expandedObserverIds.formSymmetricDifference([observer.id])
-                    viewModel.selectedObservable = observer
-                    viewModel.selectedSidebarMenuItem =
-                        viewModel.sidebarMenuItems.first {
-                            $0.name == "Observers"
-                        } ?? viewModel.sidebarMenuItems[0]
-                    Task { await viewModel.loadObservedEvents() }
+                    toggleObserverExpansion(observer.id)
+                    viewModel.subObsVM.selectedObservable = observer
+                    viewModel.selectedSidebarDestination = .observers
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "eye")
@@ -358,12 +334,9 @@ extension MainStudioView {
                     Button {
                         Task {
                             do {
-                                try await viewModel.registerStoreObserver(observer)
-                                viewModel.selectedObservable = observer
-                                viewModel.selectedSidebarMenuItem =
-                                    viewModel.sidebarMenuItems.first { $0.name == "Observers" }
-                                        ?? viewModel.sidebarMenuItems[0]
-                                await viewModel.loadObservedEvents()
+                                try await viewModel.subObsVM.registerStoreObserver(observer)
+                                viewModel.subObsVM.selectedObservable = observer
+                                viewModel.selectedSidebarDestination = .observers
                             } catch { appState.setError(error) }
                         }
                     } label: {
@@ -374,7 +347,7 @@ extension MainStudioView {
                     Button {
                         Task {
                             do {
-                                try await viewModel.removeStoreObserver(
+                                try await viewModel.subObsVM.removeStoreObserver(
                                     observer
                                 )
                             } catch { appState.setError(error) }
@@ -387,7 +360,7 @@ extension MainStudioView {
                 Button {
                     Task {
                         do {
-                            try await viewModel.deleteObservable(observer)
+                            try await viewModel.subObsVM.deleteObservable(observer)
                         } catch { appState.setError(error) }
                     }
                 } label: {
@@ -401,12 +374,9 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await viewModel.registerStoreObserver(observer)
-                                    viewModel.selectedObservable = observer
-                                    viewModel.selectedSidebarMenuItem =
-                                        viewModel.sidebarMenuItems.first { $0.name == "Observers" }
-                                            ?? viewModel.sidebarMenuItems[0]
-                                    await viewModel.loadObservedEvents()
+                                    try await viewModel.subObsVM.registerStoreObserver(observer)
+                                    viewModel.subObsVM.selectedObservable = observer
+                                    viewModel.selectedSidebarDestination = .observers
                                 } catch { appState.setError(error) }
                             }
                         } label: {
@@ -416,7 +386,7 @@ extension MainStudioView {
                         Button {
                             Task {
                                 do {
-                                    try await viewModel.removeStoreObserver(
+                                    try await viewModel.subObsVM.removeStoreObserver(
                                         observer
                                     )
                                 } catch { appState.setError(error) }
@@ -430,7 +400,7 @@ extension MainStudioView {
                     Button(role: .destructive) {
                         Task {
                             do {
-                                try await viewModel.deleteObservable(observer)
+                                try await viewModel.subObsVM.deleteObservable(observer)
                             } catch { appState.setError(error) }
                         }
                     } label: {
@@ -480,7 +450,7 @@ struct ObserverCard: View {
                 Text(observer.name)
                     .font(.headline)
                     .bold()
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
             }
             Spacer()
             if isActive {
@@ -491,7 +461,7 @@ struct ObserverCard: View {
             } else {
                 Text("Idle")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.trailing, 4)
             }
         }
@@ -514,5 +484,75 @@ struct ObserverCard: View {
         )
         .padding(.horizontal, 2)
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Sidebar Empty-State Helpers
+
+/// Compact empty-state row sized for the sidebar column.
+///
+/// `ContentUnavailableView` is the obvious SwiftUI choice but its
+/// default `.title2` headline and ~40pt icon overflow a ~200pt
+/// sidebar, producing wrapped/hyphenated text like
+/// "No\nSubscrip-\ntions". This row uses a 22pt icon and `.subheadline`
+/// title so all three empty sections fit comfortably in one viewport.
+private struct SidebarEmptyStateRow<Actions: View>: View {
+    let icon: String
+    let title: String
+    let description: String
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            actions()
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+/// Ditto-yellow CTA button used in sidebar empty states.
+///
+/// `.buttonStyle(.borderedProminent) + .tint(.dittoYellow)` doesn't
+/// propagate `.foregroundStyle(.black)` to the SF Symbol inside the
+/// `Label` — borderedProminent derives its label color from the tint.
+/// Rolling our own button with `.buttonStyle(.plain)` and explicit
+/// background lets the foreground style compose onto both icon and
+/// text reliably.
+private struct DittoYellowButton: View {
+    let title: String
+    let systemIcon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemIcon)
+                    .font(.caption.weight(.semibold))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.dittoYellow)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

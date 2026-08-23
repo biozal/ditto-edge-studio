@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.inspector
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -15,11 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.costoda.dittoedgestudio.domain.model.AttachmentInfo
+import com.costoda.dittoedgestudio.ui.mainstudio.attachments.AttachmentViewerSection
 import org.json.JSONObject
+import java.io.File
 
 @Composable
 fun QueryJsonInspector(
     selectedDocument: Map<String, Any?>?,
+    cachedAttachments: Map<String, File>,
+    onViewAttachment: (AttachmentInfo) -> Unit,
+    onDeleteAttachment: (AttachmentInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (selectedDocument == null) {
@@ -42,16 +49,34 @@ fun QueryJsonInspector(
         }
     }
 
-    SelectionContainer(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = jsonString,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-            ),
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(12.dp),
-        )
+    val attachments = remember(selectedDocument) {
+        AttachmentInfo.detectTokens(selectedDocument)
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        SelectionContainer {
+            Text(
+                text = jsonString,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(12.dp),
+            )
+        }
+
+        if (attachments.isNotEmpty()) {
+            AttachmentViewerSection(
+                attachments = attachments,
+                cachedFiles = cachedAttachments,
+                onView = onViewAttachment,
+                onDelete = onDeleteAttachment,
+            )
+        }
     }
 }

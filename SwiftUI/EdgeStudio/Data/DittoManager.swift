@@ -9,24 +9,33 @@ actor DittoManager {
     /// The persistence directory of the currently active database, used for log file access.
     private(set) var activePersistenceDirectory: URL?
 
+    /// Cached URLSessions that accept untrusted certificates, keyed by the
+    /// configured host each bypass is scoped to. Lazily created on first use.
+    /// Actor isolation serializes access — no external lock needed.
+    private var cachedUntrustedSessions: [String: URLSession] = [:]
+
+    /// Outcome of the most recent Advanced Configuration apply, so the UI can surface
+    /// skipped startup settings instead of leaving them buried in the log file.
+    private(set) var lastAdvancedApplyResult: AdvancedApplyResult?
+
     private init() {}
 
-    static var shared = DittoManager()
+    static let shared = DittoManager()
 
     func closeDittoSelectedDatabase() async {
         let closeStart = CFAbsoluteTimeGetCurrent()
 
         // Stop sync
         if let ditto = dittoSelectedApp {
-            await Task.detached(priority: .utility) {
-                ditto.sync.stop()
-            }.value
+            await Self.stopSyncNow(ditto)
             let syncStopElapsed = CFAbsoluteTimeGetCurrent() - closeStart
             Log.info("[Close:Ditto] sync.stop() complete (\(String(format: "%.3f", syncStopElapsed))s)")
         }
 
-        // Stop log capture observers
+        // Stop log capture observers + the global SDK log callback so the SDK
+        // stops delivering log lines into a service tied to the closed session.
         await MainActor.run {
+            DittoLogCaptureService.shared.stopLiveCapture()
             DittoLogCaptureService.shared.stopTransportConditionObserver()
             DittoLogCaptureService.shared.stopConnectionRequestHandler()
         }
@@ -39,13 +48,17 @@ actor DittoManager {
         Log.info("[Close:Ditto] Ditto reference released (\(String(format: "%.3f", totalElapsed))s)")
     }
 
-    /// Creates the appropriate Ditto DatabaseConfig based on selected Database configuration
-    private func createDatabaseConfig(
+    /// Creates the appropriate Ditto DatabaseConfig based on selected Database configuration.
+    ///
+    /// `nonisolated static` and non-private so the URL validation below — a real decision
+    /// on `hydrate`'s path, and the only part of it that can be exercised without a live
+    /// `Ditto` — is reachable from unit tests. The body touches no instance state.
+    nonisolated static func createDatabaseConfig(
         from appConfig: DittoConfigForDatabase,
         withDirectory persistenceDirectory: URL
     ) throws -> DittoConfig {
         switch appConfig.mode {
-        case .smallPeersOnly:
+        case .smallPeerOnly:
             if !appConfig.secretKey.isEmpty {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
@@ -57,9 +70,22 @@ actor DittoManager {
                     connect: .smallPeersOnly()
                 )
             }
-        case .server:
-            guard !appConfig.authUrl.isEmpty, let url = URL(string: appConfig.authUrl) else {
-                throw AppError.error(message: "Invalid configuration - malformed authUrl")
+        case .development:
+            // A bare string with no scheme (e.g. a stray UUID) still yields a
+            // non-nil relative URL from URL(string:), which then fails opaquely
+            // inside Ditto.open(). Require an absolute http(s)/ws(s) URL with a
+            // host so bad config data fails loudly here with a clear message.
+            guard !appConfig.url.isEmpty,
+                  let url = URL(string: appConfig.url),
+                  let scheme = url.scheme?.lowercased(),
+                  ["https", "http", "wss", "ws"].contains(scheme),
+                  let host = url.host, !host.isEmpty else
+            {
+                throw AppError.error(
+                    message: "Invalid configuration for '\(appConfig.name)' — 'url' must be an "
+                        + "absolute server URL like https://<cluster>.cloud.dittolive.app "
+                        + "(got: '\(appConfig.url)')"
+                )
             }
             return DittoConfig(
                 databaseID: appConfig.databaseId,
@@ -98,13 +124,23 @@ actor DittoManager {
 
             Log.info("Ditto database path: \(localDirectoryPath.path)")
 
+            // Refuse to open a database whose stored sync scopes could not be read:
+            // proceeding would sync collections the user may have marked device-local.
+            if databaseConfig.hasCorruptSyncScopes {
+                throw AppError.error(
+                    message: "The collection sync scopes saved for '\(databaseConfig.name)' could not be read. " +
+                        "The database was not opened, to avoid syncing data you may have marked device-local. " +
+                        "Re-enter the sync scopes in Advanced Configuration, then try again."
+                )
+            }
+
             // Validate inputs before trying to create Ditto
             guard !databaseConfig.databaseId.isEmpty,
-                  !databaseConfig.token.isEmpty else
+                  !databaseConfig.developmentToken.isEmpty else
             {
                 throw AppError.error(
                     message:
-                    "Invalid app configuration - missing databaseId or token"
+                    "Invalid app configuration - missing databaseId or developmentToken"
                 )
             }
 
@@ -119,7 +155,7 @@ actor DittoManager {
             activePersistenceDirectory = localDirectoryPath
 
             var dittoInstance: Ditto?
-            let config = try createDatabaseConfig(
+            let config = try Self.createDatabaseConfig(
                 from: databaseConfig,
                 withDirectory: localDirectoryPath
             )
@@ -128,14 +164,18 @@ actor DittoManager {
             guard let ditto = dittoInstance else {
                 throw AppError.error(message: "Failed to create Ditto instance")
             }
+            // Capture only the values needed by the closure to avoid retaining
+            // the DittoManager actor through the SDK-held expirationHandler.
+            let capturedAppState = appState
+            let capturedToken = databaseConfig.developmentToken
             ditto.auth?.expirationHandler = { dittoAuth, secondsRemaining in
                 dittoAuth.auth?.login(
-                    token: databaseConfig.token,
+                    token: capturedToken,
                     provider: .development
                 ) { _, error in
                     if let error {
-                        Task {
-                            await self.appState?.setError(error)
+                        Task { @MainActor in
+                            capturedAppState?.setError(error)
                         }
                     } else {
                         Log.info("[Auth] Authentication successful \(secondsRemaining)")
@@ -143,9 +183,16 @@ actor DittoManager {
                 }
             }
 
-            // For small peers only mode, set the offline license token (using token field)
+            // Assign before anything that can throw below. `closeDittoSelectedDatabase`
+            // is guarded on this property, so an instance that fails mid-setup would
+            // otherwise be unreachable for shutdown while still holding transports —
+            // and once sync has started, syncing every collection at the default
+            // `AllPeers`.
+            dittoSelectedApp = ditto
+
+            // For small peer only mode, set the offline license token
             if shouldSetOfflineLicenseToken(for: databaseConfig) {
-                try ditto.setOfflineOnlyLicenseToken(databaseConfig.token)
+                try ditto.setOfflineOnlyLicenseToken(databaseConfig.developmentToken)
             }
 
             // Update Device Name to show in presence graph
@@ -160,43 +207,70 @@ actor DittoManager {
                     "cloudSync=\(databaseConfig.isCloudSyncEnabled)"
             )
 
-            ditto.updateTransportConfig { config in
-                // Configure peer-to-peer transports from saved settings
-                config.peerToPeer.bluetoothLE.isEnabled = databaseConfig.isBluetoothLeEnabled
-                config.peerToPeer.lan.isEnabled = databaseConfig.isLanEnabled
-                config.peerToPeer.awdl.isEnabled = databaseConfig.isAwdlEnabled
-
-                // Configure cloud sync from saved settings — respects isCloudSyncEnabled flag
-                if databaseConfig.isCloudSyncEnabled && !databaseConfig.websocketUrl.isEmpty {
-                    config.connect.webSocketURLs.insert(databaseConfig.websocketUrl)
-                } else {
-                    config.connect.webSocketURLs.remove(databaseConfig.websocketUrl)
-                }
-            }
-            logTransportReadback(from: ditto, context: "hydrate")
-
-            // Apply strict mode setting before starting sync (required by Ditto SDK)
-            let strictModeValue = databaseConfig.isStrictModeEnabled ? "true" : "false"
-            try await ditto.store.execute(query: "ALTER SYSTEM SET DQL_STRICT_MODE = \(strictModeValue)")
-            Log.info("[StrictMode] DQL_STRICT_MODE set to: \(strictModeValue)")
-
-            // setting default peers to 12 for testing with edge studion MacOS specifically
-            #if os(macOS)
-            try await ditto.store.execute(query: "ALTER SYSTEM SET mesh_chooser_max_wlan_clients = 12")
-            Log.info("[WLAN] Setting mesh_chooser_max_wlan_clients 12")
-            #endif
-
+            // Assigned here, alongside `dittoSelectedApp`, so there is no window where an
+            // instance exists without its config: `resetSystemSettingsToDefaults` and
+            // `selectedDatabaseStartSync` both read the pair, and a nil config in either
+            // now throws rather than quietly applying nothing.
             dittoSelectedAppConfig = databaseConfig
 
-            // start sync in the selected app on background queue to avoid priority inversion
-            try await Task.detached(priority: .utility) {
-                try ditto.sync.start()
-            }.value
+            let transports = Self.transportFlags(
+                for: databaseConfig,
+                isUITesting: isRunningUITests()
+            )
+            let bluetoothEnabled = transports.bluetoothLE
+            let lanEnabled = transports.lan
+            let awdlEnabled = transports.awdl
 
-            dittoSelectedApp = ditto
-            guard dittoSelectedApp != nil else {
-                throw AppError.error(message: "Failed to create Ditto instance")
+            // The whole ordered sequence — user settings, transports, app-managed
+            // parameters, sync scopes, then sync — lives in `OpenSequence` so the
+            // ordering is unit-testable against the production code path rather than
+            // re-stated in a test body.
+            let sequence = AdvancedSettingsApplier.OpenSequence(
+                applier: AdvancedSettingsApplier(executor: ditto),
+                applyTransportConfig: {
+                    ditto.updateTransportConfig { config in
+                        config.peerToPeer.bluetoothLE.isEnabled = bluetoothEnabled
+                        config.peerToPeer.lan.isEnabled = lanEnabled
+                        config.peerToPeer.awdl.isEnabled = awdlEnabled
+
+                        // Cloud sync (Big Peer / WebSocket) is established automatically
+                        // by the SDK from the server URL passed at Ditto.open() — no
+                        // manual webSocketURLs configuration is required in v5.
+                    }
+                },
+                isStrictModeEnabled: databaseConfig.isStrictModeEnabled,
+                meshMaxWlanClients: Self.meshMaxWlanClients,
+                beforeSync: {
+                    // Readback AFTER every ALTER SYSTEM statement, so the log reflects
+                    // the transports actually in force rather than pre-override values.
+                    // Deliberately non-suspending: an `await` back into this actor here
+                    // opened a re-entrancy window right before sync started, during which
+                    // the database could be closed or deleted underneath the open.
+                    Self.logTransportReadback(from: ditto, context: "hydrate")
+                },
+                startSync: { try await DittoManager.startSyncNow(ditto) }
+            )
+
+            lastAdvancedApplyResult = try await sequence.run(
+                startupSettings: databaseConfig.startupSettings,
+                syncScopes: databaseConfig.collectionSyncScopes
+            )
+
+            // Post-condition: the instance we just opened must still be the selected
+            // one. Between `Ditto.open` and here the actor suspends several times, and a
+            // concurrent close/delete can nil or replace it — previously that produced a
+            // `true` return with `dittoSelectedApp == nil` and an orphan instance syncing
+            // against deleted files.
+            guard dittoSelectedApp === ditto else {
+                // Stop only OUR instance and return without entering the shared teardown:
+                // `closeDittoSelectedDatabase()` acts on whatever is currently selected,
+                // so on iPad multi-window the loser's cleanup used to kill the winner's
+                // live session (and reset its log level and persistence directory).
+                Log.warning("[Session] Database was closed or replaced while opening — aborting")
+                await Self.stopSyncNow(ditto)
+                return false
             }
+
             // Start transport condition observer for the database lifetime
             await MainActor.run {
                 DittoLogCaptureService.shared.clearTransportEntries()
@@ -206,10 +280,125 @@ actor DittoManager {
             }
             isSuccess = true
         } catch {
-            appState?.setError(error)
+            // Tear down anything already started. Without this, a failure after
+            // `Ditto.open` (notably a fail-closed sync-scope error) can leave a live
+            // instance holding transports — and if it got as far as `sync.start()`,
+            // syncing at the SDK default `AllPeers`.
+            await closeDittoSelectedDatabase()
+            dittoSelectedAppConfig = nil
+            // Both were set for the database that failed to open; leaving them pointed
+            // at it makes log-file access read the wrong directory and keeps the failed
+            // config's log level in force.
+            activePersistenceDirectory = nil
+            DittoLogger.minimumLogLevel = .info
+            await appState?.setError(error)
             isSuccess = false
         }
         return isSuccess
+    }
+
+    /// Keeps the actor's copy of the active config current.
+    ///
+    /// `DatabaseEditorView.save` builds a **new** `DittoConfigForDatabase` and persists
+    /// it, so without this the actor kept re-applying the settings the database was
+    /// opened with — silently reverting a sync scope the user had just changed, and
+    /// verifying it against the stale map so nothing looked wrong.
+    func refreshSelectedConfigIfMatching(_ config: DittoConfigForDatabase) {
+        guard dittoSelectedAppConfig?._id == config._id else { return }
+        dittoSelectedAppConfig = config
+        Log.info("[Advanced] Active database configuration refreshed after save")
+    }
+
+    /// Restores every system parameter to its SDK default, then re-applies everything
+    /// Edge Studio manages.
+    ///
+    /// `ALTER SYSTEM RESET ALL` is indiscriminate — it also clears `DQL_STRICT_MODE`,
+    /// the macOS mesh setting, the sync scopes, and potentially the peer-to-peer
+    /// transport parameters — so the re-apply below is mandatory, not tidy-up.
+    func resetSystemSettingsToDefaults(for config: DittoConfigForDatabase) async throws {
+        guard let ditto = dittoSelectedApp, dittoSelectedAppConfig?._id == config._id else {
+            // Not the open database: nothing to reset. `ALTER SYSTEM` state dies with
+            // the instance, so the next open already starts from SDK defaults.
+            Log.info("[Advanced] Reset requested for a database that is not open — no action needed")
+            return
+        }
+
+        // Adopt the saved config first: everything below re-applies from it, and the
+        // actor's copy must not keep pointing at the pre-reset object (which a later
+        // re-apply would otherwise replay, undoing this reset).
+        dittoSelectedAppConfig = config
+
+        // STOP SYNC FIRST. `RESET ALL` clears the collection sync scopes, so running it
+        // against a syncing instance leaves every collection replicable at the SDK
+        // default `AllPeers` for the whole re-apply window — including ones the user
+        // marked `LocalPeerOnly` — and permanently if any statement below throws. The SDK
+        // also requires scopes to be set before `start_sync()`, so re-applying them to a
+        // running session may not take effect at all.
+        await Self.stopSyncNow(ditto)
+        Log.info("[Advanced] Sync stopped for system-settings reset")
+
+        let applier = AdvancedSettingsApplier(executor: ditto)
+        do {
+            try await applier.resetAllToDefaults()
+
+            // Re-apply everything Edge Studio manages, then restart sync — through the
+            // same OpenSequence used at open, so scopes are verified before sync starts.
+            //
+            // Transports are applied to the CAPTURED `ditto`, exactly as `hydrate` does,
+            // rather than by calling back into `self.applyTransportConfig(...)`. That
+            // method re-reads `dittoSelectedApp`, so if the selected database changed
+            // while this reset was in flight it either threw "No Ditto app is currently
+            // selected" or configured a *different* instance while the `ALTER SYSTEM`
+            // statements and `sync.start()` below still targeted the captured one.
+            //
+            // The UI-test gate is applied here too. It was missing on this path, so a
+            // reset under UI tests re-enabled BLE/LAN/AWDL and could raise the OS
+            // permission dialogs the gate exists to suppress.
+            let transports = Self.transportFlags(for: config, isUITesting: isRunningUITests())
+            let sequence = AdvancedSettingsApplier.OpenSequence(
+                applier: applier,
+                applyTransportConfig: {
+                    ditto.updateTransportConfig { transportConfig in
+                        transportConfig.peerToPeer.bluetoothLE.isEnabled = transports.bluetoothLE
+                        transportConfig.peerToPeer.lan.isEnabled = transports.lan
+                        transportConfig.peerToPeer.awdl.isEnabled = transports.awdl
+                    }
+                    Log.info(
+                        "[Transport] Re-applied after RESET ALL: bluetoothLE=\(transports.bluetoothLE) " +
+                            "lan=\(transports.lan) awdl=\(transports.awdl)"
+                    )
+                },
+                isStrictModeEnabled: config.isStrictModeEnabled,
+                meshMaxWlanClients: Self.meshMaxWlanClients,
+                beforeSync: { Self.logTransportReadback(from: ditto, context: "resetSystemSettings") },
+                startSync: { try await DittoManager.startSyncNow(ditto) }
+            )
+            lastAdvancedApplyResult = try await sequence.run(
+                startupSettings: config.startupSettings,
+                syncScopes: config.collectionSyncScopes
+            )
+
+            // Post-condition, mirroring `hydrate`: the instance we just reconfigured must
+            // still be the selected one. `sequence.run` suspends repeatedly, and a
+            // concurrent close/delete can nil or replace it — leaving this instance
+            // syncing, unreachable for shutdown, against a database the user closed.
+            guard dittoSelectedApp === ditto else {
+                // Stop only OUR instance. `closeDittoSelectedDatabase()` acts on whatever
+                // is currently selected, so entering the shared teardown here would kill
+                // the winner's live session on iPad multi-window.
+                Log.warning("[Advanced] Database was closed or replaced during reset — stopping our instance")
+                await Self.stopSyncNow(ditto)
+                return
+            }
+
+            Log.info("[Advanced] System settings reset to defaults and app-managed values re-applied")
+        } catch {
+            // Sync is already stopped and stays stopped: resuming it here would run
+            // unscoped, which is the exact outcome the fail-closed policy exists to
+            // prevent. The caller surfaces this to the user.
+            Log.error("[Advanced] Reset failed after RESET ALL; leaving sync stopped: \(error)")
+            throw error
+        }
     }
 
     func setAppState(_ appState: AppState) {
@@ -218,24 +407,146 @@ actor DittoManager {
 
     func selectedDatabaseStartSync() async throws {
         do {
-            if let ditto = dittoSelectedApp {
-                Log.info("[Sync] Starting Sync")
-                try await Task.detached(priority: .utility) {
-                    try ditto.sync.start()
-                }.value
+            // Throws rather than returning: a silent `return` from a `throws` function is
+            // success-shaped, and every caller treats "did not throw" as "sync is running"
+            // (`SyncStatusViewModel.toggleSync`, `TransportConfigView`'s restart step, the
+            // MCP `set_sync` tool). C3 stops the indicator from lying about it, but the user
+            // still tapped a button that did nothing and got no message. Reachable via
+            // multi-window: `closeDatabaseIfSelected` and `hydrate`'s catch both nil the
+            // config out from under an open studio window.
+            guard let ditto = dittoSelectedApp, let config = dittoSelectedAppConfig else {
+                throw AppError.error(
+                    message: "No database is currently open, so sync could not be started. "
+                        + "Close and reopen the database, then try again."
+                )
+            }
+
+            // Routed through the same `OpenSequence` that `hydrate` uses, so this is not
+            // a second, independently-maintained path to `sync.start()`. Sync scopes live
+            // in memory, so anything that cleared them (an `ALTER SYSTEM RESET ALL` typed
+            // into the query editor, for instance) would otherwise let a restart run
+            // unscoped. Transports are already configured, so that step is a no-op here.
+            let sequence = AdvancedSettingsApplier.OpenSequence(
+                applier: AdvancedSettingsApplier(executor: ditto),
+                applyTransportConfig: {},
+                isStrictModeEnabled: config.isStrictModeEnabled,
+                meshMaxWlanClients: Self.meshMaxWlanClients,
+                beforeSync: { Log.info("[Sync] Starting Sync") },
+                startSync: { try await DittoManager.startSyncNow(ditto) }
+            )
+            lastAdvancedApplyResult = try await sequence.run(
+                startupSettings: config.startupSettings,
+                syncScopes: config.collectionSyncScopes
+            )
+
+            // Post-condition, mirroring `hydrate`: `sequence.run` suspends repeatedly, so
+            // the instance we started may no longer be the selected one by the time we
+            // get here — which would leave it syncing and unreachable for shutdown.
+            guard dittoSelectedApp === ditto else {
+                Log.warning("[Sync] Database was closed or replaced while starting sync — stopping our instance")
+                await Self.stopSyncNow(ditto)
+                return
             }
         } catch {
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
 
+    // MARK: - Sync start/stop funnels
+
+    /// Starts sync on `ditto` and publishes the resulting state.
+    ///
+    /// **Every path that starts sync must go through here.** Two reasons:
+    /// 1. `SyncRuntimeState` is what the UI renders, so a start that bypasses this leaves
+    ///    the indicator lying about whether sync is running.
+    /// 2. It concentrates `sync.start(` into one place, which is what makes the
+    ///    `sync_start_choke_point` lint rule enforceable rather than decorative.
+    ///
+    /// `nonisolated` and taking `ditto` as a parameter, both deliberately: the callers are
+    /// `@Sendable` closures inside `AdvancedSettingsApplier.OpenSequence`, and awaiting an
+    /// actor-isolated method from there would suspend back into this actor at the exact
+    /// point `hydrate`'s `beforeSync` comment documents as a re-entrancy hazard. Re-reading
+    /// `dittoSelectedApp` here instead of accepting a parameter would reintroduce the C5
+    /// bug — acting on a different instance than the caller intended.
+    ///
+    /// The state is published **after** the SDK call returns, so a throwing start leaves
+    /// `isRunning == false` rather than claiming success.
+    nonisolated static func startSyncNow(_ ditto: Ditto) async throws {
+        // Background queue to avoid a priority inversion.
+        try await Task.detached(priority: .utility) {
+            // swiftlint:disable:next sync_start_choke_point
+            try ditto.sync.start()
+        }.value
+        await MainActor.run { SyncRuntimeState.shared.setRunning(true) }
+    }
+
+    /// Stops sync on `ditto` and publishes the resulting state.
+    ///
+    /// Unconditional publication: a stop that throws still leaves sync down, so reporting
+    /// `false` is correct either way. See `startSyncNow` for why this is `nonisolated` and
+    /// takes `ditto` as a parameter.
+    nonisolated static func stopSyncNow(_ ditto: Ditto) async {
+        await Task.detached(priority: .utility) { ditto.sync.stop() }.value
+        await MainActor.run { SyncRuntimeState.shared.setRunning(false) }
+    }
+
+    /// The peer-to-peer transport flags to apply for `config`.
+    ///
+    /// Under UI tests all three are forced off. Enabling BLE / LAN / AWDL triggers OS
+    /// permission prompts (Bluetooth, Local Network) that appear as system dialogs over
+    /// the app and block the test harness on a fresh machine. The query/observer flows
+    /// don't need mesh transport — cloud sync is established by the SDK from the server
+    /// URL passed at `Ditto.open()` and is unaffected by these flags.
+    ///
+    /// Pure and `nonisolated static` so the gating rule is unit-testable without a live
+    /// `Ditto`, and so both `hydrate` and `resetSystemSettingsToDefaults` apply the *same*
+    /// rule. The reset path previously passed `config.is…Enabled` straight through, which
+    /// meant a reset under UI tests re-enabled every transport the gate exists to suppress.
+    ///
+    /// **`isUITesting` is a parameter, not an internal `isRunningUITests()` call, on
+    /// purpose.** The gate must be applied by each *call site* that owns an open sequence,
+    /// never pushed down into `applyTransportConfig(isBluetoothLeEnabled:…)` — that method
+    /// is also called by the user's Transport Settings screen
+    /// (`TransportConfigView.applyTransportConfig`) and by the MCP `configure_transport`
+    /// tool. Gating inside it would silently no-op an explicit user toggle while
+    /// `TransportConfigView.loadCurrentSettings` kept reading the *stored* config, so the
+    /// Settings tab would show "Bluetooth on" over an SDK with Bluetooth off.
+    nonisolated static func transportFlags(
+        for config: DittoConfigForDatabase,
+        isUITesting: Bool
+    ) -> TransportFlags {
+        let p2pEnabled = !isUITesting
+        return TransportFlags(
+            bluetoothLE: config.isBluetoothLeEnabled && p2pEnabled,
+            lan: config.isLanEnabled && p2pEnabled,
+            awdl: config.isAwdlEnabled && p2pEnabled
+        )
+    }
+
+    /// The three peer-to-peer transport switches, as a named type rather than a tuple:
+    /// three same-typed `Bool`s positionally is exactly the shape a caller can transpose
+    /// silently, and `large_tuple` flags it for that reason.
+    struct TransportFlags: Sendable, Equatable {
+        let bluetoothLE: Bool
+        let lan: Bool
+        let awdl: Bool
+    }
+
+    /// The macOS-only mesh client cap, nil elsewhere. Shared by every path that
+    /// re-applies the app-managed system parameters.
+    static var meshMaxWlanClients: Int? {
+        #if os(macOS)
+        12
+        #else
+        nil
+        #endif
+    }
+
     func selectedDatabaseStopSync() async {
         if let ditto = dittoSelectedApp {
-            await Task.detached(priority: .utility) {
-                Log.info("[Sync] Starting Sync")
-                ditto.sync.stop()
-            }.value
+            Log.info("[Sync] Stopping sync")
+            await Self.stopSyncNow(ditto)
         }
     }
 
@@ -243,7 +554,7 @@ actor DittoManager {
     private func shouldSetOfflineLicenseToken(
         for appConfig: DittoConfigForDatabase
     ) -> Bool {
-        appConfig.mode == .smallPeersOnly && !appConfig.token.isEmpty
+        appConfig.mode == .smallPeerOnly && !appConfig.developmentToken.isEmpty
     }
 
     /// Closes the currently selected database only if it matches the given database ID.
@@ -259,9 +570,7 @@ actor DittoManager {
     nonisolated static func localDirectoryPath(
         for databaseConfig: DittoConfigForDatabase
     ) -> URL {
-        let isUITesting = ProcessInfo.processInfo.arguments.contains(
-            "UI-TESTING"
-        )
+        let isUITesting = isRunningUITests()
         let baseComponent =
             isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
         let dbname = databaseConfig.name.trimmingCharacters(
@@ -289,26 +598,46 @@ actor DittoManager {
 // MARK: - URL Session
 
 extension DittoManager {
-    // Cached URLSession for untrusted certificates
-    private static var cachedUntrustedSession: URLSession?
-    private static let untrustedSessionLock = NSLock()
+    /// Extracts the host the untrusted-cert bypass should be scoped to from a
+    /// configured HTTP API URL. `httpApiUrl` is stored as a bare `host[:port]`
+    /// (callers prepend `https://`), but a full URL is tolerated too.
+    /// `nonisolated static` so the decision is unit-testable without a live
+    /// `Ditto` — same pattern as `createDatabaseConfig`.
+    nonisolated static func expectedHost(fromHttpApiUrl httpApiUrl: String) -> String? {
+        let withScheme = httpApiUrl.contains("://") ? httpApiUrl : "https://\(httpApiUrl)"
+        guard let host = URL(string: withScheme)?.host(percentEncoded: false),
+              !host.isEmpty else
+        {
+            return nil
+        }
+        return host.lowercased()
+    }
 
+    /// Session whose delegate accepts untrusted certificates **only** for the
+    /// currently selected database's HTTP API host. Cached per host so
+    /// switching databases never reuses a bypass scoped to another host.
+    /// Falls back to the shared (fully validating) session when no host can
+    /// be determined — in that case the bypass simply does not apply.
     func getCachedUntrustedSession() -> URLSession {
-        Self.untrustedSessionLock.lock()
-        defer { Self.untrustedSessionLock.unlock() }
+        // Actor isolation already serializes access — no lock needed.
+        guard let appConfig = dittoSelectedAppConfig,
+              let host = Self.expectedHost(fromHttpApiUrl: appConfig.httpApiUrl) else
+        {
+            return .shared
+        }
 
-        if let cachedSession = Self.cachedUntrustedSession {
+        if let cachedSession = cachedUntrustedSessions[host] {
             return cachedSession
         }
 
         // Create new session with delegate for untrusted certificates
-        let delegate = AllowUntrustedCertsDelegate()
+        let delegate = AllowUntrustedCertsDelegate(expectedHost: host)
         let session = URLSession(
             configuration: .default,
             delegate: delegate,
             delegateQueue: nil
         )
-        Self.cachedUntrustedSession = session
+        cachedUntrustedSessions[host] = session
         return session
     }
 }
@@ -329,26 +658,23 @@ extension DittoManager {
     ///   - isBluetoothLeEnabled: Enable/disable Bluetooth LE transport
     ///   - isLanEnabled: Enable/disable LAN transport
     ///   - isAwdlEnabled: Enable/disable AWDL transport
-    ///   - isCloudSyncEnabled: Enable/disable Cloud Sync via WebSocket
+    ///
+    /// Cloud sync (Big Peer) is governed by the connect mode passed at
+    /// `Ditto.open()` in v5 and is not toggled here.
     ///
     /// - Throws: AppError if no app is selected
     func applyTransportConfig(
         isBluetoothLeEnabled: Bool,
         isLanEnabled: Bool,
-        isAwdlEnabled: Bool,
-        isCloudSyncEnabled: Bool
+        isAwdlEnabled: Bool
     ) async throws {
         guard let ditto = dittoSelectedApp else {
             throw AppError.error(message: "No Ditto app is currently selected")
         }
 
-        guard let appConfig = dittoSelectedAppConfig else {
-            throw AppError.error(message: "No app configuration available")
-        }
-
         Log
             .info(
-                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
             )
 
         // Apply transport configuration changes
@@ -357,21 +683,10 @@ extension DittoManager {
             config.peerToPeer.bluetoothLE.isEnabled = isBluetoothLeEnabled
             config.peerToPeer.lan.isEnabled = isLanEnabled
             config.peerToPeer.awdl.isEnabled = isAwdlEnabled
-
-            // Configure cloud sync via WebSocket
-            if isCloudSyncEnabled {
-                if !config.connect.webSocketURLs.contains(
-                    appConfig.websocketUrl
-                ) {
-                    config.connect.webSocketURLs.insert(appConfig.websocketUrl)
-                }
-            } else {
-                config.connect.webSocketURLs.remove(appConfig.websocketUrl)
-            }
         }
         Log
             .info(
-                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) cloudSync=\(isCloudSyncEnabled)"
+                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
             )
         logTransportReadback(from: ditto, context: "applyTransportConfig")
     }
@@ -382,6 +697,12 @@ extension DittoManager {
     /// accepted the values you intended. The `context` label distinguishes call sites
     /// (e.g. "hydrate", "applyTransportConfig") in the log output.
     private func logTransportReadback(from ditto: Ditto, context: String) {
+        Self.logTransportReadback(from: ditto, context: context)
+    }
+
+    /// Static so callers that must not suspend into the actor (the open sequence's
+    /// pre-sync hook) can log the readback directly.
+    static func logTransportReadback(from ditto: Ditto, context: String) {
         let tc = ditto.transportConfig
         let wsURLs = tc.connect.webSocketURLs
         let wsDescription = wsURLs.isEmpty ? "(none)" : wsURLs.joined(separator: ", ")
@@ -395,16 +716,25 @@ extension DittoManager {
     }
 }
 
+// MARK: - Protocol Conformance
+
+extension DittoManager: DittoManagerProtocol {}
+
 // MARK: - Log Level Management
 
 extension DittoManager {
-    /// Changes the SDK log level for a database configuration and persists it.
-    /// If the database is currently active, applies the change to DittoLogger immediately.
+    /// Persists `config` (whose `logLevel` the caller has already set on the
+    /// MainActor) and, if it is the active database, applies the level to
+    /// `DittoLogger` immediately.
+    ///
+    /// IMPORTANT: this does NOT mutate `config`. `DittoConfigForDatabase` is an
+    /// `@unchecked Sendable` reference type whose contract requires all mutation
+    /// to happen on the MainActor; writing to it here (on the actor) would race
+    /// MainActor reads of the same shared instance.
     func changeDittoLogLevel(
         _ levelStr: String,
         for config: DittoConfigForDatabase
     ) async throws {
-        config.logLevel = levelStr
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
         if dittoSelectedAppConfig?._id == config._id {
             DittoLogger.minimumLogLevel = Self.dittoLogLevel(from: levelStr)

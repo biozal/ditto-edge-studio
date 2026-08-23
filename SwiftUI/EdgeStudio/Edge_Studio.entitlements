@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Required so the hardened-runtime Release build can load the embedded
+	     DittoSwift.framework, which is signed by Ditto's Team ID (not ours).
+	     Without this, macOS library validation aborts the process at launch
+	     (dyld: "not valid for use in process … different Team IDs"). Apple
+	     allows this hardened-runtime exception for apps embedding third-party
+	     frameworks; it remains notarization-compatible. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 	<key>com.apple.security.device.camera</key>
 	<true/>
 	<key>com.apple.security.files.downloads.read-write</key>

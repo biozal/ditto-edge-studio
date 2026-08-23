@@ -10,7 +10,6 @@
 		0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142462F44220F0023BC0C /* CocoaLumberjack */; };
 		0D1142492F44220F0023BC0C /* CocoaLumberjackSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */; };
 		0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */ = {isa = PBXBuildFile; productRef = 0D11424A2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend */; };
-		0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */; };
 		0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0D3F284F2DDA0EC1004A69D1 /* DittoSwift */; };
 		0D46D2972F4B8C2A00C50F45 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0D46D2962F4B8C2A00C50F45 /* Settings.bundle */; };
 		0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 0DEBB4512F3BDD1700C11449 /* Textual */; };
@@ -81,7 +80,6 @@
 				0D3F28502DDA0EC1004A69D1 /* DittoSwift in Frameworks */,
 				0D11424B2F44220F0023BC0C /* CocoaLumberjackSwiftLogBackend in Frameworks */,
 				0D1142472F44220F0023BC0C /* CocoaLumberjack in Frameworks */,
-				0D1B1D5E2DDFBB95003BBD80 /* CodeEditor in Frameworks */,
 				0DHIGHLT2E10000000000002 /* HighlightSwift in Frameworks */,
 				0DEBB4522F3BDD1700C11449 /* Textual in Frameworks */,
 			);
@@ -165,7 +163,6 @@
 			name = "Edge Debug Helper";
 			packageProductDependencies = (
 				0D3F284F2DDA0EC1004A69D1 /* DittoSwift */,
-				0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */,
 				0DEBB4512F3BDD1700C11449 /* Textual */,
 				0D1142462F44220F0023BC0C /* CocoaLumberjack */,
 				0D1142482F44220F0023BC0C /* CocoaLumberjackSwift */,
@@ -242,7 +239,7 @@
 			);
 			productName = EdgeStudioUITests;
 			productReference = 0DD95EBC2F4585430063C203 /* EdgeStudioUITests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -282,7 +279,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */,
-				0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */,
 				0DHIGHLT2E10000000000001 /* XCRemoteSwiftPackageReference "highlightswift" */,
 				0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */,
 				0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */,
@@ -371,7 +367,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  swiftlint lint --config .swiftlint.yml --quiet || true\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\ncd \"${PROJECT_DIR}/..\"\n\nif which swiftlint >/dev/null; then\n  # NO `|| true`. The exit status IS the gate: the two custom rules in .swiftlint.yml\n  # (sync_start_choke_point, sync_scopes_via_applier) are severity:error and guard a\n  # data-containment control, and discarding the status meant they enforced nothing.\n  # There is no CI on this repo, so this build phase is the only gate that runs.\n  # Warning-severity rules still do not fail the build (no --strict) - that is deliberate.\n  swiftlint lint --config .swiftlint.yml --quiet\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -554,7 +550,7 @@
 				CODE_SIGN_ENTITLEMENTS = EdgeStudio/Edge_Studio.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_APP_SANDBOX = YES;
@@ -567,7 +563,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio (Debug)";
 				INFOPLIST_KEY_CFBundleName = "Ditto Edge Studio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Uses Bluetooth to connect and sync with nearby devices";
@@ -587,8 +583,8 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0b4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
+				MARKETING_VERSION = 1.0b5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio.debug;
 				PRODUCT_NAME = "Ditto Edge Studio";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -596,7 +592,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "EdgeStudio/Edge-Debug-Helper-Bridging-Header.h";
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
@@ -612,7 +608,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
 				ENABLE_APP_SANDBOX = YES;
@@ -645,7 +641,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0b4;
+				MARKETING_VERSION = 1.0b5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.costoda.dittoedgestudio;
 				PRODUCT_NAME = "Ditto Edge Studio";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -654,7 +650,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "EdgeStudio/Edge-Debug-Helper-Bridging-Header.h";
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
@@ -680,8 +676,9 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "TESTING $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
 				XROS_DEPLOYMENT_TARGET = 26.0;
@@ -708,8 +705,9 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "TESTING $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
 				XROS_DEPLOYMENT_TARGET = 26.0;
@@ -735,8 +733,9 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
 				XROS_DEPLOYMENT_TARGET = 26.0;
@@ -762,8 +761,9 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
 				XROS_DEPLOYMENT_TARGET = 26.0;
@@ -773,7 +773,6 @@
 		0DD95EC32F4585430063C203 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
@@ -789,10 +788,11 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Debug;
@@ -800,7 +800,6 @@
 		0DD95EC42F4585430063C203 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = E3FRN9JNGJ;
@@ -816,10 +815,11 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ditto Edge Studio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ditto Edge Studio";
+				TEST_TARGET_NAME = "Edge Debug Helper";
 				XROS_DEPLOYMENT_TARGET = 26.2;
 			};
 			name = Release;
@@ -883,20 +883,12 @@
 				minimumVersion = 3.9.0;
 			};
 		};
-		0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ZeeZide/CodeEditor.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.2.6;
-			};
-		};
 		0D3F284C2DDA0EC1004A69D1 /* XCRemoteSwiftPackageReference "DittoSwiftPackage" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getditto/DittoSwiftPackage";
 			requirement = {
 				kind = exactVersion;
-				version = "5.0.0-rc.2";
+				version = 5.1.0;
 			};
 		};
 		0DEBB4502F3BDD1700C11449 /* XCRemoteSwiftPackageReference "textual" */ = {
@@ -932,11 +924,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0D1142452F44220E0023BC0C /* XCRemoteSwiftPackageReference "CocoaLumberjack" */;
 			productName = CocoaLumberjackSwiftLogBackend;
-		};
-		0D1B1D5D2DDFBB95003BBD80 /* CodeEditor */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0D1B1D5C2DDFBB95003BBD80 /* XCRemoteSwiftPackageReference "CodeEditor" */;
-			productName = CodeEditor;
 		};
 		0D3F284F2DDA0EC1004A69D1 /* DittoSwift */ = {
 			isa = XCSwiftPackageProductDependency;

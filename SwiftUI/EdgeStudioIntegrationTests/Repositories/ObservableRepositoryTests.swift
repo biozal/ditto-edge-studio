@@ -17,15 +17,14 @@ import Testing
 /// Target: 50% code coverage.
 @Suite("ObservableRepository Tests", .serialized)
 struct ObservableRepositoryTests {
-
-    // Helper to insert a parent database config
+    /// Helper to insert a parent database config
     private func insertDatabaseConfig(_ dbId: String) async throws {
         let service = SQLCipherContext.current
         try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
             _id: UUID().uuidString, name: "DB", databaseId: dbId,
             mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
             isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-            token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+            token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
         ))
     }
 
@@ -33,9 +32,8 @@ struct ObservableRepositoryTests {
 
     @Suite("Load")
     struct LoadTests {
-
-        @Test("Fresh database returns empty observable list", .tags(.repository, .database))
-        func testFreshDatabaseEmpty() async throws {
+        @Test(.tags(.repository, .database))
+        func `Fresh database returns empty observable list`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = ObservableRepository.shared
@@ -49,8 +47,8 @@ struct ObservableRepositoryTests {
             }
         }
 
-        @Test("Load returns observables scoped by databaseId", .tags(.repository, .database))
-        func testLoadScopedByDatabase() async throws {
+        @Test(.tags(.repository, .database))
+        func `Load returns observables scoped by databaseId`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -60,12 +58,14 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: UUID().uuidString, name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId1, name: "Obs1",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -84,8 +84,8 @@ struct ObservableRepositoryTests {
             }
         }
 
-        @Test("Loaded observables have nil storeObserver", .tags(.repository, .database))
-        func testLoadedObservablesHaveNilStoreObserver() async throws {
+        @Test(.tags(.repository, .database))
+        func `Loaded observables have nil storeObserver`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -94,7 +94,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: UUID().uuidString, databaseId: dbId, name: "Obs",
                     query: "SELECT 1", isActive: true, lastUpdated: nil
@@ -114,9 +115,8 @@ struct ObservableRepositoryTests {
 
     @Suite("Save")
     struct SaveTests {
-
-        @Test("Save inserts new observable into SQLCipher", .tags(.repository, .database))
-        func testSaveInsertsObservable() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save inserts new observable into SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -125,7 +125,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -136,7 +137,7 @@ struct ObservableRepositoryTests {
                 obs.isActive = true
 
                 // ACT
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // Verify via SQLCipher directly
                 let rows = try await service.getObservables(databaseId: dbId)
@@ -149,8 +150,8 @@ struct ObservableRepositoryTests {
             }
         }
 
-        @Test("Save updates existing observable in SQLCipher", .tags(.repository, .database))
-        func testSaveUpdatesExistingObservable() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save updates existing observable in SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -159,7 +160,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -169,14 +171,14 @@ struct ObservableRepositoryTests {
                 obs.name = "Original"
                 obs.query = "SELECT 1"
                 obs.isActive = false
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // Mutate and save again — should update, not insert duplicate
                 obs.name = "Updated"
                 obs.isActive = true
 
                 // ACT
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // ASSERT
                 let rows = try await service.getObservables(databaseId: dbId)
@@ -186,8 +188,8 @@ struct ObservableRepositoryTests {
             }
         }
 
-        @Test("Save without prior load throws InvalidStateError", .tags(.repository, .database))
-        func testSaveWithoutLoadThrows() async throws {
+        @Test(.tags(.repository, .database))
+        func `Save without prior load throws InvalidStateError`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = ObservableRepository.shared
@@ -199,7 +201,7 @@ struct ObservableRepositoryTests {
 
                 // ACT & ASSERT
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveDittoObservable(obs)
+                    try await repo.saveDittoObservable(obs, databaseId: "no-active-session")
                 }
             }
         }
@@ -209,9 +211,8 @@ struct ObservableRepositoryTests {
 
     @Suite("Remove")
     struct RemoveTests {
-
-        @Test("Remove deletes observable from SQLCipher", .tags(.repository, .database))
-        func testRemoveDeletesFromSQLCipher() async throws {
+        @Test(.tags(.repository, .database))
+        func `Remove deletes observable from SQLCipher`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -220,7 +221,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -228,7 +230,7 @@ struct ObservableRepositoryTests {
                 var obs = DittoObservable(id: TestHelpers.uniqueTestId())
                 obs.name = "To Remove"
                 obs.query = "SELECT * FROM toRemove"
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // ACT
                 try await repo.removeDittoObservable(obs)
@@ -239,8 +241,8 @@ struct ObservableRepositoryTests {
             }
         }
 
-        @Test("Remove with nil storeObserver does not crash", .tags(.repository, .database))
-        func testRemoveWithNilStoreObserverSafe() async throws {
+        @Test(.tags(.repository, .database))
+        func `Remove with nil storeObserver does not crash`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -249,7 +251,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -258,15 +261,15 @@ struct ObservableRepositoryTests {
                 obs.name = "Nil Observer"
                 obs.query = "SELECT 1"
                 obs.storeObserver = nil // explicitly nil
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // ACT & ASSERT — should not crash
                 try await repo.removeDittoObservable(obs)
             }
         }
 
-        @Test("Remove without prior load throws InvalidStateError", .tags(.repository, .database))
-        func testRemoveWithoutLoadThrows() async throws {
+        @Test(.tags(.repository, .database))
+        func `Remove without prior load throws InvalidStateError`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = ObservableRepository.shared
@@ -288,9 +291,8 @@ struct ObservableRepositoryTests {
 
     @Suite("Cache")
     struct CacheTests {
-
-        @Test("clearCache resets currentDatabaseId", .tags(.repository, .database))
-        func testClearCacheResetsDatabaseId() async throws {
+        @Test(.tags(.repository, .database))
+        func `clearCache resets currentDatabaseId`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let repo = ObservableRepository.shared
@@ -305,7 +307,7 @@ struct ObservableRepositoryTests {
                 obs.name = "After Clear"
                 obs.query = "SELECT 1"
                 await #expect(throws: (any Error).self) {
-                    try await repo.saveDittoObservable(obs)
+                    try await repo.saveDittoObservable(obs, databaseId: dbId)
                 }
             }
         }
@@ -315,9 +317,8 @@ struct ObservableRepositoryTests {
 
     @Suite("Observer Callback")
     struct ObserverCallbackTests {
-
-        @Test("setOnObservablesUpdate callback fires on save", .tags(.repository, .database))
-        func testCallbackFiresOnSave() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnObservablesUpdate callback fires on save`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -326,14 +327,15 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnObservablesUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 var obs = DittoObservable(id: TestHelpers.uniqueTestId())
@@ -341,15 +343,15 @@ struct ObservableRepositoryTests {
                 obs.query = "SELECT 1"
 
                 // ACT
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
                 // ASSERT
-                #expect(callbackCount == 1)
+                #expect(callbackCount.value == 1)
             }
         }
 
-        @Test("setOnObservablesUpdate callback fires on remove", .tags(.repository, .database))
-        func testCallbackFiresOnRemove() async throws {
+        @Test(.tags(.repository, .database))
+        func `setOnObservablesUpdate callback fires on remove`() async throws {
             try await TestHelpers.withFreshDatabase {
                 // ARRANGE
                 let service = SQLCipherContext.current
@@ -358,7 +360,8 @@ struct ObservableRepositoryTests {
                     _id: UUID().uuidString, name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
 
                 let repo = ObservableRepository.shared
                 _ = try await repo.loadObservers(for: dbId)
@@ -366,18 +369,18 @@ struct ObservableRepositoryTests {
                 var obs = DittoObservable(id: TestHelpers.uniqueTestId())
                 obs.name = "To Remove"
                 obs.query = "SELECT 2"
-                try await repo.saveDittoObservable(obs)
+                try await repo.saveDittoObservable(obs, databaseId: dbId)
 
-                var callbackCount = 0
+                let callbackCount = TestCounter()
                 await repo.setOnObservablesUpdate { _ in
-                    callbackCount += 1
+                    callbackCount.increment()
                 }
 
                 // ACT
                 try await repo.removeDittoObservable(obs)
 
                 // ASSERT
-                #expect(callbackCount >= 1)
+                #expect(callbackCount.value >= 1)
             }
         }
     }

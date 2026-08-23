@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,8 +45,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,7 +55,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.ui.adaptive.showsRail
+import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.qrcode.QrDisplayDialog
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.ui.theme.JetBlack
@@ -76,15 +78,16 @@ fun DatabaseListScreen(
     onEditDatabase: (DittoDatabase) -> Unit,
     onOpenDatabase: (DittoDatabase) -> Unit,
     onScanQrCode: () -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: DatabaseListViewModel = koinViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val expandedLayout = studioWindowSizeClass().showsRail
     var tabletEditorId by remember { mutableStateOf<Long?>(null) }
     var tabletEditorSession by remember { mutableStateOf(0) }
     var showQrDialogFor by remember { mutableStateOf<DittoDatabase?>(null) }
 
-    if (screenWidthDp >= 600) {
+    if (expandedLayout) {
         TabletDatabaseListLayout(
             uiState = uiState,
             onAddDatabase = { tabletEditorId = -1L; tabletEditorSession++ },
@@ -93,6 +96,7 @@ fun DatabaseListScreen(
             onDeleteDatabase = { viewModel.deleteDatabase(it) },
             onShowQrCode = { db -> showQrDialogFor = db },
             onScanQrCode = onScanQrCode,
+            onOpenSettings = onOpenSettings,
         )
         tabletEditorId?.let { id ->
             Dialog(
@@ -123,6 +127,7 @@ fun DatabaseListScreen(
             onDeleteDatabase = { viewModel.deleteDatabase(it) },
             onShowQrCode = { db -> showQrDialogFor = db },
             onScanQrCode = onScanQrCode,
+            onOpenSettings = onOpenSettings,
         )
     }
 
@@ -144,6 +149,7 @@ private fun PhoneDatabaseListLayout(
     onDeleteDatabase: (Long) -> Unit,
     onShowQrCode: (DittoDatabase) -> Unit,
     onScanQrCode: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -169,6 +175,12 @@ private fun PhoneDatabaseListLayout(
                         Icon(
                             imageVector = Icons.Outlined.Cloud,
                             contentDescription = "Open Ditto Portal",
+                        )
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Settings",
                         )
                     }
                 },
@@ -240,6 +252,7 @@ private fun TabletDatabaseListLayout(
     onDeleteDatabase: (Long) -> Unit,
     onShowQrCode: (DittoDatabase) -> Unit,
     onScanQrCode: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -293,6 +306,15 @@ private fun TabletDatabaseListLayout(
                 Icon(Icons.Outlined.QrCodeScanner, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Import QR Code")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Outlined.Settings, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Settings")
             }
         }
 
@@ -377,6 +399,7 @@ private fun DatabaseListScreenEmptyPreview() {
             onDeleteDatabase = {},
             onShowQrCode = {},
             onScanQrCode = {},
+            onOpenSettings = {},
         )
     }
 }
@@ -398,6 +421,7 @@ private fun DatabaseListScreenWithItemsPreview() {
             onDeleteDatabase = {},
             onShowQrCode = {},
             onScanQrCode = {},
+            onOpenSettings = {},
         )
     }
 }

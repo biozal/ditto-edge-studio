@@ -38,16 +38,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.domain.model.LogComponent
 import com.costoda.dittoedgestudio.domain.model.LogEntry
 import com.costoda.dittoedgestudio.domain.model.LogEntrySource
@@ -82,13 +81,13 @@ fun LoggingScreen(
     val listState = rememberLazyListState()
 
     // ── StateFlow collectors ────────────────────────────────────────────────
-    val liveEntries by captureService.liveEntries.collectAsState()
-    val historicalEntries by captureService.historicalEntries.collectAsState()
-    val appEntries by captureService.appEntries.collectAsState()
-    val isLoading by captureService.isLoading.collectAsState()
-    val pendingCount by captureService.pendingNewEntriesCount.collectAsState()
-    val bufferNearlyFull by captureService.bufferNearlyFull.collectAsState()
-    val entriesDropped by captureService.entriesDropped.collectAsState()
+    val liveEntries by captureService.liveEntries.collectAsStateWithLifecycle()
+    val historicalEntries by captureService.historicalEntries.collectAsStateWithLifecycle()
+    val appEntries by captureService.appEntries.collectAsStateWithLifecycle()
+    val isLoading by captureService.isLoading.collectAsStateWithLifecycle()
+    val pendingCount by captureService.pendingNewEntriesCount.collectAsStateWithLifecycle()
+    val bufferNearlyFull by captureService.bufferNearlyFull.collectAsStateWithLifecycle()
+    val entriesDropped by captureService.entriesDropped.collectAsStateWithLifecycle()
 
     // ── Filter state ────────────────────────────────────────────────────────
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -156,6 +155,7 @@ fun LoggingScreen(
                 text = "Logs",
                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
 
@@ -196,7 +196,11 @@ fun LoggingScreen(
                 captureService.loadHistoricalLogs(context.cacheDir)
                 captureService.loadAppLogs()
             }) {
-                Icon(Icons.Outlined.Refresh, contentDescription = "Refresh logs")
+                Icon(
+                    Icons.Outlined.Refresh,
+                    contentDescription = "Refresh logs",
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -223,6 +227,7 @@ fun LoggingScreen(
                     Text(
                         text = "High log volume — UI throttled to 2 updates/sec, showing last 200 entries",
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.ui.graphics.Color(0xFFFF9500),
                     )
                 }
             }
@@ -264,19 +269,13 @@ fun LoggingScreen(
             }
         }
 
-        // ── Source tabs ──────────────────────────────────────────────────────
-        SecondaryTabRow(selectedTabIndex = selectedTabIndex) {
-            Tab(
-                selected = selectedTabIndex == 0,
-                onClick = { selectedTabIndex = 0 },
-                text = { Text("Ditto SDK") },
-            )
-            Tab(
-                selected = selectedTabIndex == 1,
-                onClick = { selectedTabIndex = 1 },
-                text = { Text("App Logs") },
-            )
-        }
+        // ── Source switcher ───────────────────────────────────────────────────
+        DittoConnectedButtonGroup(
+            options = listOf("Ditto SDK", "App Logs"),
+            selectedIndex = selectedTabIndex,
+            onSelect = { selectedTabIndex = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
         // ── SDK-only filters ─────────────────────────────────────────────────
         AnimatedVisibility(visible = selectedTabIndex == 0) {

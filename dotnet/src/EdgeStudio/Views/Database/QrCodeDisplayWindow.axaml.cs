@@ -5,13 +5,12 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using SukiUI.Controls;
 using ZXing;
 using ZXing.QrCode;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class QrCodeDisplayWindow : SukiWindow
+    public partial class QrCodeDisplayWindow : Window
     {
         private readonly string _payload;
 

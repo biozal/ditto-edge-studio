@@ -24,23 +24,29 @@ List all indexes across all collections:
 SELECT * FROM system:indexes
 ```
 
+> **Unverified precaution:** a known SDK 5.1.0-preview-era bug made `system:collections` return rows only on the first execute per Ditto lifetime. This has **not** been confirmed or ruled out for `system:indexes` — if index listings look stale in a long-lived session, reopen the database and re-run the query.
+
 Each result row contains:
 
 | Field | Description |
 |-------|-------------|
-| `_id` | Index name |
+| `_id` | Full index name in `<collection>.<indexName>` format |
 | `collection` | Collection the index belongs to |
 | `fields` | Array of indexed field names |
 
-Example result:
+Example result (verified on Ditto SDK 5.1.0):
 
 ```json
 {
-  "_id": "idx_tasks_status",
+  "_id": "tasks.idx_tasks_status",
   "collection": "tasks",
   "fields": ["status"]
 }
 ```
+
+Note: `_id` is prefixed with the collection name — the bare index name is
+`idx_tasks_status`, stored as `tasks.idx_tasks_status`. Use the bare name
+(without the collection prefix) in `DROP INDEX … ON <collection>` statements.
 
 ---
 
@@ -53,12 +59,13 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)
 **Syntax breakdown:**
 
 ```sql
-CREATE INDEX [IF NOT EXISTS] <index_name> ON <collection> (<field>)
+CREATE INDEX [IF NOT EXISTS] <index_name> ON <collection> (<field> [ASC | DESC], ...)
 ```
 
 - `IF NOT EXISTS` — prevents an error if the index already exists (recommended)
 - `<index_name>` — must be unique within the collection; use a descriptive convention like `idx_{collection}_{field}`
-- `<field>` — the single field to index; use dot notation for sub-fields (e.g. `metadata.priority`)
+- `<field>` — a field to index; use dot notation for sub-fields (e.g. `metadata.priority`). Multiple fields create a **composite index**
+- `ASC` / `DESC` — optional per-key sort order (default `ASC`)
 
 ### Examples
 
@@ -69,10 +76,27 @@ CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks (done)
 -- Index on a nested sub-field
 CREATE INDEX IF NOT EXISTS idx_tasks_meta_priority ON tasks (metadata.priority)
 
+-- Composite index: equality field first, then sort field
+CREATE INDEX IF NOT EXISTS idx_tasks_status_createdAt ON tasks (status ASC, createdAt DESC)
+
 -- Multiple indexes on the same collection
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role)
 ```
+
+### Composite Indexes
+
+A composite index contains two or more fields. Use one when a query frequently filters or sorts on the same combination of fields:
+
+```sql
+CREATE INDEX status_created_idx ON tasks (status, createdAt DESC)
+
+SELECT * FROM tasks
+WHERE status = 'open'
+ORDER BY createdAt DESC
+```
+
+Field order matters: put fields used in equality filters first, followed by fields used for range filters or sorting. Queries that skip the leading field generally receive less benefit from the index.
 
 ---
 
@@ -154,7 +178,6 @@ SELECT * FROM tasks WHERE status IN ('active', 'pending')
 
 | Restriction | Detail |
 |-------------|--------|
-| **Single field only** | Composite (multi-field) indexes are not supported |
 | **Latest type variant only** | Only the most recent data-type of a field is indexed |
 | **Sub-field dot notation** | `WHERE a.b = 1` requires an explicit index on `(a.b)` |
 | **Functional predicates** | `LOWER(field)`, `ILIKE`, etc. cannot use indexes |
@@ -169,7 +192,7 @@ SELECT * FROM tasks WHERE status IN ('active', 'pending')
 Edge Studio surfaces indexes directly in the sidebar:
 
 - **Collections tree view** — each collection expands to show its indexes; each index expands to show its fields
-- **Add Index sheet** — FAB → "Add Index" to create a new index on any collection
+- **Add Index sheet** — FAB → "Add Index" to create a new index on any collection; add multiple fields (each with ASC/DESC order) to create a composite index. Field names are automatically backtick-quoted per path segment, so names with spaces or dashes are safe. If an index with the same generated name but a different field definition already exists, the sheet reports the conflict instead of silently no-oping — drop the existing index first
 - **Refresh** — click the refresh button in the collections header to re-fetch indexes after changes
 - **Query editor** — run `SELECT * FROM system:indexes` directly in the query editor
 

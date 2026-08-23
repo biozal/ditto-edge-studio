@@ -3,22 +3,22 @@ import SwiftUI
 extension MainStudioView {
     func inspectorView() -> some View {
         Group {
-            switch viewModel.selectedSidebarMenuItem.name {
-            case "Collections", "Query":
-                queryTabInspectorView()
-            case "Observers":
-                observeDetailInspectorView()
-            case "App Metrics", "Query Metrics":
-                metricsInspectorView()
-            case "Logging":
-                loggingInspectorView()
-            default: // "Subscriptions"
+            switch viewModel.selectedSidebarDestination {
+            case .subscriptions:
                 syncTabsInspectorView()
+            case .query:
+                queryTabInspectorView()
+            case .observers:
+                observeDetailInspectorView()
+            case .appMetrics, .queryMetrics:
+                metricsInspectorView()
+            case .logging:
+                loggingInspectorView()
             }
         }
-        .id(viewModel.selectedSidebarMenuItem)
+        .id(viewModel.selectedSidebarDestination)
         .transition(.blurReplace)
-        .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarMenuItem)
+        .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarDestination)
     }
 
     // MARK: - Per-Tab Inspector Dispatchers
@@ -51,8 +51,8 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.selectedQueryInspectorMenuItem) {
-                    ForEach(viewModel.queryInspectorMenuItems) { item in
+                Picker("", selection: $viewModel.queryVM.selectedQueryInspectorMenuItem) {
+                    ForEach(viewModel.queryVM.queryInspectorMenuItems) { item in
                         item.image
                             .tag(item)
                             .font(.system(size: 20))
@@ -69,11 +69,11 @@ extension MainStudioView {
 
             Divider()
 
-            if viewModel.selectedQueryInspectorMenuItem.name == "Help" {
+            if viewModel.queryVM.selectedQueryInspectorMenuItem.name == "Help" {
                 helpQueryInspectorContent()
             } else {
                 ScrollView {
-                    switch viewModel.selectedQueryInspectorMenuItem.name {
+                    switch viewModel.queryVM.selectedQueryInspectorMenuItem.name {
                     case "History":
                         historyInspectorContent()
                     case "Favorites":
@@ -90,14 +90,19 @@ extension MainStudioView {
                 .padding()
             }
         }
+        // Container anchor so UI tests can reliably detect the inspector being
+        // open. `.contain` keeps children (history/favorites rows) individually
+        // queryable; the segmented picker alone doesn't reliably surface.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("QueryInspectorView")
     }
 
     func observeDetailInspectorView() -> some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.selectedObserveInspectorMenuItem) {
-                    ForEach(viewModel.observeInspectorMenuItems) { item in
+                Picker("", selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem) {
+                    ForEach(viewModel.subObsVM.observeInspectorMenuItems) { item in
                         item.image
                             .tag(item)
                             .font(.system(size: 20))
@@ -114,7 +119,7 @@ extension MainStudioView {
 
             Divider()
 
-            if viewModel.selectedObserveInspectorMenuItem.name == "Help" {
+            if viewModel.subObsVM.selectedObserveInspectorMenuItem.name == "Help" {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Observable Help").font(.headline)
@@ -170,7 +175,7 @@ extension MainStudioView {
     }
 
     private func metricsDocsInspectorContent() -> some View {
-        let resourceName = viewModel.selectedSidebarMenuItem.name == "App Metrics" ? "appmetrics" : "querymetrics"
+        let resourceName = viewModel.selectedSidebarDestination == .appMetrics ? "appmetrics" : "querymetrics"
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Metrics Help").font(.headline)
@@ -291,7 +296,7 @@ extension MainStudioView {
         if let error = lastError {
             viewModel.metricsPrometheusStatusMessage = "Error: \(error)"
         } else if let date = lastPush {
-            let elapsed = Int(Date().timeIntervalSince(date))
+            let elapsed = Int(Date.now.timeIntervalSince(date))
             viewModel.metricsPrometheusStatusMessage = "Last push: \(elapsed)s ago"
         } else if url != nil {
             viewModel.metricsPrometheusStatusMessage = "Configured — awaiting first push"
@@ -347,18 +352,18 @@ extension MainStudioView {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if viewModel.history.isEmpty {
+            if viewModel.queryVM.history.isEmpty {
                 ContentUnavailableView(
                     "No History",
                     systemImage: "clock",
                     description: Text("No queries have been run yet.")
                 )
             } else {
-                ForEach(viewModel.history) { query in
+                ForEach(viewModel.queryVM.history) { query in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.clock, size: 12)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
@@ -377,12 +382,29 @@ extension MainStudioView {
                     .contextMenu {
                         Button("Delete") {
                             Task {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                do {
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                } catch {
+                                    Log.error("Failed to delete query history: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                         Button("Add to Favorites") {
                             Task {
-                                try await FavoritesRepository.shared.saveFavorite(query)
+                                do {
+                                    try await FavoritesRepository.shared.saveFavorite(
+                                        query,
+                                        databaseId: viewModel.selectedApp.databaseId
+                                    )
+                                } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                                    // Correctly refused after a database switch —
+                                    // don't alert in the NEW session.
+                                    Log.info("Favorite save refused: \(error.message)")
+                                } catch {
+                                    Log.error("Failed to add favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
@@ -397,18 +419,18 @@ extension MainStudioView {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if viewModel.favorites.isEmpty {
+            if viewModel.queryVM.favorites.isEmpty {
                 ContentUnavailableView(
                     "No Favorites",
                     systemImage: "star",
                     description: Text("No favorite queries saved yet.")
                 )
             } else {
-                ForEach(viewModel.favorites) { query in
+                ForEach(viewModel.queryVM.favorites) { query in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             FontAwesomeText(icon: UIIcon.star, size: 12)
-                                .foregroundColor(.yellow)
+                                .foregroundStyle(.yellow)
                                 .padding(.top, 2) // Align with first line of text
                             Text(query.query)
                                 .lineLimit(3)
@@ -427,7 +449,12 @@ extension MainStudioView {
                     .contextMenu {
                         Button("Remove from Favorites") {
                             Task {
-                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                do {
+                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                } catch {
+                                    Log.error("Failed to remove favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
@@ -442,9 +469,26 @@ extension MainStudioView {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if let json = viewModel.selectedJsonForInspector {
+            if let json = viewModel.queryVM.selectedJsonForInspector {
                 JsonSyntaxView(jsonString: json)
                     .id(json) // Force recreation when JSON changes
+
+                AttachmentViewerSection(
+                    attachments: viewModel.attachmentVM.detectedAttachments,
+                    loadedImages: viewModel.attachmentVM.attachmentLoadedImages,
+                    loadingIds: viewModel.attachmentVM.attachmentLoadingIds,
+                    errorMessages: viewModel.attachmentVM.attachmentErrors,
+                    onFetchAttachment: { attachment in
+                        Task {
+                            await viewModel.attachmentVM.fetchAttachmentForViewing(
+                                attachment,
+                                json: viewModel.queryVM.selectedJsonForInspector,
+                                executeMode: viewModel.queryVM.selectedExecuteMode,
+                                appState: appState
+                            )
+                        }
+                    }
+                )
             } else {
                 // Empty state: centered message
                 VStack(spacing: 12) {
@@ -452,7 +496,7 @@ extension MainStudioView {
                     FontAwesomeText(icon: DataIcon.code, size: 48, color: .secondary)
                     Text("Select a JSON result to view it here")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Spacer()
                 }
@@ -463,7 +507,7 @@ extension MainStudioView {
 
     private func queryMetricsInspectorContent() -> some View {
         Group {
-            if let record = viewModel.lastQueryMetricsRecord {
+            if let record = viewModel.queryVM.lastQueryMetricsRecord {
                 VStack(alignment: .leading, spacing: 16) {
                     // DQL Statement
                     VStack(alignment: .leading, spacing: 6) {
@@ -553,32 +597,33 @@ extension MainStudioView {
     }
 
     private func metricsLatencyColor(_ ms: Double) -> Color {
-        if ms < 10 { return .green }
-        if ms < 100 { return .primary }
+        if ms < 10 {
+            return .green
+        }
+        if ms < 100 {
+            return .primary
+        }
         return .orange
     }
 
     // MARK: - Inspector Helper Methods
 
-    /// Loads a query from the inspector and automatically switches to Collections view if needed
-    /// to ensure the QueryEditor is visible.
+    /// Loads a query from the inspector and automatically switches to the Query
+    /// destination if needed so the QueryEditor is visible.
     func loadQueryFromInspector(_ query: String) {
         // CRITICAL: Force sidebar to stay visible BEFORE any state changes
         columnVisibility = .all
 
-        // Only Collections view has the QueryEditor now (History/Favorites are in inspector)
-        if viewModel.selectedSidebarMenuItem.name != "Collections" {
-            // Switch to Collections to show the QueryEditor
-            if let collectionsItem = viewModel.sidebarMenuItems.first(where: { $0.name == "Collections" }) {
-                viewModel.selectedSidebarMenuItem = collectionsItem
-            }
+        // Only the Query destination has the QueryEditor now (History/Favorites are in inspector)
+        if viewModel.selectedSidebarDestination != .query {
+            viewModel.selectedSidebarDestination = .query
         }
 
         // Load the query
-        viewModel.selectedQuery = query
+        viewModel.queryVM.selectedQuery = query
 
         // Double-check sidebar stays visible after state changes
-        DispatchQueue.main.async { [self] in
+        Task { @MainActor in
             columnVisibility = .all
         }
 

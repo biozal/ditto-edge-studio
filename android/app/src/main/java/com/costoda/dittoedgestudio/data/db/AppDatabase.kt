@@ -29,7 +29,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         ObservableEntity::class,
         QueryMetricsEntity::class,
     ],
-    version = 3,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,11 +76,95 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Advanced Database Configuration (docs/ADVANCED_DATABASE_CONFIG.md):
+                // per-database collection sync scopes and startup system settings,
+                // stored as JSON-in-TEXT.
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN collectionSyncScopes TEXT NOT NULL DEFAULT '[]'"
+                )
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN startupSettings TEXT NOT NULL DEFAULT '[]'"
+                )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Query Metrics parity with SwiftUI: persist the DQL statement itself so
+                // the executed-query list and EXPLAIN detail survive process restarts
+                // (previously every reloaded row rendered as "Unknown query").
+                database.execSQL(
+                    "ALTER TABLE query_metrics ADD COLUMN query_text TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Rebuild query_metrics WITHOUT the history_id foreign key: the
+                // ON DELETE CASCADE meant history housekeeping (clearHistory,
+                // removeHistoryItem, the 1000-row trim) silently wiped every metrics
+                // capture for the affected query. SwiftUI's metrics store is
+                // independent of history, so history_id becomes a plain reference
+                // column. Also adds database_id (Ditto databaseId string) so metrics
+                // are scoped per database; pre-existing rows predate scoping and are
+                // backfilled to '' (they simply never match a per-database query).
+                // SQLite cannot drop a FK in place — create/copy/drop/rename.
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `query_metrics_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `history_id` INTEGER NOT NULL,
+                        `database_id` TEXT NOT NULL DEFAULT '',
+                        `execution_time_ms` INTEGER NOT NULL,
+                        `docs_examined` INTEGER NOT NULL,
+                        `docs_returned` INTEGER NOT NULL,
+                        `indexes_used` TEXT NOT NULL,
+                        `bytes_read` INTEGER NOT NULL,
+                        `explain_plan` TEXT,
+                        `captured_at` INTEGER NOT NULL,
+                        `query_text` TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    INSERT INTO `query_metrics_new` (
+                        `id`, `history_id`, `database_id`, `execution_time_ms`,
+                        `docs_examined`, `docs_returned`, `indexes_used`, `bytes_read`,
+                        `explain_plan`, `captured_at`, `query_text`
+                    )
+                    SELECT
+                        `id`, `history_id`, '', `execution_time_ms`,
+                        `docs_examined`, `docs_returned`, `indexes_used`, `bytes_read`,
+                        `explain_plan`, `captured_at`, `query_text`
+                    FROM `query_metrics`
+                    """.trimIndent()
+                )
+                database.execSQL("DROP TABLE `query_metrics`")
+                database.execSQL("ALTER TABLE `query_metrics_new` RENAME TO `query_metrics`")
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_query_metrics_database_id` " +
+                        "ON `query_metrics` (`database_id`)"
+                )
+            }
+        }
+
+        // Migration policy (see plans/android/config-loss-investigation.md item B1):
+        // - Every schema version bump REQUIRES a hand-written Migration AND a committed
+        //   schema JSON under app/schemas/.../<version>.json (validated by MigrationTest).
+        // - DO NOT re-add .fallbackToDestructiveMigration(...) / .fallbackToDestructiveMigrationOnDowngrade().
+        //   Missing-migration failures are intentional: Room will throw IllegalStateException
+        //   on app launch, surfacing the bug in QA instead of silently wiping every saved
+        //   database config, subscription, observer, favorite, and history row in production.
         fun create(context: Context, key: ByteArray): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                )
                 .build()
     }
 }

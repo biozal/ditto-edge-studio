@@ -6,7 +6,6 @@ using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EdgeStudio.Shared.Services;
 using Material.Icons;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Help;
 
@@ -37,7 +36,7 @@ public partial class QuickstartProjectViewModel : ObservableObject
 /// <summary>
 /// Window that lists downloaded Ditto quickstart projects with paths and copy actions.
 /// </summary>
-public partial class QuickstartBrowserWindow : SukiWindow
+public partial class QuickstartBrowserWindow : Window
 {
     public QuickstartBrowserWindow()
     {

@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -8,6 +9,8 @@ import com.costoda.dittoedgestudio.data.repository.NetworkDiagnosticsRepository
 import com.costoda.dittoedgestudio.data.repository.ObservableRepository
 import com.costoda.dittoedgestudio.data.repository.SubscriptionsRepository
 import com.costoda.dittoedgestudio.data.repository.SystemRepository
+import com.costoda.dittoedgestudio.data.session.PeersUiState
+import com.costoda.dittoedgestudio.data.session.StudioSession
 import com.costoda.dittoedgestudio.domain.model.DittoCollection
 import com.costoda.dittoedgestudio.domain.model.ConnectionsByTransport
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
@@ -57,6 +60,8 @@ class MainStudioViewModelTest {
     private val localPeerFlow = MutableStateFlow<LocalPeerInfo?>(null)
     private val peersFlow = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
     private val connectionsFlow = MutableStateFlow(ConnectionsByTransport.Empty)
+    private val meshTopologyFlow =
+        MutableStateFlow(com.costoda.dittoedgestudio.domain.model.MeshTopology.Empty)
     private val collectionsFlow = MutableStateFlow<List<DittoCollection>>(emptyList())
 
     private val testDatabase = DittoDatabase(
@@ -89,6 +94,7 @@ class MainStudioViewModelTest {
         every { systemRepository.localPeer } returns localPeerFlow
         every { systemRepository.peers } returns peersFlow
         every { systemRepository.connectionsByTransport } returns connectionsFlow
+        every { systemRepository.meshTopology } returns meshTopologyFlow
         every { collectionsRepository.collections } returns collectionsFlow
         every { networkRepo.hasLocationOrNearbyPermission() } returns false
 
@@ -123,7 +129,11 @@ class MainStudioViewModelTest {
     fun `hydrate sets hydrateError when database not found`() = runTest {
         coEvery { databaseRepository.getById(99L) } returns null
 
-        val vm = MainStudioViewModel(99L, databaseRepository, dittoManager, systemRepository, networkRepo, subscriptionsRepository, collectionsRepository, logCaptureService, observableRepository)
+        val session99 = createSession(databaseId = 99L)
+        val vm = MainStudioViewModel(
+            sessionProvider = { session99 },
+            savedStateHandle = SavedStateHandle(),
+        )
         advanceUntilIdle()
 
         assertNotNull(vm.hydrateError)
@@ -154,6 +164,22 @@ class MainStudioViewModelTest {
         assertTrue(state is PeersUiState.Active)
         assertEquals(localPeer, (state as PeersUiState.Active).localPeer)
         collectionJob.cancel()
+    }
+
+    @Test
+    fun `showDirectConnectedOnly defaults to true`() = runTest {
+        val vm = createViewModel()
+        assertTrue(vm.showDirectConnectedOnly.value)
+    }
+
+    @Test
+    fun `toggleDirectConnectedOnly flips the flag`() = runTest {
+        val vm = createViewModel()
+        assertTrue(vm.showDirectConnectedOnly.value)
+        vm.toggleDirectConnectedOnly()
+        assertEquals(false, vm.showDirectConnectedOnly.value)
+        vm.toggleDirectConnectedOnly()
+        assertTrue(vm.showDirectConnectedOnly.value)
     }
 
     @Test
@@ -223,8 +249,8 @@ class MainStudioViewModelTest {
         coVerify { databaseRepository.save(any()) }
     }
 
-    private fun createViewModel() = MainStudioViewModel(
-        databaseId = 1L,
+    private fun createSession(databaseId: Long = 1L): StudioSession = StudioSession(
+        databaseId = databaseId,
         databaseRepository = databaseRepository,
         dittoManager = dittoManager,
         systemRepository = systemRepository,
@@ -235,6 +261,14 @@ class MainStudioViewModelTest {
         observableRepository = observableRepository,
         ioDispatcher = testDispatcher,
     )
+
+    private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): MainStudioViewModel {
+        val session = createSession()
+        return MainStudioViewModel(
+            sessionProvider = { session },
+            savedStateHandle = savedStateHandle,
+        )
+    }
 
     @Test
     fun `hydrate loads observers from repository`() = runTest {
@@ -281,5 +315,148 @@ class MainStudioViewModelTest {
 
         coVerify { observableRepository.removeObservable(5) }
         assertTrue(vm.observers.value.isEmpty())
+    }
+
+    @Test
+    fun `state initializes from a pre-populated SavedStateHandle`() = runTest {
+        val handle = SavedStateHandle(
+            mapOf(
+                MainStudioViewModel.KEY_SELECTED_NAV to StudioNavItem.QUERY.name,
+            )
+        )
+
+        val vm = createViewModel(savedStateHandle = handle)
+        // No need to advance — these are read directly from the handle, not from a coroutine
+
+        assertEquals(StudioNavItem.QUERY, vm.selectedNavItem)
+    }
+
+    @Test
+    fun `mutations write back to the SavedStateHandle`() = runTest {
+        val handle = SavedStateHandle()
+        val vm = createViewModel(savedStateHandle = handle)
+
+        vm.selectedNavItem = StudioNavItem.OBSERVERS
+
+        assertEquals(StudioNavItem.OBSERVERS.name, handle.get<String>(MainStudioViewModel.KEY_SELECTED_NAV))
+    }
+
+    @Test
+    fun `stale saved state with nonexistent nav item falls back to SUBSCRIPTIONS without crashing`() = runTest {
+        val handle = SavedStateHandle(
+            mapOf(
+                MainStudioViewModel.KEY_SELECTED_NAV to "NONEXISTENT_SECTION",
+            )
+        )
+
+        val vm = createViewModel(savedStateHandle = handle)
+        // Should not throw IllegalArgumentException from valueOf()
+
+        assertEquals(StudioNavItem.SUBSCRIPTIONS, vm.selectedNavItem)
+    }
+
+    // ── Fix 1: ephemeral UI state survives section switch (shared session) ────
+
+    @Test
+    fun `selectedObserver set via VM A is visible via VM B sharing the same session`() = runTest {
+        val sharedSession = createSession()
+        val vmA = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+
+        val observer = DittoObservable(id = 42, databaseId = "test-db-id", name = "Obs", query = "SELECT * FROM c")
+        vmA.selectedObserver = observer
+
+        // VM B reads the same session.uiState — value must be the one VM A wrote.
+        assertEquals(observer, vmB.selectedObserver)
+    }
+
+    @Test
+    fun `eventCurrentPage set via VM A is visible via VM B sharing the same session`() = runTest {
+        val sharedSession = createSession()
+        val vmA = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sharedSession }, savedStateHandle = SavedStateHandle())
+
+        vmA.eventCurrentPage = 3
+
+        assertEquals(3, vmB.eventCurrentPage)
+    }
+
+    @Test
+    fun `ephemeral state in session is independent from another session`() = runTest {
+        val sessionA = createSession(databaseId = 1L)
+        val sessionB = createSession(databaseId = 1L) // separate instance
+        val vmA = MainStudioViewModel(sessionProvider = { sessionA }, savedStateHandle = SavedStateHandle())
+        val vmB = MainStudioViewModel(sessionProvider = { sessionB }, savedStateHandle = SavedStateHandle())
+
+        val observer = DittoObservable(id = 7, databaseId = "test-db-id", name = "X", query = "SELECT * FROM t")
+        vmA.selectedObserver = observer
+
+        // Different session instance — vmB must not see vmA's state.
+        assertEquals(null, vmB.selectedObserver)
+    }
+
+    // ── executeModes derivation ──────────────────────────────────────────────
+
+    @Test
+    fun `executeModes is Local only when httpApiUrl is blank`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "",
+            httpApiKey = "key",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeModes is Local only when httpApiKey is blank`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeModes is Local and HTTP when both are set`() = runTest {
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "k",
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local", "HTTP"), vm.session.uiState.queryWorkbench.executeModes.value)
+    }
+
+    @Test
+    fun `executeMode resets to Local when HTTP drops out of executeModes`() = runTest {
+        // Start with HTTP available + selected.
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "host.example",
+            httpApiKey = "k",
+        )
+        val vm = createViewModel()
+        advanceUntilIdle()
+        vm.session.uiState.queryWorkbench.executeMode.value = "HTTP"
+
+        // Then re-hydrate with HTTP removed — VM-side hook re-derives executeModes and
+        // sees "HTTP" is no longer valid → resets to "Local".
+        coEvery { databaseRepository.getById(1L) } returns testDatabase.copy(
+            httpApiUrl = "",
+            httpApiKey = "k",
+        )
+        vm.session.hydrate()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Local"), vm.session.uiState.queryWorkbench.executeModes.value)
+        assertEquals("Local", vm.session.uiState.queryWorkbench.executeMode.value)
     }
 }

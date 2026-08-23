@@ -244,14 +244,14 @@
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <materialIcons:MaterialIcon Kind="Hub"
                                                                         Width="18" Height="18"
-                                                                        Foreground="{DynamicResource SukiPrimaryColor}"/>
+                                                                        Foreground="{DynamicResource DittoAccent}"/>
                                             <TextBlock Text="Local Peer"
                                                        FontSize="16" FontWeight="Bold"/>
                                         </StackPanel>
 
                                         <!-- Divider -->
                                         <Border Height="1"
-                                                Background="{DynamicResource SukiBorderBrush}"
+                                                Background="{DynamicResource StudioGlassHighlight}"
                                                 Margin="0,8" Opacity="0.2"/>
 
                                         <!-- Info rows: label / value pairs -->
@@ -313,7 +313,7 @@
                     <!-- Section divider: line — "Local Network" — line -->
                     <Grid ColumnDefinitions="*,Auto,*" Margin="0,8,0,12">
                         <Border Grid.Column="0" Height="1"
-                                Background="{DynamicResource SukiBorderBrush}"
+                                Background="{DynamicResource StudioGlassHighlight}"
                                 Opacity="0.3"
                                 VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
@@ -322,7 +322,7 @@
                                    Opacity="0.6"
                                    Margin="12,0"/>
                         <Border Grid.Column="2" Height="1"
-                                Background="{DynamicResource SukiBorderBrush}"
+                                Background="{DynamicResource StudioGlassHighlight}"
                                 Opacity="0.3"
                                 VerticalAlignment="Center"/>
                     </Grid>

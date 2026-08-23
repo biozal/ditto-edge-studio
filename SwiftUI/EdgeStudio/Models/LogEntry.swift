@@ -61,55 +61,130 @@ enum LogComponent: String, CaseIterable {
     /// Maps a Ditto SDK `target` field (e.g. "ditto::sync") to a component.
     static func from(target: String) -> LogComponent {
         let lower = target.lowercased()
-        if lower.contains("sync") { return .sync }
-        if lower.contains("replication") { return .sync }
-        if lower.contains("subscription") { return .sync }
-        if lower.contains("store") { return .store }
-        if lower.contains("service=blob") { return .store }
-        if lower.contains("query") { return .query }
-        if lower.contains("sqlparser") || lower.contains("sql_parser") { return .query }
-        if lower.contains("observer") { return .observer }
-        if lower.contains("transport") { return .transport }
-        if lower.contains("discovery") { return .transport }
-        if lower.contains("presence") { return .transport }
-        if lower.contains("multihop") { return .transport }
-        if lower.contains("network") { return .transport }
-        if lower.contains("ble") { return .transport }
-        if lower.contains("tcp") { return .transport }
-        if lower.contains("awdl") { return .transport }
-        if lower.contains("virtual_connection") { return .transport }
-        if lower.contains("router") { return .transport }
-        if lower.contains("auth") { return .auth }
+        if lower.contains("sync") {
+            return .sync
+        }
+        if lower.contains("replication") {
+            return .sync
+        }
+        if lower.contains("subscription") {
+            return .sync
+        }
+        if lower.contains("store") {
+            return .store
+        }
+        if lower.contains("service=blob") {
+            return .store
+        }
+        if lower.contains("query") {
+            return .query
+        }
+        if lower.contains("sqlparser") || lower.contains("sql_parser") {
+            return .query
+        }
+        if lower.contains("observer") {
+            return .observer
+        }
+        if lower.contains("transport") {
+            return .transport
+        }
+        if lower.contains("discovery") {
+            return .transport
+        }
+        if lower.contains("presence") {
+            return .transport
+        }
+        if lower.contains("multihop") {
+            return .transport
+        }
+        if lower.contains("network") {
+            return .transport
+        }
+        if lower.contains("ble") {
+            return .transport
+        }
+        if lower.contains("tcp") {
+            return .transport
+        }
+        if lower.contains("awdl") {
+            return .transport
+        }
+        if lower.contains("virtual_connection") {
+            return .transport
+        }
+        if lower.contains("router") {
+            return .transport
+        }
+        if lower.contains("auth") {
+            return .auth
+        }
         return .other
     }
 
     /// Heuristic component detection from plain-text callback messages.
     static func heuristic(from message: String) -> LogComponent {
         let lower = message.lowercased()
-        if lower.contains("sync") { return .sync }
-        if lower.contains("replication") { return .sync }
-        if lower.contains("subscription") { return .sync }
-        if lower.contains("store") || lower.contains("insert") || lower.contains("document") { return .store }
-        if lower.contains("service=blob") { return .store }
+        if lower.contains("sync") {
+            return .sync
+        }
+        if lower.contains("replication") {
+            return .sync
+        }
+        if lower.contains("subscription") {
+            return .sync
+        }
+        if lower.contains("store") || lower.contains("insert") || lower.contains("document") {
+            return .store
+        }
+        if lower.contains("service=blob") {
+            return .store
+        }
         // Transport-first: well-known SDK operation names that must not be hijacked by a
         // "query" substring appearing later in the long message body.
         if lower.hasPrefix("add_ble_transport") ||
             lower.hasPrefix("start_tcp_server") ||
             lower.hasPrefix("add_awdl_transport") ||
-            lower.hasPrefix("add_wifi_transport") { return .transport }
+            lower.hasPrefix("add_wifi_transport")
+        {
+            return .transport
+        }
         // Additional missing transport keywords
-        if lower.contains("tcp") { return .transport }
-        if lower.contains("awdl") { return .transport }
-        if lower.contains("query") || lower.contains("select") { return .query }
-        if lower.hasPrefix("parsing sql") || lower.contains("sql parser") { return .query }
-        if lower.contains("observer") { return .observer }
-        if lower.contains("transport") || lower.contains("bluetooth") || lower.contains("wifi") { return .transport }
-        if lower.contains("discovery") || lower.contains("mdns") { return .transport }
-        if lower.contains("presence") || lower.contains("multihop") { return .transport }
-        if lower.contains("ble_") || lower.contains(" ble") { return .transport }
-        if lower.contains("virtual_connection") { return .transport }
-        if lower.contains("router_") { return .transport }
-        if lower.contains("auth") || lower.contains("token") { return .auth }
+        if lower.contains("tcp") {
+            return .transport
+        }
+        if lower.contains("awdl") {
+            return .transport
+        }
+        if lower.contains("query") || lower.contains("select") {
+            return .query
+        }
+        if lower.hasPrefix("parsing sql") || lower.contains("sql parser") {
+            return .query
+        }
+        if lower.contains("observer") {
+            return .observer
+        }
+        if lower.contains("transport") || lower.contains("bluetooth") || lower.contains("wifi") {
+            return .transport
+        }
+        if lower.contains("discovery") || lower.contains("mdns") {
+            return .transport
+        }
+        if lower.contains("presence") || lower.contains("multihop") {
+            return .transport
+        }
+        if lower.contains("ble_") || lower.contains(" ble") {
+            return .transport
+        }
+        if lower.contains("virtual_connection") {
+            return .transport
+        }
+        if lower.contains("router_") {
+            return .transport
+        }
+        if lower.contains("auth") || lower.contains("token") {
+            return .auth
+        }
         return .other
     }
 }

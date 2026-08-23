@@ -33,11 +33,13 @@ The Metrics feature provides two complementary views accessible from the sidebar
 
 Both views display only in-session data. Nothing is persisted to disk and nothing carries over between app launches.
 
+**Related:** the **Profile tab** in the Query results pane (next to Raw and Table) is a complementary surface — it captures the deeper `PROFILE` envelope for the most recent SELECT and visualises the operator tree. Profile capture shares the same **Collect Metrics** toggle as its on/off switch. See [PROFILE.md](PROFILE.md) for the engineering reference.
+
 ---
 
 ## What Is and Is Not Counted
 
-**Only queries you explicitly run from the query editor are counted.** Specifically, only calls that go through `QueryService.executeSelectedAppQuery()` are recorded.
+**Only queries routed through `QueryService.executeSelectedAppQuery()` are counted.** That covers queries you run from the query editor, and also MCP tool calls — `execute_dql` (in local-store mode) and `drop_index` route through the same path and are counted when metrics are enabled. (`execute_dql` with `transport: "http"` uses `executeSelectedAppQueryHttp()` and is never recorded.)
 
 The following internal queries run automatically and are **intentionally invisible** to the metrics system — they call `ditto.store.execute()` directly, bypassing `QueryService`:
 
@@ -83,15 +85,18 @@ private let queryTimer   = AppMetricsTimer(label: "edge_studio.query.latency_ms"
 
 ### Write path in QueryService
 
-Every call to `executeSelectedAppQuery()` does the following around `ditto.store.execute()`:
+Every call to `executeSelectedAppQuery()` does the following around `ditto.store.execute()`. The instrumentation is gated on the **Collect Metrics** setting — when `metricsEnabled` is false, neither the counter nor the timer is written:
 
 ```swift
 let startDate = Date()
 let results = try await ditto.store.execute(query: query)
 let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
 
-queryCounter.increment()                  // → edge_studio.queries.total + 1
-queryTimer.recordMilliseconds(elapsedMs)  // → edge_studio.query.latency_ms sample
+let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+if isMetricsEnabled {
+    queryCounter.increment()                  // → edge_studio.queries.total + 1
+    queryTimer.recordMilliseconds(elapsedMs)  // → edge_studio.query.latency_ms sample
+}
 ```
 
 After recording to the aggregate store, `QueryService` also captures a full `QueryExplainRecord` in `QueryMetricsRepository` (see [Query Metrics View](#query-metrics-view)).
@@ -275,7 +280,7 @@ Timestamps display as `MMM d, HH:mm:ss.SSS` (e.g. `Feb 22, 14:23:30.590`), inclu
 ## Prometheus Export
 
 **File:** `Data/MetricsBackend.swift` — `PrometheusExportBackend` actor
-**UI:** `Views/Metrics/MetricsInspectorView.swift`
+**UI:** `Views/StudioView/InspectorViews.swift` — `metricsExportInspectorContent()`
 
 This is an optional feature. When a Pushgateway URL is configured, Edge Studio periodically pushes the current counter snapshot to a [Prometheus Pushgateway](https://github.com/prometheus/pushgateway) in the standard text exposition format.
 
@@ -304,9 +309,9 @@ edge_studio_query_latency_ms 3.7
 
 Labels with `.` and `-` are converted to `_` to comply with Prometheus naming rules. All metrics are exported as `gauge` type (not `counter`) because the values are read directly from the in-memory store.
 
-The job label is fixed as `edge-studio`:
+The job label is fixed as `edge_studio`:
 ```
-PUT {pushgatewayURL}/metrics/job/edge-studio
+PUT {pushgatewayURL}/metrics/job/edge_studio
 ```
 
 ### Push Now
@@ -361,4 +366,4 @@ App closed → all in-memory data discarded
 | `Components/MetricCard.swift` | Reusable card component with optional help popover |
 | `Views/Metrics/AppMetricsDetailView.swift` | Process + queries + storage aggregate view |
 | `Views/Metrics/QueryMetricsDetailView.swift` | Per-query log view |
-| `Views/Metrics/MetricsInspectorView.swift` | Prometheus export configuration panel |
+| `Views/StudioView/InspectorViews.swift` | Prometheus export configuration panel (`metricsExportInspectorContent()`) |

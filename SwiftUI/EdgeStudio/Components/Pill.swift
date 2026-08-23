@@ -12,7 +12,7 @@ struct Pill: View {
             .padding(.vertical, 8) // Increased from 6
             .background(.ultraThinMaterial)
             .background(color.opacity(0.15)) // Subtle tint
-            .foregroundColor(color)
+            .foregroundStyle(color)
             .clipShape(Capsule())
             .overlay(Capsule()
                 .stroke(color.opacity(0.3), lineWidth: 0.5))

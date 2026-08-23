@@ -3,7 +3,10 @@ import Foundation
 
 // MARK: - Tool Definition
 
-struct MCPTool {
+/// Immutable tool-manifest entry. `@unchecked Sendable` because `inputSchema`
+/// is a constant JSON-schema dictionary built once in `allTools` and never
+/// mutated, so sharing across concurrency domains is safe.
+struct MCPTool: @unchecked Sendable {
     let name: String
     let description: String
     let inputSchema: [String: Any]
@@ -101,13 +104,17 @@ enum MCPToolHandlers {
         ),
         MCPTool(
             name: "drop_index",
-            description: "Drop an existing index by name.",
+            description: "Drop an existing index by name. The owning collection is resolved automatically from the database's index metadata; pass 'collection' to disambiguate when several collections have an index with the same name.",
             inputSchema: [
                 "type": "object",
                 "properties": [
                     "index_name": [
                         "type": "string",
                         "description": "The index name to drop (e.g. 'idx_myCollection_name')"
+                    ],
+                    "collection": [
+                        "type": "string",
+                        "description": "Optional collection that owns the index. Required only when the same index name exists on multiple collections."
                     ]
                 ],
                 "required": ["index_name"]
@@ -152,7 +159,7 @@ enum MCPToolHandlers {
         ),
         MCPTool(
             name: "insert_documents_from_file",
-            description: "Insert documents from a local JSON file into a Ditto collection. The file must contain a JSON array of objects; each object must have an '_id' field. Use mode 'insert' (default) to upsert on conflict, or 'insert_initial' to skip documents whose '_id' already exists. The file must be in the user's Downloads folder (~/Downloads) due to macOS sandbox restrictions.",
+            description: "Insert documents from a local JSON file into a Ditto collection. The file must contain a JSON array of objects; each object must have an '_id' field. Use mode 'insert' (default) to upsert on conflict, or 'insert_initial' to skip documents whose '_id' already exists. The path must be readable by the app — under the macOS app sandbox, the user's Downloads folder (~/Downloads) is the reliable location; other paths may work if the sandbox permits reading them.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -352,8 +359,7 @@ enum MCPToolHandlers {
             "name": config.name,
             "databaseId": config.databaseId,
             "mode": config.mode.rawValue,
-            "authUrl": config.authUrl,
-            "websocketUrl": config.websocketUrl,
+            "url": config.url,
             "httpApiUrl": config.httpApiUrl,
             "httpApiConfigured": !config.httpApiUrl.isEmpty && !config.httpApiKey.isEmpty,
             "allowUntrustedCerts": config.allowUntrustedCerts,
@@ -413,12 +419,28 @@ enum MCPToolHandlers {
             throw MCPError.missingArgument("field")
         }
 
-        try await CollectionsRepository.shared.createIndex(collection: collection, fieldName: field)
+        // Trim before use so the reported name matches the one the repository
+        // actually creates (the repository trims field names before naming).
+        let trimmedField = field.trimmingCharacters(in: .whitespaces)
+        let fields = [IndexField(name: trimmedField, ascending: true)]
+        let safeName = CollectionsRepository.makeIndexName(collection: collection, fields: fields)
 
-        let safeName = "idx_\(collection)_\(field)"
-            .replacingOccurrences(of: ".", with: "_")
-            .replacingOccurrences(of: " ", with: "_")
-        return "Index '\(safeName)' created successfully on \(collection)(\(field))"
+        // CREATE INDEX IF NOT EXISTS is an idempotent no-op when an identical
+        // index already exists — detect that case so the message is accurate.
+        // A same-named index with a different definition still throws from the
+        // repository, so pre-checking does not mask the conflict error.
+        // Match via indexMatches (known-prefix strip), not displayName, so
+        // collection names containing dots compare correctly.
+        let alreadyExists = try await CollectionsRepository.shared.refreshCollections()
+            .first { $0.name == collection }?
+            .indexes.contains { Self.indexMatches(_id: $0._id, collection: collection, name: safeName) } ?? false
+
+        try await CollectionsRepository.shared.createIndex(collection: collection, fields: fields)
+
+        if alreadyExists {
+            return "Index '\(safeName)' already exists on \(collection)(\(trimmedField)) — no changes made"
+        }
+        return "Index '\(safeName)' created successfully on \(collection)(\(trimmedField))"
     }
 
     // MARK: drop_index
@@ -427,16 +449,90 @@ enum MCPToolHandlers {
         guard let indexName = arguments["index_name"] as? String, !indexName.isEmpty else {
             throw MCPError.missingArgument("index_name")
         }
+        let requestedCollection = arguments["collection"] as? String
+
+        // DQL requires DROP INDEX <name> ON <collection> — resolve the owning
+        // collection from the index metadata (system:indexes stores _id as
+        // "collection.indexName"). Match by bare name or full _id via
+        // indexMatches — DittoIndex.displayName strips at the FIRST dot and
+        // would mis-match when the collection name itself contains dots.
+        let matches = try await CollectionsRepository.shared.refreshCollections()
+            .flatMap { col in col.indexes.map { (collection: col.name, index: $0) } }
+            .filter { Self.indexMatches(_id: $0.index._id, collection: $0.collection, name: indexName) }
+
+        let candidates = requestedCollection.map { wanted in
+            matches.filter { $0.collection == wanted }
+        } ?? matches
+
+        guard let match = candidates.first else {
+            if let requestedCollection, !matches.isEmpty {
+                throw MCPError.executionFailed(
+                    "Index '\(indexName)' does not exist on collection '\(requestedCollection)' "
+                        + "(found on: \(matches.map(\.collection).sorted().joined(separator: ", ")))"
+                )
+            }
+            throw MCPError.executionFailed(
+                "Index '\(indexName)' not found in the active database. "
+                    + "Use list_indexes to see available indexes."
+            )
+        }
+        guard candidates.count == 1 else {
+            let owners = candidates.map(\.collection).sorted().joined(separator: ", ")
+            throw MCPError.executionFailed(
+                "Index '\(indexName)' exists on multiple collections (\(owners)). "
+                    + "Pass the 'collection' argument to disambiguate."
+            )
+        }
+
+        // Derive the bare index name by stripping the known "<collection>."
+        // prefix from the stored _id. DittoIndex.displayName strips at the
+        // FIRST dot, which corrupts the name when the collection itself
+        // contains dots (_id "my.col.idx_x" → displayName "col.idx_x").
+        let bareIndexName = Self.indexNameByStrippingCollectionPrefix(
+            _id: match.index._id,
+            collection: match.collection
+        )
 
         let results = try await QueryService.shared.executeSelectedAppQuery(
-            query: "DROP INDEX \(indexName)"
+            query: "DROP INDEX \(quoteIdentifier(bareIndexName)) ON \(quoteIdentifier(match.collection))"
         )
         let output = results.joined(separator: "\n")
 
         if output.lowercased().contains("error") {
             return "Failed to drop index '\(indexName)': \(output)"
         }
-        return "Index '\(indexName)' dropped successfully"
+        return "Index '\(indexName)' dropped successfully from '\(match.collection)'"
+    }
+
+    /// Backtick-quotes a single DQL identifier, escaping embedded backticks by
+    /// doubling (mirrors `CollectionsRepository.quoteIdentifier`, which is not
+    /// shared with this file).
+    private static func quoteIdentifier(_ name: String) -> String {
+        "`\(name.replacingOccurrences(of: "`", with: "``"))`"
+    }
+
+    /// Derives the bare index name from a `system:indexes` `_id` of the form
+    /// `"<collection>.<indexName>"` by stripping the known collection prefix.
+    /// Unlike `DittoIndex.displayName` (which strips at the FIRST dot), this
+    /// is correct when the collection name itself contains dots.
+    static func indexNameByStrippingCollectionPrefix(_id: String, collection: String) -> String {
+        let prefix = "\(collection)."
+        if _id.hasPrefix(prefix) {
+            return String(_id.dropFirst(prefix.count))
+        }
+        // Unexpected format — fall back to the first-dot strip (displayName).
+        guard let dot = _id.firstIndex(of: ".") else { return _id }
+        return String(_id[_id.index(after: dot)...])
+    }
+
+    /// True when `name` refers to the index stored as `_id` on `collection`,
+    /// accepting either the full `_id` ("my.col.idx_x") or the bare index
+    /// name ("idx_x"). Uses the known-prefix strip, so it stays correct when
+    /// the collection name contains dots (where `DittoIndex.displayName`
+    /// strips at the first dot and mis-matches).
+    static func indexMatches(_id: String, collection: String, name: String) -> Bool {
+        _id == name
+            || indexNameByStrippingCollectionPrefix(_id: _id, collection: collection) == name
     }
 
     // MARK: get_query_metrics
@@ -516,7 +612,6 @@ enum MCPToolHandlers {
         let newBluetooth = arguments["bluetooth"] as? Bool ?? config.isBluetoothLeEnabled
         let newLan = arguments["lan"] as? Bool ?? config.isLanEnabled
         let newAwdl = arguments["awdl"] as? Bool ?? config.isAwdlEnabled
-        let newCloud = arguments["cloud"] as? Bool ?? config.isCloudSyncEnabled
 
         // Step 1: Stop sync
         await DittoManager.shared.selectedDatabaseStopSync()
@@ -526,28 +621,43 @@ enum MCPToolHandlers {
         try await DittoManager.shared.applyTransportConfig(
             isBluetoothLeEnabled: newBluetooth,
             isLanEnabled: newLan,
-            isAwdlEnabled: newAwdl,
-            isCloudSyncEnabled: newCloud
+            isAwdlEnabled: newAwdl
         )
 
-        // Update persisted config
-        config.isBluetoothLeEnabled = newBluetooth
-        config.isLanEnabled = newLan
-        config.isAwdlEnabled = newAwdl
-        config.isCloudSyncEnabled = newCloud
+        // Update persisted config. `DittoConfigForDatabase` is `@unchecked Sendable`
+        // under the contract that its properties are only ever *mutated* on the
+        // MainActor (actors/repositories read but never write them). This handler
+        // runs in a nonisolated async context, so the mutation must hop to the
+        // MainActor to avoid racing the @MainActor SwiftUI views that read these
+        // same properties. See DittoConfigForDatabase's Sendable note.
+        await MainActor.run {
+            config.isBluetoothLeEnabled = newBluetooth
+            config.isLanEnabled = newLan
+            config.isAwdlEnabled = newAwdl
+        }
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
 
         // Step 3: Restart sync
-        try await DittoManager.shared.selectedDatabaseStartSync()
+        // Restarting sync re-applies the Advanced Configuration and is fail-closed on
+        // sync scopes, so it can throw. Restart the observers regardless — otherwise a
+        // scope failure leaves the session with sync off AND no observers running.
+        var syncStartError: Error?
+        do {
+            try await DittoManager.shared.selectedDatabaseStartSync()
+        } catch {
+            syncStartError = error
+        }
         try? await SystemRepository.shared.registerSyncStatusObserver()
         try? await SystemRepository.shared.registerConnectionsPresenceObserver()
+        if let syncStartError {
+            throw syncStartError
+        }
 
         let summary: [String: Any] = [
             "applied": [
                 "bluetoothLE": newBluetooth,
                 "lan": newLan,
-                "awdl": newAwdl,
-                "cloudSync": newCloud
+                "awdl": newAwdl
             ]
         ]
 

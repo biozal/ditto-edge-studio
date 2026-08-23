@@ -6,6 +6,8 @@ struct TableResultRow: Identifiable {
     let rowIndex: Int
     let originalJson: String // For copying entire row
     let cells: [String: TableCellValue]
+    /// Pre-computed at parse time — avoids re-parsing JSON inside contextMenu builders.
+    let hasAttachments: Bool
 }
 
 /// Represents different types of values that can appear in table cells

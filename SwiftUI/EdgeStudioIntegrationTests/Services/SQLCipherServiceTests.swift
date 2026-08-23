@@ -16,28 +16,27 @@ import Testing
 /// Target: 95% code coverage
 @Suite("SQLCipher Service Tests")
 struct SQLCipherServiceTests {
-
     // MARK: - Initialization & Encryption Tests
 
     @Suite("Initialization & Encryption")
     struct InitializationTests {
-
-        @Test("Service initializes successfully", .tags(.database, .encryption))
-        func testInitialization() async throws {
+        @Test(.tags(.database, .encryption))
+        func `Service initializes successfully`() async throws {
             try await TestHelpers.withUninitializedDatabase {
                 let service = SQLCipherContext.current
 
                 // Service should initialize without errors
                 try await service.initialize()
 
-                // Should be able to query (proves encryption worked)
+                // Should be able to query. Proves the connection opened and the schema is
+                // usable — not that anything is encrypted (`docs/CREDENTIAL_STORAGE.md`).
                 let configs = try await service.getAllDatabaseConfigs()
                 #expect(configs.isEmpty) // Fresh database
             }
         }
 
-        @Test("Encryption key is generated and stored", .tags(.encryption))
-        func testEncryptionKeyGeneration() async throws {
+        @Test(.tags(.encryption))
+        func `Encryption key is generated and stored`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
                 // Key was generated during initialize() — retrieve and verify length
@@ -46,8 +45,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Encryption key persists across reinitializations", .tags(.encryption))
-        func testEncryptionKeyPersistence() async throws {
+        @Test(.tags(.encryption))
+        func `Encryption key persists across reinitializations`() async throws {
             try await TestHelpers.withUninitializedDatabase {
                 let service = SQLCipherContext.current
                 // First initialization — generates key
@@ -67,19 +66,94 @@ struct SQLCipherServiceTests {
 
     @Suite("Schema Management")
     struct SchemaTests {
-
-        @Test("Fresh database creates schema version 4", .tags(.database))
-        func testSchemaVersion() async throws {
+        @Test(.tags(.database))
+        func `Fresh database creates schema version 5`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
                 let version = try await service.getSchemaVersion()
-                #expect(version == 4) // Current schema version
+                #expect(version == 5) // Current schema version
             }
         }
 
-        @Test("Database has all required tables", .tags(.database))
-        func testSchemaTablesExist() async throws {
+        /// The v5 migration adds two columns and bumps `user_version` inside one
+        /// transaction, and each `ALTER TABLE` is skipped when the column already
+        /// exists. Re-running it must therefore be a no-op rather than a "duplicate
+        /// column name" error — which would otherwise make `initialize()` throw on
+        /// every subsequent launch and lock the user out of all stored configs.
+        @Test(.tags(.database))
+        func `Re-running the v5 migration is idempotent`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                let service = SQLCipherContext.current
+
+                // ARRANGE — a config written under the current schema.
+                let config = DatabaseConfigFixtures.validServerConfig()
+                try await DatabaseRepository.shared.addDittoAppConfig(config)
+
+                // ACT — force the migration to run again over an already-migrated DB.
+                try await service.migrateSchema(from: 4, to: 5)
+
+                // ASSERT — still readable, still version 5.
+                #expect(try await service.getSchemaVersion() == 5)
+                let rows = try await service.getAllDatabaseConfigs()
+                #expect(rows.count == 1)
+                #expect(rows[0].collectionSyncScopes == "[]")
+                #expect(rows[0].startupSettings == "[]")
+            }
+        }
+
+        /// Advanced settings persist through the new JSON columns.
+        @Test(.tags(.database))
+        func `Advanced settings round-trip through the v5 columns`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                let repo = DatabaseRepository.shared
+                let config = DatabaseConfigFixtures.validServerConfig()
+                config.collectionSyncScopes = [
+                    CollectionSyncScope(collection: "orders", scope: .localPeerOnly),
+                    CollectionSyncScope(collection: "audit", scope: .smallPeersOnly)
+                ]
+                config.startupSettings = [
+                    StartupSetting(parameter: "example_parameter", type: .integer, value: "42")
+                ]
+
+                // ACT
+                try await repo.addDittoAppConfig(config)
+                let loaded = try await repo.loadDatabaseConfigs()
+
+                // ASSERT
+                #expect(loaded.count == 1)
+                #expect(loaded[0].collectionSyncScopes == config.collectionSyncScopes)
+                #expect(loaded[0].startupSettings == config.startupSettings)
+            }
+        }
+
+        /// Regression guard for the trap that already bit `logLevel`: saving an
+        /// unrelated field must not wipe the advanced settings.
+        @Test(.tags(.database))
+        func `Updating an unrelated field preserves sync scopes`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                let repo = DatabaseRepository.shared
+                let config = DatabaseConfigFixtures.validServerConfig()
+                config.collectionSyncScopes = [
+                    CollectionSyncScope(collection: "orders", scope: .localPeerOnly)
+                ]
+                try await repo.addDittoAppConfig(config)
+
+                // ACT — change only the name, the way the editor's Save does.
+                config.name = "Renamed"
+                try await repo.updateDittoAppConfig(config)
+                let loaded = try await repo.loadDatabaseConfigs()
+
+                // ASSERT
+                #expect(loaded[0].name == "Renamed")
+                #expect(loaded[0].collectionSyncScopes == [
+                    CollectionSyncScope(collection: "orders", scope: .localPeerOnly)
+                ])
+            }
+        }
+
+        @Test(.tags(.database))
+        func `Database has all required tables`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -89,8 +163,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Database configs table has credential columns", .tags(.database))
-        func testDatabaseConfigsHasCredentialColumns() async throws {
+        @Test(.tags(.database))
+        func `Database configs table has credential columns`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -107,10 +181,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: true,
                     token: "test-token",
                     authUrl: "https://auth.test.com",
-                    websocketUrl: "wss://ws.test.com",
                     httpApiUrl: "https://api.test.com",
                     httpApiKey: "test-api-key",
-                    secretKey: "test-secret", logLevel: "info"                )
+                    secretKey: "test-secret", logLevel: "info"
+                )
 
                 try await service.insertDatabaseConfig(config)
 
@@ -119,7 +193,6 @@ struct SQLCipherServiceTests {
                 #expect(configs.count == 1)
                 #expect(configs[0].token == "test-token")
                 #expect(configs[0].authUrl == "https://auth.test.com")
-                #expect(configs[0].websocketUrl == "wss://ws.test.com")
                 #expect(configs[0].httpApiUrl == "https://api.test.com")
                 #expect(configs[0].httpApiKey == "test-api-key")
                 #expect(configs[0].secretKey == "test-secret")
@@ -131,9 +204,8 @@ struct SQLCipherServiceTests {
 
     @Suite("Database Config CRUD Operations")
     struct CRUDTests {
-
-        @Test("Insert database config stores all fields", .tags(.database))
-        func testInsertConfig() async throws {
+        @Test(.tags(.database))
+        func `Insert database config stores all fields`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -149,10 +221,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: true,
                     token: "my-token",
                     authUrl: "https://auth.example.com",
-                    websocketUrl: "wss://sync.example.com",
                     httpApiUrl: "https://api.example.com",
                     httpApiKey: "api-key-123",
-                    secretKey: "", logLevel: "info"                )
+                    secretKey: "", logLevel: "info"
+                )
 
                 try await service.insertDatabaseConfig(config)
 
@@ -165,8 +237,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Insert multiple configs stores all", .tags(.database))
-        func testInsertMultipleConfigs() async throws {
+        @Test(.tags(.database))
+        func `Insert multiple configs stores all`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -184,10 +256,10 @@ struct SQLCipherServiceTests {
                         isCloudSyncEnabled: true,
                         token: "token-\(i)",
                         authUrl: "https://auth\(i).com",
-                        websocketUrl: "wss://ws\(i).com",
                         httpApiUrl: "https://api\(i).com",
                         httpApiKey: "key-\(i)",
-                        secretKey: "", logLevel: "info"                    )
+                        secretKey: "", logLevel: "info"
+                    )
                     try await service.insertDatabaseConfig(config)
                 }
 
@@ -196,8 +268,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Update config changes all fields", .tags(.database))
-        func testUpdateConfig() async throws {
+        @Test(.tags(.database))
+        func `Update config changes all fields`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -215,10 +287,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: true,
                     token: "original-token",
                     authUrl: "https://original.com",
-                    websocketUrl: "wss://original.com",
                     httpApiUrl: "https://original-api.com",
                     httpApiKey: "original-key",
-                    secretKey: "", logLevel: "info"                )
+                    secretKey: "", logLevel: "info"
+                )
                 try await service.insertDatabaseConfig(initialConfig)
 
                 // Update config
@@ -234,10 +306,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: false,
                     token: "updated-token",
                     authUrl: "https://updated.com",
-                    websocketUrl: "wss://updated.com",
                     httpApiUrl: "https://updated-api.com",
                     httpApiKey: "updated-key",
-                    secretKey: "new-secret", logLevel: "info"                )
+                    secretKey: "new-secret", logLevel: "info"
+                )
                 try await service.updateDatabaseConfig(updatedConfig)
 
                 // Verify changes
@@ -250,8 +322,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete config removes entry", .tags(.database))
-        func testDeleteConfig() async throws {
+        @Test(.tags(.database))
+        func `Delete config removes entry`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -268,10 +340,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: true,
                     token: "token",
                     authUrl: "https://auth.com",
-                    websocketUrl: "wss://ws.com",
                     httpApiUrl: "https://api.com",
                     httpApiKey: "key",
-                    secretKey: "", logLevel: "info"                )
+                    secretKey: "", logLevel: "info"
+                )
                 try await service.insertDatabaseConfig(config)
 
                 // Verify it exists
@@ -287,8 +359,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Get all configs returns empty for fresh database", .tags(.database))
-        func testGetAllConfigsEmpty() async throws {
+        @Test(.tags(.database))
+        func `Get all configs returns empty for fresh database`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -300,11 +372,20 @@ struct SQLCipherServiceTests {
 
     // MARK: - Credential Storage Tests
 
-    @Suite("Credential Storage & Encryption")
+    @Suite("Credential Storage")
     struct CredentialTests {
-
-        @Test("Credentials stored encrypted at rest", .tags(.encryption, .database))
-        func testCredentialsEncrypted() async throws {
+        /// Round-trips credentials through the local store.
+        ///
+        /// **This test cannot and does not prove encryption.** It writes strings and reads
+        /// the same strings back, which is equally true of a plaintext file — and the store
+        /// *is* plaintext (`docs/CREDENTIAL_STORAGE.md`). It was named
+        /// `Credentials stored encrypted at rest`, which made the suite look like evidence
+        /// for a property nothing in the codebase provides. Proving encryption would mean
+        /// asserting on the bytes on disk — that the file does not begin with
+        /// `SQLite format 3` and that `super-secret-token` does not appear in it — and that
+        /// assertion would fail today.
+        @Test(.tags(.database))
+        func `Credentials round-trip through the local store`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -321,13 +402,14 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: true,
                     token: "super-secret-token",
                     authUrl: "https://secure-auth.com",
-                    websocketUrl: "wss://secure-ws.com",
                     httpApiUrl: "https://secure-api.com",
                     httpApiKey: "super-secret-api-key",
-                    secretKey: "super-secret-key", logLevel: "info"                )
+                    secretKey: "super-secret-key", logLevel: "info"
+                )
                 try await service.insertDatabaseConfig(config)
 
-                // Verify credentials can be retrieved (proves decryption works)
+                // Verify credentials can be retrieved. Proves persistence and column
+                // mapping — nothing about confidentiality.
                 let configs = try await service.getAllDatabaseConfigs()
                 #expect(configs[0].token == "super-secret-token")
                 #expect(configs[0].httpApiKey == "super-secret-api-key")
@@ -335,8 +417,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Empty credentials stored correctly", .tags(.database))
-        func testEmptyCredentials() async throws {
+        @Test(.tags(.database))
+        func `Empty credentials stored correctly`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
@@ -352,10 +434,10 @@ struct SQLCipherServiceTests {
                     isCloudSyncEnabled: false,
                     token: "",
                     authUrl: "",
-                    websocketUrl: "",
                     httpApiUrl: "",
                     httpApiKey: "",
-                    secretKey: "", logLevel: "info"                )
+                    secretKey: "", logLevel: "info"
+                )
                 try await service.insertDatabaseConfig(config)
 
                 let configs = try await service.getAllDatabaseConfigs()
@@ -370,9 +452,8 @@ struct SQLCipherServiceTests {
 
     @Suite("History CRUD Operations")
     struct HistoryCRUDTests {
-
-        @Test("Insert history stores entry", .tags(.database, .repository))
-        func testInsertHistory() async throws {
+        @Test(.tags(.database, .repository))
+        func `Insert history stores entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -382,7 +463,7 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
                 ))
                 let row = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
@@ -403,8 +484,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Get history returns entries ordered by date descending", .tags(.database, .repository))
-        func testGetHistoryOrder() async throws {
+        @Test(.tags(.database, .repository))
+        func `Get history returns entries ordered by date descending`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -413,7 +494,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let firstRow = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -439,8 +521,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete history removes entry", .tags(.database, .repository))
-        func testDeleteHistory() async throws {
+        @Test(.tags(.database, .repository))
+        func `Delete history removes entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -449,7 +531,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -467,8 +550,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete all history removes all entries for database", .tags(.database, .repository))
-        func testDeleteAllHistory() async throws {
+        @Test(.tags(.database, .repository))
+        func `Delete all history removes all entries for database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -477,7 +560,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.HistoryRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -497,8 +581,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("History is scoped per database", .tags(.database, .repository))
-        func testHistoryScopedByDatabase() async throws {
+        @Test(.tags(.database, .repository))
+        func `History is scoped per database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -508,12 +592,14 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertHistory(SQLCipherService.HistoryRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1,
                     query: "SELECT * FROM db1", createdDate: Date().ISO8601Format()
@@ -538,9 +624,8 @@ struct SQLCipherServiceTests {
 
     @Suite("Favorites CRUD Operations")
     struct FavoritesCRUDTests {
-
-        @Test("Insert favorite stores entry", .tags(.database, .repository))
-        func testInsertFavorite() async throws {
+        @Test(.tags(.database, .repository))
+        func `Insert favorite stores entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -549,7 +634,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -568,8 +654,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Get favorites returns multiple entries", .tags(.database, .repository))
-        func testGetFavoritesMultiple() async throws {
+        @Test(.tags(.database, .repository))
+        func `Get favorites returns multiple entries`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -578,7 +664,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 for i in 1 ... 4 {
                     let row = SQLCipherService.FavoriteRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -597,8 +684,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete favorite removes entry", .tags(.database, .repository))
-        func testDeleteFavorite() async throws {
+        @Test(.tags(.database, .repository))
+        func `Delete favorite removes entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -607,7 +694,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -625,8 +713,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Favorites are scoped per database", .tags(.database, .repository))
-        func testFavoritesScopedByDatabase() async throws {
+        @Test(.tags(.database, .repository))
+        func `Favorites are scoped per database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -636,12 +724,14 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertFavorite(SQLCipherService.FavoriteRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1,
                     query: "Q1", createdDate: Date().ISO8601Format()
@@ -666,9 +756,8 @@ struct SQLCipherServiceTests {
 
     @Suite("Subscriptions CRUD Operations")
     struct SubscriptionsCRUDTests {
-
-        @Test("Insert subscription stores entry", .tags(.database, .repository))
-        func testInsertSubscription() async throws {
+        @Test(.tags(.database, .repository))
+        func `Insert subscription stores entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -679,14 +768,16 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "Test DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                )
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                )
                 try await service.insertDatabaseConfig(dbConfig)
 
                 let row = SQLCipherService.SubscriptionRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
                     name: "All Cars",
-                    query: "SELECT * FROM cars",                )
+                    query: "SELECT * FROM cars"
+                )
 
                 // ACT
                 try await service.insertSubscription(row)
@@ -700,8 +791,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete subscription removes entry", .tags(.database, .repository))
-        func testDeleteSubscription() async throws {
+        @Test(.tags(.database, .repository))
+        func `Delete subscription removes entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -710,12 +801,14 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.SubscriptionRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
                     name: "To Delete",
-                    query: "SELECT * FROM items",                )
+                    query: "SELECT * FROM items"
+                )
                 try await service.insertSubscription(row)
 
                 // ACT
@@ -727,8 +820,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Get all subscriptions returns entries for database", .tags(.database, .repository))
-        func testGetAllSubscriptions() async throws {
+        @Test(.tags(.database, .repository))
+        func `Get all subscriptions returns entries for database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -737,13 +830,15 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.SubscriptionRow(
                         _id: TestHelpers.uniqueTestId(),
                         databaseId: dbId,
                         name: "Sub \(i)",
-                        query: "SELECT \(i)",                    )
+                        query: "SELECT \(i)"
+                    )
                     try await service.insertSubscription(row)
                 }
 
@@ -760,9 +855,8 @@ struct SQLCipherServiceTests {
 
     @Suite("Observables CRUD Operations")
     struct ObservablesCRUDTests {
-
-        @Test("Insert observable stores entry", .tags(.database, .repository))
-        func testInsertObservable() async throws {
+        @Test(.tags(.database, .repository))
+        func `Insert observable stores entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -771,7 +865,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -793,8 +888,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Get all observables returns entries for database", .tags(.database, .repository))
-        func testGetAllObservables() async throws {
+        @Test(.tags(.database, .repository))
+        func `Get all observables returns entries for database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -803,7 +898,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 for i in 1 ... 3 {
                     let row = SQLCipherService.ObservableRow(
                         _id: TestHelpers.uniqueTestId(),
@@ -824,8 +920,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Delete observable removes entry", .tags(.database, .repository))
-        func testDeleteObservable() async throws {
+        @Test(.tags(.database, .repository))
+        func `Delete observable removes entry`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -834,7 +930,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let row = SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(),
                     databaseId: dbId,
@@ -854,8 +951,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Update observable changes fields", .tags(.database, .repository))
-        func testUpdateObservable() async throws {
+        @Test(.tags(.database, .repository))
+        func `Update observable changes fields`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -864,7 +961,8 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let id = TestHelpers.uniqueTestId()
                 let original = SQLCipherService.ObservableRow(
                     _id: id, databaseId: dbId, name: "Original",
@@ -889,8 +987,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Observables are scoped per database", .tags(.database, .repository))
-        func testObservablesScopedByDatabase() async throws {
+        @Test(.tags(.database, .repository))
+        func `Observables are scoped per database`() async throws {
             // ARRANGE
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
@@ -900,12 +998,14 @@ struct SQLCipherServiceTests {
                     _id: TestHelpers.uniqueTestId(), name: "DB1", databaseId: dbId1,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertDatabaseConfig(SQLCipherService.DatabaseConfigRow(
                     _id: TestHelpers.uniqueTestId(), name: "DB2", databaseId: dbId2,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 try await service.insertObservable(SQLCipherService.ObservableRow(
                     _id: TestHelpers.uniqueTestId(), databaseId: dbId1, name: "Obs1",
                     query: "Q1", isActive: true, lastUpdated: nil
@@ -930,9 +1030,8 @@ struct SQLCipherServiceTests {
 
     @Suite("Test Isolation")
     struct IsolationTests {
-
-        @Test("withFreshDatabase provides task-local isolated service", .tags(.database))
-        func testWithFreshDatabaseIsolation() async throws {
+        @Test(.tags(.database))
+        func `withFreshDatabase provides task-local isolated service`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let taskLocalService = SQLCipherContext.current
                 // Task-local service is a different instance from the production singleton
@@ -940,8 +1039,8 @@ struct SQLCipherServiceTests {
             }
         }
 
-        @Test("Separate withFreshDatabase calls start with empty databases", .tags(.database))
-        func testSeparateCallsStartFresh() async throws {
+        @Test(.tags(.database))
+        func `Separate withFreshDatabase calls start with empty databases`() async throws {
             let dbId = "isolation-test-\(UUID().uuidString)"
             let configId = TestHelpers.uniqueTestId()
 
@@ -952,7 +1051,8 @@ struct SQLCipherServiceTests {
                     _id: configId, name: "IsolationDB", databaseId: dbId,
                     mode: "server", allowUntrustedCerts: false, isBluetoothLeEnabled: true,
                     isLanEnabled: true, isAwdlEnabled: true, isCloudSyncEnabled: true,
-                    token: "", authUrl: "", websocketUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"                ))
+                    token: "", authUrl: "", httpApiUrl: "", httpApiKey: "", secretKey: "", logLevel: "info"
+                ))
                 let configs = try await service.getAllDatabaseConfigs()
                 #expect(configs.count == 1)
             }

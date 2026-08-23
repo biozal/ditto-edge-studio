@@ -1,11 +1,11 @@
-# ditto-edge-studio Claude Code Plugin
+# ditto-edge-studio MCP integration
 
-Gives Claude Code access to the [Edge Studio](../../README.md) MCP server for querying and managing Ditto databases directly from your AI coding sessions.
+Gives Codex, Claude Code, and compatible clients access to the [Edge Studio](../../README.md) MCP server for querying and managing Ditto databases directly from AI coding sessions.
 
 ## Prerequisites
 
 - **Edge Studio** running on macOS with MCP Server enabled
-- **Claude Code** 1.x+
+- A local MCP client such as **Codex** or **Claude Code**
 
 ## Setup
 
@@ -16,9 +16,13 @@ Gives Claude Code access to the [Edge Studio](../../README.md) MCP server for qu
 3. Toggle **Enable MCP Server** ON
 4. Confirm the green status dot appears (Running on port 65269)
 
-### 2. Connect Claude Code
+### 2. Connect your agent
 
-The `.mcp.json` at the repository root is auto-discovered by Claude Code when you work in this project. No additional steps needed.
+For Codex, the repository's `.codex/config.toml` configures the server. Restart
+Codex and verify with `/mcp` or `codex mcp list`.
+
+For Claude Code, the `.mcp.json` at the repository root is auto-discovered when
+you work in this project. No additional steps are needed.
 
 To make it available globally across all projects:
 
@@ -41,11 +45,11 @@ curl -X POST http://localhost:65269/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-Should return a JSON array of 9 tools.
+Should return a JSON array of 15 tools.
 
 ## Usage
 
-Once connected, ask Claude Code naturally:
+Once connected, ask your agent naturally:
 
 - *"List the collections in my active database"*
 - *"Run this DQL query and explain what it's doing: SELECT * FROM orders WHERE status = 'pending'"*
@@ -65,7 +69,13 @@ Once connected, ask Claude Code naturally:
 | `drop_index` | Drop an index by name |
 | `get_query_metrics` | Recent query performance and EXPLAIN output |
 | `get_sync_status` | Connected peer count and transport config |
-| `configure_transport` | Toggle Bluetooth, LAN, AWDL, or Cloud Sync |
+| `configure_transport` | Toggle Bluetooth, LAN, or AWDL transports |
+| `insert_documents_from_file` | Insert documents from a local JSON file |
+| `set_sync` | Start or stop sync for the active database |
+| `get_peers` | Snapshot of all connected peers with full details |
+| `list_indexes` | List all indexes across every collection |
+| `get_app_logs` | Read recent Edge Studio application log entries |
+| `get_ditto_logs` | Read Ditto SDK log entries for the active database |
 
 For detailed parameter and return value docs, see [`skills/use-edge-studio/SKILL.md`](./skills/use-edge-studio/SKILL.md) or [`docs/MCP_SERVER.md`](../../docs/MCP_SERVER.md).
 

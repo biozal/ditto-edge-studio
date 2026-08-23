@@ -37,7 +37,9 @@ struct ObserverEventsTableView: View {
                             let values = rowValues(for: event)
                             HStack(spacing: 0) {
                                 ForEach(columnDefs.indices, id: \.self) { colIdx in
-                                    if colIdx > 0 { Divider() }
+                                    if colIdx > 0 {
+                                        Divider()
+                                    }
                                     Text(values[colIdx])
                                         .font(.system(.body, design: .monospaced))
                                         .lineLimit(1)
@@ -58,11 +60,14 @@ struct ObserverEventsTableView: View {
                             .onTapGesture {
                                 selectedEventId = isSelected ? nil : event.id
                             }
+                            .accessibilityIdentifier("ObserverEventRow")
                         }
                     } header: {
                         HStack(spacing: 0) {
                             ForEach(columnDefs.indices, id: \.self) { colIdx in
-                                if colIdx > 0 { Divider() }
+                                if colIdx > 0 {
+                                    Divider()
+                                }
                                 Text(columnDefs[colIdx].header)
                                     .font(.system(.headline, design: .monospaced))
                                     .frame(width: columnDefs[colIdx].width, alignment: .leading)
@@ -96,7 +101,9 @@ struct ObserverEventsTableView: View {
                             let values = rowValues(for: event)
                             HStack(spacing: 0) {
                                 ForEach(columnDefs.indices, id: \.self) { colIdx in
-                                    if colIdx > 0 { Divider() }
+                                    if colIdx > 0 {
+                                        Divider()
+                                    }
                                     Text(values[colIdx])
                                         .font(.system(.body, design: .monospaced))
                                         .lineLimit(1)
@@ -116,11 +123,14 @@ struct ObserverEventsTableView: View {
                             .onTapGesture {
                                 selectedEventId = isSelected ? nil : event.id
                             }
+                            .accessibilityIdentifier("ObserverEventRow")
                         }
                     } header: {
                         HStack(spacing: 0) {
                             ForEach(columnDefs.indices, id: \.self) { colIdx in
-                                if colIdx > 0 { Divider() }
+                                if colIdx > 0 {
+                                    Divider()
+                                }
                                 Text(columnDefs[colIdx].header)
                                     .font(.system(.headline, design: .monospaced))
                                     .lineLimit(1)

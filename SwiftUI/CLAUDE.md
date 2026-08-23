@@ -1,5 +1,8 @@
 # CLAUDE.md - SwiftUI App
 
+> Shared SwiftUI agent rules live in [`AGENTS.md`](AGENTS.md). This file retains
+> supplementary architecture and troubleshooting detail for Claude Code.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with the SwiftUI Edge Debug Helper application.
 
 ## Project Overview
@@ -106,6 +109,8 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 
 - Multi-app connection management with local storage
 - Query execution with history and favorites, including commit ID tracking for mutations
+- Execution-profile capture for `SELECT` statements with Card and Plan views (gated on the Collect Metrics setting; see [../docs/PROFILE.md](../docs/PROFILE.md))
+- Attachments: add (from file picker), view (in Document Viewer), and delete (via DQL `UPDATE … = null`) directly from query result rows
 - Real-time subscriptions and observables with threading optimizations
 - Presence viewer and peer management
 - Disk usage monitoring

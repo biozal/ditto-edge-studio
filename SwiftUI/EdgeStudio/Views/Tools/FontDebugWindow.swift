@@ -420,9 +420,10 @@ struct FontDebugWindow: View {
                     Spacer()
 
                     Button {
-                        #if os(macOS)
-                        NSApplication.shared.keyWindow?.close()
-                        #endif
+                        // Use the SwiftUI dismiss environment so we always
+                        // close *this* window, even if focus has shifted to
+                        // another window since the user opened the Font Debug.
+                        dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 20))
@@ -448,7 +449,7 @@ struct FontDebugWindow: View {
                 HStack {
                     Text("\(filteredIcons.count) icons")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Spacer()
                 }
             }
@@ -483,7 +484,7 @@ struct FontDebugWindow: View {
         HStack {
             Text(category)
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -508,41 +509,41 @@ struct FontDebugWindow: View {
                 HStack(spacing: 8) {
                     Label("Unicode:", systemImage: "number")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(iconInfo.unicode)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .textSelection(.enabled)
                 }
 
                 HStack(spacing: 8) {
                     Label("Font:", systemImage: "textformat")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(iconInfo.fontFamily)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .textSelection(.enabled)
                 }
 
                 HStack(spacing: 8) {
                     Label("Weight:", systemImage: "scalemass")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(iconInfo.fontWeight)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .textSelection(.enabled)
                 }
 
                 if iconInfo.rendersCorrectly {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                         Text("Renders correctly")
                     }
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 }
             }
 

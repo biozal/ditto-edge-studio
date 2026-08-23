@@ -60,6 +60,7 @@ fun ObserverDetailScreen(
                 Text(
                     text = selectedObserver.name.ifBlank { "Observer" },
                     style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = "No events captured yet. Activate the observer to start.",

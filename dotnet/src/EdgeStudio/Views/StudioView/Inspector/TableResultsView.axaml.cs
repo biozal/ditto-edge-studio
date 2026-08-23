@@ -32,6 +32,24 @@ namespace EdgeStudio.Views.StudioView.Inspector
                 _viewModel.TableHeaders.CollectionChanged += OnHeadersChanged;
                 ResultsGrid.SelectionChanged += OnSelectionChanged;
                 RebuildColumns(_viewModel.TableHeaders);
+
+                CopyRowMenuItem.Click += (_, _) =>
+                {
+                    if (_viewModel != null && ResultsGrid.SelectedItem is TableRow row)
+                        _viewModel.DoubleClickRow(row);
+                };
+
+                AddAttachmentMenuItem.Click += (_, _) =>
+                {
+                    if (_viewModel != null && ResultsGrid.SelectedItem is TableRow row)
+                        _viewModel.RequestAddAttachment(row);
+                };
+
+                DeleteAttachmentMenuItem.Click += (_, _) =>
+                {
+                    if (_viewModel != null && ResultsGrid.SelectedItem is TableRow row)
+                        _viewModel.RequestDeleteAttachment(row);
+                };
             }
         }
 

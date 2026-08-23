@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +55,7 @@ fun QueryMetricsInspector(
             Text(
                 text = "No Query Executed",
                 style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 12.dp),
             )
             Text(
@@ -83,7 +85,7 @@ fun QueryMetricsInspector(
             )
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 SelectionContainer {
@@ -93,6 +95,7 @@ fun QueryMetricsInspector(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(8.dp),
                     )
                 }
@@ -106,7 +109,9 @@ fun QueryMetricsInspector(
             else -> Color(0xFFF44336)
         }
         val indexUsed = metrics.indexesUsed.isNotEmpty()
-        val atFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
+        // locales[0] is nullable for a pathological empty locale list — fall back to ROOT.
+        val locale = LocalConfiguration.current.locales[0] ?: Locale.ROOT
+        val atFormatted = SimpleDateFormat("MMM d, HH:mm", locale)
             .format(Date(metrics.capturedAt))
 
         FlowRow(
@@ -141,7 +146,7 @@ fun QueryMetricsInspector(
         )
         Surface(
             shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (metrics.explainPlan != null) {
@@ -152,6 +157,7 @@ fun QueryMetricsInspector(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(8.dp),
                     )
                 }

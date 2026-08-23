@@ -25,16 +25,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.AuthMode
+import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.ui.theme.EdgeStudioTheme
 import com.costoda.dittoedgestudio.viewmodel.DatabaseEditorViewModel
 import kotlinx.coroutines.launch
@@ -73,20 +72,32 @@ fun DatabaseEditorScreen(
         parameters = { parametersOf(databaseId) },
     ),
 ) {
-    val name by viewModel.name.collectAsState()
-    val dbId by viewModel.databaseId.collectAsState()
-    val token by viewModel.token.collectAsState()
-    val authUrl by viewModel.authUrl.collectAsState()
-    val httpApiUrl by viewModel.httpApiUrl.collectAsState()
-    val httpApiKey by viewModel.httpApiKey.collectAsState()
-    val mode by viewModel.mode.collectAsState()
-    val allowUntrustedCerts by viewModel.allowUntrustedCerts.collectAsState()
-    val secretKey by viewModel.secretKey.collectAsState()
-    val logLevel by viewModel.logLevel.collectAsState()
-    val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsState()
-    val canSave by viewModel.canSave.collectAsState()
+    val name by viewModel.name.collectAsStateWithLifecycle()
+    val dbId by viewModel.databaseId.collectAsStateWithLifecycle()
+    val token by viewModel.token.collectAsStateWithLifecycle()
+    val authUrl by viewModel.authUrl.collectAsStateWithLifecycle()
+    val httpApiUrl by viewModel.httpApiUrl.collectAsStateWithLifecycle()
+    val httpApiKey by viewModel.httpApiKey.collectAsStateWithLifecycle()
+    val mode by viewModel.mode.collectAsStateWithLifecycle()
+    val allowUntrustedCerts by viewModel.allowUntrustedCerts.collectAsStateWithLifecycle()
+    val secretKey by viewModel.secretKey.collectAsStateWithLifecycle()
+    val logLevel by viewModel.logLevel.collectAsStateWithLifecycle()
+    val isStrictModeEnabled by viewModel.isStrictModeEnabled.collectAsStateWithLifecycle()
+    val canSave by viewModel.canSave.collectAsStateWithLifecycle()
+    val saveWarning by viewModel.saveWarning.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
+
+    saveWarning?.let { message ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.saveWarning.value = null },
+            confirmButton = {
+                TextButton(onClick = { viewModel.saveWarning.value = null }) { Text("OK") }
+            },
+            title = { Text("Saved with warnings") },
+            text = { Text(message) },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -106,8 +117,7 @@ fun DatabaseEditorScreen(
                         enabled = canSave,
                         onClick = {
                             scope.launch {
-                                viewModel.save()
-                                onDismiss()
+                                if (viewModel.save()) onDismiss()
                             }
                         },
                         modifier = Modifier.testTag("SaveButton"),
@@ -125,16 +135,12 @@ fun DatabaseEditorScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             // --- Mode selector ---
-            SecondaryTabRow(selectedTabIndex = mode.ordinal) {
-                AuthMode.entries.forEachIndexed { index, authMode ->
-                    Tab(
-                        selected = mode.ordinal == index,
-                        onClick = { viewModel.switchMode(authMode) },
-                        text = { Text(authMode.displayName) },
-                        modifier = Modifier.testTag("Tab_${authMode.name}"),
-                    )
-                }
-            }
+            DittoConnectedButtonGroup(
+                options = AuthMode.entries.map { it.displayName },
+                selectedIndex = mode.ordinal,
+                onSelect = { viewModel.switchMode(AuthMode.entries[it]) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 // --- Basic Information ---
@@ -259,6 +265,9 @@ fun DatabaseEditorScreen(
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 }
+
+                // --- Advanced Configuration ---
+                AdvancedConfigurationSection(viewModel)
 
                 // --- Developer Options ---
                 FormSectionHeader("Developer Options")

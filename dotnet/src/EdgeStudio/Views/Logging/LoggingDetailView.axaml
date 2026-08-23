@@ -13,7 +13,7 @@
 
     <UserControl.Resources>
 
-        <!-- ── Source tab: plain button, no SukiUI chrome ── -->
+        <!-- ── Source tab: plain button, plain style ── -->
         <ControlTheme x:Key="SourceTabTheme" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -33,11 +33,11 @@
                 </ControlTemplate>
             </Setter>
             <Style Selector="^:pointerover /template/ Border#PART_Root">
-                <Setter Property="Background" Value="{DynamicResource SukiLightBorderBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource StudioGlassHighlight}"/>
             </Style>
         </ControlTheme>
 
-        <!-- ── Level chip: bare toggle, no SukiUI chrome ── -->
+        <!-- ── Level chip: bare toggle, plain style ── -->
         <ControlTheme x:Key="LevelChipTheme" TargetType="ToggleButton">
             <Setter Property="Padding" Value="7,3"/>
             <Setter Property="CornerRadius" Value="5"/>
@@ -67,7 +67,7 @@
 
         <!-- ── Source tab active state ── -->
         <Style Selector="Button.SourceActive">
-            <Setter Property="Background" Value="{DynamicResource SukiLightBorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource StudioGlassHighlight}"/>
         </Style>
         <!-- Dot: grey when inactive, green when tab is active -->
         <Style Selector="Button Ellipse.SourceDot">
@@ -82,7 +82,7 @@
         <!-- ── Level chips: inactive (subtle grey) ── -->
         <Style Selector="ToggleButton.LevelChip">
             <Setter Property="Background" Value="#14808080"/>
-            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource StudioLowText}"/>
             <Setter Property="FontFamily" Value="Cascadia Code, Consolas, Courier New, monospace"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -106,12 +106,12 @@
         <!-- DBG active -->
         <Style Selector="ToggleButton.LevelChip.Debug:checked">
             <Setter Property="Background" Value="#209E9E9E"/>
-            <Setter Property="Foreground" Value="{DynamicResource SukiText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
         </Style>
         <!-- VERB active -->
         <Style Selector="ToggleButton.LevelChip.Verbose:checked">
             <Setter Property="Background" Value="#209E9E9E"/>
-            <Setter Property="Foreground" Value="{DynamicResource SukiText}"/>
+            <Setter Property="Foreground" Value="{DynamicResource DittoCardText}"/>
         </Style>
 
     </UserControl.Styles>

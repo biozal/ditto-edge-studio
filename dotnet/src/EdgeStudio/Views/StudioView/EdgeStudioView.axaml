@@ -8,7 +8,6 @@
              xmlns:inspector="using:EdgeStudio.Views.StudioView.Inspector"
              
              xmlns:controls="using:EdgeStudio.Views.StudioView.Controls"
-             xmlns:suki="using:SukiUI.Controls"
              xmlns:avalonia="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
              x:Class="EdgeStudio.Views.StudioView.EdgeStudioView"

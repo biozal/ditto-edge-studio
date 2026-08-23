@@ -1,115 +1,160 @@
-import Combine
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ContentView.ViewModel = ViewModel()
 
-    #if os(macOS)
-    @State private var quickstartService = QuickstartDownloadService()
-    @State private var showNoConnectionAlert = false
-    @State private var showExistingFolderAlert = false
-    @State private var showProgressSheet = false
-    @State private var quickstartDestination: URL?
-    @State private var existingFolderURL: URL?
-    @State private var continueWithoutConfig = false
-    #endif
+    /// Persists the `_id` of the currently open database across app launches via
+    /// SceneStorage (per-window state, restored on cold launch). When `loadApps`
+    /// completes we re-open whichever database matches this id, so users land
+    /// back where they were after a restart. Cleared when the user closes the
+    /// database or hydration fails.
+    @SceneStorage("selectedDatabaseId") private var storedDatabaseId: String?
+
+    /// Tracks unsaved edits in the active `DatabaseEditorView` sheet so we can
+    /// disable interactive dismiss (iOS swipe-down) until the user resolves
+    /// them. Reset whenever the editor sheet opens or closes.
+    @State private var databaseEditorHasUnsavedChanges = false
+
+    // Quickstart download flow state lives on `ContentView.ViewModel` as of
+    // Phase 10c — the View used to own seven @State properties + the
+    // orchestration methods (NSOpenPanel, performDownload). Moving it to the
+    // VM makes the flow unit-testable and keeps the View as a thin trigger.
 
     var body: some View {
-        Group {
+        // Local `@Bindable` projection so `$viewModel.x` produces a
+        // `Binding<X>` for inner properties of the @Observable VM. Replaces a
+        // dozen `Binding(get:set:)` long-forms across this view.
+        @Bindable var viewModel = viewModel
+        return Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
+                #if os(macOS)
+                .frame(minWidth: 1400, minHeight: 820)
+                #endif
             } else if viewModel.isMainStudioViewPresented,
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
                 MainStudioView(
-                    isMainStudioViewPresented: Binding(
-                        get: { viewModel.isMainStudioViewPresented },
-                        set: { viewModel.isMainStudioViewPresented = $0 }
-                    ),
-                    isClosingDatabase: Binding(
-                        get: { viewModel.isClosingDatabase },
-                        set: { viewModel.isClosingDatabase = $0 }
-                    ),
+                    isMainStudioViewPresented: $viewModel.isMainStudioViewPresented,
+                    isClosingDatabase: $viewModel.isClosingDatabase,
                     dittoAppConfig: selectedApp
                 )
-                .environmentObject(appState)
+                // Force a fresh view + @State storage (incl. the ViewModel in
+                // `@State(initialValue:)`) when the selected database changes.
+                // Without this, SwiftUI may reuse the previous session's state
+                // storage, and the new stale-write guards would then refuse
+                // every write from the reused ViewModel's captured databaseId.
+                .id(selectedApp._id)
+                .environment(appState)
+                #if os(macOS)
+                    .frame(minWidth: 1400, minHeight: 820)
+                #endif
             } else {
                 #if os(iOS)
                 iPadPickerView
                 #else
+                // Xcode-launch-style fixed-size, non-resizable window.
+                // The Scene uses `.windowResizability(.contentSize)`, so
+                // declaring a fixed `.frame(width:height:)` here locks
+                // the window to that exact size — guarantees all 3 CTA
+                // buttons (Database Config, Ditto Portal, Import from
+                // QR Code) and the database list panel are always
+                // fully drawn regardless of which screen the user is
+                // on. Once a database is opened MainStudioView's
+                // `.frame(minWidth:minHeight:)` lets the window grow.
+                //
+                // Sized to contain the editor sheet presented from here, but CLAMPED to
+                // the screen: `.windowResizability(.contentSize)` makes the window
+                // exactly this size with no ability to shrink, so a hard 820pt was
+                // taller than the usable height of a 1280x800 or 1366x768 display and
+                // pushed the CTA buttons off-screen with no way to recover.
                 macOSPickerView
+                    .frame(width: Self.pickerWindowSize.width, height: Self.pickerWindowSize.height)
                 #endif
             }
         }
-        #if os(macOS)
-        .frame(
-            minWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 1400 : 800,
-            maxWidth: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 800,
-            minHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? 820 : 540,
-            maxHeight: (viewModel.isMainStudioViewPresented || viewModel.isClosingDatabase) ? .infinity : 540
-        )
-        .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
-            guard let window = NSApplication.shared.windows.first(where: { $0.isMainWindow }) else { return }
-            if isPresented {
-                window.styleMask.insert(.resizable)
-                window.minSize = NSSize(width: 1400, height: 820)
-                window.maxSize = NSSize(width: 10000, height: 10000)
-                window.standardWindowButton(.zoomButton)?.isHidden = false
-            } else {
-                window.setContentSize(NSSize(width: 800, height: 540))
-                window.minSize = NSSize(width: 800, height: 540)
-                window.maxSize = NSSize(width: 800, height: 540)
-                window.styleMask.remove(.resizable)
-                window.standardWindowButton(.zoomButton)?.isHidden = true
-                window.center()
-            }
-        }
-        #endif
         .onAppear {
             Task {
                 await viewModel.loadApps(appState: appState)
+                // Restore the previously open database if one was persisted in
+                // SceneStorage. Skip if a database is already presented (e.g. the
+                // user tapped a card before the load finished) or if the stored
+                // id no longer matches any saved config (e.g. the user deleted
+                // the config between launches).
+                if let storedId = storedDatabaseId,
+                   !viewModel.isMainStudioViewPresented,
+                   let config = viewModel.dittoApps.first(where: { $0._id == storedId })
+                {
+                    await viewModel.showMainStudio(config, appState: appState)
+                }
             }
+        }
+        // Keep SceneStorage in sync with the currently presented database so a
+        // cold launch restores the right one. Setting `nil` on close clears it
+        // and prevents auto-reopening a database the user explicitly closed.
+        .onChange(of: viewModel.isMainStudioViewPresented) { _, isPresented in
+            if isPresented {
+                storedDatabaseId = viewModel.selectedDittoConfigForDatabase?._id
+            } else if !viewModel.isClosingDatabase {
+                storedDatabaseId = nil
+            }
+        }
+        // Destructive-delete gate: every delete trigger (the context menu on
+        // both platforms) only stages `appPendingDeletion` via
+        // `viewModel.deleteApp`; this dialog is the single path that actually
+        // deletes. `confirmationDialog` renders as a dialog on macOS and an
+        // action sheet on iOS, so one modifier covers both pickers.
+        .confirmationDialog(
+            "Delete \(viewModel.appPendingDeletion?.name ?? "Database")?",
+            isPresented: Binding(
+                get: { viewModel.appPendingDeletion != nil },
+                set: {
+                    if !$0 {
+                        viewModel.appPendingDeletion = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await viewModel.confirmPendingAppDeletion(appState: appState) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes the local database and all its Edge Studio data. This cannot be undone.")
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            startQuickstartDownload()
+            Task { await viewModel.startQuickstartDownload() }
         }
-        .alert("No Database Connection", isPresented: $showNoConnectionAlert) {
+        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
             Button("Continue Anyway") {
-                continueWithoutConfig = true
-                openFolderPickerAndDownload(configureEnv: false)
+                Task { await viewModel.continueDownloadWithoutConfig() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
         }
-        .alert("Quickstarts Folder Exists", isPresented: $showExistingFolderAlert) {
+        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
             Button("Replace", role: .destructive) {
-                if let existing = existingFolderURL, let dest = quickstartDestination {
-                    try? quickstartService.removeExistingFolder(at: existing)
-                    let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                        && DittoManager.shared.dittoSelectedAppConfig != nil
-                    Task {
-                        await performDownload(to: dest, configureEnv: hasConfig && !continueWithoutConfig)
-                    }
-                }
+                Task { await viewModel.replaceExistingFolderAndDownload() }
             }
             Button("Choose Different Location") {
-                let hasConfig = DittoManager.shared.dittoSelectedApp != nil
-                    && DittoManager.shared.dittoSelectedAppConfig != nil
-                openFolderPickerAndDownload(configureEnv: hasConfig && !continueWithoutConfig)
+                Task { await viewModel.chooseDifferentLocationAndDownload() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
         }
-        .sheet(isPresented: $showProgressSheet) {
+        .sheet(isPresented: $viewModel.showProgressSheet) {
             QuickstartProgressWindow(
-                service: quickstartService,
-                onCancel: { showProgressSheet = false }
+                service: viewModel.quickstartService,
+                onCancel: { viewModel.showProgressSheet = false }
             )
-            .interactiveDismissDisabled(quickstartService.isDownloading)
+            // Lock the sheet during an in-flight download, but allow dismissal
+            // when an error has been surfaced so the user can recover.
+            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
         }
         #endif
     }
@@ -130,8 +175,33 @@ struct ContentView: View {
 
 #if os(macOS)
 extension ContentView {
+    /// Preferred picker-window size, clamped to what the current screen can actually
+    /// show. `.windowResizability(.contentSize)` pins the window to exactly the size
+    /// declared here — it cannot be resized down — so an unclamped value simply pushes
+    /// content off-screen on a smaller display.
+    static var pickerWindowSize: CGSize {
+        let preferred = CGSize(width: 1000, height: 820)
+        guard let visible = NSScreen.main?.visibleFrame.size else { return preferred }
+        // Leave room for the titlebar and a margin.
+        return CGSize(
+            width: min(preferred.width, max(760, visible.width - 40)),
+            height: min(preferred.height, max(560, visible.height - 60))
+        )
+    }
+
+    /// Editor sheet size, derived from the window so the sheet can never be taller than
+    /// its host.
+    static var editorSheetSize: CGSize {
+        let window = pickerWindowSize
+        return CGSize(
+            width: min(930, window.width - 70),
+            height: min(740, window.height - 80)
+        )
+    }
+
     var macOSPickerView: some View {
-        ZStack(alignment: .bottomLeading) {
+        @Bindable var viewModel = viewModel
+        return ZStack(alignment: .bottomLeading) {
             Image("ditto-splash")
                 .resizable()
                 .scaledToFill()
@@ -168,126 +238,129 @@ extension ContentView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.trailing, 24)
 
-            VStack(alignment: .center, spacing: 20) {
-                Image("ditto-edge-studio-splash")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 300, maxHeight: 120)
+            // Bottom-leading hero stack (logo + CTA buttons).
+            //
+            // Wrapped in a VStack with a leading Spacer(minLength: 0) so the
+            // cluster is anchored to the bottom of the window but compresses
+            // upward when the window gets short — without this, fixed
+            // `.padding(.bottom, …)` in a ZStack lets the buttons overflow
+            // past the window's bottom edge (Ditto Portal would clip on a
+            // 14" MacBook). Edge padding (40 left / 40 bottom) keeps the
+            // cluster off the window walls like Xcode's launch screen.
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-                VStack(spacing: 14) {
-                    Button {
-                        viewModel.showAppEditor(DittoConfigForDatabase.new())
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "plus")
-                                .foregroundColor(.black)
-                            Text("Database Config")
-                                .foregroundColor(.black)
-                                .fontWeight(.medium)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.dittoYellow)
-                    .focusEffectDisabled()
-                    .accessibilityIdentifier("AddDatabaseButton")
+                VStack(alignment: .center, spacing: 20) {
+                    Image("ditto-edge-studio-splash")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 300, maxHeight: 120)
 
-                    Button {
-                        if let url = URL(string: "https://portal.ditto.live") {
-                            NSWorkspace.shared.open(url)
+                    VStack(spacing: 14) {
+                        Button {
+                            viewModel.showAppEditor(DittoConfigForDatabase.new())
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "plus")
+                                    .foregroundStyle(.black)
+                                Text("Database Config")
+                                    .foregroundStyle(.black)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "cloud")
-                                .foregroundColor(.white)
-                            Text("Ditto Portal")
-                                .foregroundColor(.white)
-                                .fontWeight(.medium)
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.6))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.glass)
-                    .focusEffectDisabled()
+                        .buttonStyle(.glassProminent)
+                        .tint(.dittoYellow)
+                        .focusEffectDisabled()
+                        .accessibilityIdentifier("AddDatabaseButton")
 
-                    Button {
-                        viewModel.showQRScanner()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "qrcode.viewfinder")
-                                .foregroundColor(.white)
-                            Text("Import from QR Code")
-                                .foregroundColor(.white)
-                                .fontWeight(.medium)
-                            Spacer()
+                        Button {
+                            if let url = URL(string: "https://portal.ditto.live") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "cloud")
+                                    .foregroundStyle(.white)
+                                Text("Ditto Portal")
+                                    .foregroundStyle(.white)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .buttonStyle(.glass)
+                        .focusEffectDisabled()
+
+                        Button {
+                            viewModel.showQRScanner()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "qrcode.viewfinder")
+                                    .foregroundStyle(.white)
+                                Text("Import from QR Code")
+                                    .foregroundStyle(.white)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.glass)
+                        .focusEffectDisabled()
                     }
-                    .buttonStyle(.glass)
-                    .focusEffectDisabled()
+                    .frame(width: 280)
                 }
-                .frame(width: 280)
+                .frame(width: 436)
             }
-            .frame(width: 436)
-            .padding(.bottom, 100)
+            .padding(.leading, 40)
+            .padding(.bottom, 128)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            WindowAccessor { window in
-                window.setContentSize(NSSize(width: 800, height: 540))
-                window.minSize = NSSize(width: 800, height: 540)
-                window.maxSize = NSSize(width: 800, height: 540)
-                window.styleMask.remove(.resizable)
-                window.standardWindowButton(.zoomButton)?.isHidden = true
-                window.center()
+        .sheet(
+            isPresented: $viewModel.isPresented,
+            onDismiss: { databaseEditorHasUnsavedChanges = false },
+            content: {
+                if let dittoAppConfig = viewModel.dittoAppToEdit {
+                    DatabaseEditorView(
+                        isPresented: $viewModel.isPresented,
+                        hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
+                        dittoAppConfig: dittoAppConfig
+                    )
+                    // Fixed size rather than a min/ideal/max range: AppKit sizes
+                    // a sheet from its content's *minimum* (ideal is ignored),
+                    // and the form's intrinsic minimum is driven by the widest
+                    // single-line caption, which overshot the sheet and got
+                    // centre-overflowed — clipping the header title, the info
+                    // panel, and both side edges. A hard frame makes the
+                    // captions wrap and the Form scroll instead of overflow.
+                    // Derived from the (already screen-clamped) window size so the sheet
+                    // always fits inside its host — a taller sheet spills past the window
+                    // frame and reads as the editor being cut off. The Form scrolls, so
+                    // content is not capped by this; see DatabaseEditorView.
+                    .frame(
+                        width: Self.editorSheetSize.width,
+                        height: Self.editorSheetSize.height
+                    )
+                    .environment(appState)
+                    .interactiveDismissDisabled(databaseEditorHasUnsavedChanges)
+                }
             }
         )
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.isPresented },
-                set: { viewModel.isPresented = $0 }
-            )
-        ) {
-            if let dittoAppConfig = viewModel.dittoAppToEdit {
-                DatabaseEditorView(
-                    isPresented: Binding(
-                        get: { viewModel.isPresented },
-                        set: { viewModel.isPresented = $0 }
-                    ),
-                    dittoAppConfig: dittoAppConfig
-                )
-                .frame(
-                    minWidth: 600,
-                    idealWidth: 1000,
-                    maxWidth: 1920,
-                    minHeight: 700,
-                    idealHeight: 800,
-                    maxHeight: 860
-                )
-                .environmentObject(appState)
-                .presentationDetents([.medium, .large])
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { viewModel.isShowingQRCode },
-            set: { viewModel.isShowingQRCode = $0 }
-        )) {
+        .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                     .frame(minWidth: 360, minHeight: 420)
             }
         }
-        .sheet(isPresented: Binding(
-            get: { viewModel.isShowingQRScanner },
-            set: { viewModel.isShowingQRScanner = $0 }
-        )) {
+        .sheet(isPresented: $viewModel.isShowingQRScanner) {
             QRCodeScannerView { config, favorites in
                 Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
             }
@@ -296,99 +369,6 @@ extension ContentView {
     }
 }
 
-// MARK: - Quickstart Download Flow (macOS)
-
-extension ContentView {
-    func startQuickstartDownload() {
-        let hasConnection = DittoManager.shared.dittoSelectedApp != nil
-            && DittoManager.shared.dittoSelectedAppConfig != nil
-
-        continueWithoutConfig = false
-
-        if !hasConnection {
-            showNoConnectionAlert = true
-        } else {
-            openFolderPickerAndDownload(configureEnv: true)
-        }
-    }
-
-    func openFolderPickerAndDownload(configureEnv: Bool) {
-        let panel = NSOpenPanel()
-        panel.title = "Choose Download Location for Quickstarts"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
-            return
-        }
-
-        quickstartDestination = selectedURL
-
-        // Check for existing folder
-        if let existing = quickstartService.existingQuickstartFolder(in: selectedURL) {
-            existingFolderURL = existing
-            showExistingFolderAlert = true
-            return
-        }
-
-        Task {
-            await performDownload(to: selectedURL, configureEnv: configureEnv)
-        }
-    }
-
-    func performDownload(to destination: URL, configureEnv: Bool) async {
-        // Reset and show progress
-        await quickstartService.reset()
-        await MainActor.run { showProgressSheet = true }
-
-        do {
-            let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
-
-            if configureEnv, let config = await DittoManager.shared.dittoSelectedAppConfig {
-                await quickstartService.updateStatus("Configuring .env files...")
-                quickstartService.configureEnvFiles(
-                    in: extractedDir,
-                    databaseId: config.databaseId,
-                    token: config.token,
-                    authUrl: config.authUrl,
-                    websocketUrl: config.websocketUrl
-                )
-
-                await quickstartService.updateStatus("Configuring edge-server...")
-                try? quickstartService.configureEdgeServerYaml(
-                    in: extractedDir,
-                    databaseId: config.databaseId,
-                    token: config.token,
-                    authUrl: config.authUrl
-                )
-            }
-
-            await quickstartService.updateStatus("Discovering projects...")
-            quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
-
-            await quickstartService.setComplete()
-
-            // Brief pause to show "Complete" before transitioning
-            try? await Task.sleep(for: .milliseconds(500))
-
-            // Close progress sheet, open browser
-            await MainActor.run { showProgressSheet = false }
-
-            let projects = quickstartService.projects
-            WindowController.showQuickstartBrowser(
-                projects: projects,
-                isConfigured: configureEnv,
-                directory: extractedDir
-            )
-        } catch {
-            await quickstartService.setError(error.localizedDescription)
-            // Progress sheet stays open showing error — user clicks OK to dismiss
-        }
-    }
-}
 #endif
 
 // MARK: - iPad Picker View
@@ -396,37 +376,30 @@ extension ContentView {
 #if os(iOS)
 extension ContentView {
     var iPadPickerView: some View {
-        compactPickerContent
+        @Bindable var viewModel = viewModel
+        return compactPickerContent
             .sheet(
-                isPresented: Binding(
-                    get: { viewModel.isPresented },
-                    set: { viewModel.isPresented = $0 }
-                )
-            ) {
-                if let dittoAppConfig = viewModel.dittoAppToEdit {
-                    DatabaseEditorView(
-                        isPresented: Binding(
-                            get: { viewModel.isPresented },
-                            set: { viewModel.isPresented = $0 }
-                        ),
-                        dittoAppConfig: dittoAppConfig
-                    )
-                    .environmentObject(appState)
-                    .presentationDetents([.large])
+                isPresented: $viewModel.isPresented,
+                onDismiss: { databaseEditorHasUnsavedChanges = false },
+                content: {
+                    if let dittoAppConfig = viewModel.dittoAppToEdit {
+                        DatabaseEditorView(
+                            isPresented: $viewModel.isPresented,
+                            hasUnsavedChanges: $databaseEditorHasUnsavedChanges,
+                            dittoAppConfig: dittoAppConfig
+                        )
+                        .environment(appState)
+                        .presentationDetents([.large])
+                        .interactiveDismissDisabled(databaseEditorHasUnsavedChanges)
+                    }
                 }
-            }
-            .sheet(isPresented: Binding(
-                get: { viewModel.isShowingQRCode },
-                set: { viewModel.isShowingQRCode = $0 }
-            )) {
+            )
+            .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
                 }
             }
-            .sheet(isPresented: Binding(
-                get: { viewModel.isShowingQRScanner },
-                set: { viewModel.isShowingQRScanner = $0 }
-            )) {
+            .sheet(isPresented: $viewModel.isShowingQRScanner) {
                 QRCodeScannerView { config, favorites in
                     Task { await viewModel.importFromQRCode(config, favorites: favorites, appState: appState) }
                 }
@@ -442,15 +415,19 @@ extension ContentView {
                 if viewModel.isLoading {
                     ProgressView("Loading...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let initError = viewModel.sqlCipherInitError {
+                    sqlCipherInitErrorView(initError)
+                } else if let loadError = viewModel.loadAppsError {
+                    loadAppsErrorView(loadError)
                 } else if viewModel.dittoApps.isEmpty {
                     VStack(spacing: 20) {
                         FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
                         Text("No Databases")
                             .font(.title2)
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                         Text("Tap + to add a database configuration.")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 32)
@@ -463,16 +440,39 @@ extension ContentView {
                         ) {
                             ForEach(viewModel.dittoApps, id: \._id) { app in
                                 DatabaseCard(dittoApp: app, onEdit: { viewModel.showAppEditor(app) })
+                                    .overlay {
+                                        if viewModel.openingDatabaseId == app._id {
+                                            ZStack {
+                                                Color.black.opacity(0.35)
+                                                ProgressView()
+                                                    .controlSize(.large)
+                                                    .tint(.white)
+                                            }
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .accessibilityIdentifier("DatabaseOpeningSpinner")
+                                        }
+                                    }
+                                    .opacity(
+                                        (viewModel.openingDatabaseId != nil &&
+                                            viewModel.openingDatabaseId != app._id) ? 0.5 : 1.0
+                                    )
+                                    .allowsHitTesting(viewModel.openingDatabaseId == nil)
                                     .onTapGesture {
                                         Task { await viewModel.showMainStudio(app, appState: appState) }
                                     }
                                     .contextMenu {
+                                        // Identifiers so UI tests can reach the editor for
+                                        // an EXISTING config (the card's own tap gesture
+                                        // opens the database instead) and can delete a
+                                        // config they created, leaving no state behind.
                                         Button { viewModel.showAppEditor(app) } label: { Label("Edit", systemImage: "pencil") }
+                                            .accessibilityIdentifier("EditDatabaseMenuItem")
                                         Button { Task { await viewModel.showQRCode(app) } } label: { Label("QR Code", systemImage: "qrcode") }
                                         Divider()
                                         Button(role: .destructive) {
                                             Task { await viewModel.deleteApp(app, appState: appState) }
                                         } label: { Label("Delete", systemImage: "trash") }
+                                            .accessibilityIdentifier("DeleteDatabaseMenuItem")
                                     }
                                     .accessibilityIdentifier("AppCard_\(app.name)")
                             }
@@ -491,7 +491,7 @@ extension ContentView {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.black)
+                        .foregroundStyle(.black)
                         .frame(width: 56, height: 56)
                         .background(Color.dittoYellow)
                         .clipShape(Circle())
@@ -510,7 +510,7 @@ extension ContentView {
                         viewModel.showQRScanner()
                     } label: {
                         Image(systemName: "qrcode.viewfinder")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                     }
                     .accessibilityIdentifier("ImportQRCodeButton")
                 }
@@ -521,11 +521,63 @@ extension ContentView {
                         }
                     } label: {
                         Image(systemName: "cloud")
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                     }
                 }
             }
         }
+    }
+
+    /// Distinct error/retry state for SQLCipher initialization failures.
+    /// Used in place of the indefinite spinner from before C3.
+    func sqlCipherInitErrorView(_ error: Error) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            Text("Database Storage Unavailable")
+                .font(.title2)
+                .foregroundStyle(.primary)
+            Text(error.localizedDescription)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetrySQLCipherInitButton")
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Distinct error/retry state for failures inside `loadApps` so users can
+    /// tell a load failure apart from a genuinely empty configuration list.
+    func loadAppsErrorView(_ error: Error) -> some View {
+        ContentUnavailableView {
+            Label("Couldn't Load Databases", systemImage: "exclamationmark.triangle.fill")
+        } description: {
+            Text(error.localizedDescription)
+        } actions: {
+            Button {
+                Task { await viewModel.loadApps(appState: appState) }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.dittoYellow)
+            .accessibilityIdentifier("RetryLoadAppsButton")
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 #endif
@@ -536,8 +588,28 @@ extension ContentView {
     @Observable
     @MainActor
     class ViewModel {
-        @ObservationIgnored private var cancellables = Set<AnyCancellable>()
-        private let databaseRepository = DatabaseRepository.shared
+        // MARK: - Injected Dependencies
+
+        //
+        // Stored as protocol types so unit tests can swap mocks. Defaults wire
+        // to the production singletons. See `Data/Protocols.swift`.
+
+        @ObservationIgnored
+        private let dittoManager: any DittoManagerProtocol
+        @ObservationIgnored
+        private let databaseRepository: any DatabaseRepositoryProtocol
+        @ObservationIgnored
+        private let subscriptionsRepository: any SubscriptionsRepositoryProtocol
+        @ObservationIgnored
+        private let systemRepository: any SystemRepositoryProtocol
+        @ObservationIgnored
+        private let historyRepository: any HistoryRepositoryProtocol
+        @ObservationIgnored
+        private let favoritesRepository: any FavoritesRepositoryProtocol
+        @ObservationIgnored
+        private let observableRepository: any ObservableRepositoryProtocol
+        @ObservationIgnored
+        private let collectionsRepository: any CollectionsRepositoryProtocol
 
         var dittoApps: [DittoConfigForDatabase] = []
         var isLoading = false
@@ -560,11 +632,68 @@ extension ContentView {
         var isClosingDatabase = false
         var selectedDittoConfigForDatabase: DittoConfigForDatabase?
 
-        init() {
+        /// `_id` of the database whose hydration is currently in flight, if any.
+        /// Drives the per-card spinner overlay and disables further taps in the picker
+        /// so users get visible feedback during the (sometimes multi-second) open.
+        var openingDatabaseId: String?
+
+        /// Set when the SQLCipher initialization fails. Drives the distinct
+        /// "storage error + Retry" picker state so users aren't left staring at
+        /// an indefinite spinner. Cleared on every `loadApps` invocation.
+        var sqlCipherInitError: Error?
+
+        /// Set when `loadApps` fails reading from the database repository.
+        /// Drives a separate "Couldn't Load Databases + Retry" picker state so
+        /// users can distinguish a load failure from a genuinely empty
+        /// configuration list. Cleared on every `loadApps` invocation.
+        var loadAppsError: Error?
+
+        init(
+            dittoManager: any DittoManagerProtocol = DittoManager.shared,
+            databaseRepository: any DatabaseRepositoryProtocol = DatabaseRepository.shared,
+            subscriptionsRepository: any SubscriptionsRepositoryProtocol = SubscriptionsRepository.shared,
+            systemRepository: any SystemRepositoryProtocol = SystemRepository.shared,
+            historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
+            favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
+            observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
+            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
+        ) {
+            self.dittoManager = dittoManager
+            self.databaseRepository = databaseRepository
+            self.subscriptionsRepository = subscriptionsRepository
+            self.systemRepository = systemRepository
+            self.historyRepository = historyRepository
+            self.favoritesRepository = favoritesRepository
+            self.observableRepository = observableRepository
+            self.collectionsRepository = collectionsRepository
             // Repository callback will be set up when loadApps is called
         }
 
+        /// Set when a delete has been triggered from any entry point (the
+        /// context menu on macOS/iOS). Drives the destructive-confirmation
+        /// dialog in `ContentView`; the actual deletion only runs from
+        /// `confirmPendingAppDeletion(appState:)`.
+        var appPendingDeletion: DittoConfigForDatabase?
+
+        /// Delete entry point for EVERY UI trigger. Does NOT delete directly:
+        /// deletion cascades through the SQLCipher config row (subscriptions,
+        /// history, favorites, observables) AND removes the on-disk Ditto
+        /// store, so the trigger only stages `appPendingDeletion`. The
+        /// confirmation dialog's destructive button calls
+        /// `confirmPendingAppDeletion(appState:)`.
+        ///
+        /// Keeps the historical name/signature so all existing call sites
+        /// (`ContentView`, `DatabaseListPanel`) route through
+        /// the confirmation gate unchanged.
         func deleteApp(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
+            appPendingDeletion = dittoApp
+        }
+
+        /// Performs the actual deletion after explicit user confirmation.
+        /// No-op when nothing is staged.
+        func confirmPendingAppDeletion(appState: AppState) async {
+            guard let dittoApp = appPendingDeletion else { return }
+            appPendingDeletion = nil
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
@@ -575,33 +704,109 @@ extension ContentView {
 
         func loadApps(appState: AppState) async {
             isLoading = true
+            sqlCipherInitError = nil
+            loadAppsError = nil
+
+            // C3: Gate every downstream repository call on SQLCipher being ready.
+            // `initialize()` is idempotent — it short-circuits when already complete,
+            // so we don't race AppState's eager warm-up Task. If init fails we bail
+            // here and the picker view renders the dedicated retry state instead of
+            // an indefinite spinner.
+            do {
+                try await SQLCipherService.shared.initialize()
+            } catch {
+                Log.error("SQLCipher initialization failed: \(error.localizedDescription)")
+                sqlCipherInitError = error
+                isLoading = false
+                return
+            }
+
             do {
                 // 1. Set appState in DittoManager
-                await DittoManager.shared.setAppState(appState)
+                await dittoManager.setAppState(appState)
 
                 // 2. Load database configs from secure storage
                 await databaseRepository.setAppState(appState)
+
+                // Under UI testing, seed databases from the bundled
+                // testDatabaseConfig.plist BEFORE loading. The XCUITest runner is
+                // a separate process and can't read the app bundle, so the app
+                // (which can) loads its own test config here.
+                await seedTestDatabasesIfNeeded()
+
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
 
-                // 3. Set up callback for future updates
+                // 3. Set up callback for future updates. The callback type is
+                //    @MainActor, so we can assign directly without an inner Task.
                 await databaseRepository.setOnDittoDatabaseConfigUpdate { [weak self] configs in
-                    Task { @MainActor [weak self] in
-                        self?.dittoApps = configs
-                    }
+                    self?.dittoApps = configs
                 }
 
                 // 4. Set appState in other repositories
-                await SystemRepository.shared.setAppState(appState)
-                await ObservableRepository.shared.setAppState(appState)
-                await FavoritesRepository.shared.setAppState(appState)
-                await HistoryRepository.shared.setAppState(appState)
-                await CollectionsRepository.shared.setAppState(appState)
-                await SubscriptionsRepository.shared.setAppState(appState)
+                await systemRepository.setAppState(appState)
+                await observableRepository.setAppState(appState)
+                await favoritesRepository.setAppState(appState)
+                await historyRepository.setAppState(appState)
+                await collectionsRepository.setAppState(appState)
+                await subscriptionsRepository.setAppState(appState)
             } catch {
+                Log.error("loadApps failed: \(error.localizedDescription)")
+                loadAppsError = error
                 appState.setError(error)
             }
             isLoading = false
+        }
+
+        /// Seeds databases from the bundled `testDatabaseConfig.plist` when running
+        /// under `UI-TESTING`. Read from `Bundle.main` (the app's own bundle) since
+        /// the out-of-process XCUITest runner cannot access app-bundle resources.
+        /// Idempotent: skips databases whose `databaseId` is already stored, so
+        /// re-launches against the persisted test sandbox don't duplicate cards.
+        private func seedTestDatabasesIfNeeded() async {
+            guard isRunningUITests() else { return }
+            guard let path = Bundle.main.path(forResource: "testDatabaseConfig", ofType: "plist"),
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                  let databases = plist["databases"] as? [[String: Any]] else
+            {
+                Log.info("[UI-TESTING] No testDatabaseConfig.plist found to seed")
+                return
+            }
+
+            let existing = await (try? databaseRepository.loadDatabaseConfigs()) ?? []
+            let existingDatabaseIds = Set(existing.map(\.databaseId))
+
+            for dict in databases {
+                let databaseId = (dict["databaseId"] as? String) ?? (dict["appId"] as? String) ?? ""
+                guard !databaseId.isEmpty, !existingDatabaseIds.contains(databaseId) else { continue }
+
+                let config = DittoConfigForDatabase(
+                    UUID().uuidString,
+                    name: (dict["name"] as? String) ?? "Test DB",
+                    databaseId: databaseId,
+                    developmentToken: (dict["developmentToken"] as? String) ?? (dict["token"] as? String) ?? (dict["authToken"] as? String) ?? "",
+                    url: (dict["url"] as? String) ?? (dict["authUrl"] as? String) ?? "",
+                    httpApiUrl: (dict["httpApiUrl"] as? String) ?? "",
+                    httpApiKey: (dict["httpApiKey"] as? String) ?? "",
+                    mode: DittoAppConfigLoader.parseMode(from: (dict["mode"] as? String) ?? "development") ?? .development,
+                    allowUntrustedCerts: (dict["allowUntrustedCerts"] as? Bool) ?? false,
+                    secretKey: (dict["secretKey"] as? String) ?? "",
+                    isBluetoothLeEnabled: (dict["isBluetoothLeEnabled"] as? Bool) ?? true,
+                    isLanEnabled: (dict["isLanEnabled"] as? Bool) ?? true,
+                    isAwdlEnabled: (dict["isAwdlEnabled"] as? Bool) ?? true,
+                    isCloudSyncEnabled: (dict["isCloudSyncEnabled"] as? Bool) ?? true,
+                    // These two were previously omitted, so seeded test databases
+                    // silently fell back to the initializer defaults.
+                    logLevel: (dict["logLevel"] as? String) ?? "info",
+                    isStrictModeEnabled: (dict["isStrictModeEnabled"] as? Bool) ?? false,
+                    // Advanced configuration is not seedable from the test plist.
+                    collectionSyncScopes: [],
+                    startupSettings: []
+                )
+                try? await databaseRepository.addDittoAppConfig(config)
+                Log.info("[UI-TESTING] Seeded test database: \(config.name)")
+            }
         }
 
         func showAppEditor(_ dittoApp: DittoConfigForDatabase) {
@@ -610,7 +815,13 @@ extension ContentView {
         }
 
         func showQRCode(_ config: DittoConfigForDatabase) async {
-            let favorites = await (try? FavoritesRepository.shared.loadFavorites(for: config.databaseId)) ?? []
+            // Non-stamping read via the concrete singleton: the QR may belong
+            // to a database that is NOT the active session (multi-window), and
+            // the protocol's loadFavorites stamps the shared favorites session
+            // (currentDatabaseId + cachedFavorites + UI notify) — breaking the
+            // active window's favorite saves (refused as stale) and pushing
+            // this list into its UI.
+            let favorites = await (try? FavoritesRepository.shared.favorites(for: config.databaseId)) ?? []
             qrCodeFavorites = favorites.map { FavoriteQueryItem(q: $0.query) }
             qrCodeConfig = config
             isShowingQRCode = true
@@ -624,14 +835,23 @@ extension ContentView {
             do {
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
-                    _ = try? await FavoritesRepository.shared.loadFavorites(for: config.databaseId)
                     for item in favorites {
                         let fav = DittoQueryHistory(
                             id: UUID().uuidString,
                             query: item.q,
-                            createdDate: Date().ISO8601Format()
+                            createdDate: Date.now.ISO8601Format()
                         )
-                        try? await FavoritesRepository.shared.saveFavorite(fav)
+                        do {
+                            // Non-stamping write via the concrete singleton
+                            // (see showQRCode): the imported database is not
+                            // the active session, so the guarded saveFavorite
+                            // would be refused as stale — and the stamping
+                            // loadFavorites that used to precede it hijacked
+                            // the active window's favorites session.
+                            try await FavoritesRepository.shared.importFavorite(fav, for: config.databaseId)
+                        } catch {
+                            Log.warning("Failed to save imported favorite: \(error.localizedDescription)")
+                        }
                     }
                 }
             } catch {
@@ -643,19 +863,178 @@ extension ContentView {
         func showMainStudio(_ dittoApp: DittoConfigForDatabase, appState: AppState)
             async
         {
+            // Guard against double-taps while another open is already in flight.
+            guard openingDatabaseId == nil else { return }
+
+            openingDatabaseId = dittoApp._id
+            defer { openingDatabaseId = nil }
+
             do {
                 selectedDittoConfigForDatabase = dittoApp
-                let didSetupDitto = try await DittoManager.shared
+                let didSetupDitto = try await dittoManager
                     .hydrateDittoSelectedDatabase(
                         dittoApp
                     )
                 if didSetupDitto {
                     isMainStudioViewPresented = true
+                } else {
+                    // C2: hydration returned `false` without throwing — the silent
+                    // abort would otherwise leave the user staring at the picker
+                    // with no feedback. Surface a real error so the alert fires.
+                    selectedDittoConfigForDatabase = nil
+                    // Only if hydrate didn't already report something specific: it sets
+                    // the real reason (e.g. "sync scopes could not be applied"), and a
+                    // generic message written afterwards would overwrite it.
+                    if appState.error == nil {
+                        appState.setError(AppError.error(
+                            message: "Failed to initialize database '\(dittoApp.name)'. " +
+                                "Please verify the configuration and try again."
+                        ))
+                    }
                 }
             } catch {
+                selectedDittoConfigForDatabase = nil
                 appState.setError(error)
             }
         }
+
+        // MARK: - Quickstart Download Flow (macOS)
+
+        //
+        // Phase 10c moved this orchestration off of `ContentView` itself so the
+        // flow is unit-testable and the View stays a thin trigger. The driver
+        // is `startQuickstartDownload()` — it routes either through the "no
+        // connection" alert (if Ditto isn't configured) or directly to the
+        // folder picker, then into `performDownload(...)`. Alert button
+        // handlers call into the small `replaceExistingFolderAndDownload()` /
+        // `chooseDifferentLocationAndDownload()` / `continueDownloadWithoutConfig()`
+        // helpers so the View doesn't reach into VM state.
+
+        #if os(macOS)
+        var quickstartService = QuickstartDownloadService()
+        var showNoConnectionAlert = false
+        var showExistingFolderAlert = false
+        var showProgressSheet = false
+        var quickstartDestination: URL?
+        var existingFolderURL: URL?
+        @ObservationIgnored
+        private var continueWithoutConfig = false
+
+        func startQuickstartDownload() async {
+            continueWithoutConfig = false
+            if await hasDittoConnection() {
+                openFolderPickerAndDownload(configureEnv: true)
+            } else {
+                showNoConnectionAlert = true
+            }
+        }
+
+        /// Triggered by the "Continue Anyway" button on the no-connection alert.
+        func continueDownloadWithoutConfig() async {
+            continueWithoutConfig = true
+            openFolderPickerAndDownload(configureEnv: false)
+        }
+
+        /// Triggered by the "Replace" button on the folder-exists alert.
+        func replaceExistingFolderAndDownload() async {
+            guard let existing = existingFolderURL,
+                  let dest = quickstartDestination else { return }
+            try? quickstartService.removeExistingFolder(at: existing)
+            let configureEnv = await hasDittoConnection() && !continueWithoutConfig
+            await performDownload(to: dest, configureEnv: configureEnv)
+        }
+
+        /// Triggered by the "Choose Different Location" button on the folder-exists alert.
+        func chooseDifferentLocationAndDownload() async {
+            let configureEnv = await hasDittoConnection() && !continueWithoutConfig
+            openFolderPickerAndDownload(configureEnv: configureEnv)
+        }
+
+        /// Returns `true` when both `dittoSelectedApp` and
+        /// `dittoSelectedAppConfig` are populated — i.e. a database is fully
+        /// hydrated and ready for the quickstart `.env` configurator to read
+        /// from. Falls back to `false` on any partial state.
+        private func hasDittoConnection() async -> Bool {
+            let hasApp = await dittoManager.dittoSelectedApp != nil
+            let hasAppConfig = await dittoManager.dittoSelectedAppConfig != nil
+            return hasApp && hasAppConfig
+        }
+
+        private func openFolderPickerAndDownload(configureEnv: Bool) {
+            let panel = NSOpenPanel()
+            panel.title = "Choose Download Location for Quickstarts"
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Choose"
+
+            guard panel.runModal() == .OK, let selectedURL = panel.url else {
+                return
+            }
+
+            quickstartDestination = selectedURL
+
+            // Existing-folder collision → surface the "Replace / Choose
+            // Different Location / Cancel" alert instead of overwriting.
+            if let existing = quickstartService.existingQuickstartFolder(in: selectedURL) {
+                existingFolderURL = existing
+                showExistingFolderAlert = true
+                return
+            }
+
+            Task { await performDownload(to: selectedURL, configureEnv: configureEnv) }
+        }
+
+        private func performDownload(to destination: URL, configureEnv: Bool) async {
+            quickstartService.reset()
+            showProgressSheet = true
+
+            do {
+                let extractedDir = try await quickstartService.downloadAndExtract(to: destination)
+
+                if configureEnv, let config = await dittoManager.dittoSelectedAppConfig {
+                    quickstartService.updateStatus("Configuring .env files...")
+                    quickstartService.configureEnvFiles(
+                        in: extractedDir,
+                        databaseId: config.databaseId,
+                        token: config.developmentToken,
+                        authUrl: config.url
+                    )
+
+                    quickstartService.updateStatus("Configuring edge-server...")
+                    try? quickstartService.configureEdgeServerYaml(
+                        in: extractedDir,
+                        databaseId: config.databaseId,
+                        token: config.developmentToken,
+                        authUrl: config.url
+                    )
+                }
+
+                quickstartService.updateStatus("Discovering projects...")
+                quickstartService.discoverProjects(in: extractedDir, isConfigured: configureEnv)
+
+                quickstartService.setComplete()
+
+                // Brief pause to show "Complete" before transitioning
+                try? await Task.sleep(for: .milliseconds(500))
+
+                showProgressSheet = false
+
+                let projects = quickstartService.projects
+                WindowController.showQuickstartBrowser(
+                    projects: projects,
+                    isConfigured: configureEnv,
+                    directory: extractedDir
+                )
+            } catch {
+                quickstartService.setError(error.localizedDescription)
+                // Progress sheet stays open showing the error — user clicks OK
+                // to dismiss; `interactiveDismissDisabled` is gated on
+                // `quickstartService.hasError` so dismissal is allowed here.
+            }
+        }
+        #endif
     }
 }
 

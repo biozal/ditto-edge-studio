@@ -25,7 +25,7 @@ struct LocalPeerInfoCard: View {
                 Text("Local Peer")
                     .font(.headline)
                     .bold()
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
             }
 
             Rectangle()
@@ -62,11 +62,11 @@ struct InfoRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
                 .font(.caption)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
         }
     }
 }

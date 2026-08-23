@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// True when running under XCUITest.
+///
+/// Detected via the `UI_TESTING` launch *environment variable* (NOT a launch
+/// argument). On macOS, launching a SwiftUI app with any command-line argument is
+/// treated as a non-default launch and the `WindowGroup` does not auto-open its
+/// window — which makes the app window-less under XCUITest. An environment
+/// variable avoids that, so the window opens normally. The legacy `UI-TESTING`
+/// argument is still honored for back-compat.
+func isRunningUITests() -> Bool {
+    ProcessInfo.processInfo.environment["UI_TESTING"] == "1"
+        || ProcessInfo.processInfo.arguments.contains("UI-TESTING")
+}
+
 // MARK: - Window Controller Helper
 
 class WindowController {
@@ -10,6 +23,10 @@ class WindowController {
 
     static func openHelpWindow() {
         NotificationCenter.default.post(name: NSNotification.Name("OpenHelpWindow"), object: nil)
+    }
+
+    static func openWelcomeWindow() {
+        NotificationCenter.default.post(name: NSNotification.Name("OpenWelcomeWindow"), object: nil)
     }
 
     static func openQuickstartBrowserWindow() {
@@ -30,12 +47,34 @@ class WindowController {
     }
 }
 
+#if os(macOS)
+/// App delegate used ONLY to make UI testing work on macOS.
+///
+/// The window-opening fix is the `UI_TESTING` launch *environment variable*
+/// (see `isRunningUITests()`): launching with an env var rather than a
+/// command-line argument keeps it a default launch, so the `WindowGroup` opens
+/// its window normally. This delegate is the belt-and-suspenders for that —
+/// `applicationShouldHandleReopen` returning `true` lets AppKit (re)open a
+/// window if the app is activated without one. A no-op in production.
+@MainActor
+final class UITestSupportAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        true
+    }
+}
+#endif
+
 @main
 // swiftlint:disable:next type_name
 struct Ditto_Edge_StudioApp: App {
-    @StateObject private var appState = AppState()
-    @Environment(\.scenePhase) private var scenePhase
+    @State private var appState = AppState()
     @Environment(\.openWindow) private var openWindow
+
+    #if os(macOS)
+    /// Foregrounds the app + forces its window on-screen when launched under
+    /// UI tests (no effect otherwise). See `UITestSupportAppDelegate`.
+    @NSApplicationDelegateAdaptor(UITestSupportAppDelegate.self) private var uiTestAppDelegate
+    #endif
 
     init() {
         // Register UserDefaults defaults so preference values are correct before the user
@@ -69,7 +108,11 @@ struct Ditto_Edge_StudioApp: App {
                     "Error",
                     isPresented: Binding(
                         get: { appState.error != nil },
-                        set: { if !$0 { appState.error = nil } }
+                        set: {
+                            if !$0 {
+                                appState.error = nil
+                            }
+                        }
                     )
                 ) {
                     Button("OK", role: .cancel) {
@@ -85,12 +128,15 @@ struct Ditto_Edge_StudioApp: App {
                         Text(appState.error?.localizedDescription ?? "Unknown Error")
                     }
                 }
-                .environmentObject(appState)
+                .environment(appState)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
                     openWindow(id: "font-debug-window")
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenHelpWindow"))) { _ in
                     openWindow(id: "help-window")
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenWelcomeWindow"))) { _ in
+                    openWindow(id: "welcome-window")
                 }
             #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowQuickstartBrowser"))) { notification in
@@ -124,18 +170,16 @@ struct Ditto_Edge_StudioApp: App {
                 }
             #endif
         }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 800, height: 540)
-        .onChange(of: scenePhase) { newPhase, _ in
-            switch newPhase {
-            case .background, .inactive:
-                Task {}
-            case .active:
-                break
-            @unknown default:
-                break
-            }
-        }
+        // .contentSize lets the window snap to whatever frame the
+        // current view declares. ContentView's picker uses a *fixed*
+        // frame (Xcode-launch-style — non-resizable, all buttons always
+        // visible); MainStudioView uses a min frame so once a database
+        // is open the window can be grown freely. .contentMinSize used
+        // to be the default but it always made the picker resizable
+        // and let users drag it below the height needed to fit all 3
+        // CTA buttons.
+        .windowResizability(.contentSize)
+        .defaultSize(width: 900, height: 640)
 
         #if os(macOS)
 
@@ -156,6 +200,17 @@ struct Ditto_Edge_StudioApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 700)
+
+        // Welcome Window — first-run onboarding for fresh databases.
+        // Opens automatically from MainStudioViewModel when a database
+        // is selected with no subscriptions and no query history (gated
+        // on @AppStorage("showWelcomeOnNewDatabase") = true), or on
+        // demand from the Help menu.
+        WindowGroup(id: "welcome-window") {
+            WelcomeWindow()
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 880, height: 720)
 
         // Font Debug Window
         WindowGroup(id: "font-debug-window") {
@@ -187,6 +242,10 @@ struct Ditto_Edge_StudioApp: App {
             }
 
             CommandGroup(replacing: .help) {
+                Button("Welcome") {
+                    WindowController.openWelcomeWindow()
+                }
+
                 Button("User Guide") {
                     WindowController.openHelpWindow()
                 }

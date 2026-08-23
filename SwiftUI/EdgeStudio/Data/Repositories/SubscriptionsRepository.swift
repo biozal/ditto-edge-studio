@@ -1,16 +1,20 @@
 import DittoSwift
 import Foundation
 
-/// Repository for managing subscription metadata with secure encrypted storage
+/// Repository for managing subscription metadata, persisted in the local store
 ///
 /// **Storage Strategy:**
 /// - Per-database isolation (each database has its own subscriptions in SQLCipher)
 /// - In-memory cache during session
-/// - Write-through persistence to encrypted database
+/// - Write-through persistence to the local store
 /// - **Note**: Live DittoSyncSubscription instances are NOT persisted (only metadata)
 ///
 /// **Security:**
-/// - All subscription metadata encrypted at rest with AES-256 (SQLCipher)
+/// - **Not encrypted at rest.** The `SQLCipher*` names throughout this codebase are
+///   historical: no SQLCipher library is linked, so `PRAGMA key` is a silent no-op on
+///   Apple's system SQLite and the file on disk begins with `SQLite format 3`. See
+///   `docs/CREDENTIAL_STORAGE.md` — this is a recorded, accepted decision, not an
+///   oversight.
 /// - Indexed for fast queries by databaseId
 ///
 /// **Lifecycle:**
@@ -33,7 +37,7 @@ actor SubscriptionsRepository {
     private var currentDatabaseId: String?
 
     /// Callback for UI updates
-    private var onSubscriptionsUpdate: (@MainActor ([DittoSubscription]) -> Void)?
+    private var onSubscriptionsUpdate: (@MainActor @Sendable ([DittoSubscription]) -> Void)?
 
     private init() {}
 
@@ -69,11 +73,24 @@ actor SubscriptionsRepository {
     }
 
     /// Saves a subscription (write-through to SQLCipher) and registers it with Ditto sync
-    /// - Parameter subscription: Subscription to save
-    /// - Throws: Error if save fails
-    func saveDittoSubscription(_ subscription: DittoSubscription) async throws {
-        guard let databaseId = currentDatabaseId else {
+    /// - Parameters:
+    ///   - subscription: Subscription to save
+    ///   - databaseId: Database the subscription belongs to, captured by the
+    ///     caller at user-action time. The save is refused when the session has
+    ///     since switched to a different database — otherwise a stale save would
+    ///     persist under the wrong database AND register the subscription on the
+    ///     newly selected database's live Ditto instance.
+    /// - Throws: Error if save fails, or `InvalidStateError` for a stale session
+    func saveDittoSubscription(_ subscription: DittoSubscription, databaseId: String) async throws {
+        guard let currentDatabaseId else {
             throw InvalidStateError(message: "No database selected - call loadSubscriptions() first")
+        }
+        // Check BEFORE touching the sync engine: a stale save must not register
+        // on the newly selected database's live Ditto instance.
+        guard currentDatabaseId == databaseId else {
+            throw InvalidStateError(
+                message: "Stale session - database switched from \(databaseId) before the save completed"
+            )
         }
 
         do {
@@ -83,32 +100,53 @@ actor SubscriptionsRepository {
                 .registerSubscription(query: subscription.query)
             sub.syncSubscription = syncSub
 
-            // Check if already exists
-            let existing = try await sqlCipher.getSubscriptions(databaseId: databaseId)
-
-            if existing.contains(where: { $0._id == subscription.id }) {
-                // Already exists — persist the updated name/query to SQLCipher, then update cache
-                let row = SQLCipherService.SubscriptionRow(
-                    _id: subscription.id,
-                    databaseId: databaseId,
-                    name: subscription.name,
-                    query: subscription.query
-                )
-                try await sqlCipher.updateSubscription(row)
-
-                if let existingIndex = cachedSubscriptions.firstIndex(where: { $0.id == subscription.id }) {
-                    cachedSubscriptions[existingIndex] = sub
+            // Check the in-memory cache (authoritative for the session) instead of
+            // issuing a full SQLCipher read on every save.
+            let existingIndex = cachedSubscriptions.firstIndex(where: { $0.id == subscription.id })
+            let row = SQLCipherService.SubscriptionRow(
+                _id: subscription.id,
+                databaseId: databaseId,
+                name: subscription.name,
+                query: subscription.query
+            )
+            do {
+                if existingIndex != nil {
+                    // Already exists — persist the updated name/query to SQLCipher
+                    try await sqlCipher.updateSubscription(row)
+                } else {
+                    // Insert into SQLCipher
+                    try await sqlCipher.insertSubscription(row)
                 }
-            } else {
-                // Insert into SQLCipher
-                let row = SQLCipherService.SubscriptionRow(
-                    _id: subscription.id,
-                    databaseId: databaseId,
-                    name: subscription.name,
-                    query: subscription.query
-                )
-                try await sqlCipher.insertSubscription(row)
+            } catch {
+                // Persist failed — cancel the just-registered sync
+                // subscription so the live registration doesn't leak (it
+                // was never inserted into cachedSubscriptions, so
+                // clearCache would never cancel it).
+                syncSub?.cancel()
+                throw error
+            }
 
+            // The awaits above suspended the actor: a concurrent session
+            // switch re-stamps currentDatabaseId AND swaps dittoSelectedApp,
+            // so the registration may have landed on the NEW database's live
+            // sync engine. Cancel the just-registered subscription and refuse
+            // before touching the shared cache or notifying the UI. (The
+            // persisted row is correctly keyed by the explicit databaseId and
+            // may stay.)
+            guard self.currentDatabaseId == databaseId else {
+                syncSub?.cancel()
+                throw InvalidStateError(
+                    message: "Stale session - database switched from \(databaseId) before the save completed"
+                )
+            }
+
+            if let existingIndex {
+                // Cancel the previous registration before swapping in the new
+                // one — otherwise the replaced DittoSyncSubscription stays
+                // live in the sync engine with no remaining reference.
+                cachedSubscriptions[existingIndex].syncSubscription?.cancel()
+                cachedSubscriptions[existingIndex] = sub
+            } else {
                 // Add to in-memory cache
                 cachedSubscriptions.append(sub)
             }
@@ -117,9 +155,14 @@ actor SubscriptionsRepository {
             await notifySubscriptionsUpdate()
 
             Log.debug("Saved subscription: \(subscription.name)")
+        } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+            // Expected race on database switch — the caller logs it. Don't
+            // alert the user in the NEW session for a correctly refused write.
+            Log.info("Subscription save refused: \(error.message)")
+            throw error
         } catch {
             Log.error("Failed to save subscription: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -148,7 +191,7 @@ actor SubscriptionsRepository {
             Log.debug("Removed subscription: \(subscription.name)")
         } catch {
             Log.error("Failed to remove subscription: \(error)")
-            appState?.setError(error)
+            await appState?.setError(error)
             throw error
         }
     }
@@ -165,22 +208,13 @@ actor SubscriptionsRepository {
         Log.debug("SubscriptionsRepository cache cleared")
     }
 
-    /// Cancels all active subscriptions (legacy method for backward compatibility)
-    func cancelAllSubscriptions() {
-        // Use Task to ensure cleanup runs on appropriate background queue
-        // This prevents priority inversion when called from main thread
-        Task.detached(priority: .utility) { [weak self] in
-            await self?.performSubscriptionCleanup()
-        }
-    }
-
     // MARK: - State Management
 
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
 
-    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor ([DittoSubscription]) -> Void) {
+    func setOnSubscriptionsUpdate(_ callback: @escaping @MainActor @Sendable ([DittoSubscription]) -> Void) {
         onSubscriptionsUpdate = callback
     }
 
@@ -195,14 +229,8 @@ actor SubscriptionsRepository {
     private func notifySubscriptionsUpdate() async {
         await onSubscriptionsUpdate?(cachedSubscriptions)
     }
-
-    private func performSubscriptionCleanup() async {
-        // Cancel all subscriptions
-        for subscription in cachedSubscriptions {
-            subscription.syncSubscription?.cancel()
-        }
-
-        // Notify UI that subscriptions list is now empty
-        await onSubscriptionsUpdate?([])
-    }
 }
+
+// MARK: - Protocol Conformance
+
+extension SubscriptionsRepository: SubscriptionsRepositoryProtocol {}

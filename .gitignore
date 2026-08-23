@@ -1,9 +1,10 @@
+baseten.sh
 build/
 SwiftUI/build
 SwiftUI/Ditto Edge Studio.xcodeproj/project.xcworkspace/xcuserdata
 .DS_Store
 SwiftUI/Ditto Edge Studio/dittoConfig.plist
-SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
+SwiftUI/EdgeStudio/testDatabaseConfig.plist
 SwiftUI/scripts/*.dmg
 SwiftUI/scripts/*.dmg.zip
 rust/.idea
@@ -12,10 +13,11 @@ rust/target
 rust/.vscode
 rust/debug
 rust/designs
-.claude
+.claude/*
+!.claude/settings.json
+.codex/*
+!.codex/config.toml
 fontawesome
-SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
-SwiftUI/Edge Debug Helper/testDatabaseConfig.plist
 .periphery_baseline.json
 .worktrees
 
@@ -44,3 +46,28 @@ android/app/src/main/assets/help/
 dotnet/src/EdgeStudio/Assets/Help/*.md
 .gitnexus
 /dotnet/src/.vs
+dotnet/src/EdgeStudio.UI/bin
+dotnet/src/EdgeStudio.UI/obj
+docs/superpowers
+
+# Screenshots — used only for ad-hoc issue reports / iteration aids,
+# never meant to be checked in. Anchored to the repo root so a
+# `screens/` directory nested elsewhere isn't accidentally ignored.
+/screens/
+
+# Local databases and device backups — never checked in.
+#
+# These are scratch artifacts: a `data/dto.db` from ad-hoc SQLite poking, and
+# `adb backup` archives. The app's real stores live in its sandbox container
+# (~/Library/Containers/<bundle-id>/Data/Library/Application Support/), never in
+# the repo. This matters beyond tidiness: the local configuration store is
+# plaintext (see docs/CREDENTIAL_STORAGE.md), so a committed database file would
+# publish whatever database tokens, license tokens and API keys it happened to
+# hold. No tracked file has ever matched these patterns.
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.ab

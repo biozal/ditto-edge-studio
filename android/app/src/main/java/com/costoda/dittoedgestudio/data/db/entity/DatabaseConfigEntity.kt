@@ -28,4 +28,11 @@ data class DatabaseConfigEntity(
     @ColumnInfo(name = "secretKey") val secretKey: String,
     @ColumnInfo(name = "logLevel") val logLevel: String,
     @ColumnInfo(name = "isStrictModeEnabled") val isStrictModeEnabled: Boolean = false,
+    // JSON-in-TEXT (see docs/ADVANCED_DATABASE_CONFIG.md "Storage"): both lists are
+    // small, always read/written with their parent config, and never queried
+    // independently.
+    @ColumnInfo(name = "collectionSyncScopes", defaultValue = "[]")
+    val collectionSyncScopes: String = "[]",
+    @ColumnInfo(name = "startupSettings", defaultValue = "[]")
+    val startupSettings: String = "[]",
 )

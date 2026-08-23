@@ -40,6 +40,7 @@ fun ObserverEventDetailView(
         Text(
             text = "Event: ${event.eventTime.substringAfter("T").substringBefore(".")}",
             style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = "Docs: ${event.data.size}  Ins: ${event.insertIndexes.size}  " +

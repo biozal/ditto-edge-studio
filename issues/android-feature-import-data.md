@@ -3,11 +3,11 @@
 **Priority:** High  
 **Complexity:** Medium  
 **Status:** Not Started  
-**Platforms with feature:** SwiftUI, .NET/Avalonia  
+**Platforms with feature:** SwiftUI  
 
 ## Summary
 
-Android is missing the ability to import JSON data files into Ditto collections. Both SwiftUI (`ImportDataView.swift` + `ImportService.swift`) and .NET (`ImportDataWindow.axaml`) support importing JSON arrays of documents into existing or new collections with batch processing, progress tracking, and error recovery.
+Android is missing the ability to import JSON data files into Ditto collections. SwiftUI (`ImportDataView.swift` + `ImportService.swift`) supports importing JSON arrays of documents into existing or new collections with batch processing, progress tracking, and error recovery.
 
 ## Current State in Android
 
@@ -169,10 +169,6 @@ suspend fun importJsonData(
 - `SwiftUI/EdgeStudio/Components/ImportDataView.swift` — Full import UI with file picker, collection selection, insert type toggle, progress, error display
 - `SwiftUI/EdgeStudio/Data/ImportService.swift` — Core import logic with batch processing (50 docs/batch), parameterized DQL queries, fallback to individual inserts
 - `SwiftUI/EdgeStudio/Views/MainStudioView.swift` — FAB menu entry point (search for `showingImportView`)
-
-### .NET/Avalonia
-- `dotnet/src/EdgeStudio/Views/StudioView/ImportDataWindow.axaml` — Import dialog UI
-- `dotnet/src/EdgeStudio.Shared/Services/IImportService.cs` — Import service interface
 
 ### Android (existing files to modify)
 - `android/app/src/main/java/com/costoda/dittoedgestudio/ui/mainstudio/MainStudioScreen.kt` — Add FAB menu entry

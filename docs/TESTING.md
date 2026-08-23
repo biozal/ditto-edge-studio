@@ -28,7 +28,8 @@ Edge Debug Helper uses a **comprehensive testing strategy** with three types of 
 - **Integration Tests** (Swift Testing) - Multi-component interaction tests
 - **UI Tests** (XCTest) - End-to-end user workflow validation
 
-**Testing is mandatory** - all new code must have tests with minimum 80% coverage.
+**Testing is mandatory** - all new code must have tests with minimum 80% coverage, with
+one named exception: see [SDK-boundary exemption](#sdk-boundary-exemption).
 
 ### Why We Test
 
@@ -40,10 +41,56 @@ Edge Debug Helper uses a **comprehensive testing strategy** with three types of 
 
 ### Current Status
 
-- **Overall Coverage**: 15.96% (target: 50%)
-- **SQLCipherService**: 62.19% coverage ✅
-- **Test Targets**: 3 (Unit, Integration, UI)
-- **Total Tests**: 15+ and growing
+Measured 2026-08-21 with
+`xcodebuild test … -enableCodeCoverage YES -resultBundlePath <bundle>` followed by
+`xcrun xccov view --report --files-for-target "Ditto Edge Studio.app" <bundle>`. Per file,
+not aggregate — an aggregate number hides exactly the files that matter.
+
+- **Test targets**: 3 (Unit, Integration, UI)
+- **App target overall**: 15.51% (6863/44236) — dominated by SwiftUI view bodies
+- **Tests**: 604 unit + 157 integration = 761 Swift Testing tests (measured
+  2026-08-23 by counting `@Test` attributes); the UI target contributes 0% to app
+  coverage because 10 of its 15 tests are credential-gated skips
+- `Data/SQLCipherService.swift` — **93.13%**
+- `Data/Repositories/DatabaseRepository.swift` — **93.98%**
+- `Models/AdvancedDatabaseSettings.swift` — **91.23%**
+- `Data/AdvancedSettingsApplier.swift` — **86.27%**
+- `Views/StudioView/ViewModels/SyncRuntimeState.swift` — **100%**
+- `Data/DittoManager.swift` — **13.19%** (see the exemption below; was 3.38%)
+- `Views/Database/DatabaseEditorView.swift` — **13.51%** (294/2176 *executable* lines; the
+  file is ~1,300 physical lines and is almost entirely `body`). Its `ViewModel` logic is
+  covered by `DatabaseEditorAdvancedViewModelTests`
+- `Views/StudioView/ViewModels/SyncStatusViewModel.swift` — **23.14%**
+
+The 15.51% figure replaces a stale "15.96% (target: 50%)" and a
+"SQLCipherService: 62.19%" that predated the current suite.
+
+### SDK-boundary exemption
+
+Code whose body is a sequence of Ditto SDK calls that cannot be constructed without a live
+`Ditto` instance is exempt from the 80% rule, **on three conditions**:
+
+1. Every *decision* in it — validation, gating, ordering, failure policy — is extracted
+   into a pure type or static and covered to ≥80% there.
+2. The residual shim is listed by name below with its measured coverage.
+3. The shim's behavior is covered by a live or manual procedure recorded in the owning
+   plan.
+
+Listing a file here is a **claim that condition 1 holds**, and a reviewer may reject it.
+Adding a name here is not a way to make a coverage number go away.
+
+**Currently exempt — `Data/DittoManager.swift`,** measured 2026-08-21:
+
+| Function | Coverage | Extracted decisions covered elsewhere |
+|---|---|---|
+| `hydrateDittoSelectedDatabase(_:)` | 0.00% (0/198) | `transportFlags(for:isUITesting:)` **100%** (8/8) and `createDatabaseConfig(from:withDirectory:)` **100%** (38/38), both `nonisolated static` and both covered by `DittoManagerPureDecisionsTests`; statement **ordering** is covered by `AdvancedSettingsApplier.OpenSequence` + `AdvancedSettingsApplierTests` (86.27% on that file) |
+| `resetSystemSettingsToDefaults(for:)` | 0.00% (0/85) | Same two statics plus the applier's reset tests; the UI-test transport gate is asserted through `transportFlags` |
+| `selectedDatabaseStartSync()` | 40.43% (19/47) | The no-database-open guard is covered directly (`DittoManagerPureDecisionsTests`); the rest is `OpenSequence` |
+| `startSyncNow(_:)` / `stopSyncNow(_:)` | 0.00% (0/8), 0.00% (0/4) | The published state is covered by `SyncRuntimeStateTests` (**100%** on `SyncRuntimeState.swift`). The fatal `sync_start_choke_point` rule enforces the **start** side only — its regex is `sync\s*\.\s*start\s*\(`, so a rogue `sync.stop()` outside `stopSyncNow` would not be caught, which is the direction that reproduces C3's original bug. One `sync.stop()` exists today and it is inside the funnel; that is a fact about the code, not something the linter guarantees |
+
+Substitute coverage for the residual shims is the manual smoke procedure recorded in
+`plans/2026-08-21-production-readiness-remediation.md` §5 (Phases 4 and 6a) and its
+known-unverified register (§10). **The exemption is a written trade, not a silent miss.**
 
 ---
 
@@ -93,10 +140,27 @@ Place tests in appropriate directory:
 
 ```
 SwiftUI/EdgeStudioUnitTests/
+├── Components/         # Component tests
+├── Data/               # Data-layer tests (e.g. AllowUntrustedCertsDelegateTests.swift)
+├── Fixtures/           # Test data generators
+├── Logging/            # Logging tests
+├── MCP/                # MCP server unit tests
+├── Metrics/            # Metrics tests
+├── Models/             # Model tests
+├── Repositories/       # Data access tests (e.g. CrossDatabaseWriteRaceTests.swift)
 ├── Services/           # Service layer tests
-├── Repositories/       # Data access tests
+├── Storage/            # Storage tests
 ├── Utilities/          # Helper function tests
-└── TestHelpers.swift   # Shared test utilities
+└── ViewModels/         # View model tests (e.g. ContentViewModelTests.swift)
+
+SwiftUI/EdgeStudioIntegrationTests/
+├── Fixtures/           # Test data generators and mock services
+├── MCP/                # MCP server lifecycle/tool execution tests
+├── Repositories/       # Repository integration tests
+├── Services/           # e.g. SQLCipherServiceTests.swift
+├── TestConfiguration.swift  # Test-specific paths and isolation checks
+├── TestHelpers.swift        # Shared test utilities (withFreshDatabase, etc.)
+└── TestTags.swift           # Shared Swift Testing tags
 ```
 
 ---
@@ -132,38 +196,94 @@ xcodebuild test -only-testing:EdgeStudioUITests
 ```
 SwiftUI/
 ├── EdgeStudioUnitTests/
-│   ├── Services/
-│   │   ├── SQLCipherServiceTests.swift      # Encryption, schema, CRUD
-│   │   ├── KeychainServiceTests.swift       # Secure credential storage
-│   │   └── QueryServiceTests.swift          # Query execution
-│   ├── Repositories/
-│   │   ├── DatabaseRepositoryTests.swift    # Database config management
-│   │   ├── HistoryRepositoryTests.swift     # Query history
-│   │   ├── FavoritesRepositoryTests.swift   # Favorites management
-│   │   ├── SubscriptionsRepositoryTests.swift
-│   │   ├── ObservableRepositoryTests.swift
-│   │   ├── CollectionsRepositoryTests.swift
-│   │   └── SystemRepositoryTests.swift
+│   ├── Components/
+│   │   ├── PlanNodeBoxTests.swift
+│   │   ├── ProfileViewerHelpersTests.swift
+│   │   └── QueryResultRowMenuTests.swift
+│   ├── Data/
+│   │   ├── AllowUntrustedCertsDelegateTests.swift
+│   │   ├── AttachmentServiceTests.swift       # Link-path identifier validation
+│   │   └── DittoManagerPureDecisionsTests.swift
+│   ├── Fixtures/
+│   │   └── QueryFixtures.swift
+│   ├── Logging/
+│   │   ├── LogComponentTests.swift
+│   │   ├── LogEntryFilterTests.swift
+│   │   └── LogFileParserTests.swift
+│   ├── MCP/
+│   │   ├── MCPHTTPParserTests.swift
+│   │   ├── MCPJSONRPCHandlerTests.swift
+│   │   ├── MCPServerServiceTests.swift        # Port clamping, session draining
+│   │   ├── MCPToolHandlersTests.swift         # Pure tool-handler helpers
+│   │   └── MCPToolManifestTests.swift
+│   ├── Metrics/
+│   │   ├── MetricsBackendTests.swift
+│   │   ├── QueryExplainRecordTests.swift
+│   │   └── QueryMetricsRepositoryTests.swift
 │   ├── Models/
-│   │   ├── DittoConfigTests.swift
-│   │   └── SyncStatusInfoTests.swift
+│   │   ├── AdvancedDatabaseSettingsTests.swift
+│   │   ├── AttachmentTests.swift
+│   │   ├── ModelTests.swift
+│   │   ├── ObservableEventStoreTests.swift
+│   │   └── QueryProfileParserTests.swift
+│   ├── Repositories/
+│   │   ├── CollectionsRepositoryTests.swift
+│   │   ├── StorageRepositoryTests.swift
+│   │   └── SystemRepositoryTests.swift
+│   ├── Services/
+│   │   ├── AdvancedSettingsApplierTests.swift
+│   │   ├── QueryServiceTests.swift          # Query execution
+│   │   └── SQLCipherErrorPresentationTests.swift
+│   ├── Storage/
+│   │   └── StorageSnapshotTests.swift
 │   ├── Utilities/
 │   │   ├── DQLGeneratorTests.swift
-│   │   └── TableResultsParserTests.swift
+│   │   ├── ProfileSyntaxHighlighterTests.swift
+│   │   ├── ProfileTimeFormatterTests.swift
+│   │   └── QRCodeAdvancedExclusionTests.swift
+│   ├── ViewModels/
+│   │   ├── AttachmentViewModelTests.swift   # (+ More variants)
+│   │   ├── DatabaseEditorAdvancedViewModelTests.swift
+│   │   ├── MainStudioViewModelTests.swift
+│   │   ├── QueryViewModelTests.swift
+│   │   ├── SubscriptionObserverViewModelTests.swift  # (+ More variant)
+│   │   ├── SyncRuntimeStateTests.swift
+│   │   ├── SyncStatusViewModelTests.swift   # (+ More variant)
+│   │   └── ViewModelMocks.swift
+│   └── TestTags.swift
+├── EdgeStudioIntegrationTests/
 │   ├── Fixtures/
 │   │   ├── DatabaseConfigFixtures.swift     # Test data generators
-│   │   ├── QueryFixtures.swift
-│   │   └── MockServices.swift
+│   │   ├── MockServices.swift
+│   │   └── QueryFixtures.swift
+│   ├── MCP/
+│   │   ├── MCPInsertFromFileTests.swift
+│   │   ├── MCPServerLifecycleTests.swift
+│   │   ├── MCPTestHelpers.swift
+│   │   └── MCPToolExecutionTests.swift
+│   ├── Repositories/
+│   │   ├── DatabaseRepositoryTests.swift    # Database config management (+ Advanced variant)
+│   │   ├── FavoritesRepositoryTests.swift   # Favorites management
+│   │   ├── HistoryRepositoryTests.swift     # Query history
+│   │   ├── ObservableRepositoryTests.swift
+│   │   └── SubscriptionsRepositoryTests.swift
+│   ├── Services/
+│   │   ├── SQLCipherServiceTests.swift      # Encryption, schema, CRUD
+│   │   ├── SQLCipherInitFailureTests.swift
+│   │   └── SchemaMigrationV5Tests.swift
 │   ├── TestHelpers.swift                    # Shared test utilities
-│   └── TestConfiguration.swift              # Test environment config
-├── EdgeStudioIntegrationTests/
-│   ├── RepositoryIntegrationTests.swift
-│   ├── DittoManagerIntegrationTests.swift
-│   └── EndToEndWorkflowTests.swift
+│   ├── TestConfiguration.swift              # Test environment config
+│   └── TestTags.swift
 └── EdgeStudioUITests/
+    ├── AdvancedConfigurationUITests.swift
+    ├── AppLaunchUITests.swift
+    ├── DatabaseIdImmutabilityUITests.swift
     ├── DatabaseManagementUITests.swift
+    ├── NavigationLifecycleUITests.swift
+    ├── NavigationSmokeUITests.swift
     ├── QueryExecutionUITests.swift
-    └── NavigationUITests.swift
+    ├── QueryResultsUITests.swift
+    └── UITestBase.swift
 ```
 
 ---
@@ -194,19 +314,12 @@ import Testing
 @Suite("Component Name")
 struct ComponentNameTests {
 
-    // Setup runs BEFORE EACH test
-    init() async throws {
-        try await TestHelpers.setupFreshDatabase()
-    }
-
-    // Teardown runs AFTER EACH test
-    deinit {
-        // Cleanup if needed (usually automatic)
-    }
-
     @Test("Descriptive test name in plain English")
     func testSpecificBehavior() async throws {
-        // Test implementation
+        try await TestHelpers.withFreshDatabase {
+            // Test implementation — the isolated database is torn down
+            // automatically when the closure returns, even on throw.
+        }
     }
 }
 ```
@@ -218,43 +331,44 @@ struct ComponentNameTests {
 ```swift
 @Test("Insert config stores all fields correctly")
 func testInsertConfig() async throws {
-    // ========================================
-    // ARRANGE: Set up test data and preconditions
-    // ========================================
-    try await TestHelpers.setupFreshDatabase()
-    let service = SQLCipherService.shared
+    try await TestHelpers.withFreshDatabase {
+        // ========================================
+        // ARRANGE: Set up test data and preconditions
+        // ========================================
+        let service = SQLCipherContext.current
 
-    let config = SQLCipherService.DatabaseConfigRow(
-        _id: TestHelpers.uniqueTestId(),
-        name: "Test DB",
-        databaseId: "test-db-123",
-        mode: "server",
-        allowUntrustedCerts: false,
-        isBluetoothLeEnabled: true,
-        isLanEnabled: true,
-        isAwdlEnabled: false,
-        isCloudSyncEnabled: true,
-        token: "test-token",
-        authUrl: "https://auth.test.com",
-        websocketUrl: "wss://ws.test.com",
-        httpApiUrl: "https://api.test.com",
-        httpApiKey: "test-key",
-        secretKey: ""
-    )
+        let config = SQLCipherService.DatabaseConfigRow(
+            _id: TestHelpers.uniqueTestId(),
+            name: "Test DB",
+            databaseId: "test-db-123",
+            mode: "server",
+            allowUntrustedCerts: false,
+            isBluetoothLeEnabled: true,
+            isLanEnabled: true,
+            isAwdlEnabled: false,
+            isCloudSyncEnabled: true,
+            token: "test-token",
+            authUrl: "https://auth.test.com",
+            httpApiUrl: "https://api.test.com",
+            httpApiKey: "test-key",
+            secretKey: "",
+            logLevel: "info"
+        )
 
-    // ========================================
-    // ACT: Perform the operation being tested
-    // ========================================
-    try await service.insertDatabaseConfig(config)
+        // ========================================
+        // ACT: Perform the operation being tested
+        // ========================================
+        try await service.insertDatabaseConfig(config)
 
-    // ========================================
-    // ASSERT: Verify the expected outcome
-    // ========================================
-    let configs = try await service.getAllDatabaseConfigs()
-    #expect(configs.count == 1)
-    #expect(configs[0]._id == config._id)
-    #expect(configs[0].name == "Test DB")
-    #expect(configs[0].token == "test-token")
+        // ========================================
+        // ASSERT: Verify the expected outcome
+        // ========================================
+        let configs = try await service.getAllDatabaseConfigs()
+        #expect(configs.count == 1)
+        #expect(configs[0]._id == config._id)
+        #expect(configs[0].name == "Test DB")
+        #expect(configs[0].token == "test-token")
+    }
 }
 ```
 
@@ -329,29 +443,24 @@ struct SQLCipherServiceTests {
 
         @Test("Service initializes successfully")
         func testInitialization() async throws {
-            try await TestHelpers.setupUninitializedDatabase()
-            let service = SQLCipherService.shared
+            try await TestHelpers.withUninitializedDatabase {
+                let service = SQLCipherContext.current
 
-            try await service.initialize()
+                try await service.initialize()
 
-            let configs = try await service.getAllDatabaseConfigs()
-            #expect(configs.isEmpty)
+                let configs = try await service.getAllDatabaseConfigs()
+                #expect(configs.isEmpty)
+            }
         }
 
         @Test("Encryption key is generated and stored")
         func testEncryptionKeyGeneration() async throws {
-            try await TestHelpers.setupFreshDatabase()
-
-            let dbDir = TestConfiguration.unitTestDatabasePath
-            let keyFilePath = URL(fileURLWithPath: dbDir)
-                .appendingPathComponent("sqlcipher.key")
-
-            let fileManager = FileManager.default
-            #expect(fileManager.fileExists(atPath: keyFilePath.path))
-
-            let keyData = try Data(contentsOf: keyFilePath)
-            let key = String(data: keyData, encoding: .utf8)
-            #expect(key?.count == 64)  // 256-bit hex key
+            try await TestHelpers.withFreshDatabase {
+                let service = SQLCipherContext.current
+                // Key was generated during initialize() — retrieve and verify length
+                let key = try await service.getOrCreateEncryptionKey()
+                #expect(key.count == 64)  // 256-bit hex key
+            }
         }
     }
 
@@ -558,39 +667,38 @@ func testErrorHandling() async throws {
 Edge Debug Helper uses **runtime detection** to isolate test data:
 
 ```swift
-// In SQLCipherService.swift
+// In SQLCipherService.swift (singleton path — simplified)
 private func getDatabasePath() throws -> URL {
-    // Detect test environment at runtime
+    // Instances created with `init(testPath:)` always use their custom
+    // path — no environment detection needed. The shared singleton falls
+    // back to runtime detection:
     let isUnitTesting = NSClassFromString("XCTest") != nil
-    let args = ProcessInfo.processInfo.arguments
-    let isUITesting = args.contains("UI-TESTING")
+    let isUITesting = isRunningUITests()
 
-    let cacheDir: String
-    if isUnitTesting && !isUITesting {
-        cacheDir = "ditto_cache_unit_test"  // Unit tests
+    let cacheDir = if isUnitTesting && !isUITesting {
+        "ditto_edge_studio_unit_test"  // Unit tests
     } else if isUITesting {
-        cacheDir = "ditto_cache_test"       // UI tests
+        "ditto_edge_studio_test"       // UI tests
     } else {
-        cacheDir = "ditto_cache"            // Production
+        "ditto_edge_studio"            // Production
     }
-
-    let fileManager = FileManager.default
-    let appSupportURL = fileManager.urls(
-        for: .applicationSupportDirectory,
-        in: .userDomainMask
-    )[0]
-
-    return appSupportURL.appendingPathComponent(cacheDir)
+    // ... resolves under ~/Library/Application Support/
 }
 ```
+
+> Note: the `TestHelpers.withFreshDatabase` / `withUninitializedDatabase`
+> wrappers go further — they create a **unique directory per test task**
+> (`ditto_test_<UUID>`) via `SQLCipherService(testPath:)` and inject it through
+> the `SQLCipherContext` task-local, so concurrent suites never share
+> filesystem state. Prefer them over relying on the singleton's detection.
 
 **Test Paths (macOS sandboxed):**
 
 | Environment | Path |
 |-------------|------|
-| **Production** | `~/Library/Application Support/ditto_cache` |
-| **Unit Tests** | `~/Library/Application Support/ditto_cache_unit_test` |
-| **UI Tests** | `~/Library/Application Support/ditto_cache_test` |
+| **Production** | `~/Library/Application Support/ditto_edge_studio` |
+| **Unit Tests** | `~/Library/Application Support/ditto_edge_studio_unit_test` |
+| **UI Tests** | `~/Library/Application Support/ditto_edge_studio_test` |
 
 ### Why Runtime Detection?
 
@@ -609,43 +717,31 @@ private func getDatabasePath() throws -> URL {
 
 ### Test Helper Functions
 
-**Use `TestHelpers.swift` for common setup:**
+**Use `TestHelpers.swift` (in `EdgeStudioIntegrationTests`) for database setup:**
+
+The database helpers run your test body with a fully isolated, per-task
+SQLCipher instance. Each call creates a unique directory, injects the service
+via the `SQLCipherContext` `@TaskLocal` (so repositories automatically see it),
+executes the body, then deletes the directory — even if the body throws.
+Concurrent test suites each get their own directory; there is NO shared
+filesystem state between tasks.
 
 ```swift
 enum TestHelpers {
 
-    /// Creates a fresh, initialized test database
-    /// Use this when you need a working database for tests
-    static func setupFreshDatabase() async throws {
-        try await setupUninitializedDatabase()
-        let service = SQLCipherService.shared
-        try await service.initialize()
-    }
+    /// Runs the test body with a fully isolated, INITIALIZED database.
+    /// Use this when you need a working database for tests.
+    @discardableResult
+    static func withFreshDatabase<T: Sendable>(
+        _ body: @Sendable () async throws -> T
+    ) async throws -> T
 
-    /// Creates a clean test database directory (uninitialized)
-    /// Use this when testing the initialization process itself
-    static func setupUninitializedDatabase() async throws {
-        let service = SQLCipherService.shared
-        await service.resetForTesting()
-
-        let fileManager = FileManager.default
-        let appSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        )[0]
-        let dbDir = appSupportURL.appendingPathComponent("ditto_cache_unit_test")
-
-        // Remove existing test database
-        if fileManager.fileExists(atPath: dbDir.path) {
-            try? fileManager.removeItem(at: dbDir)
-        }
-
-        // Create fresh directory
-        try fileManager.createDirectory(
-            at: dbDir,
-            withIntermediateDirectories: true
-        )
-    }
+    /// Runs the test body with an isolated, UNINITIALIZED database.
+    /// Use ONLY for tests that explicitly test `initialize()` itself.
+    @discardableResult
+    static func withUninitializedDatabase<T: Sendable>(
+        _ body: @Sendable () async throws -> T
+    ) async throws -> T
 
     /// Generate unique test ID
     static func uniqueTestId(prefix: String = "test") -> String {
@@ -656,27 +752,32 @@ enum TestHelpers {
 
 ### When to Use Each Helper
 
+Inside the closure, access the isolated service through `SQLCipherContext.current`
+(not `SQLCipherService.shared`):
+
 ```swift
-// ✅ Use setupFreshDatabase() for most tests
+// ✅ Use withFreshDatabase for most tests
 @Test("Query executes successfully")
 func testQueryExecution() async throws {
-    try await TestHelpers.setupFreshDatabase()  // Initialized DB ready to use
-    let service = SQLCipherService.shared
+    try await TestHelpers.withFreshDatabase {
+        let service = SQLCipherContext.current  // Initialized DB ready to use
 
-    let configs = try await service.getAllDatabaseConfigs()
-    #expect(configs.isEmpty)  // Fresh database
+        let configs = try await service.getAllDatabaseConfigs()
+        #expect(configs.isEmpty)  // Fresh database
+    }
 }
 
-// ✅ Use setupUninitializedDatabase() to test initialization
+// ✅ Use withUninitializedDatabase to test initialization
 @Test("Initialize creates schema")
 func testInitialization() async throws {
-    try await TestHelpers.setupUninitializedDatabase()  // No schema yet
-    let service = SQLCipherService.shared
+    try await TestHelpers.withUninitializedDatabase {
+        let service = SQLCipherContext.current  // No schema yet
 
-    try await service.initialize()  // Test the initialization itself
+        try await service.initialize()  // Test the initialization itself
 
-    let version = try await service.getSchemaVersion()
-    #expect(version == 2)
+        let version = try await service.getSchemaVersion()
+        #expect(version == 5)  // current schema version
+    }
 }
 ```
 
@@ -730,17 +831,8 @@ enum TestConfiguration {
 
 ## Test Coverage
 
-### Current Coverage Status
-
-**As of February 2026:**
-
-- **Overall**: 15.96% (target: 50%)
-- **SQLCipherService**: 62.19% (500/804 lines) ✅
-- **Next Priorities**:
-  - DatabaseRepository
-  - HistoryRepository
-  - FavoritesRepository
-  - QueryService
+See [Current Status](#current-status) at the top of this document for the measured
+coverage figures.
 
 ### Coverage Requirements
 
@@ -771,11 +863,11 @@ enum TestConfiguration {
 📊 Coverage Dashboard
 ====================
 
-Overall Coverage: 15.96%
+Overall Coverage: 15.51%
 
 SQLCipherService Coverage:
 --------------------------
-SQLCipherService.swift: 62.19% (500/804 lines)
+SQLCipherService.swift: 93.13%
 
 Test Files Coverage:
 --------------------
@@ -786,6 +878,9 @@ To view detailed coverage in Xcode:
 1. Open TestResults.xcresult in Xcode
 2. Navigate to Coverage tab
 ```
+
+(Numbers above are illustrative sample output; see [Current Status](#current-status)
+for the measured figures.)
 
 ### Viewing Coverage in Xcode
 
@@ -800,22 +895,10 @@ To view detailed coverage in Xcode:
 
 ### Coverage Enforcement
 
-**Pre-push hook** automatically enforces 50% minimum:
-
-```bash
-# Enable pre-push hook
-chmod +x .git/hooks/pre-push
-
-# Hook runs automatically before push
-git push origin main
-
-# If coverage < 50%, push is blocked:
-❌ Coverage 45.2% is below threshold 50%
-   Fix coverage or use: git push --no-verify
-
-# Bypass once (emergency only)
-git push --no-verify
-```
+There is currently **no automated coverage gate** (no pre-push hook or CI check).
+Coverage is measured manually — see the coverage scripts in `scripts/`
+(`generate_coverage_report.sh`, `coverage_dashboard.sh`) — and reviewers enforce the
+requirements above during code review.
 
 ### Coverage Best Practices
 
@@ -884,17 +967,16 @@ func testInsertStoresAllFields() async throws {
 @Suite("My Tests")
 struct MyTests {
 
-    init() async throws {
-        // Fresh setup for EACH test
-        try await TestHelpers.setupFreshDatabase()
-    }
-
     @Test func testA() async throws {
-        // Standalone test
+        try await TestHelpers.withFreshDatabase {
+            // Standalone test with its own isolated database
+        }
     }
 
     @Test func testB() async throws {
-        // Doesn't depend on testA
+        try await TestHelpers.withFreshDatabase {
+            // Doesn't depend on testA — separate isolated database
+        }
     }
 }
 
@@ -1068,7 +1150,7 @@ UI tests validate user workflows, visual layouts, and end-to-end functionality t
 **Use unit tests for business logic, UI tests for user workflows and visual validation.**
 
 ### Test Files
-- `SwiftUI/Edge Debugg Helper UITests/Ditto_Edge_StudioUITests.swift` - Main UI test suite
+- `SwiftUI/EdgeStudioUITests/` - UI test suites (9 files), including `UITestBase.swift` (shared base), `AppLaunchUITests.swift`, `NavigationSmokeUITests.swift`, `NavigationLifecycleUITests.swift`, `DatabaseManagementUITests.swift`, `DatabaseIdImmutabilityUITests.swift`, `QueryExecutionUITests.swift`, `QueryResultsUITests.swift`, and `AdvancedConfigurationUITests.swift`
 - `SwiftUI/run_ui_tests.sh` - Automated test runner script
 
 ### macOS XCUITest Requirements
@@ -1389,14 +1471,6 @@ MainStudioView (isMainStudioViewPresented = true)
 
 **Key Rule:** Tests always start in fresh sandbox → always at ContentView → must add databases first.
 
-### UI Testing Documentation Files
-
-- `NAVIGATION_TESTS_UPDATE_SUMMARY.md` - Navigation test patterns and solutions
-- `ADDBUTTON_FIRSTMATCH_FIX.md` - Nested button structure fix
-- `SHEET_TIMING_FIX.md` - macOS sheet timing patterns
-- `PICKER_WORKAROUND_FIX.md` - SwiftUI Picker accessibility issues
-- `SHEET_DISMISS_TIMING_FIX.md` - Sheet dismissal timing patterns
-
 ---
 
 ## Troubleshooting
@@ -1418,27 +1492,31 @@ struct MyTests {
 
 #### 2. "SQLCipherService is not initialized"
 
-**Cause:** Test didn't call setup helper
+**Cause:** Test body is running outside a database helper, or is using
+`SQLCipherService.shared` instead of the isolated per-task instance
 
-**Solution:** Use proper test setup:
+**Solution:** Wrap the test body in `withFreshDatabase` and use
+`SQLCipherContext.current`:
 
 ```swift
-init() async throws {
-    try await TestHelpers.setupFreshDatabase()
+@Test("My test")
+func testSomething() async throws {
+    try await TestHelpers.withFreshDatabase {
+        let service = SQLCipherContext.current
+        // ...
+    }
 }
 ```
 
 #### 3. "Database file already exists"
 
-**Cause:** Previous test didn't clean up
+**Cause:** Should not happen with `withFreshDatabase` / `withUninitializedDatabase` —
+each call creates a uniquely-named directory (`ditto_test_<UUID>`) and deletes it
+in a `defer`, even if the body throws
 
-**Solution:** Ensure `setupUninitializedDatabase()` removes old data:
-
-```swift
-if fileManager.fileExists(atPath: dbDir.path) {
-    try? fileManager.removeItem(at: dbDir)
-}
-```
+**Solution:** If you see this, check that the test isn't creating its own
+`SQLCipherService` with a hard-coded path; route everything through the
+`TestHelpers` wrappers.
 
 #### 4. Tests Are Slow
 
@@ -1575,7 +1653,7 @@ jobs:
 
 ### Coverage
 - [ ] Coverage has not decreased
-- [ ] New code has 80%+ coverage
+- [ ] New code has 80%+ coverage (or a claimed [SDK-boundary exemption](#sdk-boundary-exemption))
 - [ ] Coverage report reviewed: `./scripts/coverage_dashboard.sh`
 
 ### Code Quality
@@ -1586,7 +1664,7 @@ jobs:
 
 ### Documentation
 - [ ] Test documentation added to test files
-- [ ] CLAUDE.md updated if testing patterns changed
+- [ ] AGENTS.md updated if agent testing rules changed
 - [ ] README.md updated if setup changed
 
 ## Coverage Report
@@ -1613,15 +1691,15 @@ New Code Coverage: XX.XX%
 
 ### Project Documentation
 
-- [`CLAUDE.md`](../CLAUDE.md) - Complete project guide
+- [`AGENTS.md`](../AGENTS.md) - Cross-agent repository guide
+- [`CLAUDE.md`](../CLAUDE.md) - Supplementary Swift and Claude Code guidance
 - [`scripts/README.md`](../scripts/README.md) - Coverage scripts documentation
-- [`TEST_MIGRATION_LOG.md`](../TEST_MIGRATION_LOG.md) - Testing infrastructure history
 
 ### Examples
 
-- `SwiftUI/EdgeStudioUnitTests/Services/SQLCipherServiceTests.swift` - Complete test example
-- `SwiftUI/EdgeStudioUnitTests/TestHelpers.swift` - Test utilities
-- `SwiftUI/EdgeStudioUnitTests/Fixtures/` - Test data generators
+- `SwiftUI/EdgeStudioIntegrationTests/Services/SQLCipherServiceTests.swift` - Complete test example
+- `SwiftUI/EdgeStudioIntegrationTests/TestHelpers.swift` - Test utilities (`withFreshDatabase`, `withUninitializedDatabase`, etc.)
+- `SwiftUI/EdgeStudioIntegrationTests/Fixtures/` - Test data generators
 
 ---
 
@@ -1629,7 +1707,9 @@ New Code Coverage: XX.XX%
 
 **Key Takeaways:**
 
-1. **Testing is mandatory** - All new code must have tests with 80%+ coverage
+1. **Testing is mandatory** - All new code must have tests with 80%+ coverage, except
+   under the [SDK-boundary exemption](#sdk-boundary-exemption), which must be claimed in
+   writing
 2. **Use Swift Testing** - Modern framework for unit/integration tests
 3. **Follow AAA pattern** - Arrange-Act-Assert for clarity
 4. **Test isolation** - Use runtime detection and `TestHelpers`

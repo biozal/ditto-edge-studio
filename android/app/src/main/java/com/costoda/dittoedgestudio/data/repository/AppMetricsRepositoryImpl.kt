@@ -1,11 +1,8 @@
 package com.costoda.dittoedgestudio.data.repository
 
-import android.content.Context
 import android.os.Debug
 import android.os.SystemClock
 import com.costoda.dittoedgestudio.domain.model.AppMetrics
-import com.costoda.dittoedgestudio.domain.model.CollectionStorageInfo
-import com.ditto.kotlin.Ditto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,7 +27,7 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
         }
     }
 
-    override suspend fun snapshot(context: Context, ditto: Ditto?): AppMetrics = withContext(Dispatchers.IO) {
+    override suspend fun snapshot(): AppMetrics = withContext(Dispatchers.IO) {
         // Process metrics
         val memInfo = Debug.MemoryInfo()
         Debug.getMemoryInfo(memInfo)
@@ -46,37 +43,6 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
         val avgLatency = if (samples.isNotEmpty()) samples.average() else 0.0
         val lastLatency = samples.lastOrNull()
 
-        // Storage metrics from app files directory
-        val dittoDir = File(context.filesDir, "ditto")
-        var storeBytes = 0L
-        var replicationBytes = 0L
-        var attachmentsBytes = 0L
-        var authBytes = 0L
-        var walShmBytes = 0L
-        var logsBytes = 0L
-        var otherBytes = 0L
-
-        if (dittoDir.exists()) {
-            dittoDir.walkTopDown().forEach { file ->
-                if (file.isFile) {
-                    val size = file.length()
-                    val rel = file.path.removePrefix(dittoDir.path)
-                    when {
-                        rel.contains("ditto_store") -> storeBytes += size
-                        rel.contains("ditto_replication") -> replicationBytes += size
-                        rel.contains("ditto_attachments") -> attachmentsBytes += size
-                        rel.contains("ditto_auth") -> authBytes += size
-                        rel.endsWith(".wal") || rel.endsWith(".shm") -> walShmBytes += size
-                        rel.contains("ditto_logs") -> logsBytes += size
-                        else -> otherBytes += size
-                    }
-                }
-            }
-        }
-
-        // Collection breakdown
-        val collectionBreakdown = if (ditto != null) computeCollectionBreakdown(ditto) else emptyList()
-
         AppMetrics(
             capturedAt = System.currentTimeMillis(),
             residentMemoryBytes = residentMemory,
@@ -87,50 +53,7 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
             totalQueryCount = total,
             avgQueryLatencyMs = avgLatency,
             lastQueryLatencyMs = lastLatency,
-            storeBytes = storeBytes,
-            replicationBytes = replicationBytes,
-            attachmentsBytes = attachmentsBytes,
-            authBytes = authBytes,
-            walShmBytes = walShmBytes,
-            logsBytes = logsBytes,
-            otherBytes = otherBytes,
-            collectionBreakdown = collectionBreakdown,
         )
-    }
-
-    private suspend fun computeCollectionBreakdown(ditto: Ditto): List<CollectionStorageInfo> {
-        return try {
-            val colResult = ditto.store.execute("SELECT * FROM system:collections")
-            val names = colResult.items.mapNotNull { item ->
-                (item.value["name"] as? String).also { item.dematerialize() }
-            }
-            colResult.close()
-
-            val breakdown = names.mapNotNull { name ->
-                try {
-                    val escaped = name.replace("`", "``")
-                    val docResult = ditto.store.execute("SELECT * FROM `$escaped`")
-                    var jsonBytes = 0L
-                    var docCount = 0
-                    docResult.items.forEach { item ->
-                        jsonBytes += item.jsonString().toByteArray(Charsets.UTF_8).size.toLong()
-                        docCount++
-                        item.dematerialize()
-                    }
-                    docResult.close()
-                    CollectionStorageInfo(
-                        collectionName = name,
-                        documentCount = docCount,
-                        estimatedBytes = jsonBytes,
-                    )
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            breakdown.sortedByDescending { it.estimatedBytes }
-        } catch (e: Exception) {
-            emptyList()
-        }
     }
 
     private fun readProcStat(key: String): Long {
@@ -139,7 +62,7 @@ class AppMetricsRepositoryImpl : AppMetricsRepository {
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     if (line!!.startsWith(key)) {
-                        return line!!.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
+                        return line.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
                     }
                 }
                 0L

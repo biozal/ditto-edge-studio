@@ -1,8 +1,20 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// Release signing credentials, kept out of git (see android/.gitignore).
+// The keystore itself lives outside the repo; keystore.properties points at it.
+// Absent on contributor machines and CI — release builds there stay unsigned
+// rather than failing the whole configuration phase.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystoreProperties.getProperty("storeFile")?.let { file(it).exists() } == true
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -10,16 +22,32 @@ plugins {
 
 android {
     namespace = "com.costoda.dittoedgestudio"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.costoda.dittoedgestudio"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0b5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // v1 is required for API < 24; minSdk is 28, so v2+v3 suffice and
+                // keep the 300 MB+ APK from carrying a redundant JAR manifest.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +57,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
+
+            // Ship arm64-v8a only. libdittoffi.so alone is ~55 MB per ABI, and a
+            // universal APK came to 316 MB — 138 MB of which was x86/x86_64, which
+            // only ever runs on Intel emulators. arm64-v8a covers every real device
+            // shipped in roughly the last decade AND Apple Silicon emulators.
+            // Debug builds keep all ABIs so Intel emulators still work locally.
+            ndk { abiFilters += "arm64-v8a" }
         }
     }
     compileOptions {
@@ -37,15 +73,40 @@ android {
     }
     buildFeatures {
         compose = true
+        // Required for BuildConfig.DEBUG gating of operational Log.* calls.
+        buildConfig = true
+    }
+    packaging {
+        resources {
+            // mockk-android pulls in JUnit 5 (Jupiter) transitively, which includes multiple
+            // copies of LICENSE.md / LICENSE-notice.md. Exclude them to avoid merge conflicts.
+            excludes += setOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE-notice.md",
+            )
+        }
     }
     testOptions {
         unitTests {
             isReturnDefaultValues = true
         }
+        managedDevices {
+            localDevices {
+                create("tabletApi34") {
+                    device = "Pixel Tablet"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+            }
+        }
     }
+
+    // Expose the Room-exported schema JSONs to androidTest so MigrationTestHelper
+    // can load them via assets. The schemas/ directory is checked into git
+    // (see plans/android/config-loss-investigation.md item B1).
     sourceSets {
-        getByName("main") {
-            assets.srcDirs("src/main/assets")
+        named("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
         }
     }
 }
@@ -66,11 +127,38 @@ val syncHelpDocs by tasks.registering(Copy::class) {
     from(rootProject.file("../docs/help"))
     into(layout.projectDirectory.dir("src/main/assets/help"))
     include("*.md")
+    // UserGuide.md is macOS/iPadOS-only content (⌘ shortcuts, Settings menu, MCP
+    // server) and is unreferenced by the Android UI — SwiftUI ships it, Android does not.
+    exclude("UserGuide.md")
 }
 
 tasks.named("preBuild") {
     dependsOn(syncHelpDocs)
 }
+
+val forbidNonAdaptiveSizeApis by tasks.registering {
+    group = "verification"
+    description = "Fails if Configuration.screenWidthDp-style APIs are used outside ui/adaptive/"
+    val srcDir = layout.projectDirectory.dir("src/main/java")
+    inputs.dir(srcDir)
+    doLast {
+        val forbidden = Regex("""screenWidthDp|smallestScreenWidthDp""")
+        val offenders = srcDir.asFileTree.matching {
+            include("**/*.kt")
+            exclude("**/ui/adaptive/**")
+        }
+            .filter { it.readText().contains(forbidden) }
+            .map { it.relativeTo(srcDir.asFile) }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Non-adaptive size APIs found (use ui/adaptive/WindowSize.kt instead):\n" +
+                    offenders.joinToString("\n")
+            )
+        }
+    }
+}
+
+tasks.named("check") { dependsOn(forbidNonAdaptiveSizeApis) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -83,7 +171,13 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.window)
+    implementation(libs.androidx.window.core)
+    implementation(libs.material3.adaptive)
+    implementation(libs.material3.adaptive.layout)
+    implementation(libs.material3.adaptive.navigation3)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // SQLCipher + Room
     implementation(libs.sqlcipher)
@@ -99,7 +193,9 @@ dependencies {
     implementation(libs.koin.androidx.compose)
 
     // Navigation
-    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
@@ -124,6 +220,8 @@ dependencies {
     implementation(libs.camerax.view)
     implementation(libs.zxing.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.datastore.preferences)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
@@ -133,13 +231,19 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
+    testImplementation(libs.okhttp.mockwebserver)
 
     // Instrumented tests
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.okhttp.mockwebserver)
 }

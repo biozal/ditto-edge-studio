@@ -23,7 +23,7 @@ struct QueryMetricSnapshot {
 // MARK: - MetricsRepository
 
 enum MetricsRepository {
-    static let appStartDate = Date() // captures first access ≈ app launch
+    static let appStartDate = Date.now // captures first access ≈ app launch
 
     // MARK: - Process metrics (synchronous — Darwin APIs are thread-safe)
 
@@ -34,7 +34,7 @@ enum MetricsRepository {
             virtualMemoryBytes: getVirtualMemory(),
             cpuTimeSeconds: getCPUTime(),
             openFileDescriptors: getOpenFDCount(),
-            processUptimeSeconds: Date().timeIntervalSince(MetricsRepository.appStartDate)
+            processUptimeSeconds: Date.now.timeIntervalSince(MetricsRepository.appStartDate)
         )
         #else
         return ProcessMetricSnapshot(
@@ -42,7 +42,7 @@ enum MetricsRepository {
             virtualMemoryBytes: nil,
             cpuTimeSeconds: nil,
             openFileDescriptors: nil,
-            processUptimeSeconds: Date().timeIntervalSince(MetricsRepository.appStartDate)
+            processUptimeSeconds: Date.now.timeIntervalSince(MetricsRepository.appStartDate)
         )
         #endif
     }
@@ -64,16 +64,6 @@ enum MetricsRepository {
 
     static func samples(for label: String) async -> [MetricSample] {
         await InMemoryMetricsStore.shared.samplesForLabel(label)
-    }
-
-    // MARK: - Prometheus lifecycle
-
-    static func startCollecting() async {
-        await PrometheusExportBackend.shared.startExporting()
-    }
-
-    static func stopCollecting() async {
-        await PrometheusExportBackend.shared.stopExporting()
     }
 
     // MARK: - macOS Darwin helpers

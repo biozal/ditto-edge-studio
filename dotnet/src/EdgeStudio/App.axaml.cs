@@ -6,8 +6,6 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Messaging;
-using SukiUI;
-using SukiUI.Models;
 using EdgeStudio.Data.McpServer;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Data.Repositories;
@@ -52,9 +50,6 @@ public partial class App : Application
 
             // Ensure the theme follows OS setting
             RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Default;
-
-            // Register Ditto brand themes (must happen before any window is shown)
-            SetupDittoThemes();
 
             // Register cleanup handler for application exit
             desktop.Exit += OnApplicationExit;
@@ -164,19 +159,10 @@ public partial class App : Application
         services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
         services.AddSingleton<INavigationService, NavigationService>();
 
-        // Register toast service for notifications
-        services.AddSingleton<SukiUI.Toasts.ISukiToastManager>(provider =>
-        {
-            return new SukiUI.Toasts.SukiToastManager();
-        });
-
-        // Register dialog service for modal error dialogs
-        services.AddSingleton<SukiUI.Dialogs.ISukiDialogManager>(provider =>
-        {
-            return new SukiUI.Dialogs.SukiDialogManager();
-        });
-        services.AddSingleton<IDialogService, SukiDialogService>();
-        services.AddSingleton<IToastService, SukiToastService>();
+        services.AddSingleton<EdgeStudio.UI.Services.ToastManager>();
+        services.AddSingleton<IToastService>(sp => sp.GetRequiredService<EdgeStudio.UI.Services.ToastManager>());
+        services.AddSingleton<EdgeStudio.UI.Services.DialogManager>();
+        services.AddSingleton<IDialogService>(sp => sp.GetRequiredService<EdgeStudio.UI.Services.DialogManager>());
         services.AddSingleton<ISyncService, SyncService>();
         services.AddSingleton<IQrCodeService, QrCodeService>();
         services.AddSingleton<INetworkAdapterService, NetworkAdapterService>();
@@ -191,6 +177,7 @@ public partial class App : Application
         services.AddSingleton<IAppMetricsService, AppMetricsService>();
         services.AddSingleton<IQueryService, DittoQueryService>();
         services.AddSingleton<IImportService, ImportService>();
+        services.AddSingleton<IAttachmentService, AttachmentService>();
 
         // Register SQLite-backed repositories
         services.AddSingleton<IDatabaseRepository, SqliteDatabaseRepository>();
@@ -228,6 +215,7 @@ public partial class App : Application
         services.AddSingleton<HistoryToolViewModel>();
         services.AddSingleton<FavoritesToolViewModel>();
         services.AddSingleton<IndexesToolViewModel>();
+        services.AddSingleton<AttachmentViewModel>();
         services.AddTransient<Lazy<NavigationViewModel>>();
         services.AddTransient<Lazy<SubscriptionViewModel>>();
         services.AddTransient<Lazy<SubscriptionDetailsViewModel>>();
@@ -249,24 +237,6 @@ public partial class App : Application
             var mcpService = _serviceProvider.GetRequiredService<McpServerService>();
             _ = Task.Run(async () => await mcpService.StartAsync());
         }
-    }
-
-    private static void SetupDittoThemes()
-    {
-        var sukiTheme = SukiTheme.GetInstance();
-
-        var dittoYellowTheme = new SukiColorTheme("DittoYellow",
-            primary: Color.Parse("#F0D830"),
-            accent:  Color.Parse("#2A292A"));
-
-        var dittoDarkTheme = new SukiColorTheme("DittoDark",
-            primary: Color.Parse("#2A292A"),
-            accent:  Color.Parse("#F0D830"));
-
-        sukiTheme.AddColorTheme(dittoYellowTheme);
-        sukiTheme.AddColorTheme(dittoDarkTheme);
-
-        sukiTheme.ChangeColorTheme(dittoDarkTheme);
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()

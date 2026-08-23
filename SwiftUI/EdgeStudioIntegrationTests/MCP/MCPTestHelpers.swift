@@ -34,7 +34,9 @@ enum MCPTestHelpers {
                     break
                 }
             }
-            if serverReady { break }
+            if serverReady {
+                break
+            }
             if attempt == 0 {
                 // Cold-start failure — stop, wait, and try once more
                 await MCPServerService.shared.stop()
@@ -55,6 +57,46 @@ enum MCPTestHelpers {
         UserDefaults.standard.removeObject(forKey: "mcpServerPort")
         // Brief pause so the OS fully releases the port before the next test
         try await Task.sleep(for: .milliseconds(100))
+    }
+
+    // MARK: SSE Helpers
+
+    enum MCPTestError: Error {
+        case sseHandshakeFailed
+    }
+
+    /// Opens an SSE connection (GET /mcp), parses the server-assigned
+    /// sessionId from the `endpoint` event, then runs `body` with it.
+    ///
+    /// The connection stays open for the duration of `body` because the
+    /// `URLSession.AsyncBytes` sequence remains in scope (the server sends a
+    /// keepalive comment every 15 s, which simply buffers). On return — or
+    /// when the server closes the connection — the stream is released.
+    static func withSSESession(_ body: (String) async throws -> Void) async throws {
+        let url = URL(string: "\(baseURL)/mcp")!
+        let (bytes, response) = try await URLSession.shared.bytes(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw MCPTestError.sseHandshakeFailed
+        }
+
+        // Read lines until the endpoint event delivers the sessionId:
+        //   event: endpoint
+        //   data: http://localhost:<port>/mcp?sessionId=<uuid>
+        var sessionId: String?
+        for try await line in bytes.lines {
+            if line.hasPrefix("data: "),
+               let components = URLComponents(string: String(line.dropFirst(6))),
+               let id = components.queryItems?.first(where: { $0.name == "sessionId" })?.value
+            {
+                sessionId = id
+                break
+            }
+        }
+        guard let sessionId else {
+            throw MCPTestError.sseHandshakeFailed
+        }
+
+        try await body(sessionId)
     }
 
     // MARK: HTTP Helpers

@@ -1,4 +1,3 @@
-import CodeEditor
 import SwiftUI
 
 struct ResultJsonViewer: View {
@@ -17,6 +16,12 @@ struct ResultJsonViewer: View {
 
     /// Callback for JSON selection (opens in inspector)
     var onJsonSelected: ((String) -> Void)?
+
+    /// Callback for adding an attachment to a document
+    var onAddAttachment: ((String) -> Void)?
+
+    /// Callback for deleting attachment field(s) from a document
+    var onDeleteAttachment: ((String) -> Void)?
 
     /// Use external or internal state
     private var currentPage: Binding<Int> {
@@ -49,7 +54,9 @@ struct ResultJsonViewer: View {
         externalPageSize: Binding<Int>? = nil,
         showPaginationControls: Bool = true,
         showExportButton: Bool = true,
-        onJsonSelected: ((String) -> Void)? = nil
+        onJsonSelected: ((String) -> Void)? = nil,
+        onAddAttachment: ((String) -> Void)? = nil,
+        onDeleteAttachment: ((String) -> Void)? = nil
     ) {
         _resultText = resultText
         self.externalCurrentPage = externalCurrentPage
@@ -57,6 +64,8 @@ struct ResultJsonViewer: View {
         self.showPaginationControls = showPaginationControls
         self.showExportButton = showExportButton
         self.onJsonSelected = onJsonSelected
+        self.onAddAttachment = onAddAttachment
+        self.onDeleteAttachment = onDeleteAttachment
     }
 
     /// Convenience initializer for static arrays
@@ -77,7 +86,7 @@ struct ResultJsonViewer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ResultsList(items: pagedItems, onJsonSelected: onJsonSelected)
+            ResultsList(items: pagedItems, onJsonSelected: onJsonSelected, onAddAttachment: onAddAttachment, onDeleteAttachment: onDeleteAttachment)
             Spacer()
 
             if showPaginationControls || showExportButton {
@@ -159,13 +168,20 @@ struct ResultsHeader: View {
 struct ResultsList: View {
     let items: [String]
     var onJsonSelected: ((String) -> Void)?
+    var onAddAttachment: ((String) -> Void)?
+    var onDeleteAttachment: ((String) -> Void)?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(items.indices, id: \.self) { index in
-                    ResultItem(jsonString: items[index], onJsonSelected: onJsonSelected)
-                        .padding(.horizontal)
+                ForEach(items, id: \.self) { jsonString in
+                    ResultItem(
+                        jsonString: jsonString,
+                        onJsonSelected: onJsonSelected,
+                        onAddAttachment: onAddAttachment,
+                        onDeleteAttachment: onDeleteAttachment
+                    )
+                    .padding(.horizontal)
                 }
             }
             .padding(.vertical)
@@ -176,18 +192,29 @@ struct ResultsList: View {
 struct ResultItem: View {
     let jsonString: String
     var onJsonSelected: ((String) -> Void)?
+    var onAddAttachment: ((String) -> Void)?
+    var onDeleteAttachment: ((String) -> Void)?
     @State private var isCopied = false
+    @State private var attachments: [AttachmentInfo] = []
+    @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 4) {
             HStack {
+                // NOTE: do NOT add `.textSelection(.enabled)` here.
+                // On macOS that modifier hosts an NSTextView that claims
+                // all pointer events inside the text bounds — including
+                // right-click — which shadows the row's `.contextMenu`
+                // below and breaks Add Attachment / Copy _id / etc. on
+                // any click that lands on the JSON characters. Use the
+                // JSON Inspector (opens on row tap via `onJsonSelected`)
+                // when fine-grained text selection is actually needed.
                 Text(jsonString)
                     .font(.system(.body, design: .monospaced))
                     .padding(8)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
 
                 if isCopied {
                     FontAwesomeText(icon: StatusIcon.circleCheck, size: 14, color: .green)
@@ -202,27 +229,60 @@ struct ResultItem: View {
             copyToClipboard()
             onJsonSelected?(jsonString)
         }
+        .contextMenu {
+            queryResultRowMenu(
+                hasAttachments: !attachments.isEmpty,
+                onCopyDocument: { copyToClipboard() },
+                onCopyId: { copyIdToClipboard() },
+                onAddAttachment: { onAddAttachment?(jsonString) },
+                onDeleteAttachment: { onDeleteAttachment?(jsonString) }
+            )
+        }
         .background(RoundedRectangle(cornerRadius: 4)
             .fill(Color.primary.opacity(0.05))
             .opacity(isCopied ? 1.0 : 0.0))
         .animation(.easeInOut(duration: 0.3), value: isCopied)
+        .task(id: jsonString) {
+            let detected = await Task.detached(priority: .utility) {
+                AttachmentInfo.detectTokens(in: jsonString)
+            }.value
+            guard !Task.isCancelled else { return }
+            attachments = detected
+        }
+        .onDisappear {
+            resetTask?.cancel()
+            resetTask = nil
+        }
     }
 
     private func copyToClipboard() {
-        #if os(macOS)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(jsonString, forType: .string)
-        #else
-        UIPasteboard.general.string = jsonString
-        #endif
+        setClipboardString(jsonString)
+        flashCopiedIndicator()
+    }
 
-        // Show feedback
+    private func copyIdToClipboard() {
+        // Falls back to the full document if the JSON doesn't parse or
+        // has no `_id`. That matches user expectation better than a
+        // silent no-op — they right-clicked Copy _id meaning to grab
+        // something useful, and a system collection / ad-hoc payload
+        // without `_id` should still copy *something*.
+        let value = extractIdString(fromJSON: jsonString) ?? jsonString
+        setClipboardString(value)
+        flashCopiedIndicator()
+    }
+
+    /// Plays the green-check confirmation overlay. Shared between Copy
+    /// Document and Copy _id so both actions feel the same.
+    private func flashCopiedIndicator() {
         withAnimation {
             isCopied = true
         }
-
-        // Reset after delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        // Cancel any prior pending reset so a fresh copy doesn't get
+        // cleared early by a stale timer.
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled else { return }
             withAnimation {
                 isCopied = false
             }

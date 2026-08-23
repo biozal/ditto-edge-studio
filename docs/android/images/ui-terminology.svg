@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1240" viewBox="0 0 1920 1240">
+  <defs>
+    <style>
+      text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+      .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1240" fill="#0A0A0A"/>
+
+  <!-- Title -->
+  <text x="960" y="58" font-size="32" font-weight="700" fill="#F1F0EA" text-anchor="middle">Edge Studio — UI Layout Terminology</text>
+  <text x="960" y="92" font-size="18" fill="#9D9D9F" text-anchor="middle">SwiftUI (macOS / iPadOS) three-column layout  vs  Android four-region layout — matching colors = matching concepts</text>
+
+  <!-- ================= SwiftUI PANEL ================= -->
+  <text x="495" y="150" font-size="22" font-weight="700" fill="#F1F0EA" text-anchor="middle">SwiftUI — macOS / iPadOS</text>
+
+  <!-- Device frame -->
+  <rect x="60" y="170" width="870" height="560" rx="14" fill="#1D1C1D" stroke="#605F61" stroke-width="1.5"/>
+
+  <!-- Toolbar -->
+  <rect x="80" y="190" width="830" height="44" rx="6" fill="#353435" stroke="#605F61" stroke-width="1"/>
+  <text x="495" y="218" font-size="14" fill="#B5B4B6" text-anchor="middle">Toolbar — sync toggle · close · inspector toggle</text>
+
+  <!-- Sidebar: segmented picker zone (maps to Rail) -->
+  <rect x="80" y="244" width="196" height="72" rx="6" fill="#F0D830" fill-opacity="0.16" stroke="#F0D830" stroke-width="2"/>
+  <text x="178" y="274" font-size="15" font-weight="700" fill="#F0D830" text-anchor="middle">Segmented Picker</text>
+  <text x="178" y="296" font-size="12" fill="#9D9D9F" text-anchor="middle">nav switcher (48pt icons)</text>
+
+  <!-- Sidebar: content list (maps to Data Panel) -->
+  <rect x="80" y="324" width="196" height="334" rx="6" fill="#E8853A" fill-opacity="0.14" stroke="#E8853A" stroke-width="2"/>
+  <text x="178" y="360" font-size="19" font-weight="700" fill="#E8853A" text-anchor="middle">SIDEBAR</text>
+  <text x="178" y="382" font-size="12" fill="#9D9D9F" text-anchor="middle">content list · 200–300px</text>
+  <text x="178" y="430" font-size="14" fill="#D0CFC8" text-anchor="middle">Subscriptions</text>
+  <text x="178" y="456" font-size="14" fill="#D0CFC8" text-anchor="middle">Collections</text>
+  <text x="178" y="482" font-size="14" fill="#D0CFC8" text-anchor="middle">Observer</text>
+
+  <!-- MainView -->
+  <rect x="284" y="244" width="406" height="414" rx="6" fill="#5B8DD9" fill-opacity="0.13" stroke="#5B8DD9" stroke-width="2"/>
+  <text x="487" y="290" font-size="19" font-weight="700" fill="#5B8DD9" text-anchor="middle">MAINVIEW</text>
+  <text x="487" y="312" font-size="12" fill="#9D9D9F" text-anchor="middle">detail area</text>
+  <text x="487" y="430" font-size="14" fill="#D0CFC8" text-anchor="middle">Collections → query editor + results</text>
+  <text x="487" y="456" font-size="14" fill="#D0CFC8" text-anchor="middle">Observer → events + detail</text>
+  <text x="487" y="482" font-size="14" fill="#D0CFC8" text-anchor="middle">Subscriptions → sync tabs</text>
+
+  <!-- Inspector -->
+  <rect x="698" y="244" width="212" height="414" rx="6" fill="#58B368" fill-opacity="0.14" stroke="#58B368" stroke-width="2"/>
+  <text x="804" y="290" font-size="19" font-weight="700" fill="#58B368" text-anchor="middle">INSPECTOR</text>
+  <text x="804" y="312" font-size="12" fill="#9D9D9F" text-anchor="middle">250–500px · toggleable</text>
+  <text x="804" y="430" font-size="14" fill="#D0CFC8" text-anchor="middle">History</text>
+  <text x="804" y="456" font-size="14" fill="#D0CFC8" text-anchor="middle">Favorites</text>
+
+  <!-- Status bar -->
+  <rect x="80" y="668" width="830" height="42" rx="6" fill="#353435" stroke="#605F61" stroke-width="1"/>
+  <text x="495" y="695" font-size="14" fill="#B5B4B6" text-anchor="middle">Status Bar — sync status · peer count</text>
+
+  <!-- ================= ANDROID PANEL ================= -->
+  <text x="1455" y="150" font-size="22" font-weight="700" fill="#F1F0EA" text-anchor="middle">Android — Tablet</text>
+
+  <!-- Device frame -->
+  <rect x="1020" y="170" width="870" height="560" rx="14" fill="#1D1C1D" stroke="#605F61" stroke-width="1.5"/>
+
+  <!-- Rail -->
+  <rect x="1040" y="190" width="72" height="520" rx="6" fill="#F0D830" fill-opacity="0.16" stroke="#F0D830" stroke-width="2"/>
+  <circle cx="1076" cy="250" r="13" fill="#F0D830"/>
+  <circle cx="1076" cy="300" r="13" fill="none" stroke="#9D9D9F" stroke-width="2"/>
+  <circle cx="1076" cy="350" r="13" fill="none" stroke="#9D9D9F" stroke-width="2"/>
+  <circle cx="1076" cy="400" r="13" fill="none" stroke="#9D9D9F" stroke-width="2"/>
+  <text x="1076" y="560" font-size="17" font-weight="700" fill="#F0D830" text-anchor="middle" transform="rotate(-90 1076 560)">RAIL</text>
+
+  <!-- Top bar -->
+  <rect x="1122" y="190" width="748" height="44" rx="6" fill="#353435" stroke="#605F61" stroke-width="1"/>
+  <text x="1496" y="218" font-size="14" fill="#B5B4B6" text-anchor="middle">StudioTopBar — data-panel toggle · sync · inspector toggle</text>
+
+  <!-- Data Panel -->
+  <rect x="1122" y="244" width="190" height="466" rx="6" fill="#E8853A" fill-opacity="0.14" stroke="#E8853A" stroke-width="2"/>
+  <text x="1217" y="290" font-size="18" font-weight="700" fill="#E8853A" text-anchor="middle">DATA PANEL</text>
+  <text x="1217" y="312" font-size="12" fill="#9D9D9F" text-anchor="middle">list pane · scene-managed width</text>
+  <text x="1217" y="430" font-size="13" fill="#D0CFC8" text-anchor="middle">menu / info for the</text>
+  <text x="1217" y="452" font-size="13" fill="#D0CFC8" text-anchor="middle">selected Rail item</text>
+  <text x="1217" y="680" font-size="20" fill="#E8853A" text-anchor="middle">⟷</text>
+
+  <!-- Content Pane -->
+  <rect x="1320" y="244" width="328" height="466" rx="6" fill="#5B8DD9" fill-opacity="0.13" stroke="#5B8DD9" stroke-width="2"/>
+  <text x="1484" y="290" font-size="18" font-weight="700" fill="#5B8DD9" text-anchor="middle">CONTENT PANE</text>
+  <text x="1484" y="312" font-size="12" fill="#9D9D9F" text-anchor="middle">detail pane</text>
+  <text x="1484" y="430" font-size="13" fill="#D0CFC8" text-anchor="middle">Query → editor + results</text>
+  <text x="1484" y="454" font-size="13" fill="#D0CFC8" text-anchor="middle">Observer → events + detail</text>
+  <text x="1484" y="478" font-size="13" fill="#D0CFC8" text-anchor="middle">Sync → peers / presence</text>
+  <rect x="1360" y="648" width="248" height="38" rx="19" fill="#353435" stroke="#5B8DD9" stroke-width="1.5"/>
+  <text x="1484" y="672" font-size="12" fill="#B5B4B6" text-anchor="middle">QueryBottomBar / FAB</text>
+
+  <!-- Inspector -->
+  <rect x="1656" y="244" width="214" height="466" rx="6" fill="#58B368" fill-opacity="0.14" stroke="#58B368" stroke-width="2"/>
+  <text x="1763" y="290" font-size="18" font-weight="700" fill="#58B368" text-anchor="middle">INSPECTOR</text>
+  <text x="1763" y="312" font-size="12" fill="#9D9D9F" text-anchor="middle">300–400dp · default at ≥1200dp</text>
+  <text x="1763" y="430" font-size="13" fill="#D0CFC8" text-anchor="middle">History</text>
+  <text x="1763" y="454" font-size="13" fill="#D0CFC8" text-anchor="middle">Favorites</text>
+  <text x="1763" y="680" font-size="20" fill="#58B368" text-anchor="middle">⟷</text>
+
+  <!-- ================= BOTTOM: PHONE + MAPPING ================= -->
+
+  <!-- Phone section -->
+  <text x="330" y="800" font-size="20" font-weight="700" fill="#F1F0EA" text-anchor="middle">Android — Phone</text>
+
+  <!-- Phone A: closed -->
+  <rect x="100" y="826" width="200" height="330" rx="12" fill="#1D1C1D" stroke="#605F61" stroke-width="1.5"/>
+  <rect x="112" y="840" width="176" height="34" rx="5" fill="#353435"/>
+  <text x="128" y="863" font-size="16" fill="#F1F0EA">☰</text>
+  <text x="206" y="862" font-size="11" fill="#B5B4B6" text-anchor="middle">StudioTopBar</text>
+  <rect x="112" y="882" width="176" height="260" rx="5" fill="#5B8DD9" fill-opacity="0.13" stroke="#5B8DD9" stroke-width="1.5"/>
+  <text x="200" y="998" font-size="13" font-weight="700" fill="#5B8DD9" text-anchor="middle">CONTENT PANE</text>
+  <text x="200" y="1016" font-size="11" fill="#9D9D9F" text-anchor="middle">(default)</text>
+  <text x="200" y="1034" font-size="11" fill="#9D9D9F" text-anchor="middle">full width</text>
+
+  <!-- Arrow -->
+  <text x="330" y="1000" font-size="15" fill="#9D9D9F" text-anchor="middle">☰ opens</text>
+  <path d="M 312 1012 L 352 1012" stroke="#9D9D9F" stroke-width="2" fill="none" marker-end="none"/>
+  <path d="M 344 1006 L 354 1012 L 344 1018" stroke="#9D9D9F" stroke-width="2" fill="none"/>
+
+  <!-- Phone B: drawer open -->
+  <rect x="364" y="826" width="200" height="330" rx="12" fill="#1D1C1D" stroke="#605F61" stroke-width="1.5"/>
+  <rect x="376" y="840" width="176" height="302" rx="5" fill="#5B8DD9" fill-opacity="0.05" stroke="#3B3A3B" stroke-width="1"/>
+  <rect x="376" y="840" width="100" height="302" rx="5" fill="#9D9D9F" fill-opacity="0.18" stroke="#9D9D9F" stroke-width="2"/>
+  <text x="426" y="950" font-size="13" font-weight="700" fill="#D0CFC8" text-anchor="middle">NAV</text>
+  <text x="426" y="970" font-size="13" font-weight="700" fill="#D0CFC8" text-anchor="middle">DRAWER</text>
+  <text x="426" y="998" font-size="10" fill="#F0D830" text-anchor="middle">Rail +</text>
+  <text x="426" y="1014" font-size="10" fill="#E8853A" text-anchor="middle">Data Panel</text>
+  <text x="426" y="1030" font-size="10" fill="#9D9D9F" text-anchor="middle">merged</text>
+  <text x="514" y="990" font-size="10" fill="#605F61" text-anchor="middle">content</text>
+  <text x="514" y="1004" font-size="10" fill="#605F61" text-anchor="middle">dimmed</text>
+
+  <!-- Mapping table -->
+  <text x="660" y="800" font-size="20" font-weight="700" fill="#F1F0EA">Term Mapping</text>
+
+  <!-- header row -->
+  <text x="700" y="844" font-size="13" fill="#9D9D9F">iOS (SwiftUI)</text>
+  <text x="1180" y="844" font-size="13" fill="#9D9D9F">Android</text>
+  <text x="1480" y="844" font-size="13" fill="#9D9D9F">Code</text>
+  <line x1="660" y1="856" x2="1880" y2="856" stroke="#3B3A3B" stroke-width="1"/>
+
+  <!-- Row 1: Rail -->
+  <rect x="660" y="874" width="22" height="22" rx="4" fill="#F0D830"/>
+  <text x="700" y="891" font-size="16" fill="#D0CFC8">Sidebar — segmented picker</text>
+  <text x="1120" y="891" font-size="16" fill="#9D9D9F">→</text>
+  <text x="1180" y="891" font-size="16" font-weight="700" fill="#F0D830">Rail</text>
+  <text x="1480" y="891" font-size="14" fill="#9D9D9F" class="mono">NavigationRail</text>
+
+  <!-- Row 2: Data Panel -->
+  <rect x="660" y="930" width="22" height="22" rx="4" fill="#E8853A"/>
+  <text x="700" y="947" font-size="16" fill="#D0CFC8">Sidebar — content list</text>
+  <text x="1120" y="947" font-size="16" fill="#9D9D9F">→</text>
+  <text x="1180" y="947" font-size="16" font-weight="700" fill="#E8853A">Data Panel</text>
+  <text x="1480" y="947" font-size="14" fill="#9D9D9F" class="mono">ListDetailSceneStrategy.listPane</text>
+
+  <!-- Row 3: Content Pane -->
+  <rect x="660" y="986" width="22" height="22" rx="4" fill="#5B8DD9"/>
+  <text x="700" y="1003" font-size="16" fill="#D0CFC8">MainView</text>
+  <text x="1120" y="1003" font-size="16" fill="#9D9D9F">→</text>
+  <text x="1180" y="1003" font-size="16" font-weight="700" fill="#5B8DD9">Content Pane</text>
+  <text x="1480" y="1003" font-size="14" fill="#9D9D9F" class="mono">detailPane / detailPlaceholder</text>
+
+  <!-- Row 4: Inspector -->
+  <rect x="660" y="1042" width="22" height="22" rx="4" fill="#58B368"/>
+  <text x="700" y="1059" font-size="16" fill="#D0CFC8">Inspector</text>
+  <text x="1120" y="1059" font-size="16" fill="#9D9D9F">→</text>
+  <text x="1180" y="1059" font-size="16" font-weight="700" fill="#58B368">Inspector</text>
+  <text x="1480" y="1059" font-size="14" fill="#9D9D9F" class="mono">StudioScaffold inspector · 300–400dp</text>
+
+  <!-- Row 5: Nav Drawer -->
+  <rect x="660" y="1098" width="22" height="22" rx="4" fill="#9D9D9F"/>
+  <text x="700" y="1115" font-size="16" fill="#D0CFC8">— (phone only)</text>
+  <text x="1120" y="1115" font-size="16" fill="#9D9D9F">→</text>
+  <text x="1180" y="1115" font-size="16" font-weight="700" fill="#D0CFC8">Nav Drawer</text>
+  <text x="1480" y="1115" font-size="14" fill="#9D9D9F" class="mono">ModalNavigationDrawer</text>
+
+  <!-- Footer -->
+  <text x="960" y="1210" font-size="12" fill="#605F61" text-anchor="middle">Sources: android/…/ui/mainstudio/StudioScaffold.kt + ui/navigation/AppNavGraph.kt · SwiftUI/EdgeStudio/Views/MainStudioView.swift — see docs/android/UI_TERMINOLOGY.md</text>
+</svg>

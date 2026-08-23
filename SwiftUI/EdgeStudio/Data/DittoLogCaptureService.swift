@@ -34,8 +34,12 @@ final class DittoLogCaptureService: DittoDelegate {
 
     // MARK: - Live Batch Flush
 
-    @ObservationIgnored private var pendingLiveEntries: [LogEntry] = []
-    @ObservationIgnored private var flushTask: Task<Void, Never>?
+    /// Thread-safe buffer written directly on the Ditto SDK callback thread.
+    /// The callback appends here instead of spawning a `Task { @MainActor }`
+    /// per log line, so a chatty SDK can't flood the main-actor executor;
+    /// a single MainActor flush is scheduled per 250ms batch window.
+    @ObservationIgnored
+    private nonisolated let liveBuffer = LiveLogBuffer()
 
     // MARK: - Transport Condition Batch Flush
 
@@ -56,47 +60,51 @@ final class DittoLogCaptureService: DittoDelegate {
     // MARK: - Live Capture (Ditto SDK callback)
 
     /// Starts streaming live log entries from the Ditto SDK callback.
+    ///
+    /// The callback is process-wide; `stopLiveCapture()` (called from the
+    /// Logging view's `.onDisappear` and from database close) clears it again
+    /// via `DittoLogger.setCustomLogCallback(nil)`.
     func startLiveCapture(persistenceDir _: URL) {
         DittoLogger.setCustomLogCallback { [weak self] level, message in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let entry = LogEntry(
-                    timestamp: Date(),
-                    level: level,
-                    message: message,
-                    component: LogComponent.heuristic(from: message),
-                    source: .dittoSDK,
-                    rawLine: message
-                )
-                pendingLiveEntries.append(entry)
-                if flushTask == nil {
-                    flushTask = Task { @MainActor [weak self] in
-                        try? await Task.sleep(for: .milliseconds(250))
-                        self?.flushPendingEntries()
-                    }
+            guard let self else { return }
+            let entry = LogEntry(
+                timestamp: Date.now,
+                level: level,
+                message: message,
+                component: LogComponent.heuristic(from: message),
+                source: .dittoSDK,
+                rawLine: message
+            )
+            // Buffer on the callback thread; hop to the MainActor only once
+            // per batch window (when no flush is already scheduled).
+            if liveBuffer.append(entry) {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    self?.flushPendingEntries()
                 }
             }
         }
         Log.info("DittoLogCaptureService: live capture started")
     }
 
-    /// Stops live log streaming.
+    /// Stops live log streaming. Clears the process-wide SDK callback FIRST so
+    /// no new lines arrive, then drains whatever is still buffered.
     func stopLiveCapture() {
-        flushTask?.cancel()
-        flushTask = nil
-        flushPendingEntries()
         DittoLogger.setCustomLogCallback(nil)
+        flushPendingEntries()
         Log.info("DittoLogCaptureService: live capture stopped")
     }
 
     private func flushPendingEntries() {
-        guard !pendingLiveEntries.isEmpty else { flushTask = nil; return }
-        liveEntries.append(contentsOf: pendingLiveEntries)
-        if liveEntries.count > maxLiveEntries {
+        let batch = liveBuffer.drain()
+        guard !batch.isEmpty else { return }
+        liveEntries.append(contentsOf: batch)
+        // Trim only once we're a slack margin past the cap, so the O(n) shift is
+        // amortized over many flushes instead of running on every flush at cap.
+        if liveEntries.count > maxLiveEntries + 512 {
             liveEntries.removeFirst(liveEntries.count - maxLiveEntries)
         }
-        pendingLiveEntries.removeAll()
-        flushTask = nil
     }
 
     // MARK: - Historical Log Loading (file-based)
@@ -225,7 +233,7 @@ final class DittoLogCaptureService: DittoDelegate {
     ) {
         let msg = "Transport: \(subsystem) → \(condition)"
         let entry = LogEntry(
-            timestamp: Date(),
+            timestamp: Date.now,
             level: .info,
             message: msg,
             component: .transport,
@@ -238,6 +246,7 @@ final class DittoLogCaptureService: DittoDelegate {
             if transportFlushTask == nil {
                 transportFlushTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
                     self?.flushTransportEntries()
                 }
             }
@@ -252,7 +261,7 @@ final class DittoLogCaptureService: DittoDelegate {
     private func flushTransportEntries() {
         guard !pendingTransportEntries.isEmpty else { transportFlushTask = nil; return }
         transportEntries.append(contentsOf: pendingTransportEntries)
-        if transportEntries.count > maxTransportEntries {
+        if transportEntries.count > maxTransportEntries + 512 {
             transportEntries.removeFirst(transportEntries.count - maxTransportEntries)
         }
         pendingTransportEntries.removeAll()
@@ -272,7 +281,7 @@ final class DittoLogCaptureService: DittoDelegate {
             let msg = "Connection Request | type=\(request.connectionType) | key=\(request.peerKey)" +
                 " | identity=\(identity) | meta=\(meta)"
             let entry = LogEntry(
-                timestamp: Date(),
+                timestamp: Date.now,
                 level: .info,
                 message: msg,
                 component: .auth,
@@ -285,6 +294,7 @@ final class DittoLogCaptureService: DittoDelegate {
                 if connectionRequestFlushTask == nil {
                     connectionRequestFlushTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
                         self?.flushConnectionRequestEntries()
                     }
                 }
@@ -312,10 +322,46 @@ final class DittoLogCaptureService: DittoDelegate {
     private func flushConnectionRequestEntries() {
         guard !pendingConnectionRequestEntries.isEmpty else { connectionRequestFlushTask = nil; return }
         connectionRequestEntries.append(contentsOf: pendingConnectionRequestEntries)
-        if connectionRequestEntries.count > maxConnectionRequestEntries {
+        if connectionRequestEntries.count > maxConnectionRequestEntries + 512 {
             connectionRequestEntries.removeFirst(connectionRequestEntries.count - maxConnectionRequestEntries)
         }
         pendingConnectionRequestEntries.removeAll()
         connectionRequestFlushTask = nil
+    }
+}
+
+// MARK: - LiveLogBuffer
+
+/// Lock-protected buffer for live log entries arriving on the Ditto SDK
+/// callback thread. Lets the callback append synchronously (no per-line
+/// `Task { @MainActor }` hop) and coalesces MainActor flushes: `append`
+/// returns `true` only when no flush is currently scheduled, so the caller
+/// schedules exactly one flush per batch window.
+private final class LiveLogBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [LogEntry] = []
+    private var isFlushScheduled = false
+
+    /// Appends an entry. Returns `true` when the caller must schedule a
+    /// MainActor flush (i.e. none is pending).
+    func append(_ entry: LogEntry) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.append(entry)
+        guard !isFlushScheduled else { return false }
+        isFlushScheduled = true
+        return true
+    }
+
+    /// Drains the pending entries and rearms the scheduler flag. The swap and
+    /// the flag reset happen under the same lock acquisition so no entry can
+    /// be stranded unflushed.
+    func drain() -> [LogEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        isFlushScheduled = false
+        let batch = entries
+        entries.removeAll(keepingCapacity: true)
+        return batch
     }
 }

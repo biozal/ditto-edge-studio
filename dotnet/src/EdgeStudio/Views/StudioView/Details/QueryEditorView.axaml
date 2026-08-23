@@ -38,7 +38,7 @@
                                  VerticalScrollBarVisibility="Auto"
                                  WordWrap="False"
                                  Padding="8,4,4,4"
-                                 Background="{DynamicResource SukiBackground}"
+                                 Background="{DynamicResource DittoCardSurface}"
                                  Foreground="{DynamicResource DittoCardText}"
                                  LineNumbersForeground="{DynamicResource DittoSecondary}"/>
     </Grid>

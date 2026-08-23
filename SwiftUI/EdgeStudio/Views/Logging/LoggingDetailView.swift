@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// The main logging detail view, accessible from the Logging sidebar item.
 struct LoggingDetailView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var capture = DittoLogCaptureService.shared
 
     // MARK: - Filter State
@@ -13,13 +13,16 @@ struct LoggingDetailView: View {
     @State private var selectedComponent: LogComponent = .all
     @State private var searchText = ""
     @State private var isDateFilterEnabled = false
-    @State private var dateFilterStart: Date = Calendar.current.startOfDay(for: Date())
-    @State private var dateFilterEnd = Date()
+    @State private var dateFilterStart: Date = Calendar.current.startOfDay(for: Date.now)
+    @State private var dateFilterEnd = Date.now
 
-    // MARK: - Import State
+    // MARK: - Import / Export State
 
     #if os(macOS)
     @State private var isShowingImportPanel = false
+    @State private var isShowingExportPanel = false
+    @State private var exportError: String?
+    @State private var isShowingExportError = false
     #endif
 
     // MARK: - Display Cap
@@ -28,13 +31,14 @@ struct LoggingDetailView: View {
 
     /// Source tabs visible in the current platform.
     /// The Imported tab is macOS-only because log file import uses a macOS file picker.
-    private var visibleSourceTabs: [LoggingSourceTab] {
+    /// Platform-constant — computed once rather than rebuilt on every body render.
+    private static let visibleSourceTabs: [LoggingSourceTab] = {
         #if os(macOS)
         return LoggingSourceTab.allCases
         #else
         return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
-    }
+    }()
 
     // MARK: - Footer State
 
@@ -43,6 +47,10 @@ struct LoggingDetailView: View {
     // MARK: - Toolbar State
 
     @State private var activeLogLevel = "info"
+
+    // MARK: - Filtered Entry Cache (debounced)
+
+    @State private var cachedFilteredEntries: [LogEntry] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,6 +88,13 @@ struct LoggingDetailView: View {
             }
             await capture.loadAppLogs()
         }
+        .task(id: currentFilterInputs) {
+            // Debounce filter recompute by 150ms — coalesces fast keystrokes
+            // and bursty live-log appends into one filter pass.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            cachedFilteredEntries = computeFilteredEntries()
+        }
         .onDisappear {
             capture.stopLiveCapture()
         }
@@ -111,8 +126,17 @@ struct LoggingDetailView: View {
                 .frame(maxWidth: 100)
                 .onChange(of: activeLogLevel) { _, newLevel in
                     Task {
-                        if let config = await DittoManager.shared.dittoSelectedAppConfig {
-                            try? await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                        do {
+                            if let config = await DittoManager.shared.dittoSelectedAppConfig {
+                                // Mutate the shared config on the MainActor (this
+                                // onChange runs on the MainActor), then hand it to
+                                // the actor only for persistence + live apply.
+                                config.logLevel = newLevel
+                                try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                            }
+                        } catch {
+                            Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
+                            appState.setError(error)
                         }
                     }
                 }
@@ -140,7 +164,7 @@ struct LoggingDetailView: View {
 
     private var sourceRow: some View {
         HStack(spacing: 0) {
-            ForEach(visibleSourceTabs, id: \.self) { tab in
+            ForEach(Self.visibleSourceTabs, id: \.self) { tab in
                 Button {
                     capture.selectedSource = tab
                 } label: {
@@ -158,7 +182,7 @@ struct LoggingDetailView: View {
                 }
                 .buttonStyle(.plain)
 
-                if tab != visibleSourceTabs.last {
+                if tab != Self.visibleSourceTabs.last {
                     Divider().frame(height: 16)
                 }
             }
@@ -284,7 +308,9 @@ struct LoggingDetailView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .onChange(of: isDateFilterEnabled) { _, enabled in
-                if enabled { dateFilterEnd = Date() }
+                if enabled {
+                    dateFilterEnd = Date.now
+                }
             }
 
             if isDateFilterEnabled {
@@ -312,8 +338,8 @@ struct LoggingDetailView: View {
 
                 Button {
                     isDateFilterEnabled = false
-                    dateFilterStart = Calendar.current.startOfDay(for: Date())
-                    dateFilterEnd = Date()
+                    dateFilterStart = Calendar.current.startOfDay(for: Date.now)
+                    dateFilterEnd = Date.now
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -341,7 +367,7 @@ struct LoggingDetailView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-            } else if filteredEntries.isEmpty {
+            } else if cachedFilteredEntries.isEmpty {
                 VStack(spacing: 12) {
                     Spacer()
                     Image(systemName: "doc.plaintext")
@@ -360,7 +386,7 @@ struct LoggingDetailView: View {
                 .padding()
             } else {
                 List {
-                    ForEach(filteredEntries) { entry in
+                    ForEach(cachedFilteredEntries) { entry in
                         LogEntryRowView(entry: entry)
                     }
                 }
@@ -398,8 +424,8 @@ struct LoggingDetailView: View {
             } else {
                 GlassEffectContainer {
                     HStack(spacing: 12) {
-                        let displayed = filteredEntries.count
-                        let total = activeSourceEntries.count
+                        let displayed = cachedFilteredEntries.count
+                        let total = activeSourceEntryCount
                         let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
                         let footerLabel: String = {
                             if isFiltered {
@@ -432,6 +458,57 @@ struct LoggingDetailView: View {
                         ) { result in
                             if case let .success(urls) = result, let url = urls.first {
                                 Task { await capture.importFromDirectory(url) }
+                            }
+                        }
+
+                        // Export — App Logs and Ditto SDK sources have on-disk
+                        // files. App Logs copies the rolling CocoaLumberjack
+                        // files (see LoggingService); Ditto SDK copies the
+                        // `.log` / `.log.gz` files the SDK writes inside the
+                        // active database's persistence directory. The other
+                        // sources hold in-memory entries only and don't have
+                        // files to copy.
+                        if capture.selectedSource == .application || capture.selectedSource == .dittoSDK {
+                            Button { isShowingExportPanel = true } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(capture.selectedSource == .dittoSDK ? "Export Ditto SDK Logs…" : "Export App Logs…")
+                            .fileImporter(
+                                isPresented: $isShowingExportPanel,
+                                allowedContentTypes: [UTType.folder],
+                                allowsMultipleSelection: false
+                            ) { result in
+                                guard case let .success(urls) = result, let url = urls.first else { return }
+                                let source = capture.selectedSource
+                                Task { @MainActor in
+                                    let didStartAccess = url.startAccessingSecurityScopedResource()
+                                    defer {
+                                        if didStartAccess {
+                                            url.stopAccessingSecurityScopedResource()
+                                        }
+                                    }
+                                    do {
+                                        switch source {
+                                        case .application:
+                                            try LoggingService.shared.exportLogs(to: url)
+                                        case .dittoSDK:
+                                            try await exportDittoSDKLogs(to: url)
+                                        default:
+                                            break
+                                        }
+                                    } catch {
+                                        exportError = error.localizedDescription
+                                        isShowingExportError = true
+                                    }
+                                }
+                            }
+                            .alert("Export Failed", isPresented: $isShowingExportError, presenting: exportError) { _ in
+                                Button("OK", role: .cancel) {}
+                            } message: { message in
+                                Text(message)
                             }
                         }
                         #endif
@@ -500,8 +577,51 @@ struct LoggingDetailView: View {
         }
     }
 
-    private var filteredEntries: [LogEntry] {
-        let searchLower = searchText.isEmpty ? "" : searchText.lowercased()
+    /// O(1) per-source entry count — avoids the array concat that
+    /// `activeSourceEntries` does for `.dittoSDK`. Used in the footer label
+    /// and as a cheap filter-input invalidator.
+    private var activeSourceEntryCount: Int {
+        switch capture.selectedSource {
+        case .dittoSDK:
+            return capture.historicalEntries.count + capture.liveEntries.count
+        case .application:
+            return capture.appEntries.count
+        case .imported:
+            return capture.importedEntries.count
+        case .transportConditions:
+            return capture.transportEntries.count
+        case .connectionRequests:
+            return capture.connectionRequestEntries.count
+        }
+    }
+
+    /// All inputs that affect the filtered output. When this changes,
+    /// `.task(id:)` cancels any in-flight debounce and schedules a fresh one.
+    private struct FilterInputs: Equatable {
+        let selectedSource: LoggingSourceTab
+        let entryCount: Int
+        let levels: Set<DittoLogLevel>
+        let component: LogComponent
+        let searchText: String
+        let dateEnabled: Bool
+        let dateStart: Date
+        let dateEnd: Date
+    }
+
+    private var currentFilterInputs: FilterInputs {
+        FilterInputs(
+            selectedSource: capture.selectedSource,
+            entryCount: activeSourceEntryCount,
+            levels: selectedLevels,
+            component: selectedComponent,
+            searchText: searchText,
+            dateEnabled: isDateFilterEnabled,
+            dateStart: dateFilterStart,
+            dateEnd: dateFilterEnd
+        )
+    }
+
+    private func computeFilteredEntries() -> [LogEntry] {
         let filtered = activeSourceEntries.filter { entry in
             if isDateFilterEnabled {
                 guard LogEntry.isWithinDateRange(entry, start: dateFilterStart, end: dateFilterEnd) else { return false }
@@ -509,12 +629,69 @@ struct LoggingDetailView: View {
             guard selectedLevels.contains(entry.level) else { return false }
             if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported,
                selectedComponent != .all,
-               entry.component != selectedComponent { return false }
-            if !searchLower.isEmpty {
-                guard entry.message.lowercased().contains(searchLower) else { return false }
+               entry.component != selectedComponent
+            {
+                return false
+            }
+            if !searchText.isEmpty {
+                // Case-insensitive substring match without the per-entry
+                // `lowercased()` allocation.
+                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil else { return false }
             }
             return true
         }
         return Array(filtered.suffix(maxDisplayedEntries))
     }
+
+    #if os(macOS)
+    /// Copies the SDK-emitted `.log` / `.log.gz` files from the active
+    /// database's persistence directory into the user-chosen folder. Looks
+    /// in `ditto_logs/` first (current SDK) and falls back to `logs/` for
+    /// older SDK layouts.
+    private func exportDittoSDKLogs(to destinationURL: URL) async throws {
+        guard let persistenceDir = await DittoManager.shared.activePersistenceDirectory else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No active database — open a database first."]
+            )
+        }
+
+        let fileManager = FileManager.default
+        let sourceDir: URL? = ["ditto_logs", "logs"]
+            .map { persistenceDir.appendingPathComponent($0) }
+            .first { fileManager.fileExists(atPath: $0.path) }
+
+        guard let sourceDir else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "No SDK log directory found under \(persistenceDir.path)"]
+            )
+        }
+
+        let contents = try fileManager.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
+        let logFiles = contents.filter {
+            $0.pathExtension == "log" || $0.lastPathComponent.hasSuffix(".log.gz")
+        }
+
+        guard !logFiles.isEmpty else {
+            throw NSError(
+                domain: "EdgeStudio.LoggingDetailView",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "No log files found in \(sourceDir.path)"]
+            )
+        }
+
+        for fileURL in logFiles {
+            let destFileURL = destinationURL.appendingPathComponent(fileURL.lastPathComponent)
+            if fileManager.fileExists(atPath: destFileURL.path) {
+                try fileManager.removeItem(at: destFileURL)
+            }
+            try fileManager.copyItem(at: fileURL, to: destFileURL)
+        }
+
+        Log.info("Exported \(logFiles.count) SDK log files from \(sourceDir.path) to \(destinationURL.path)")
+    }
+    #endif
 }

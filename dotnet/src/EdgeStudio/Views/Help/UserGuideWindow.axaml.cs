@@ -3,11 +3,10 @@ using System.IO;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using EdgeStudio.Views.StudioView.Inspector;
-using SukiUI.Controls;
 
 namespace EdgeStudio.Views.Help;
 
-public partial class UserGuideWindow : SukiWindow
+public partial class UserGuideWindow : Window
 {
     private static readonly Uri UserGuideUri = new("avares://EdgeStudio/Assets/Help/UserGuide.md");
 

@@ -3,14 +3,18 @@ package com.costoda.dittoedgestudio.ui.qrcode
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.data.repository.FavoritesRepository
 import com.costoda.dittoedgestudio.util.QrCodeDecoder
 import com.costoda.dittoedgestudio.util.QrImportResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "QrScannerViewModel"
 
@@ -39,7 +43,8 @@ class QrScannerViewModel(
     fun processBarcode(rawValue: String) {
         if (_uiState.value is QrScannerUiState.Processing) return
         _uiState.value = QrScannerUiState.Processing
-        Log.d(TAG, "processBarcode: length=${rawValue.length} prefix=${rawValue.take(10)}")
+        // Never log payload content — QR payloads carry full database configs.
+        if (BuildConfig.DEBUG) Log.d(TAG, "processBarcode: length=${rawValue.length}")
 
         viewModelScope.launch {
             val result = QrCodeDecoder.decode(rawValue)
@@ -48,11 +53,19 @@ class QrScannerViewModel(
                 return@launch
             }
             try {
-                databaseRepository.save(result.database)
-                result.favorites.forEach { query ->
-                    favoritesRepository.saveFavorite(result.database.databaseId, query)
+                // NonCancellable: a back-press mid-save must not silently lose the
+                // scanned config — the Room writes still land even if this scope is
+                // cancelled (same pattern as StudioSession.addSubscriptionSuspend).
+                withContext(NonCancellable) {
+                    databaseRepository.save(result.database)
+                    result.favorites.forEach { query ->
+                        favoritesRepository.saveFavorite(result.database.databaseId, query)
+                    }
                 }
                 _uiState.value = QrScannerUiState.Success(result)
+            } catch (ce: CancellationException) {
+                // Never swallow cancellation — the VM scope is being torn down.
+                throw ce
             } catch (e: Exception) {
                 _uiState.value = QrScannerUiState.Error(e.message ?: "Failed to save database config")
             }

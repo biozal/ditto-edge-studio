@@ -6,6 +6,7 @@ struct JsonSyntaxView: View {
     let jsonString: String
 
     @State private var showCopiedFeedback = false
+    @State private var resetTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -19,7 +20,7 @@ struct JsonSyntaxView: View {
                     HStack(spacing: 4) {
                         if showCopiedFeedback {
                             Image(systemName: "checkmark")
-                                .foregroundColor(.green)
+                                .foregroundStyle(.green)
                         } else {
                             Image(systemName: "doc.on.doc")
                         }
@@ -60,8 +61,11 @@ struct JsonSyntaxView: View {
             showCopiedFeedback = true
         }
 
-        // Reset after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        // Reset after 2 seconds — cancellable so rapid taps don't stack resets
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
             withAnimation {
                 showCopiedFeedback = false
             }

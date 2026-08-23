@@ -8,6 +8,8 @@ struct ConnectionsByTransport: Codable, Equatable {
     let dittoServer: Int
     let p2pWiFi: Int
     let webSocket: Int
+    /// LAN multicast connections (beta transport, Ditto SDK 5.1.0)
+    let multicast: Int
 
     enum CodingKeys: String, CodingKey {
         case accessPoint = "AccessPoint"
@@ -15,17 +17,19 @@ struct ConnectionsByTransport: Codable, Equatable {
         case dittoServer = "DittoServer"
         case p2pWiFi = "P2PWiFi"
         case webSocket = "WebSocket"
+        case multicast = "Multicast"
     }
 
     // MARK: - Initializers
 
     /// Default initializer with all zeros
-    init(accessPoint: Int = 0, bluetooth: Int = 0, dittoServer: Int = 0, p2pWiFi: Int = 0, webSocket: Int = 0) {
+    init(accessPoint: Int = 0, bluetooth: Int = 0, dittoServer: Int = 0, p2pWiFi: Int = 0, webSocket: Int = 0, multicast: Int = 0) {
         self.accessPoint = accessPoint
         self.bluetooth = bluetooth
         self.dittoServer = dittoServer
         self.p2pWiFi = p2pWiFi
         self.webSocket = webSocket
+        self.multicast = multicast
     }
 
     /// Convenience initializer from dictionary (parses {"connections_by_transport": {...}})
@@ -36,12 +40,14 @@ struct ConnectionsByTransport: Codable, Equatable {
             dittoServer = connectionsDict["DittoServer"] as? Int ?? 0
             p2pWiFi = connectionsDict["P2PWiFi"] as? Int ?? 0
             webSocket = connectionsDict["WebSocket"] as? Int ?? 0
+            multicast = connectionsDict["Multicast"] as? Int ?? 0
         } else {
             accessPoint = 0
             bluetooth = 0
             dittoServer = 0
             p2pWiFi = 0
             webSocket = 0
+            multicast = 0
         }
     }
 
@@ -49,7 +55,7 @@ struct ConnectionsByTransport: Codable, Equatable {
 
     /// Total number of connections across all transports
     var totalConnections: Int {
-        accessPoint + bluetooth + dittoServer + p2pWiFi + webSocket
+        accessPoint + bluetooth + dittoServer + p2pWiFi + webSocket + multicast
     }
 
     /// True if there are any active connections
@@ -95,6 +101,14 @@ struct ConnectionsByTransport: Codable, Equatable {
                 count: accessPoint,
                 icon: ConnectivityIcon.broadcastTower,
                 color: ConnectionType.accessPoint.cardColor
+            ))
+        }
+        if multicast > 0 {
+            transports.append(TransportInfo(
+                name: "Multicast",
+                count: multicast,
+                icon: ConnectivityIcon.ethernet,
+                color: ConnectionType.multicast.cardColor
             ))
         }
         if dittoServer > 0 {

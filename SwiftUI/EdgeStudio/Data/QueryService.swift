@@ -1,6 +1,24 @@
 import DittoSwift
 import Foundation
 
+/// Bundle returned by `executeSelectedAppQueryWithProfile`. The Query
+/// editor uses this when it needs both the user-facing rows AND the
+/// execution-plan profile that Ditto attached via the `PROFILE` keyword.
+///
+/// Callers that don't care about profiling keep using
+/// `executeSelectedAppQuery(query:) -> [String]` unchanged.
+struct QueryExecutionResult {
+    /// JSON-encoded result rows, matching what the legacy `[String]`
+    /// return delivered.
+    let items: [String]
+    /// Parsed profile, or `nil` when:
+    ///   - Collect Metrics is disabled, or
+    ///   - the statement isn't a SELECT (PROFILE only supports SELECT), or
+    ///   - the user typed `PROFILE` manually and we left the query alone, or
+    ///   - the SDK returned something we couldn't parse as a profile envelope.
+    let profile: QueryProfile?
+}
+
 actor QueryService {
     static let shared = QueryService()
 
@@ -14,13 +32,15 @@ actor QueryService {
 
     func executeSelectedAppQuery(query: String) async throws -> [String] {
         guard let ditto = await dittoManager.dittoSelectedApp else {
-            return ["No results found"]
+            // Distinct from an empty result set ("No results found") — the MCP
+            // formatQueryResults special-cases this exact string.
+            return ["No Ditto app selected"]
         }
 
         // Instrument: measure execution time
-        let startDate = Date()
+        let startDate = Date.now
         let results = try await ditto.store.execute(query: query)
-        let elapsedMs = Date().timeIntervalSince(startDate) * 1000.0
+        let elapsedMs = Date.now.timeIntervalSince(startDate) * 1000.0
 
         // Record metrics only when collection is enabled (reads UserDefaults synchronously)
         let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
@@ -82,6 +102,179 @@ actor QueryService {
         return resultStrings
     }
 
+    /// Like `executeSelectedAppQuery(query:)` but also captures the
+    /// execution-plan profile when:
+    ///   1. Collect Metrics is enabled in Settings, AND
+    ///   2. the statement starts with `SELECT` (PROFILE only supports
+    ///      SELECT — see plans/dql-profile-feature.md), AND
+    ///   3. the user hasn't already typed `PROFILE` themselves.
+    ///
+    /// When all three hold, the statement is prefixed with `PROFILE `
+    /// before execution. Ditto appends an extra `~request_profile` item
+    /// to the result set; we pop it off, parse it via
+    /// `QueryProfileParser`, and return both pieces in
+    /// `QueryExecutionResult`. The user-facing rows in `.items` look
+    /// identical to what they'd see without profiling.
+    ///
+    /// When any condition fails, the query runs unmodified and
+    /// `.profile` is nil — same wire behaviour as the legacy method.
+    func executeSelectedAppQueryWithProfile(query: String) async throws -> QueryExecutionResult {
+        guard let ditto = await dittoManager.dittoSelectedApp else {
+            // Same sentinel as executeSelectedAppQuery — see note there.
+            return QueryExecutionResult(items: ["No Ditto app selected"], profile: nil)
+        }
+
+        let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+        let shouldProfile = isMetricsEnabled
+            && Self.isSelectStatement(query)
+            && !Self.alreadyHasProfilePrefix(query)
+        let effectiveQuery = shouldProfile ? "PROFILE \(query)" : query
+
+        // Instrument: measure execution time
+        let startDate = Date.now
+        let results = try await ditto.store.execute(query: effectiveQuery)
+        let elapsedMs = Date.now.timeIntervalSince(startDate) * 1000.0
+
+        // Record AppMetrics counters only when collection is enabled
+        if isMetricsEnabled {
+            queryCounter.increment()
+            queryTimer.recordMilliseconds(elapsedMs)
+        }
+
+        // Separate the trailing `~request_profile` item (if profiling
+        // was requested AND Ditto actually emitted one) from the
+        // user-facing rows. Walk from the end so we don't iterate the
+        // full result set when the profile sits where we expect it.
+        var profile: QueryProfile?
+        var userItems = results.items
+        if shouldProfile, let lastIndex = userItems.indices.last {
+            let lastValue = userItems[lastIndex].value.compactMapValues { $0 }
+            if let parsed = QueryProfileParser.parseItem(lastValue) {
+                profile = parsed
+                userItems[lastIndex].dematerialize()
+                userItems.removeLast()
+            }
+        }
+
+        // Build result strings — same shape as executeSelectedAppQuery,
+        // but reading from the (possibly trimmed) userItems.
+        let resultStrings: [String]
+        if userItems.isEmpty {
+            if !results.mutatedDocumentIDs().isEmpty {
+                var resultsStrings = results.mutatedDocumentIDs().compactMap {
+                    "Document ID: \($0.stringValue)"
+                }
+                if let commitID = results.commitID {
+                    resultsStrings.append("Commit ID: \(commitID)")
+                } else {
+                    resultsStrings.append("Commit ID: N/A")
+                }
+                resultStrings = resultsStrings
+            } else {
+                resultStrings = ["No results found"]
+            }
+        } else {
+            let resultJsonStrings = userItems.compactMap { item -> String? in
+                let cleanedValue = item.value.compactMapValues { $0 }
+                do {
+                    let data = try JSONSerialization.data(
+                        withJSONObject: cleanedValue,
+                        options: [
+                            .prettyPrinted,
+                            .fragmentsAllowed,
+                            .sortedKeys,
+                            .withoutEscapingSlashes
+                        ]
+                    )
+                    return String(data: data, encoding: .utf8)
+                } catch {
+                    return nil
+                }
+            }
+            resultStrings = resultJsonStrings.isEmpty ? ["No results found"] : resultJsonStrings
+        }
+
+        // Capture EXPLAIN + per-query metrics record only when collection
+        // is enabled. Note we deliberately pass the ORIGINAL `query`
+        // (without the PROFILE prefix) so EXPLAIN runs against the same
+        // statement the user typed — EXPLAIN doesn't care about PROFILE
+        // and prepending both would re-trigger profiling unnecessarily.
+        if isMetricsEnabled {
+            let resultCount = userItems.count + results.mutatedDocumentIDs().count
+            let explainOutput = await runExplain(ditto: ditto, query: query)
+            await QueryMetricsRepository.shared.capture(
+                dql: query,
+                executionTimeMs: elapsedMs,
+                resultCount: resultCount,
+                explainOutput: explainOutput
+            )
+        }
+
+        return QueryExecutionResult(items: resultStrings, profile: profile)
+    }
+
+    /// Returns true iff `query`'s first non-whitespace word is `SELECT`.
+    /// Used to gate the PROFILE prefix — Ditto's PROFILE keyword only
+    /// supports SELECT (INSERT/UPDATE/DELETE/EVICT/ALTER would fail).
+    /// Case-insensitive; matches both `"select"` and `"SELECT"`. The
+    /// trailing word boundary check rejects `SELECTOR` / `SELECTED`.
+    static func isSelectStatement(_ query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let upper = trimmed.uppercased()
+        let needle = "SELECT"
+        guard upper.hasPrefix(needle) else { return false }
+        // After "SELECT" we need whitespace or end-of-string. Anything
+        // else (e.g. SELECTOR) is not a SELECT statement.
+        let afterIndex = upper.index(upper.startIndex, offsetBy: needle.count)
+        if afterIndex == upper.endIndex {
+            return true
+        }
+        let next = upper[afterIndex]
+        return next.isWhitespace || next.isNewline
+    }
+
+    /// Returns true iff the user has already typed `PROFILE` at the
+    /// start of their statement. Prevents double-prepending — running
+    /// `PROFILE PROFILE SELECT …` would be a syntax error.
+    static func alreadyHasProfilePrefix(_ query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let upper = trimmed.uppercased()
+        let needle = "PROFILE"
+        guard upper.hasPrefix(needle) else { return false }
+        let afterIndex = upper.index(upper.startIndex, offsetBy: needle.count)
+        if afterIndex == upper.endIndex {
+            return true
+        }
+        let next = upper[afterIndex]
+        return next.isWhitespace || next.isNewline
+    }
+
+    /// Sanitizes a user-entered `httpApiUrl` and composes it with an HTTP
+    /// API path. Users sometimes paste the URL with a scheme (`http://host`)
+    /// or a trailing slash; both would produce a malformed URL if
+    /// interpolated directly, so strip them before composing. Shared by
+    /// QueryService (`/api/v5/store/execute`) and AttachmentService
+    /// (`/api/v4/attachments/…`).
+    nonisolated static func makeHttpApiURL(httpApiUrl: String, path: String) -> String {
+        var host = httpApiUrl.trimmingCharacters(in: .whitespaces)
+        for scheme in ["https://", "http://"] where host.lowercased().hasPrefix(scheme) {
+            host = String(host.dropFirst(scheme.count))
+            break
+        }
+        while host.hasSuffix("/") {
+            host.removeLast()
+        }
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        return "https://\(host)\(normalizedPath)"
+    }
+
+    /// Builds the HTTP API execute URL from a user-entered `httpApiUrl`.
+    nonisolated static func makeHttpExecuteURL(httpApiUrl: String) -> String {
+        makeHttpApiURL(httpApiUrl: httpApiUrl, path: "/api/v5/store/execute")
+    }
+
     private func runExplain(ditto: Ditto, query: String) async -> String {
         // Guard against recursive EXPLAIN calls
         guard !query.trimmingCharacters(in: .whitespaces).uppercased().hasPrefix("EXPLAIN") else {
@@ -108,7 +301,7 @@ actor QueryService {
             return ["{'error': 'No Ditto SelectedApp available.  You should never see this message.'}"]
         }
 
-        let urlString = "https://\(appConfig.httpApiUrl)/api/v5/store/execute"
+        let urlString = Self.makeHttpExecuteURL(httpApiUrl: appConfig.httpApiUrl)
         let authorization = "Bearer \(appConfig.httpApiKey)"
 
         guard let url = URL(string: urlString) else {
@@ -208,3 +401,7 @@ actor QueryService {
         return peerInfos
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension QueryService: QueryServiceProtocol {}

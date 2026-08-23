@@ -1,4 +1,6 @@
-# Ditto SDK & App Logging
+# Log Analyzer
+
+The **Log Analyzer** captures Ditto SDK logs in real time and reads historical log files from disk so you can inspect past sessions, filter by level, and trace sync/transport/storage activity.
 
 ## What is Ditto SDK Logging?
 
@@ -35,8 +37,8 @@ You can change the log level in two places:
 | Source | What it shows |
 |--------|---------------|
 | **Ditto SDK** | Live callback stream + historical `.log` / `.log.gz` files |
-| **App Logs** | Edge Studio's own CocoaLumberjack log files |
-| **Imported** | Logs loaded from an external folder |
+| **App Logs** | Edge Studio's own log files — CocoaLumberjack logs on macOS / iPadOS; on Android, the app's own captured log entries (not CocoaLumberjack) |
+| **Imported** | Logs loaded from an external folder *(macOS / iPadOS only)* |
 
 ### Level Chips
 
@@ -63,19 +65,23 @@ Type any text to filter entries by message content. The search is case-insensiti
 
 ## Log Files on Disk
 
-Ditto SDK logs are written to:
+Ditto SDK logs are written to (macOS / iPadOS):
 ```
 ~/Library/Application Support/ditto_edge_studio/{name}-{databaseId}/database/logs/
 ```
+
+On Android, the Ditto persistence directory lives under the app's private storage (`<filesDir>/ditto/…`) and is not directly browsable on-device; there is no in-app export on Android, so use `adb` on debuggable builds to retrieve log files. (The in-app **Export** action is macOS / iPadOS only.)
 
 - **Active file** (`.log`) — uncompressed, written as the SDK runs
 - **Rotated files** (`.log.gz`) — gzip-compressed, immutable once closed
 - Rotation: 1 MB or 24 h age; maximum 15 files (~15 MB total)
 
-Edge Studio's own logs (CocoaLumberjack) are at:
+Edge Studio's own logs (CocoaLumberjack, macOS / iPadOS only) are at:
 ```
 ~/Library/Logs/io.ditto.EdgeStudio/
 ```
+
+On Android, Edge Studio's own app logs are stored in the app's private storage (`<filesDir>/app_logs/`) instead.
 
 ---
 
@@ -99,7 +105,7 @@ To share logs with the Ditto team:
 2. Compress the `logs/` folder as a ZIP
 3. Attach to the GitHub issue at https://github.com/getditto/ditto/issues
 
-Alternatively, use the **Export** button in the App Logs source to copy the CocoaLumberjack files to a chosen location.
+Alternatively, on macOS / iPadOS, use the **Export** button in the App Logs source to copy the CocoaLumberjack files to a chosen location. On Android there is no in-app export/share action; retrieve the captured logs with `adb` on debuggable builds.
 
 ---
 
@@ -107,5 +113,5 @@ Alternatively, use the **Export** button in the App Logs source to copy the Coco
 
 - **Clear** button in the Logging footer removes the currently shown source's entries:
   - *Ditto SDK*: clears live + historical in-memory entries (files remain on disk)
-  - *App Logs*: deletes CocoaLumberjack log files from disk
+  - *App Logs*: deletes the app log files from disk (CocoaLumberjack files on macOS / iPadOS; the app's own log files on Android)
   - *Imported*: removes the imported entries from the viewer

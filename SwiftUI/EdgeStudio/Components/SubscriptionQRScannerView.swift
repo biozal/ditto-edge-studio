@@ -1,7 +1,8 @@
 import SwiftUI
 
+@MainActor
 struct SubscriptionQRScannerView: View {
-    let onScanned: (_ items: [SubscriptionQRItem], _ progress: @escaping @MainActor (Int, Int) -> Void) async -> Void
+    let onScanned: (_ items: [SubscriptionQRItem], _ progress: @escaping @MainActor @Sendable (Int, Int) -> Void) async -> Void
     @Environment(\.dismiss) private var dismiss
 
     private enum ScanState: Equatable {
@@ -86,7 +87,8 @@ private struct SubscriptionQRCameraPreview: UIViewControllerRepresentable {
         Coordinator(onScanned: onScanned)
     }
 
-    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
+    /// Main-confined coordinator (delegate callbacks on main); safe to share.
+    final class Coordinator: NSObject, DataScannerViewControllerDelegate, @unchecked Sendable {
         private let onScanned: ([SubscriptionQRItem]) -> Void
         private var hasScanned = false
 
@@ -114,7 +116,9 @@ private struct SubscriptionQRCameraPreview: UIViewControllerRepresentable {
 // MARK: - macOS Camera Preview
 
 #elseif os(macOS)
-import AVFoundation
+// AVCaptureSession is intentionally non-Sendable by Apple; @preconcurrency is the
+// sanctioned bridge for the capture-session setup closures.
+@preconcurrency import AVFoundation
 
 private struct SubscriptionQRCameraPreview: NSViewRepresentable {
     let onScanned: ([SubscriptionQRItem]) -> Void
@@ -178,7 +182,8 @@ private struct SubscriptionQRCameraPreview: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+    /// Main-confined coordinator (metadata delegate queue is .main); safe to share.
+    final class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate, @unchecked Sendable {
         private let onScanned: ([SubscriptionQRItem]) -> Void
         private var hasScanned = false
 

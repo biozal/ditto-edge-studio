@@ -9,12 +9,11 @@ using EdgeStudio.Shared.Data.Repositories;
 using EdgeStudio.Shared.Models;
 using EdgeStudio.Shared.Services;
 using SkiaSharp;
-using SukiUI.Controls;
 using ZXing;
 
 namespace EdgeStudio.Views.Database
 {
-    public partial class QrCodeImportWindow : SukiWindow
+    public partial class QrCodeImportWindow : Window
     {
         private readonly IDatabaseRepository _databaseRepository;
         private readonly IFavoritesRepository _favoritesRepository;

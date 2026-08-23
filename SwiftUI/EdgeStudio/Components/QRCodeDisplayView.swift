@@ -32,11 +32,11 @@ struct QRCodeDisplayView: View {
             } else {
                 VStack(spacing: 8) {
                     Text("Unable to generate QR code")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     if includeFavorites && !favorites.isEmpty {
                         Text("Too much data to encode — try disabling favorites")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .frame(width: 250, height: 250)
@@ -52,7 +52,7 @@ struct QRCodeDisplayView: View {
 
             Text("Scan with Edge Studio on another device")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             Button("Done") {

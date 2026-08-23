@@ -1,42 +1,29 @@
 package com.costoda.dittoedgestudio.data.repository
 
-import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.domain.model.QueryResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
-class QueryExecutionService(private val dittoManager: DittoManager) {
+/**
+ * Dispatcher facade: routes [execute] to [LocalQueryExecutionService] or
+ * [HttpQueryExecutionService] based on the picker mode set on `QueryWorkbenchState`.
+ *
+ * [explain] is local-only (matches SwiftUI's "PROFILE is local-only for v1"; see the
+ * design spec §5.7). Unknown modes fall back to Local — defensive in case the picker
+ * state drifts from the supported set.
+ */
+class QueryExecutionService(
+    private val local: LocalQueryExecutionService,
+    private val http: HttpQueryExecutionService,
+) {
 
-    suspend fun execute(query: String): QueryResult = withContext(Dispatchers.IO) {
-        val ditto = dittoManager.currentInstance()
-            ?: error("No active Ditto instance")
-        val start = System.currentTimeMillis()
-        val result = ditto.store.execute(query)
-        val elapsed = System.currentTimeMillis() - start
-        val documents = result.items.map { item ->
-            runCatching { parseJsonToMap(JSONObject(item.jsonString())) }
-                .getOrDefault(emptyMap())
-        }
-        result.close()
-        QueryResult(
-            documents = documents,
-            totalCount = documents.size,
-            executionTimeMs = elapsed,
-        )
-    }
+    suspend fun execute(query: String, mode: String = "Local"): QueryResult =
+        if (mode == "HTTP") http.execute(query) else local.execute(query)
 
-    suspend fun explain(query: String): QueryResult = execute("EXPLAIN $query")
+    suspend fun explain(query: String): QueryResult = local.explain(query)
 
-    private fun parseJsonToMap(json: JSONObject): Map<String, Any?> {
-        val map = mutableMapOf<String, Any?>()
-        for (key in json.keys()) {
-            map[key] = when (val value = json.opt(key)) {
-                JSONObject.NULL -> null
-                is JSONObject -> parseJsonToMap(value)
-                else -> value
-            }
-        }
-        return map
-    }
+    /**
+     * EXPLAIN output for [query] as pretty-printed JSON, for Query Metrics capture.
+     * Local-only (like [explain]); never throws — failures come back as
+     * "EXPLAIN failed: …" strings. See [LocalQueryExecutionService.explainPlan].
+     */
+    suspend fun explainPlan(query: String): String = local.explainPlan(query)
 }

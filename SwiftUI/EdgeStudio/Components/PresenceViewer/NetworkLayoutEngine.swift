@@ -239,8 +239,12 @@ class NetworkLayoutEngine {
                         let next = sorted[(idx + 1) % sorted.count]
                         var gapLeft = parentAngle - prev
                         var gapRight = next - parentAngle
-                        if gapLeft < 0 { gapLeft += 2 * .pi }
-                        if gapRight < 0 { gapRight += 2 * .pi }
+                        if gapLeft < 0 {
+                            gapLeft += 2 * .pi
+                        }
+                        if gapRight < 0 {
+                            gapRight += 2 * .pi
+                        }
                         halfGap = min(min(gapLeft, gapRight) * 0.8, .pi / 3.0)
                     }
 
@@ -292,7 +296,9 @@ class NetworkLayoutEngine {
         }
 
         // No inter-peer connections — even distribution is already optimal
-        if ring1Degree.values.allSatisfy({ $0 == 0 }) { return peers }
+        if ring1Degree.values.allSatisfy({ $0 == 0 }) {
+            return peers
+        }
 
         var remaining = Set(peers)
         var path: [String] = []
@@ -306,7 +312,7 @@ class NetworkLayoutEngine {
 
         while !remaining.isEmpty {
             // Try to extend the path at the tail
-            let tail = path.last!
+            guard let tail = path.last else { break }
             let tailNeighbour = (adjacencyGraph[tail] ?? [])
                 .filter { remaining.contains($0) }
                 .sorted { // deterministic: degree desc, then key asc
@@ -323,7 +329,7 @@ class NetworkLayoutEngine {
             }
 
             // Tail is stuck — try to extend at the head instead
-            let head = path.first!
+            guard let head = path.first else { break }
             let headNeighbour = (adjacencyGraph[head] ?? [])
                 .filter { remaining.contains($0) }
                 .sorted {
@@ -340,9 +346,9 @@ class NetworkLayoutEngine {
             }
 
             // Both ends stuck (disconnected sub-graph) — append the highest-degree remainder
-            let fallback = remaining
-                .sorted { $0 < $1 }
-                .max(by: { (ring1Degree[$0] ?? 0) < (ring1Degree[$1] ?? 0) }) ?? remaining.first!
+            guard let fallback = remaining
+                .sorted(by: { $0 < $1 })
+                .max(by: { (ring1Degree[$0] ?? 0) < (ring1Degree[$1] ?? 0) }) else { break }
             path.append(fallback)
             remaining.remove(fallback)
         }

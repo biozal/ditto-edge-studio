@@ -64,6 +64,10 @@ class ConnectionLine: SKNode {
                 lineColor = .systemOrange
                 dashPattern = [10, 3, 2, 3] // Dash-dot pattern
 
+            case .multicast: // LAN multicast (beta, SDK 5.1.0)
+                lineColor = SKColor(red: 0.0, green: 0.55, blue: 0.60, alpha: 1.0)
+                dashPattern = [4, 4] // Even dashes (distinct from LAN/P2P)
+
             @unknown default:
                 // Default/unknown connection type
                 lineColor = .systemGray

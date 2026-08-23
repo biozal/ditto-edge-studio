@@ -16,21 +16,33 @@ fi
 echo "Syncing help docs from $SRC"
 
 # SwiftUI
+# diskusage.md describes the Android-only Database Metrics screen and is
+# unreferenced by any SwiftUI code — excluded here (mirrors the Android-side
+# UserGuide.md exclusion below). Android still ships it via StudioNavItem.helpFileName.
 SWIFT_DEST="$REPO_ROOT/SwiftUI/EdgeStudio/Resources/Help"
 mkdir -p "$SWIFT_DEST"
-cp "$SRC"/*.md "$SWIFT_DEST/"
-echo "  ✓ SwiftUI: $SWIFT_DEST"
-
-# dotnet
-DOTNET_DEST="$REPO_ROOT/dotnet/src/EdgeStudio/Assets/Help"
-mkdir -p "$DOTNET_DEST"
-cp "$SRC"/*.md "$DOTNET_DEST/"
-echo "  ✓ dotnet:  $DOTNET_DEST"
+for f in "$SRC"/*.md; do
+    [ "$(basename "$f")" = "diskusage.md" ] && continue
+    cp "$f" "$SWIFT_DEST/"
+done
+rm -f "$SWIFT_DEST/diskusage.md"
+echo "  ✓ SwiftUI: $SWIFT_DEST (excluding diskusage.md)"
 
 # Android
+# UserGuide.md is macOS/iPadOS-only content (⌘ shortcuts, Settings menu, MCP server)
+# and is unreferenced by the Android UI — excluded here and in the Gradle
+# syncHelpDocs task (android/app/build.gradle.kts). SwiftUI still ships it.
 ANDROID_DEST="$REPO_ROOT/android/app/src/main/assets/help"
 mkdir -p "$ANDROID_DEST"
-cp "$SRC"/*.md "$ANDROID_DEST/"
-echo "  ✓ Android: $ANDROID_DEST"
+for f in "$SRC"/*.md; do
+    [ "$(basename "$f")" = "UserGuide.md" ] && continue
+    cp "$f" "$ANDROID_DEST/"
+done
+rm -f "$ANDROID_DEST/UserGuide.md"
+echo "  ✓ Android: $ANDROID_DEST (excluding UserGuide.md)"
+
+# Note: the dotnet/Avalonia target is archived (see ReleaseNotes / CLAUDE.md).
+# It is intentionally not synced anymore. The historic files remain under
+# dotnet/src/EdgeStudio/Assets/Help/ for git history only.
 
 echo "Done."

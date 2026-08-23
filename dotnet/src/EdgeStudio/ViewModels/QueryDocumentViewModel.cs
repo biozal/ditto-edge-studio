@@ -1,15 +1,20 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using EdgeStudio.Shared.Data;
 using EdgeStudio.Shared.Messages;
 using EdgeStudio.Shared.Models;
+using EdgeStudio.Shared.Services;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EdgeStudio.ViewModels
@@ -33,6 +38,9 @@ namespace EdgeStudio.ViewModels
         private readonly IQueryService? _queryService;
         private readonly IQueryMetricsService? _queryMetricsService;
         private readonly IAppMetricsService? _appMetricsService;
+        private readonly IAttachmentService? _attachmentService;
+        private readonly IToastService? _toastService;
+        private string? _lastCollection;
 
         [ObservableProperty]
         private string _selectedQueryMode = "Local";
@@ -44,7 +52,15 @@ namespace EdgeStudio.ViewModels
         private int _resultCount = 0;
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasAttachments))]
         private string? _selectedDocumentJson;
+
+        // Attachment state — kept on this ViewModel so bindings work in DocumentViewerView
+        public ObservableCollection<AttachmentInfo> DetectedAttachments { get; } = new();
+        public bool HasAttachments => DetectedAttachments.Count > 0;
+
+        [ObservableProperty]
+        private bool _isLoadingAttachment;
 
         public ObservableCollection<string> AvailableQueryModes { get; } = new() { "Local" };
 
@@ -89,7 +105,9 @@ namespace EdgeStudio.ViewModels
             IQueryService? queryService = null,
             string queryText = "",
             IQueryMetricsService? queryMetricsService = null,
-            IAppMetricsService? appMetricsService = null)
+            IAppMetricsService? appMetricsService = null,
+            IAttachmentService? attachmentService = null,
+            IToastService? toastService = null)
         {
             Id = Guid.NewGuid().ToString();
             _baseTitle = title;
@@ -102,6 +120,8 @@ namespace EdgeStudio.ViewModels
             _queryService = queryService;
             _queryMetricsService = queryMetricsService;
             _appMetricsService = appMetricsService;
+            _attachmentService = attachmentService;
+            _toastService = toastService;
 
             if (_jsonResults != null)
             {
@@ -111,6 +131,8 @@ namespace EdgeStudio.ViewModels
                     SelectedDocumentJson = json;
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
+                _jsonResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
+                _jsonResults.DeleteAttachmentRequested += json => OnDeleteAttachmentRequested(json);
             }
             if (_tableResults != null)
             {
@@ -120,6 +142,8 @@ namespace EdgeStudio.ViewModels
                     SelectedDocumentJson = json;
                     WeakReferenceMessenger.Default.Send(new DocumentDoubleClickedMessage(json));
                 };
+                _tableResults.AddAttachmentRequested += json => OnAddAttachmentRequested(json);
+                _tableResults.DeleteAttachmentRequested += json => OnDeleteAttachmentRequested(json);
             }
         }
 
@@ -154,6 +178,7 @@ namespace EdgeStudio.ViewModels
 
             IsExecuting = true;
             SelectedDocumentJson = null;
+            _lastCollection = ParseCollectionName(QueryText);
 
             var stopwatch = Stopwatch.StartNew();
             try
@@ -241,6 +266,84 @@ namespace EdgeStudio.ViewModels
                 AvailableQueryModes.Add("HTTP");
             else if (!available)
                 AvailableQueryModes.Remove("HTTP");
+        }
+
+        private static string? ParseCollectionName(string query)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                query, @"\bFROM\s+(\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        private void OnAddAttachmentRequested(string documentJson)
+        {
+            var collection = _lastCollection ?? "unknown";
+            WeakReferenceMessenger.Default.Send(
+                new AddAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
+        }
+
+        private void OnDeleteAttachmentRequested(string documentJson)
+        {
+            var collection = _lastCollection ?? "unknown";
+            WeakReferenceMessenger.Default.Send(
+                new DeleteAttachmentRequestedMessage(documentJson, collection, SelectedQueryMode));
+        }
+
+        /// <summary>Called automatically when SelectedDocumentJson changes via [NotifyPropertyChangedFor].</summary>
+        partial void OnSelectedDocumentJsonChanged(string? value)
+        {
+            DetectedAttachments.Clear();
+            if (!string.IsNullOrEmpty(value))
+            {
+                foreach (var token in AttachmentInfo.DetectTokens(value))
+                    DetectedAttachments.Add(token);
+            }
+            OnPropertyChanged(nameof(HasAttachments));
+        }
+
+        [RelayCommand]
+        private async Task OpenAttachment(AttachmentInfo? attachment)
+        {
+            if (attachment == null || _attachmentService == null) return;
+
+            IsLoadingAttachment = true;
+            try
+            {
+                byte[] data;
+                if (string.Equals(SelectedQueryMode, "HTTP", StringComparison.OrdinalIgnoreCase))
+                {
+                    data = await _attachmentService.FetchViaHttpAsync(attachment.Id);
+                }
+                else
+                {
+                    var token = new Dictionary<string, object>
+                    {
+                        ["id"] = attachment.Id,
+                        ["len"] = attachment.Length,
+                        ["metadata"] = attachment.Metadata.ToDictionary(kv => kv.Key, kv => (object)kv.Value)
+                    };
+                    data = await _attachmentService.FetchAsync(token);
+                }
+
+                // Save to temp and open with default OS app
+                var fileName = attachment.FileName ?? $"attachment_{attachment.Id[..8]}";
+                var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+                await File.WriteAllBytesAsync(tempPath, data);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = tempPath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _toastService?.ShowError($"Failed to open attachment: {ex.Message}", "Attachment Error");
+            }
+            finally
+            {
+                IsLoadingAttachment = false;
+            }
         }
 
         public bool CanClose() => true;

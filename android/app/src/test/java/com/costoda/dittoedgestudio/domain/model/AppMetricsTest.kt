@@ -17,14 +17,6 @@ class AppMetricsTest {
         totalQueryCount: Int = 0,
         avgQueryLatencyMs: Double = 0.0,
         lastQueryLatencyMs: Double? = null,
-        storeBytes: Long = 0L,
-        replicationBytes: Long = 0L,
-        attachmentsBytes: Long = 0L,
-        authBytes: Long = 0L,
-        walShmBytes: Long = 0L,
-        logsBytes: Long = 0L,
-        otherBytes: Long = 0L,
-        collectionBreakdown: List<CollectionStorageInfo> = emptyList(),
     ) = AppMetrics(
         capturedAt = 0L,
         residentMemoryBytes = residentMemoryBytes,
@@ -35,14 +27,6 @@ class AppMetricsTest {
         totalQueryCount = totalQueryCount,
         avgQueryLatencyMs = avgQueryLatencyMs,
         lastQueryLatencyMs = lastQueryLatencyMs,
-        storeBytes = storeBytes,
-        replicationBytes = replicationBytes,
-        attachmentsBytes = attachmentsBytes,
-        authBytes = authBytes,
-        walShmBytes = walShmBytes,
-        logsBytes = logsBytes,
-        otherBytes = otherBytes,
-        collectionBreakdown = collectionBreakdown,
     )
 
     // -------------------------------------------------------------------------
@@ -189,57 +173,5 @@ class AppMetricsTest {
     fun `lastLatencyFormatted 1500ms returns 1_50 s`() {
         val m = makeMetrics(lastQueryLatencyMs = 1500.0)
         assertEquals("1.50 s", m.lastLatencyFormatted)
-    }
-
-    // -------------------------------------------------------------------------
-    // totalStorageBytes computed property
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `totalStorageBytes sums all storage fields`() {
-        val m = makeMetrics(
-            storeBytes = 100L,
-            replicationBytes = 200L,
-            attachmentsBytes = 300L,
-            authBytes = 400L,
-            walShmBytes = 500L,
-            logsBytes = 600L,
-            otherBytes = 700L,
-        )
-        assertEquals(2800L, m.totalStorageBytes)
-    }
-
-    @Test
-    fun `totalStorageBytes is zero when all fields are zero`() {
-        val m = makeMetrics()
-        assertEquals(0L, m.totalStorageBytes)
-    }
-
-    // -------------------------------------------------------------------------
-    // CollectionStorageInfo
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `CollectionStorageInfo estimatedBytesFormatted 0 bytes returns 0 B`() {
-        val info = CollectionStorageInfo("col", documentCount = 1, estimatedBytes = 0L)
-        assertEquals("0 B", info.estimatedBytesFormatted)
-    }
-
-    @Test
-    fun `CollectionStorageInfo estimatedBytesFormatted 2048 bytes returns 2_0 KB`() {
-        val info = CollectionStorageInfo("col", documentCount = 1, estimatedBytes = 2048L)
-        assertEquals("2.0 KB", info.estimatedBytesFormatted)
-    }
-
-    @Test
-    fun `CollectionStorageInfo documentCountFormatted 5 returns 5 docs`() {
-        val info = CollectionStorageInfo("col", documentCount = 5, estimatedBytes = 0L)
-        assertEquals("5 docs", info.documentCountFormatted)
-    }
-
-    @Test
-    fun `CollectionStorageInfo documentCountFormatted 1 returns 1 docs`() {
-        val info = CollectionStorageInfo("col", documentCount = 1, estimatedBytes = 0L)
-        assertEquals("1 docs", info.documentCountFormatted)
     }
 }

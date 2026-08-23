@@ -18,7 +18,8 @@ This guide covers all code quality tools configured for the Edge Debug Helper pr
 8. [Per-File Overrides](#per-file-overrides)
 9. [CI/CD Integration](#cicd-integration)
 10. [Best Practices](#best-practices)
-11. [Troubleshooting](#troubleshooting)
+11. [Review and Fix Discipline](#review-and-fix-discipline-mandatory)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -799,6 +800,34 @@ xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 
 ---
 
+## Review and Fix Discipline (mandatory)
+
+Tooling in this guide catches style and dead code. It does **not** catch a fix that was
+never wired up, or a fix that is more dangerous than the bug — both of which have
+shipped on this repo behind green tests and clean lint.
+
+**Rule: a reported problem is not actionable until two independent reviewers confirm
+it, and a fix is not complete until a reviewer who did not write it verifies the
+production call site.**
+
+The full rule, the incidents that motivated it, and the required workflow are in
+[`FIX_VERIFICATION_RULE.md`](FIX_VERIFICATION_RULE.md). Two consequences for the tools
+described here:
+
+- **Know what `swiftlint lint` covers, and at what severity.** `.swiftlint.yml`'s
+  `included:` lists **all four** targets (production plus the three test targets) as of
+  2026-08-21, so `swiftlint lint --config .swiftlint.yml` reads 216 files. It reports
+  `142 violations, 0 serious` and exits 0 — the 142 are warnings, all in test code. The
+  build-phase gate is therefore **zero errors**, not zero violations, and adding `--strict`
+  to that phase would fail every build. Still lint changed files explicitly by path, at
+  `--strict`: that list *is* clean at error severity, and it is the only invocation that
+  proves something about your change rather than about the repo.
+- **Coverage claims must be measured, not asserted.** Use
+  `xcodebuild test -enableCodeCoverage YES` plus `xcrun xccov view --report`, per file.
+  A feature can hold hundreds of passing tests while its entry point sits at 0%.
+
+---
+
 ## Troubleshooting
 
 ### SwiftLint Issues
@@ -920,7 +949,7 @@ periphery scan \
 - CI/CD ready
 
 **Support:**
-- Full documentation in README.md and CLAUDE.md
+- Full documentation in README.md and AGENTS.md (with CLAUDE.md compatibility guidance)
 - Configuration files committed to repo
 - Team conventions established
 

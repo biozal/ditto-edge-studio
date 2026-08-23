@@ -1,13 +1,27 @@
 import Foundation
 
+/// Database configuration model.
+///
+/// `@unchecked Sendable` contract: instances are created and any in-place
+/// mutation happens on the `@MainActor` (the editor / transport-config view
+/// models). Once a config is handed to an actor (`DittoManager`, the
+/// repositories), it is treated as a read-only snapshot — those actors only
+/// read its properties, never mutate them. The MainActor mutation phase and the
+/// actor read phase do not overlap for a given instance, so cross-actor sharing
+/// is race-free in practice even though the compiler cannot prove it for an
+/// `@Observable` reference type with mutable storage.
+///
+/// Property names follow the Ditto v5 portal terminology (`databaseId`,
+/// `developmentToken`, `url`). For backward compatibility, `init(from:)` also
+/// accepts the legacy keys (`appId`, `token`, `authUrl`) so older exported JSON,
+/// QR codes, and `dittoConfig.plist` files still decode.
 @Observable
-class DittoConfigForDatabase: Codable {
+final class DittoConfigForDatabase: Codable, @unchecked Sendable {
     var _id: String
     var name: String
     var databaseId: String
-    var token: String
-    var authUrl: String
-    var websocketUrl: String
+    var developmentToken: String
+    var url: String
     var httpApiUrl: String
     var httpApiKey: String
     var mode: AuthMode
@@ -24,16 +38,33 @@ class DittoConfigForDatabase: Codable {
     var logLevel: String
     var isStrictModeEnabled: Bool
 
+    /// Advanced Configuration — re-applied on every database open because the SDK
+    /// keeps `ALTER SYSTEM` state in memory only.
+    var collectionSyncScopes: [CollectionSyncScope]
+    var startupSettings: [StartupSetting]
+
+    /// Set by the repository when the stored sync-scope JSON could not be decoded.
+    ///
+    /// Runtime-only (never persisted, never encoded): the config still loads so it shows
+    /// in the list and can be repaired in the editor, but `DittoManager` refuses to open
+    /// it — dropping a `LocalPeerOnly` scope silently would start syncing data the user
+    /// marked device-local.
+    var hasCorruptSyncScopes = false
+
+    /// - Note: `collectionSyncScopes` and `startupSettings` are intentionally
+    ///   **not** defaulted. Every caller rebuilds this object from scratch and
+    ///   `updateDatabaseConfig` overwrites all columns, so a defaulted parameter
+    ///   lets a forgetful call site silently erase a user's sync scopes. Requiring
+    ///   both arguments makes the compiler catch that instead.
     init(
         _ _id: String,
         name: String,
         databaseId: String,
-        token: String,
-        authUrl: String,
-        websocketUrl: String,
+        developmentToken: String,
+        url: String,
         httpApiUrl: String,
         httpApiKey: String,
-        mode: AuthMode = .server,
+        mode: AuthMode = .development,
         allowUntrustedCerts: Bool = false,
         secretKey: String = "",
         isBluetoothLeEnabled: Bool = true,
@@ -41,14 +72,15 @@ class DittoConfigForDatabase: Codable {
         isAwdlEnabled: Bool = true,
         isCloudSyncEnabled: Bool = true,
         logLevel: String = "info",
-        isStrictModeEnabled: Bool = false
+        isStrictModeEnabled: Bool = false,
+        collectionSyncScopes: [CollectionSyncScope],
+        startupSettings: [StartupSetting]
     ) {
         self._id = _id
         self.name = name
         self.databaseId = databaseId
-        self.token = token
-        self.authUrl = authUrl
-        self.websocketUrl = websocketUrl
+        self.developmentToken = developmentToken
+        self.url = url
         self.httpApiUrl = httpApiUrl
         self.httpApiKey = httpApiKey
         self.mode = mode
@@ -60,15 +92,16 @@ class DittoConfigForDatabase: Codable {
         self.isCloudSyncEnabled = isCloudSyncEnabled
         self.logLevel = logLevel
         self.isStrictModeEnabled = isStrictModeEnabled
+        self.collectionSyncScopes = collectionSyncScopes
+        self.startupSettings = startupSettings
     }
 
     enum CodingKeys: String, CodingKey {
         case _id
         case name
         case databaseId
-        case token
-        case authUrl
-        case websocketUrl
+        case developmentToken
+        case url
         case httpApiUrl
         case httpApiKey
         case mode
@@ -80,6 +113,15 @@ class DittoConfigForDatabase: Codable {
         case isCloudSyncEnabled
         case logLevel
         case isStrictModeEnabled
+        case collectionSyncScopes
+        case startupSettings
+    }
+
+    /// Legacy (pre-v5) keys accepted on decode for backward compatibility.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case appId // → databaseId
+        case token // → developmentToken
+        case authUrl // → url
     }
 
     func encode(to encoder: Encoder) throws {
@@ -87,9 +129,8 @@ class DittoConfigForDatabase: Codable {
         try container.encode(_id, forKey: ._id)
         try container.encode(name, forKey: .name)
         try container.encode(databaseId, forKey: .databaseId)
-        try container.encode(token, forKey: .token)
-        try container.encode(authUrl, forKey: .authUrl)
-        try container.encode(websocketUrl, forKey: .websocketUrl)
+        try container.encode(developmentToken, forKey: .developmentToken)
+        try container.encode(url, forKey: .url)
         try container.encode(httpApiUrl, forKey: .httpApiUrl)
         try container.encode(httpApiKey, forKey: .httpApiKey)
         try container.encode(mode, forKey: .mode)
@@ -101,19 +142,34 @@ class DittoConfigForDatabase: Codable {
         try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
         try container.encode(logLevel, forKey: .logLevel)
         try container.encode(isStrictModeEnabled, forKey: .isStrictModeEnabled)
+        try container.encode(collectionSyncScopes, forKey: .collectionSyncScopes)
+        try container.encode(startupSettings, forKey: .startupSettings)
     }
 
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
         _id = try container.decode(String.self, forKey: ._id)
         name = try container.decode(String.self, forKey: .name)
-        databaseId = try container.decode(String.self, forKey: .databaseId)
-        token = try container.decode(String.self, forKey: .token)
-        authUrl = try container.decode(String.self, forKey: .authUrl)
-        websocketUrl = try container.decode(String.self, forKey: .websocketUrl)
+
+        // v5 keys, falling back to the legacy key name when absent.
+        databaseId = try container.decodeIfPresent(String.self, forKey: .databaseId)
+            ?? legacy.decodeIfPresent(String.self, forKey: .appId) ?? ""
+        developmentToken = try container.decodeIfPresent(String.self, forKey: .developmentToken)
+            ?? legacy.decodeIfPresent(String.self, forKey: .token) ?? ""
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+            ?? legacy.decodeIfPresent(String.self, forKey: .authUrl) ?? ""
+
         httpApiUrl = try container.decode(String.self, forKey: .httpApiUrl)
         httpApiKey = try container.decode(String.self, forKey: .httpApiKey)
-        mode = try container.decode(AuthMode.self, forKey: .mode)
+        // Tolerate legacy `mode` raw values ("server"/"smallpeersonly") on decode,
+        // so older exported JSON / QR codes / dittoConfig.plist still load even when
+        // decoded directly (not just via DittoAppConfigLoader's prepare path).
+        if let modeString = try container.decodeIfPresent(String.self, forKey: .mode) {
+            mode = DittoAppConfigLoader.parseMode(from: modeString) ?? .default
+        } else {
+            mode = .default
+        }
         allowUntrustedCerts = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedCerts) ?? false
         secretKey = try container.decodeIfPresent(String.self, forKey: .secretKey) ?? ""
 
@@ -125,6 +181,48 @@ class DittoConfigForDatabase: Codable {
         // Developer options with backward compatibility
         logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
         isStrictModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isStrictModeEnabled) ?? false
+
+        // Advanced configuration. Absent is fine (older payloads), but present-and-
+        // malformed is NOT tolerated for sync scopes: quietly dropping a
+        // `LocalPeerOnly` entry would let that collection sync. `decodeIfPresent`
+        // rethrows a malformed array rather than yielding nil, which is what we want.
+        collectionSyncScopes = try container
+            .decodeIfPresent([CollectionSyncScope].self, forKey: .collectionSyncScopes) ?? []
+        startupSettings = try container
+            .decodeIfPresent([StartupSetting].self, forKey: .startupSettings) ?? []
+    }
+
+    /// A copy with the advanced settings stripped, for QR sharing.
+    ///
+    /// Returns a **new instance** on purpose. This is a reference type with no copy
+    /// initializer, so clearing the arrays in place would delete the user's real sync
+    /// scopes from the shared `@Observable` object the moment they opened the QR
+    /// sheet — data loss triggered by a read-only action.
+    func sanitizedForSharing() -> DittoConfigForDatabase {
+        DittoConfigForDatabase(
+            _id,
+            name: name,
+            databaseId: databaseId,
+            developmentToken: developmentToken,
+            url: url,
+            httpApiUrl: httpApiUrl,
+            httpApiKey: httpApiKey,
+            mode: mode,
+            allowUntrustedCerts: allowUntrustedCerts,
+            secretKey: secretKey,
+            isBluetoothLeEnabled: isBluetoothLeEnabled,
+            isLanEnabled: isLanEnabled,
+            isAwdlEnabled: isAwdlEnabled,
+            isCloudSyncEnabled: isCloudSyncEnabled,
+            logLevel: logLevel,
+            isStrictModeEnabled: isStrictModeEnabled,
+            collectionSyncScopes: [],
+            startupSettings: []
+        )
+        // Deliberately NOT copied: a shared copy carries no advanced settings, so it has
+        // nothing corrupt to flag. Stated explicitly because this initializer is a
+        // positional re-construction — any property added to the class and not to
+        // `init` is silently dropped here.
     }
 }
 
@@ -134,12 +232,11 @@ extension DittoConfigForDatabase {
             UUID().uuidString,
             name: "",
             databaseId: "",
-            token: "",
-            authUrl: "",
-            websocketUrl: "",
+            developmentToken: "",
+            url: "",
             httpApiUrl: "",
             httpApiKey: "",
-            mode: .server,
+            mode: .development,
             allowUntrustedCerts: false,
             secretKey: "",
             isBluetoothLeEnabled: true,
@@ -147,7 +244,13 @@ extension DittoConfigForDatabase {
             isAwdlEnabled: true,
             isCloudSyncEnabled: true,
             logLevel: "info",
-            isStrictModeEnabled: false
+            isStrictModeEnabled: false,
+            collectionSyncScopes: [],
+            startupSettings: []
         )
+        // Deliberately NOT copied: a shared copy carries no advanced settings, so it has
+        // nothing corrupt to flag. Stated explicitly because this initializer is a
+        // positional re-construction — any property added to the class and not to
+        // `init` is silently dropped here.
     }
 }

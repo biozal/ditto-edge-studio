@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct SubscriptionObserverEditor: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
 
-    @State var title: String
-    @State var name: String
-    @State var query: String
+    let title: String
+    @State private var name: String
+    @State private var query: String
 
     let onSave: (String, String, AppState) -> Void
     let onCancel: () -> Void
@@ -17,7 +17,7 @@ struct SubscriptionObserverEditor: View {
         onSave: @escaping (String, String, AppState) -> Void,
         onCancel: @escaping () -> Void
     ) {
-        _title = State(initialValue: title)
+        self.title = title
         _name = State(initialValue: name)
         _query = State(initialValue: query)
 
@@ -31,6 +31,7 @@ struct SubscriptionObserverEditor: View {
                 Section("Basic Information") {
                     TextField("Name", text: $name)
                         .padding(.bottom, 20)
+                        .accessibilityIdentifier("EditorNameField")
                 }
                 Section("Query") {
                     TextEditor(text: $query)
@@ -39,9 +40,10 @@ struct SubscriptionObserverEditor: View {
                         .padding(6)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityIdentifier("EditorQueryField")
                     Text("Ex: SELECT * FROM collectionName")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(.bottom, 20)
                 }
             }
@@ -59,6 +61,7 @@ struct SubscriptionObserverEditor: View {
                         } label: {
                             Label("Cancel", systemImage: "xmark")
                         }
+                        .accessibilityIdentifier("EditorCancelButton")
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
@@ -67,6 +70,7 @@ struct SubscriptionObserverEditor: View {
                             }
                         }
                         .disabled(name.isEmpty || query.isEmpty)
+                        .accessibilityIdentifier("EditorSaveButton")
                     }
                 }
         }
@@ -84,5 +88,5 @@ struct SubscriptionObserverEditor: View {
         onSave: onSave,
         onCancel: onCancel
     )
-    .environmentObject(AppState())
+    .environment(AppState())
 }

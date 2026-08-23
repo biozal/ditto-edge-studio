@@ -58,16 +58,30 @@ struct HelpDocumentationWindow: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
 
             Text("Error Loading Help")
                 .font(.headline)
 
             Text(message)
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+
+            // Fallback so users aren't stranded when the bundled UserGuide.md
+            // is missing (common in dev builds). `Link` opens in the user's
+            // default browser on both macOS and iPadOS.
+            if let onlineDocsURL = URL(string: "https://docs.ditto.live") {
+                Link(destination: onlineDocsURL) {
+                    Label("Open Online Documentation", systemImage: "safari")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.dittoYellow)
+                .accessibilityIdentifier("OpenOnlineDocsLink")
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

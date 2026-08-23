@@ -6,6 +6,10 @@ struct QueryToolbarView: View {
     @Binding var history: [DittoQueryHistory]
     @Binding var toolbarMode: String
     @Binding var selectedQuery: String
+    /// Database this toolbar's session belongs to. Favorite saves forward it
+    /// to `FavoritesRepository.saveFavorite(_:databaseId:)`, which refuses
+    /// the write if the session has since switched databases.
+    var databaseId: String
 
     var body: some View {
         VStack {
@@ -53,7 +57,7 @@ struct QueryToolbarView: View {
                         }
                         Button("Favorite") {
                             Task {
-                                try await FavoritesRepository.shared.saveFavorite(query)
+                                try await FavoritesRepository.shared.saveFavorite(query, databaseId: databaseId)
                             }
                         }
                     }
@@ -62,7 +66,7 @@ struct QueryToolbarView: View {
                             Button(role: .cancel) {
                                 Task {
                                     try await FavoritesRepository.shared
-                                        .saveFavorite(query)
+                                        .saveFavorite(query, databaseId: databaseId)
                                 }
                             } label: {
                                 Label("Favorite", systemImage: "star")
@@ -145,19 +149,19 @@ struct QueryToolbarView: View {
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
-                createdDate: Date().addingTimeInterval(-3600)
+                createdDate: Date.now.addingTimeInterval(-3600)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "2",
                 query: "SELECT * FROM users WHERE age > 21",
-                createdDate: Date().addingTimeInterval(-7200)
+                createdDate: Date.now.addingTimeInterval(-7200)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "3",
                 query: "SELECT name, price FROM products WHERE inStock = true",
-                createdDate: Date().addingTimeInterval(-86400)
+                createdDate: Date.now.addingTimeInterval(-86400)
                     .ISO8601Format()
             )
         ]),
@@ -165,23 +169,24 @@ struct QueryToolbarView: View {
             DittoQueryHistory(
                 id: "1",
                 query: "SELECT * FROM movies",
-                createdDate: Date().addingTimeInterval(-3600)
+                createdDate: Date.now.addingTimeInterval(-3600)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "2",
                 query: "SELECT * FROM users WHERE age > 21",
-                createdDate: Date().addingTimeInterval(-7200)
+                createdDate: Date.now.addingTimeInterval(-7200)
                     .ISO8601Format()
             ),
             DittoQueryHistory(
                 id: "3",
                 query: "SELECT name, price FROM products WHERE inStock = true",
-                createdDate: Date().addingTimeInterval(-86400)
+                createdDate: Date.now.addingTimeInterval(-86400)
                     .ISO8601Format()
             )
         ]),
         toolbarMode: .constant("collections"),
-        selectedQuery: .constant("SELECT * FROM movies")
+        selectedQuery: .constant("SELECT * FROM movies"),
+        databaseId: "preview-database"
     )
 }

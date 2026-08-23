@@ -34,6 +34,10 @@ namespace EdgeStudio.ViewModels
         /// <summary>Fired when the user double-clicks a row — triggers inspector open + navigate.</summary>
         public event Action<string>? RowDoubleClicked;
 
+        public event Action<string>? AddAttachmentRequested;
+
+        public event Action<string>? DeleteAttachmentRequested;
+
         partial void OnCurrentPageChanged(int value) => RefreshPage();
 
         partial void OnPageSizeChanged(int value)
@@ -95,6 +99,16 @@ namespace EdgeStudio.ViewModels
         {
             RowSelected?.Invoke(row.OriginalJson);
             RowDoubleClicked?.Invoke(row.OriginalJson);
+        }
+
+        public void RequestAddAttachment(TableRow row)
+        {
+            AddAttachmentRequested?.Invoke(row.OriginalJson);
+        }
+
+        public void RequestDeleteAttachment(TableRow row)
+        {
+            DeleteAttachmentRequested?.Invoke(row.OriginalJson);
         }
     }
 
