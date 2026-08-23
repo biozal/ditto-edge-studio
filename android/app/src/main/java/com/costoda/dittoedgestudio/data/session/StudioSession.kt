@@ -20,6 +20,7 @@ import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
+import com.costoda.dittoedgestudio.domain.model.ObserveEventStore
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import com.ditto.kotlin.DittoStoreObserver
@@ -34,13 +35,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
@@ -136,6 +137,75 @@ class StudioSession(
 
     private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
     val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
+
+    /**
+     * Bounded capture buffer (SwiftUI `ObservableEventStore` parity): events are
+     * in-memory only and hard-capped at [ObserveEventStore.DEFAULT_CAPACITY] with
+     * FIFO eviction so a hot observed query can't grow memory without bound.
+     *
+     * Threading: Ditto invokes observer callbacks on SDK-owned threads, the flush
+     * job ticks on the multi-threaded session IO dispatcher, and purge paths run on
+     * the caller's thread (main for deactivate). Every access to the store and the
+     * pending deque therefore goes through [observerEventPipelineLock], and
+     * drain-append-publish and pending-remove-store-remove-publish are each atomic
+     * under it — otherwise a flush racing a purge could resurrect events for a
+     * deactivated observer.
+     */
+    private val observeEventStore = ObserveEventStore()
+    private val pendingObserverEvents = ArrayDeque<DittoObserveEvent>()
+    private val observerEventPipelineLock = Any()
+
+    /**
+     * Coalescing flush (SwiftUI 100 ms `observedEventFlushInterval` parity): SDK
+     * callbacks land in [pendingObserverEvents] and a single job drains them into
+     * the store / StateFlow every [OBSERVER_EVENT_FLUSH_INTERVAL_MS] so a burst of
+     * emissions produces one recomposition batch instead of one per event.
+     * Runs only while at least one observer is active.
+     */
+    private var observerEventFlushJob: Job? = null
+
+    private fun enqueueObserverEvent(event: DittoObserveEvent) {
+        synchronized(observerEventPipelineLock) { pendingObserverEvents.addLast(event) }
+    }
+
+    private fun ensureObserverEventFlushRunning() {
+        if (observerEventFlushJob?.isActive == true) return
+        observerEventFlushJob = sessionScope.launch {
+            while (true) {
+                delay(OBSERVER_EVENT_FLUSH_INTERVAL_MS)
+                flushPendingObserverEvents()
+            }
+        }
+    }
+
+    /** Stops the flush loop when no observer is active; drops nothing. */
+    private fun stopObserverEventFlush() {
+        observerEventFlushJob?.cancel()
+        observerEventFlushJob = null
+        flushPendingObserverEvents()
+    }
+
+    private fun flushPendingObserverEvents() {
+        synchronized(observerEventPipelineLock) {
+            if (pendingObserverEvents.isEmpty()) return
+            observeEventStore.appendAll(pendingObserverEvents.toList())
+            pendingObserverEvents.clear()
+            _observerEvents.value = observeEventStore.events
+        }
+    }
+
+    /** Removes [observeId]'s events from both the pending deque and the store. */
+    private fun purgeObserverEvents(observeId: String) {
+        synchronized(observerEventPipelineLock) {
+            pendingObserverEvents.removeAll { it.observeId == observeId }
+            observeEventStore.removeEventsForObserver(observeId)
+            _observerEvents.value = observeEventStore.events
+        }
+    }
+
+    private fun stopFlushWhenNoObserversActive() {
+        if (activeObserverHandles.isEmpty()) stopObserverEventFlush()
+    }
 
     // ── Collections / peers / connections ─────────────────────────────────────
     val collections: StateFlow<List<DittoCollection>> = collectionsRepository.collections
@@ -370,7 +440,8 @@ class StudioSession(
         sessionScope.launch {
             runCatching {
                 activeObserverHandles.remove(observer.id)?.close()
-                _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+                purgeObserverEvents(observer.id.toString())
+                stopFlushWhenNoObserversActive()
                 val updated = observer.copy(name = name, query = query, isActive = false)
                 withContext(NonCancellable) {
                     observableRepository.updateObservable(updated)
@@ -393,7 +464,8 @@ class StudioSession(
             withContext(NonCancellable) {
                 observableRepository.removeObservable(observer.id)
             }
-            _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+            purgeObserverEvents(observer.id.toString())
+            stopFlushWhenNoObserversActive()
             _observers.value = observableRepository.loadObservables(db.databaseId)
         }
     }
@@ -406,7 +478,11 @@ class StudioSession(
         if (activeObserverHandles.containsKey(observer.id)) return
 
         val handle = ditto.store.registerObserver(observer.query) { queryResult, diff ->
-            val docs = queryResult.items.map { it.jsonString() }
+            // Serialize defensively per document (SwiftUI parity: skip a bad doc
+            // rather than let one failure kill the observer callback).
+            val docs = queryResult.items.mapNotNull { item ->
+                runCatching { item.jsonString() }.getOrNull()
+            }
 
             val event = DittoObserveEvent(
                 observeId = observer.id.toString(),
@@ -418,10 +494,11 @@ class StudioSession(
                 eventTime = java.time.Instant.now().toString(),
             )
 
-            _observerEvents.update { it + event }
+            enqueueObserverEvent(event)
         }
 
         activeObserverHandles[observer.id] = handle
+        ensureObserverEventFlushRunning()
         sessionScope.launch {
             val updated = observer.copy(isActive = true, lastUpdated = System.currentTimeMillis())
             observableRepository.updateObservable(updated)
@@ -432,7 +509,8 @@ class StudioSession(
     fun deactivateObserver(observer: DittoObservable) {
         val db = currentDatabase ?: return
         activeObserverHandles.remove(observer.id)?.close()
-        _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+        purgeObserverEvents(observer.id.toString())
+        stopFlushWhenNoObserversActive()
 
         sessionScope.launch {
             val updated = observer.copy(isActive = false)
@@ -539,7 +617,13 @@ class StudioSession(
         activeObserverHandles.values.forEach { runCatching { it.close() } }
         activeObserverHandles.clear()
         _observers.value = emptyList()
-        _observerEvents.value = emptyList()
+        observerEventFlushJob?.cancel()
+        observerEventFlushJob = null
+        synchronized(observerEventPipelineLock) {
+            pendingObserverEvents.clear()
+            observeEventStore.clear()
+            _observerEvents.value = emptyList()
+        }
 
         // Dispatch the suspending Ditto close to the teardown registry. We MUST NOT run it on
         // `sessionScope` (cancelled below) or block the calling (main) thread (ANR risk).
@@ -586,6 +670,9 @@ class StudioSession(
 
     companion object {
         private const val TAG = "StudioSession"
+
+        /** SwiftUI `observedEventFlushInterval` parity (100 ms event coalescing). */
+        private const val OBSERVER_EVENT_FLUSH_INTERVAL_MS = 100L
 
         /** WARN threshold for slow Ditto teardown; we still wait for completion past this. */
         private const val CLOSE_WARN_TIMEOUT_MS: Long = 5_000L

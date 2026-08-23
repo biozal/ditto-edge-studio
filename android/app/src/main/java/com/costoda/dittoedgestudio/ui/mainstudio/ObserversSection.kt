@@ -58,6 +58,13 @@ fun ObserverEventsSection(
         filterMode = viewModel.eventFilterMode,
         onSelectEvent = { viewModel.selectEvent(it) },
         onFilterChange = { viewModel.eventFilterMode = it },
+        pageSize = viewModel.eventPageSize,
+        currentPage = viewModel.eventCurrentPage,
+        onPageSizeChange = { size ->
+            viewModel.eventPageSize = size
+            viewModel.eventCurrentPage = 0
+        },
+        onPageChange = { viewModel.eventCurrentPage = it },
         modifier = modifier,
     )
 

@@ -103,14 +103,20 @@ Live-query observers: register them, activate them, and watch the change events 
 | Region | Contents |
 |---|---|
 | **Data Panel** | **Observers** list — every observer that has been registered, with an indicator showing whether it is currently activated. Add/edit/delete from here. |
-| **Content Pane** | **Events list** — the events fired by the selected (activated) observer; selecting an event shows its results/detail below. |
+| **Content Pane** | **Events list** — the events fired by the selected (activated) observer; selecting an event shows its results/detail below. The table is paginated (page-size selector + prev/next, SwiftUI `PaginationControls` parity). |
 | **Inspector** | Feature documentation. |
+
+Event capture (SwiftUI `ObservableEventStore` parity): events are in-memory only,
+hard-capped at 500 with FIFO eviction (`domain/model/ObserveEventStore.kt`), and
+coalesced — Ditto callbacks accumulate in a pending buffer that a single job flushes
+to StateFlow every 100 ms so hot queries produce batched recompositions.
 
 | Part | Code |
 |---|---|
 | Rail item | `StudioNavItem.OBSERVERS` → `ObserversKey` |
 | List pane (Observers, Data Panel) | `ui/mainstudio/ObserversListPane.kt`; section entry-point `ui/mainstudio/ObserversSection.kt` → `ObserversListSection`; CRUD + activation in `viewmodel/MainStudioViewModel.kt` |
-| Content pane (Events list + detail) | `ui/mainstudio/ObserversSection.kt` → `ObserverEventsSection` hosting `ObserverDetailScreen.kt`; `ObserverEventsTable` (top) + `ObserverEventDetailView` (bottom, with insert/update/delete/move filters); pushed via `ObserverEventsKey` |
+| Content pane (Events list + detail) | `ui/mainstudio/ObserversSection.kt` → `ObserverEventsSection` hosting `ObserverDetailScreen.kt` (pagination chrome); `ObserverEventsTable` (top) + `ObserverEventDetailView` (bottom, with insert/update/delete/move filters); pushed via `ObserverEventsKey` |
+| Event buffer | `domain/model/ObserveEventStore.kt`; capture/flush lifecycle in `data/session/StudioSession.kt` (`activateObserver`, `enqueueObserverEvent`, flush job) |
 | Data layer | `data/repository/ObservableRepositoryImpl.kt`; models `DittoObservable`, `DittoObserveEvent` |
 | Inspector docs | `assets/help/observe.md` |
 
