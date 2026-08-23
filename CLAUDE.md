@@ -60,12 +60,6 @@ This repository contains multiple platform implementations of Edge Studio:
 
 Each platform has its own `CLAUDE.md` with platform-specific instructions.
 
-> **.NET community:** the previous `dotnet/` Avalonia implementation is
-> archived and no longer maintained. The Ditto Visual Studio Code
-> extension and JetBrains IDE plugin replace it and serve the .NET
-> community going forward. The `dotnet/` tree is retained in git history
-> for reference only — do not add new features to it.
-
 ## Project Overview
 
 Edge Debug Helper is a comprehensive SwiftUI application for macOS and iPadOS, providing a production-ready GUI for querying and managing Ditto databases.
