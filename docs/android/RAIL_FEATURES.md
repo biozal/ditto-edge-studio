@@ -130,13 +130,16 @@ there is maximum room for log lines.
 | Region | Contents |
 |---|---|
 | **Data Panel** | Not used (hidden). |
-| **Content Pane** | Log viewer with filtering — by level, by component, and free-text search; live capture plus historical log files. |
+| **Content Pane** | Log viewer with filtering — by level, by component, and free-text search (including pattern user tags); live capture plus historical log files. Pattern problem matching: user-defined regex patterns (severity 1–5, recommendation, exact level filter, component tag filter, user tag) scanned against the newest 5k entries at ≤1 scan/sec; matches surface in a collapsible problems strip above the list and as user-tag chips on rows. Pattern manager (bundled read-only catalog + user CRUD with live regex validation and a test-line field) opens from the toolbar tune icon. |
 | **Inspector** | Feature documentation. |
 
 | Part | Code |
 |---|---|
 | Rail item | `StudioNavItem.LOGGING` → `LoggingKey` |
 | Content pane (single-pane, full-width) | `ui/mainstudio/SinglePaneSections.kt` → `LoggingSection` → `LoggingScreen.kt` |
+| Problems strip | `ui/mainstudio/LogProblemsSection.kt` |
+| Pattern manager | `ui/mainstudio/LogPatternManagerSheet.kt` (list + editor dialog) |
+| Pattern engine/store | `data/logging/LogPatternEngine.kt` (validation + scan, ReDoS guards), `data/logging/LogPatternStore.kt` (bundled `assets/problem_patterns.json` + `<filesDir>/log-analyzer/user_patterns.json`); models in `domain/model/LogPattern.kt` |
 | Data layer | `DittoLogCaptureService` (live capture), `LogFileParser`; models `LogEntry`, `LogComponent` |
 | Inspector docs | `assets/help/logging.md` |
 

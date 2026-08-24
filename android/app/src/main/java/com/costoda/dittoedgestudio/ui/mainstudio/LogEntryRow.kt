@@ -39,6 +39,9 @@ import java.util.Locale
 
 private val timeFormat = SimpleDateFormat("h:mm:ss.SSS a", Locale.US)
 
+/** User-tag chip color — matches the VS Code analyzer's purple (#b08fff). */
+private val UserTagColor = Color(0xFFB08FFF)
+
 @Composable
 internal fun levelColor(level: DittoLogLevel): Color = when (level) {
     DittoLogLevel.Error -> Color(0xFFFF3B30)
@@ -53,6 +56,7 @@ internal fun levelColor(level: DittoLogLevel): Color = when (level) {
 fun LogEntryRow(
     entry: LogEntry,
     modifier: Modifier = Modifier,
+    userTags: List<String> = emptyList(),
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -111,6 +115,22 @@ fun LogEntryRow(
                         text = entry.component.displayName,
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        maxLines = 1,
+                    )
+                }
+            }
+
+            // User-tag chips — labels applied by matching log patterns.
+            userTags.forEach { tag ->
+                Surface(
+                    color = UserTagColor.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        text = tag,
+                        fontSize = 10.sp,
+                        color = UserTagColor,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                         maxLines = 1,
                     )

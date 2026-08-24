@@ -59,7 +59,38 @@ Filters entries by the SDK subsystem that produced them:
 
 ### Search
 
-Type any text to filter entries by message content. The search is case-insensitive. Clear the field to see all entries again.
+Type any text to filter entries by message content. The search is case-insensitive. Entries' **user tags** (see below) are also included in the search. Clear the field to see all entries again.
+
+---
+
+## Log Patterns (Problem Matching)
+
+The Log Analyzer scans every entry against a catalog of regex patterns and surfaces matches as **problems** — known trouble signatures with a severity, a hit count, and a recommendation. When anything matches, a clickable strip appears above the log list ("N problems matched on M log lines"); tap a hit to jump to it in the table.
+
+Open the manager from the toolbar (**Patterns** / slider icon).
+
+### Pattern schema
+
+| Field | Meaning |
+|-------|---------|
+| **Key** | Unique identifier (e.g. `deadlock_critical`). Cannot collide with a bundled key. |
+| **Pattern** | Regular expression, matched **case-insensitively against the message body** of each entry. |
+| **Severity** | 1 (info) – 5 (critical); controls chip color and sort order. |
+| **Recommendation** | Required. Shown next to the pattern in the Problems list. |
+| **Level filter** | Optional **exact** log level match (`error`, `warning`, `info`, `debug`, `verbose`) — an exact equality, not "at least", so tiered patterns (e.g. deadlock at warn vs error) stay mutually exclusive. |
+| **Component filter** | Optional regex (case-sensitive) against the entry's component name (`Sync`, `Store`, `Query`, `Observer`, `Transport`, `Auth`). |
+| **User tag** | Optional label attached to every line the pattern matches — shown as a chip on the row and included in search. |
+
+Safety guards for user patterns: maximum 512 characters, and nested quantifiers such as `(a+)+` are rejected (they can backtrack exponentially).
+
+The editor validates the regex as you type and includes a **test line** field: paste a log line to see a live ✓/✗ match result.
+
+### Where patterns live
+
+- **Bundled** (read-only): a built-in catalog of known Ditto problem signatures (deadlocks, query size limits, certificate expiry, authentication failures, incomplete connections, OOM, crash signals).
+- **User patterns**: persisted between launches in `user_patterns.json` under the app support / private storage directory — macOS/iPadOS: `~/Library/Application Support/ditto_edge_studio/log-analyzer/`; Android: `<filesDir>/log-analyzer/`. The JSON format matches the bundled catalog and the VS Code extension, so a patterns file can be shared across Edge Studio editions by hand.
+
+> **Note:** Only the newest 5,000 entries of the active source are scanned, and the scan is throttled to keep hot log streams from janking the UI.
 
 ---
 

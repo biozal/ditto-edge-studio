@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,7 +58,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.snapshotFlow
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
+import com.costoda.dittoedgestudio.data.logging.LogPatternEngine
+import com.costoda.dittoedgestudio.data.logging.LogPatternStore
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.domain.model.LogComponent
 import com.costoda.dittoedgestudio.domain.model.LogEntry
@@ -66,9 +70,17 @@ import com.costoda.dittoedgestudio.domain.model.displayName
 import com.costoda.dittoedgestudio.domain.model.shortName
 import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.koin.compose.koinInject
 
 private val ALL_LEVELS = DittoLogLevel.entries.toList()
+
+/** Pattern re-scan rate limit (the capture service already batches at 500 ms). */
+private const val PATTERN_SCAN_INTERVAL_MS = 1_000L
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -99,6 +111,41 @@ fun LoggingScreen(
     var sdkLevelDropdownExpanded by remember { mutableStateOf(false) }
     var componentDropdownExpanded by remember { mutableStateOf(false) }
 
+    // ── Log pattern analysis (VS Code extension log-analyzer parity) ────────
+    val patternStore: LogPatternStore = koinInject()
+    val patterns by patternStore.patterns.collectAsStateWithLifecycle()
+    var showPatternManager by remember { mutableStateOf(false) }
+    val patternEngine = remember(patterns) { LogPatternEngine(patterns) }
+    var problems by remember { mutableStateOf<List<LogPatternEngine.Match>>(emptyList()) }
+
+    // Scan the active tab's buffer on change, sampled to at most one pass per
+    // second and capped at LogPatternEngine.MAX_SCAN_ENTRIES so hot logs can't
+    // jank the UI. Runs on the Default dispatcher.
+    LaunchedEffect(patternEngine, selectedTabIndex) {
+        snapshotFlow {
+            // Read the collected State delegates — NOT StateFlow.value, which is
+            // invisible to snapshot tracking and would leave the scan stale.
+            when (selectedTabIndex) {
+                0 -> liveEntries.size to historicalEntries.size
+                else -> appEntries.size
+            }
+        }.sample(PATTERN_SCAN_INTERVAL_MS).collectLatest {
+            val entries = when (selectedTabIndex) {
+                0 -> historicalEntries + liveEntries
+                else -> appEntries
+            }
+            problems = withContext(Dispatchers.Default) { patternEngine.scanAll(entries) }
+        }
+    }
+
+    // user_tag labels per entry, for row chips (parity with the webview's tag column).
+    val userTagsById = remember(problems) {
+        problems
+            .groupBy({ it.entry.id }, { it.pattern.userTag })
+            .mapValues { (_, tags) -> tags.filterNotNull().distinct().sorted() }
+            .filterValues { it.isNotEmpty() }
+    }
+
     // ── Auto-pause when user scrolls away from bottom ───────────────────────
     val isAtBottom by remember { derivedStateOf { !listState.canScrollForward } }
     LaunchedEffect(isAtBottom) {
@@ -123,7 +170,9 @@ fun LoggingScreen(
                     entry.level in selectedLevels &&
                         (selectedTabIndex != 0 || selectedComponent == LogComponent.ALL ||
                             entry.component == selectedComponent) &&
-                        (searchQuery.isBlank() || entry.message.contains(searchQuery, ignoreCase = true))
+                        (searchQuery.isBlank() ||
+                            entry.message.contains(searchQuery, ignoreCase = true) ||
+                            userTagsById[entry.id]?.any { it.contains(searchQuery, ignoreCase = true) } == true)
                 }
                 .takeLast(DittoLogCaptureService.MAX_DISPLAYED_ENTRIES)
         }
@@ -199,6 +248,13 @@ fun LoggingScreen(
                 Icon(
                     Icons.Outlined.Refresh,
                     contentDescription = "Refresh logs",
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = { showPatternManager = true }) {
+                Icon(
+                    Icons.Outlined.Tune,
+                    contentDescription = "Manage log patterns",
                     tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -343,6 +399,13 @@ fun LoggingScreen(
             }
         }
 
+        // ── Pattern problems strip (collapsible; hidden when nothing matched) ──
+        LogProblemsSection(
+            problems = problems,
+            onJumpToEntry = { entry -> searchQuery = entry.message },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         // ── Search field ─────────────────────────────────────────────────────
         OutlinedTextField(
             value = searchQuery,
@@ -378,7 +441,10 @@ fun LoggingScreen(
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(displayEntries, key = { it.id.toString() }) { entry ->
-                        LogEntryRow(entry = entry)
+                        LogEntryRow(
+                            entry = entry,
+                            userTags = userTagsById[entry.id].orEmpty(),
+                        )
                         HorizontalDivider(thickness = 0.5.dp)
                     }
                 }
@@ -458,6 +524,13 @@ fun LoggingScreen(
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
+    }
+
+    if (showPatternManager) {
+        LogPatternManagerSheet(
+            store = patternStore,
+            onDismiss = { showPatternManager = false },
+        )
     }
 }
 

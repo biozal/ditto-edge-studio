@@ -96,6 +96,16 @@ val dataModule = module {
     single { AppPreferences(androidContext().appPreferencesDataStore) }
     single<AppPreferencesGateway> { get<AppPreferences>() }
     single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
+    single {
+        com.costoda.dittoedgestudio.data.logging.LogPatternStore(
+            userPatternsFile = java.io.File(androidContext().filesDir, "log-analyzer/user_patterns.json"),
+            bundledJsonLoader = {
+                runCatching {
+                    androidContext().assets.open("problem_patterns.json").bufferedReader().use { it.readText() }
+                }.getOrNull()
+            },
+        )
+    }
     single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
     single<SystemRepository> {
         SystemRepositoryImpl(

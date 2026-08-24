@@ -4,6 +4,8 @@ import SwiftUI
 /// A single row in the log viewer list.
 struct LogEntryRowView: View {
     let entry: LogEntry
+    /// User-defined labels applied by matching log patterns.
+    var userTags: [String] = []
 
     @State private var isExpanded = false
 
@@ -28,6 +30,17 @@ struct LogEntryRowView: View {
                 // Component pill (SDK source only)
                 if entry.source == .dittoSDK || isImportedSDKSource {
                     componentPill(entry.component)
+                }
+
+                // User-tag chips — labels applied by matching log patterns
+                ForEach(userTags, id: \.self) { tag in
+                    Text(tag)
+                        .font(.caption2)
+                        .foregroundStyle(logUserTagColor)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(logUserTagColor.opacity(0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
 
                 Spacer()

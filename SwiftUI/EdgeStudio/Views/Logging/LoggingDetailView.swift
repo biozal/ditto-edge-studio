@@ -48,6 +48,12 @@ struct LoggingDetailView: View {
 
     @State private var activeLogLevel = "info"
 
+    // MARK: - Log Pattern Analysis (VS Code extension log-analyzer parity)
+
+    @State private var patternStore = LogPatternStore()
+    @State private var isShowingPatternManager = false
+    @State private var patternProblems: [LogPatternEngine.Match] = []
+
     // MARK: - Filtered Entry Cache (debounced)
 
     @State private var cachedFilteredEntries: [LogEntry] = []
@@ -67,6 +73,13 @@ struct LoggingDetailView: View {
             Divider()
 
             dateFilterRow
+
+            Divider()
+
+            LogProblemsSection(problems: patternProblems) { entry in
+                // Jump the table to the matched line via the search filter.
+                searchText = entry.message
+            }
 
             Divider()
 
@@ -94,6 +107,23 @@ struct LoggingDetailView: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             cachedFilteredEntries = computeFilteredEntries()
+        }
+        .task(id: patternScanInputs) {
+            // Throttled pattern scan: at most ~2 passes/sec, off-main actor,
+            // window capped at LogPatternEngine.maxScanEntries. Mirrored from
+            // the Android sample(1000) scan loop.
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            let engine = LogPatternEngine(patterns: patternStore.patterns)
+            let entries = activeSourceEntries
+            let matches = await Task.detached(priority: .utility) {
+                engine.scanAll(entries)
+            }.value
+            guard !Task.isCancelled else { return }
+            patternProblems = matches
+        }
+        .sheet(isPresented: $isShowingPatternManager) {
+            LogPatternManagerView(store: patternStore)
         }
         .onDisappear {
             capture.stopLiveCapture()
@@ -155,6 +185,16 @@ struct LoggingDetailView: View {
             }
             .buttonStyle(.borderless)
             .help("Reload log files from disk")
+
+            Button {
+                isShowingPatternManager = true
+            } label: {
+                Label("Patterns", systemImage: "slider.horizontal.3")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .help("Manage log patterns (problem matching)")
+            .accessibilityIdentifier("LogPatternsToolbarButton")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -387,7 +427,7 @@ struct LoggingDetailView: View {
             } else {
                 List {
                     ForEach(cachedFilteredEntries) { entry in
-                        LogEntryRowView(entry: entry)
+                        LogEntryRowView(entry: entry, userTags: userTagsById[entry.id] ?? [])
                     }
                 }
                 .listStyle(.plain)
@@ -595,6 +635,31 @@ struct LoggingDetailView: View {
         }
     }
 
+    /// Inputs that trigger a pattern rescan: source, buffer size, catalog revision.
+    private struct PatternScanInputs: Equatable {
+        let selectedSource: LoggingSourceTab
+        let entryCount: Int
+        let patternRevision: Int
+    }
+
+    private var patternScanInputs: PatternScanInputs {
+        PatternScanInputs(
+            selectedSource: capture.selectedSource,
+            entryCount: activeSourceEntryCount,
+            patternRevision: patternStore.revision
+        )
+    }
+
+    /// user_tag labels per entry id, for row chips (parity with the webview's tag column).
+    private var userTagsById: [UUID: [String]] {
+        var out: [UUID: [String]] = [:]
+        for match in patternProblems {
+            guard let tag = match.pattern.userTag else { continue }
+            out[match.entry.id, default: []].append(tag)
+        }
+        return out.mapValues { Array(Set($0)).sorted() }
+    }
+
     /// All inputs that affect the filtered output. When this changes,
     /// `.task(id:)` cancels any in-flight debounce and schedules a fresh one.
     private struct FilterInputs: Equatable {
@@ -635,8 +700,14 @@ struct LoggingDetailView: View {
             }
             if !searchText.isEmpty {
                 // Case-insensitive substring match without the per-entry
-                // `lowercased()` allocation.
-                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil else { return false }
+                // `lowercased()` allocation. User tags are part of the search
+                // haystack (parity with the VS Code analyzer's webview search).
+                let inTags = userTagsById[entry.id]?.contains {
+                    $0.range(of: searchText, options: .caseInsensitive) != nil
+                } ?? false
+                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil || inTags else {
+                    return false
+                }
             }
             return true
         }
