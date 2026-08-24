@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.automirrored.outlined.ViewSidebar
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Menu
@@ -102,13 +103,16 @@ import kotlinx.coroutines.launch
  *   strategy provides the listPane).
  */
 @Composable
-fun StudioScaffold(
+    fun StudioScaffold(
     currentSection: StudioNavItem,
     session: StudioSession,
     onBack: () -> Unit,
     onSectionSelect: (StudioNavItem) -> Unit,
     inspectorContent: (@Composable () -> Unit)? = null,
     dataPanelContent: (@Composable (closeDrawer: () -> Unit) -> Unit)? = null,
+    // Top-bar help action: opens the Welcome tour (parity with SwiftUI's Help
+    // menu → Welcome). Non-null adds a "?" action to both top bars.
+    onShowWelcome: (() -> Unit)? = null,
     // "Collect Metrics" setting — when false the App Metrics / Query Metrics rail items
     // are hidden (mirrors SwiftUI's MainStudioView.availableDestinations). Defaults to
     // true so existing call sites and layout tests compile unchanged.
@@ -195,6 +199,15 @@ fun StudioScaffold(
                 TopAppBar(
                     title = { Text(currentSection.label) },
                     actions = {
+                        if (onShowWelcome != null) {
+                            IconButton(onClick = onShowWelcome) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.Help,
+                                    contentDescription = "Open welcome tour",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                         IconButton(onClick = { session.toggleSync() }) {
                             Icon(
                                 imageVector = Icons.Outlined.Sync,
@@ -306,6 +319,15 @@ fun StudioScaffold(
                                 }
                             },
                             actions = {
+                                if (onShowWelcome != null) {
+                                    IconButton(onClick = onShowWelcome) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Outlined.Help,
+                                            contentDescription = "Open welcome tour",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { session.toggleSync() }) {
                                     Icon(
                                         imageVector = Icons.Outlined.Sync,

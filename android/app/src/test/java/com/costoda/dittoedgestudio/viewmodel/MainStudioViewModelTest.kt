@@ -259,6 +259,7 @@ class MainStudioViewModelTest {
         collectionsRepository = collectionsRepository,
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
+        historyRepository = mockk(relaxed = true),
         ioDispatcher = testDispatcher,
     )
 

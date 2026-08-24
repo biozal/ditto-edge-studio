@@ -83,7 +83,8 @@ object QrCodeEncoder {
         }
     }
 
-    private fun renderQrBitmap(content: String): Bitmap? {
+    /** Renders any payload string (EDS2 configs, EDS_SUBS1 subscriptions, …) as a QR bitmap. */
+    fun renderQrBitmap(content: String): Bitmap? {
         return try {
             val hints = mapOf(
                 EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,

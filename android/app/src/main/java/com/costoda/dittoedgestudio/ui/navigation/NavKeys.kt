@@ -26,6 +26,23 @@ data object QrScannerKey : NavKey
 @Serializable
 data object SettingsKey : NavKey
 
+/**
+ * Welcome tour for a database. Deliberately NOT a [StudioSectionKey]/
+ * `StudioChildKey`: it renders full-screen on top of the studio (pushed above
+ * the section key already on the back stack, which keeps the Koin session
+ * scope alive underneath).
+ */
+@Serializable
+data class WelcomeKey(val databaseId: Long) : NavKey
+
+/**
+ * Full-screen camera scanner for bulk subscription import (`EDS_SUBS1:` payloads).
+ * Plain NavKey (full-screen camera, no studio chrome); the studio session/scope stays
+ * alive on the back stack underneath, so saves go through the live session.
+ */
+@Serializable
+data class SubscriptionQrScannerKey(val databaseId: Long) : NavKey
+
 // ---------------------------------------------------------------------------
 // Studio rail section keys
 // ---------------------------------------------------------------------------

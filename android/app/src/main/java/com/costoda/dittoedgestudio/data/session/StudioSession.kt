@@ -69,6 +69,7 @@ class StudioSession(
     val collectionsRepository: CollectionsRepository,
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
+    private val historyRepository: com.costoda.dittoedgestudio.data.repository.HistoryRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val teardownDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -137,6 +138,24 @@ class StudioSession(
 
     private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
     val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
+
+    // ── Welcome screen auto-show ─────────────────────────────────────────────
+    /**
+     * True after hydration when the database looks fresh (no subscriptions, no
+     * query history) — the scaffold may then offer the Welcome tour, subject to
+     * the user's "show on new database" preference. Set once per session.
+     */
+    private val _welcomeCandidate = MutableStateFlow(false)
+    val welcomeCandidate: StateFlow<Boolean> = _welcomeCandidate.asStateFlow()
+    private val welcomeAutoShown = AtomicBoolean(false)
+
+    /**
+     * Returns true exactly once per session when [welcomeCandidate] is set —
+     * the caller then navigates to the Welcome screen. Prevents re-triggering
+     * on rail-section switches or list/detail recomposition.
+     */
+    fun consumeWelcomeTrigger(): Boolean =
+        _welcomeCandidate.value && welcomeAutoShown.compareAndSet(false, true)
 
     /**
      * Bounded capture buffer (SwiftUI `ObservableEventStore` parity): events are
@@ -298,6 +317,10 @@ class StudioSession(
                     val ditto = dittoManager.hydrate(database)
                     systemRepository.startObserving(ditto)
                     collectionsRepository.startObserving(ditto)
+                    // SwiftUI parity: DittoManager starts the log-only transport-condition
+                    // collector and the (auto-allow) connection-request handler on open.
+                    loggingCaptureService.startTransportConditionObservation(ditto)
+                    loggingCaptureService.startConnectionRequestHandler(ditto)
                     _syncEnabled.value = true
                     val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
 
@@ -310,6 +333,12 @@ class StudioSession(
                     _subscriptions.value = saved
                     val savedObservers = observableRepository.loadObservables(database.databaseId)
                     _observers.value = savedObservers
+
+                    // Welcome auto-show eligibility (SwiftUI MainStudioViewModel.performLoad
+                    // parity): a fresh database has no subscriptions and no query history.
+                    // The UI layer still gates on the "show on new database" preference.
+                    _welcomeCandidate.value =
+                        saved.isEmpty() && historyRepository.loadHistory(database.databaseId).isEmpty()
                 }.onFailure { e ->
                     _hydrateError.value = e.message
                 }
@@ -609,6 +638,8 @@ class StudioSession(
         // they spawned can terminate before we cancel our own scope.
         runCatching { systemRepository.stopObserving() }
         runCatching { collectionsRepository.stopObserving() }
+        runCatching { loggingCaptureService.stopTransportConditionObservation() }
+        runCatching { loggingCaptureService.stopConnectionRequestHandler() }
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }

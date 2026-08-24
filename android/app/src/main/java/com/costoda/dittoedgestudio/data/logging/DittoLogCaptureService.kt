@@ -3,8 +3,12 @@ package com.costoda.dittoedgestudio.data.logging
 import com.costoda.dittoedgestudio.domain.model.LogComponent
 import com.costoda.dittoedgestudio.domain.model.LogEntry
 import com.costoda.dittoedgestudio.domain.model.LogEntrySource
+import com.ditto.kotlin.Ditto
+import com.ditto.kotlin.DittoConnectionRequestAuthorization
 import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
+import com.ditto.kotlin.DittoPresence
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,6 +45,8 @@ class DittoLogCaptureService(
         internal const val MAX_LIVE_ENTRIES = 10_000
         internal const val MAX_HISTORICAL_ENTRIES = 10_000
         internal const val MAX_APP_ENTRIES = 5_000
+        internal const val MAX_TRANSPORT_ENTRIES = 5_000
+        internal const val MAX_CONNECTION_REQUEST_ENTRIES = 5_000
         internal const val MAX_DISPLAYED_ENTRIES = 200
     }
 
@@ -64,6 +70,16 @@ class DittoLogCaptureService(
 
     private val _appEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val appEntries: StateFlow<List<LogEntry>> = _appEntries.asStateFlow()
+
+    // Transport-condition stream (SwiftUI .transportConditions source parity).
+    private val _transportConditionEntries = MutableStateFlow<List<LogEntry>>(emptyList())
+    val transportConditionEntries: StateFlow<List<LogEntry>> = _transportConditionEntries.asStateFlow()
+
+    // Connection-request stream (SwiftUI .connectionRequests source parity).
+    private val _connectionRequestEntries = MutableStateFlow<List<LogEntry>>(emptyList())
+    val connectionRequestEntries: StateFlow<List<LogEntry>> = _connectionRequestEntries.asStateFlow()
+    private var transportConditionJob: Job? = null
+    private var connectionRequestDitto: Ditto? = null
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -179,6 +195,85 @@ class DittoLogCaptureService(
     fun clearApp() {
         loggingService.clearAllLogs()
         _appEntries.value = emptyList()
+    }
+
+    fun clearTransportConditions() {
+        _transportConditionEntries.value = emptyList()
+    }
+
+    fun clearConnectionRequests() {
+        _connectionRequestEntries.value = emptyList()
+    }
+
+    // ── Transport conditions (SwiftUI DittoDelegate parity) ─────────────────
+
+    /**
+     * Collects `Ditto.transportCondition` events into the transport-conditions
+     * log tab. Idempotent per Ditto instance (Swift's `observedDitto !== ditto`
+     * guard).
+     */
+    fun startTransportConditionObservation(ditto: Ditto) {
+        if (transportConditionJob?.isActive == true) return
+        transportConditionJob = scope.launch(Dispatchers.IO) {
+            ditto.transportCondition.collect { event ->
+                val msg = "Transport: ${event.subsystem} → ${event.condition}"
+                val entry = LogEntry(
+                    timestamp = Date(),
+                    level = DittoLogLevel.Info,
+                    message = msg,
+                    component = LogComponent.TRANSPORT,
+                    source = LogEntrySource.TransportConditions,
+                    rawLine = msg,
+                )
+                _transportConditionEntries.update { current ->
+                    (current + entry).let {
+                        if (it.size > MAX_TRANSPORT_ENTRIES) it.takeLast(MAX_TRANSPORT_ENTRIES) else it
+                    }
+                }
+            }
+        }
+    }
+
+    fun stopTransportConditionObservation() {
+        transportConditionJob?.cancel()
+        transportConditionJob = null
+        _transportConditionEntries.value = emptyList()
+    }
+
+    // ── Connection requests (SwiftUI presence.connectionRequestHandler parity) ─
+
+    /**
+     * Installs a log-only connection request handler on the Ditto instance —
+     * every incoming connection is unconditionally accepted.
+     */
+    fun startConnectionRequestHandler(ditto: Ditto) {
+        if (connectionRequestDitto === ditto) return
+        connectionRequestDitto = ditto
+        ditto.presence.connectionRequestHandler = DittoPresence.ConnectionRequestHandler { request ->
+            val msg = "Connection Request | type=${request.connectionType} | key=${request.peerKey}" +
+                " | identity=${request.identityServiceMetadataJsonString.ifBlank { "none" }}" +
+                " | meta=${request.peerMetadataJsonString.ifBlank { "none" }}"
+            val entry = LogEntry(
+                timestamp = Date(),
+                level = DittoLogLevel.Info,
+                message = msg,
+                component = LogComponent.AUTH,
+                source = LogEntrySource.ConnectionRequests,
+                rawLine = msg,
+            )
+            _connectionRequestEntries.update { current ->
+                (current + entry).let {
+                    if (it.size > MAX_CONNECTION_REQUEST_ENTRIES) it.takeLast(MAX_CONNECTION_REQUEST_ENTRIES) else it
+                }
+            }
+            DittoConnectionRequestAuthorization.Allow
+        }
+    }
+
+    fun stopConnectionRequestHandler() {
+        connectionRequestDitto?.presence?.connectionRequestHandler = null
+        connectionRequestDitto = null
+        _connectionRequestEntries.value = emptyList()
     }
 
     fun resetPendingCount() {

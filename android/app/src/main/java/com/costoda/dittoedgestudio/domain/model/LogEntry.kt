@@ -57,6 +57,12 @@ enum class LogComponent(val displayName: String) {
 sealed class LogEntrySource {
     object DittoSDK : LogEntrySource()
     object Application : LogEntrySource()
+
+    /** Transport-condition events from `Ditto.transportCondition` (SwiftUI parity). */
+    object TransportConditions : LogEntrySource()
+
+    /** Connection-request events from `presence.connectionRequestHandler` (SwiftUI parity). */
+    object ConnectionRequests : LogEntrySource()
 }
 
 val DittoLogLevel.displayName: String

@@ -889,4 +889,16 @@ private class FakeAppPreferences(initialMetricsEnabled: Boolean) :
     override suspend fun setPresenceSplitView(enabled: Boolean) {
         presenceSplitView.value = enabled
     }
+
+    // Not exercised by these tests — session restoration is a navigation concern.
+    override val lastOpenDatabaseId = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
+    override suspend fun setLastOpenDatabaseId(id: Long?) {
+        lastOpenDatabaseId.value = id
+    }
+
+    // Not exercised by these tests — the welcome tour is a navigation concern.
+    override val showWelcomeOnNewDatabase = kotlinx.coroutines.flow.MutableStateFlow(true)
+    override suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean) {
+        showWelcomeOnNewDatabase.value = enabled
+    }
 }

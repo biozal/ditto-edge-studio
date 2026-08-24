@@ -236,6 +236,10 @@ class MainStudioViewModel(
     }
     fun isObserverActive(observer: DittoObservable): Boolean = session.isObserverActive(observer)
 
+    // ── Welcome screen (auto-show on fresh databases) ────────────────────────
+    val welcomeCandidateFlow: StateFlow<Boolean> get() = session.welcomeCandidate
+    fun consumeWelcomeTrigger(): Boolean = session.consumeWelcomeTrigger()
+
     fun selectObserver(observer: DittoObservable) {
         selectedObserver = observer
         selectedEvent = null

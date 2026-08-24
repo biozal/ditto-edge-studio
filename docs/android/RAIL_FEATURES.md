@@ -63,7 +63,8 @@ the modal Nav Drawer (drawer-mode widths) or the Presence toolbar's Subscription
 | Part | Code |
 |---|---|
 | Rail item | `StudioNavItem.SUBSCRIPTIONS` → `SubscriptionsKey` |
-| List pane (Data Panel) | `ui/mainstudio/SubscriptionsListPane.kt`; section entry-point `ui/mainstudio/PresenceSection.kt` → `PresenceListSection` |
+| List pane (Data Panel) | `ui/mainstudio/SubscriptionsListPane.kt`; section entry-point `ui/mainstudio/PresenceSection.kt` → `PresenceListSection`. Header icons: bulk **Share as QR** (`SubscriptionsQrDisplayDialog`, `EDS_SUBS1:` payload) and bulk **Import** (scan via `SubscriptionQrScannerScreen`/`SubscriptionQrScannerKey`, or fetch `__small_peer_info` over HTTP via `ImportSubscriptionsFromServerSheet`) |
+| Bulk QR / server import | `util/SubscriptionsQrCodec.kt`, `ui/mainstudio/SubscriptionsQrDisplayDialog.kt`, `ui/qrcode/SubscriptionQrScannerScreen.kt`, `ui/mainstudio/ImportSubscriptionsFromServerSheet.kt`; dialogs hosted in `PresenceContentSection` (via `StudioUiState` flags) so they survive drawer dismiss |
 | Content pane (Connected Peers) | `ui/mainstudio/PresenceSection.kt` → `PresenceContentSection`; tabs: "Peers List" (`ConnectedPeersScreen.kt`) + "Presence Viewer" (`PresenceGraphView.kt`). Not selection-driven: it is the default full-width view at every width (no compact drill-in key) |
 | Presence Graph | `ui/mainstudio/presence/PresenceGraphView.kt` (+ `PresenceGraphState.kt`, `PresenceGraphLayout.kt`, `PresenceGraphRenderer.kt`), wired into the "Presence Viewer" tab of `PresenceContentSection` |
 | Data layer | `data/repository/SubscriptionsRepositoryImpl.kt`, `data/repository/SystemRepositoryImpl.kt` (peers, sync status, transports) |
@@ -85,7 +86,8 @@ The primary working surface: browse collections, write and run DQL, inspect resu
 |---|---|
 | Rail item | `StudioNavItem.QUERY` → `QueryKey` |
 | List pane (Collections, Data Panel) | `ui/mainstudio/CollectionsListPane.kt`; section entry-point `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchListSection`; data via `data/repository/CollectionsRepositoryImpl.kt` (doc counts, index add/remove) |
-| Content pane (Query Editor + Results) | `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchContentSection` hosting `QueryEditorScreen.kt`; Ctrl/Cmd+Enter runs query; state persists on session-scoped `QueryWorkbenchState`; on compact the editor is the default full-width view and the collections list lives in the Nav Drawer (no drill-in key) |
+| Content pane (Query Editor + Results) | `ui/mainstudio/QueryWorkbenchSection.kt` → `QueryWorkbenchContentSection` hosting `QueryEditorScreen.kt`; Ctrl/Cmd+Enter runs query; state persists on session-scoped `QueryWorkbenchState`; on compact the editor is the default full-width view and the collections list lives in the Nav Drawer (no drill-in key). Toolbar options menu: **Generate** SELECT/INSERT/UPDATE/DELETE/EVICT templates (`DqlGenerator` + `insertGeneratedStatement`), **Import JSON data…** (`ImportJsonSheet` + `JsonImportService`, batches of 50 via `deserialize_json`). Bottom-bar overflow: **Export results as JSON** (full result set, `queryDocumentsToJson`) |
+| JSON import / DQL generator / export | `data/repository/JsonImportService.kt`, `ui/mainstudio/ImportJsonSheet.kt`, `domain/model/DqlGenerator.kt`, `domain/model/QueryResultJson.kt` |
 | Execution | `data/repository/QueryExecutionService.kt`; state in `viewmodel/QueryEditorViewModel.kt` |
 | Inspector | Rich `ui/mainstudio/inspector/QueryInspectorView.kt` (History / Favorites / JSON viewer / Metrics tabs); threaded via scaffold's `inspectorContent` slot |
 | Inspector — History | `ui/mainstudio/inspector/QueryHistoryInspector.kt`, `data/repository/HistoryRepositoryImpl.kt` |
@@ -130,7 +132,7 @@ there is maximum room for log lines.
 | Region | Contents |
 |---|---|
 | **Data Panel** | Not used (hidden). |
-| **Content Pane** | Log viewer with filtering — by level, by component, and free-text search (including pattern user tags); live capture plus historical log files. Pattern problem matching: user-defined regex patterns (severity 1–5, recommendation, exact level filter, component tag filter, user tag) scanned against the newest 5k entries at ≤1 scan/sec; matches surface in a collapsible problems strip above the list and as user-tag chips on rows. Pattern manager (bundled read-only catalog + user CRUD with live regex validation and a test-line field) opens from the toolbar tune icon. |
+| **Content Pane** | Log viewer with filtering — by level, by component, free-text search (including pattern user tags), and a date-range toggle; live capture plus historical log files. Source tabs: Ditto SDK, App Logs, Transport Conditions, Connection Requests. Pattern problem matching: user-defined regex patterns (severity 1–5, recommendation, exact level filter, component tag filter, user tag) scanned against the newest 5k entries at ≤1 scan/sec; matches surface in a collapsible problems strip above the list and as user-tag chips on rows. Pattern manager (bundled read-only catalog + user CRUD with live regex validation and a test-line field) opens from the toolbar tune icon. Footer **Export** saves the active source's captured entries to a text file via the system save sheet. |
 | **Inspector** | Feature documentation. |
 
 | Part | Code |

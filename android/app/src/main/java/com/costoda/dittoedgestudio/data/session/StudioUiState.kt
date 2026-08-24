@@ -45,6 +45,12 @@ class StudioUiState {
     var transportConfigVisible by mutableStateOf(false)
     var showAddIndex by mutableStateOf(false)
 
+    /** Subscriptions share-QR dialog (set by list pane, hosted by Presence content). */
+    var showSubscriptionsQr by mutableStateOf(false)
+
+    /** Import-subscriptions-from-server sheet (set by list pane, hosted by Presence content). */
+    var showImportSubscriptionsFromServer by mutableStateOf(false)
+
     /**
      * Inspector visibility. Null until the scaffold initializes it from the window size class
      * default on first composition.

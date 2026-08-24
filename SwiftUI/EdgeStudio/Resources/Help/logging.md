@@ -38,6 +38,8 @@ You can change the log level in two places:
 |--------|---------------|
 | **Ditto SDK** | Live callback stream + historical `.log` / `.log.gz` files |
 | **App Logs** | Edge Studio's own log files — CocoaLumberjack logs on macOS / iPadOS; on Android, the app's own captured log entries (not CocoaLumberjack) |
+| **Transport Conditions** | Transport health events from the SDK (BLE, TCP, mDNS, AWDL) — permission denials, disabled radios, listener failures |
+| **Connection Requests** | Incoming peer connection requests (peer key, connection type, metadata) |
 | **Imported** | Logs loaded from an external folder *(macOS / iPadOS only)* |
 
 ### Level Chips
@@ -60,6 +62,14 @@ Filters entries by the SDK subsystem that produced them:
 ### Search
 
 Type any text to filter entries by message content. The search is case-insensitive. Entries' **user tags** (see below) are also included in the search. Clear the field to see all entries again.
+
+### Date Range
+
+Enable the **Date range** toggle to restrict entries between two dates (full-day bounds on Android).
+
+### Export
+
+The footer's **Export** button writes the current source's captured entries to a file. On Android, the system save sheet opens a text file anywhere you choose; on macOS / iPadOS a folder picker copies the raw `.log` / `.log.gz` files.
 
 ---
 
@@ -101,7 +111,7 @@ Ditto SDK logs are written to (macOS / iPadOS):
 ~/Library/Application Support/ditto_edge_studio/{name}-{databaseId}/database/logs/
 ```
 
-On Android, the Ditto persistence directory lives under the app's private storage (`<filesDir>/ditto/…`) and is not directly browsable on-device; there is no in-app export on Android, so use `adb` on debuggable builds to retrieve log files. (The in-app **Export** action is macOS / iPadOS only.)
+On Android, the Ditto persistence directory lives under the app's private storage (`<filesDir>/ditto/…`). The footer's **Export** button writes the currently visible source's entries to a text file via the system save sheet — no `adb` needed for the captured view; raw `.log`/`.log.gz` files still require `adb` on debuggable builds.
 
 - **Active file** (`.log`) — uncompressed, written as the SDK runs
 - **Rotated files** (`.log.gz`) — gzip-compressed, immutable once closed
@@ -136,7 +146,7 @@ To share logs with the Ditto team:
 2. Compress the `logs/` folder as a ZIP
 3. Attach to the GitHub issue at https://github.com/getditto/ditto/issues
 
-Alternatively, on macOS / iPadOS, use the **Export** button in the App Logs source to copy the CocoaLumberjack files to a chosen location. On Android there is no in-app export/share action; retrieve the captured logs with `adb` on debuggable builds.
+Alternatively, on macOS / iPadOS, use the **Export** button in the App Logs source to copy the CocoaLumberjack files to a chosen location. On Android, use the same footer **Export** button to save the currently visible source (Ditto SDK, App Logs, Transport Conditions, or Connection Requests) as a text file; raw on-disk log files still require `adb` on debuggable builds.
 
 ---
 

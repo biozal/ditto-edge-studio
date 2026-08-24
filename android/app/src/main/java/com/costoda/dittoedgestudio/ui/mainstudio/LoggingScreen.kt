@@ -96,6 +96,8 @@ fun LoggingScreen(
     val liveEntries by captureService.liveEntries.collectAsStateWithLifecycle()
     val historicalEntries by captureService.historicalEntries.collectAsStateWithLifecycle()
     val appEntries by captureService.appEntries.collectAsStateWithLifecycle()
+    val transportConditionEntries by captureService.transportConditionEntries.collectAsStateWithLifecycle()
+    val connectionRequestEntries by captureService.connectionRequestEntries.collectAsStateWithLifecycle()
     val isLoading by captureService.isLoading.collectAsStateWithLifecycle()
     val pendingCount by captureService.pendingNewEntriesCount.collectAsStateWithLifecycle()
     val bufferNearlyFull by captureService.bufferNearlyFull.collectAsStateWithLifecycle()
@@ -106,8 +108,33 @@ fun LoggingScreen(
     var selectedLevels by remember { mutableStateOf(ALL_LEVELS.toSet()) }
     var selectedComponent by remember { mutableStateOf(LogComponent.ALL) }
     var searchQuery by remember { mutableStateOf("") }
+    // Date-range filter (SwiftUI parity): full-day bounds for the chosen dates.
+    var dateFilterEnabled by remember { mutableStateOf(false) }
+    var dateRangeStartMillis by remember { mutableStateOf<Long?>(null) }
+    var dateRangeEndMillis by remember { mutableStateOf<Long?>(null) }
     var sdkLogLevel by remember { mutableStateOf(DittoLogger.minimumLogLevel) }
     var footerExpanded by remember { mutableStateOf(true) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+
+    // ── Export (save the active tab's buffer to a user-chosen file) ─────────
+    // SwiftUI exports raw log files via a folder picker; Android uses SAF's
+    // CreateDocument. Exports the full in-memory buffer, not just the visible
+    // 200 rows.
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        if (uri != null) {
+            val entries = when (selectedTabIndex) {
+                0 -> historicalEntries + liveEntries
+                1 -> appEntries
+                2 -> transportConditionEntries
+                else -> connectionRequestEntries
+            }
+            scope.launch {
+                exportError = exportLogEntries(context, uri, entries)
+            }
+        }
+    }
     var sdkLevelDropdownExpanded by remember { mutableStateOf(false) }
     var componentDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -127,12 +154,16 @@ fun LoggingScreen(
             // invisible to snapshot tracking and would leave the scan stale.
             when (selectedTabIndex) {
                 0 -> liveEntries.size to historicalEntries.size
-                else -> appEntries.size
+                1 -> appEntries.size
+                2 -> transportConditionEntries.size
+                else -> connectionRequestEntries.size
             }
         }.sample(PATTERN_SCAN_INTERVAL_MS).collectLatest {
             val entries = when (selectedTabIndex) {
                 0 -> historicalEntries + liveEntries
-                else -> appEntries
+                1 -> appEntries
+                2 -> transportConditionEntries
+                else -> connectionRequestEntries
             }
             problems = withContext(Dispatchers.Default) { patternEngine.scanAll(entries) }
         }
@@ -163,7 +194,9 @@ fun LoggingScreen(
                         .sortedBy { it.timestamp }
                     all
                 }
-                else -> appEntries
+                1 -> appEntries
+                2 -> transportConditionEntries
+                else -> connectionRequestEntries
             }
             source
                 .filter { entry ->
@@ -172,7 +205,13 @@ fun LoggingScreen(
                             entry.component == selectedComponent) &&
                         (searchQuery.isBlank() ||
                             entry.message.contains(searchQuery, ignoreCase = true) ||
-                            userTagsById[entry.id]?.any { it.contains(searchQuery, ignoreCase = true) } == true)
+                            userTagsById[entry.id]?.any { it.contains(searchQuery, ignoreCase = true) } == true) &&
+                        (!dateFilterEnabled || run {
+                            val time = entry.timestamp.time
+                            val afterStart = dateRangeStartMillis?.let { time >= it } ?: true
+                            val beforeEnd = dateRangeEndMillis?.let { time <= it } ?: true
+                            afterStart && beforeEnd
+                        })
                 }
                 .takeLast(DittoLogCaptureService.MAX_DISPLAYED_ENTRIES)
         }
@@ -325,9 +364,33 @@ fun LoggingScreen(
             }
         }
 
+        // ── Export error banner ─────────────────────────────────────────────
+        AnimatedVisibility(visible = exportError != null) {
+            Surface(
+                color = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                shape = androidx.compose.material3.MaterialTheme.shapes.small,
+            ) {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = exportError ?: "",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { exportError = null }) { Text("OK") }
+                }
+            }
+        }
+
         // ── Source switcher ───────────────────────────────────────────────────
         DittoConnectedButtonGroup(
-            options = listOf("Ditto SDK", "App Logs"),
+            options = listOf("Ditto SDK", "App Logs", "Transports", "Connections"),
             selectedIndex = selectedTabIndex,
             onSelect = { selectedTabIndex = it },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -422,6 +485,66 @@ fun LoggingScreen(
             textStyle = androidx.compose.material3.MaterialTheme.typography.bodySmall,
         )
 
+        // ── Date-range filter row ───────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Date range",
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            androidx.compose.material3.Switch(
+                checked = dateFilterEnabled,
+                onCheckedChange = {
+                    dateFilterEnabled = it
+                    if (it && dateRangeStartMillis == null && dateRangeEndMillis == null) {
+                        // Default: today, full-day bounds (SwiftUI filters default parity).
+                        val cal = java.util.Calendar.getInstance()
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        dateRangeStartMillis = cal.timeInMillis
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                        dateRangeEndMillis = cal.timeInMillis - 1
+                    }
+                },
+                modifier = Modifier.height(28.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            androidx.compose.animation.AnimatedVisibility(visible = dateFilterEnabled) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val fmt = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+                    TextButton(onClick = {
+                        showDatePicker(context, dateRangeStartMillis, isEnd = false) { dateRangeStartMillis = it }
+                    }) {
+                        Text(
+                            text = dateRangeStartMillis?.let { fmt.format(java.util.Date(it)) } ?: "Start",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Text(
+                        text = "→",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = {
+                        showDatePicker(context, dateRangeEndMillis, isEnd = true) { dateRangeEndMillis = it }
+                    }) {
+                        Text(
+                            text = dateRangeEndMillis?.let { fmt.format(java.util.Date(it)) } ?: "End",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+
         if (isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
@@ -487,7 +610,9 @@ fun LoggingScreen(
             ) {
                 val totalCount = when (selectedTabIndex) {
                     0 -> (historicalEntries + liveEntries).size
-                    else -> appEntries.size
+                    1 -> appEntries.size
+                    2 -> transportConditionEntries.size
+                    else -> connectionRequestEntries.size
                 }
                 Text(
                     text = "${displayEntries.size} of $totalCount entries",
@@ -496,12 +621,25 @@ fun LoggingScreen(
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = {
+                    val tabName = when (selectedTabIndex) {
+                        0 -> "ditto-sdk"
+                        1 -> "app"
+                        2 -> "transport-conditions"
+                        else -> "connection-requests"
+                    }
+                    exportLauncher.launch("edge-studio-logs-$tabName.txt")
+                }) {
+                    Text("Export")
+                }
+                TextButton(onClick = {
                     when (selectedTabIndex) {
                         0 -> {
                             captureService.clearLive()
                             captureService.clearHistorical()
                         }
-                        else -> captureService.clearApp()
+                        1 -> captureService.clearApp()
+                        2 -> captureService.clearTransportConditions()
+                        else -> captureService.clearConnectionRequests()
                     }
                 }) {
                     Text("Clear")
@@ -532,5 +670,64 @@ fun LoggingScreen(
             onDismiss = { showPatternManager = false },
         )
     }
+}
+
+    /** Non-null on failure (message for the banner). */
+    private fun exportLogEntries(
+        context: android.content.Context,
+        uri: android.net.Uri,
+        entries: List<LogEntry>,
+    ): String? = try {
+        val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", java.util.Locale.US)
+        context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+            entries.forEach { entry ->
+                writer.append(
+                    iso.format(entry.timestamp),
+                ).append("  ").append(entry.level.name.uppercase().padEnd(7))
+                    .append(" [").append(entry.component.displayName).append("]  ")
+                    .append(entry.message.replace('\n', ' '))
+                writer.newLine()
+            }
+        } ?: return "Could not open the destination file"
+        null
+    } catch (e: Exception) {
+        "Export failed: ${e.message}"
+    }
+
+/** Date picker for the log date-range filter; start picks normalize to the
+ *  start of the day, end picks to the end of the day (local time). */
+private fun showDatePicker(
+    context: android.content.Context,
+    initialMillis: Long?,
+    isEnd: Boolean,
+    onPicked: (Long) -> Unit,
+) {
+    val cal = java.util.Calendar.getInstance()
+    initialMillis?.let { cal.timeInMillis = it }
+    android.app.DatePickerDialog(
+        context,
+        { _, year, month, day ->
+            val picked = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.YEAR, year)
+                set(java.util.Calendar.MONTH, month)
+                set(java.util.Calendar.DAY_OF_MONTH, day)
+                if (isEnd) {
+                    set(java.util.Calendar.HOUR_OF_DAY, 23)
+                    set(java.util.Calendar.MINUTE, 59)
+                    set(java.util.Calendar.SECOND, 59)
+                    set(java.util.Calendar.MILLISECOND, 999)
+                } else {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }
+            }
+            onPicked(picked.timeInMillis)
+        },
+        cal.get(java.util.Calendar.YEAR),
+        cal.get(java.util.Calendar.MONTH),
+        cal.get(java.util.Calendar.DAY_OF_MONTH),
+    ).show()
 }
 

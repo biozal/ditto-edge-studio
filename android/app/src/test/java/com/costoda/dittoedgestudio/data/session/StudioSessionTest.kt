@@ -89,6 +89,7 @@ class StudioSessionTest {
         collectionsRepository = collectionsRepository,
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
+        historyRepository = mockk(relaxed = true),
         ioDispatcher = testDispatcher,
         teardownDispatcher = testDispatcher,
     )

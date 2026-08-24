@@ -30,15 +30,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import com.costoda.dittoedgestudio.ui.components.CollapsibleBottomBar
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.QueryEditorViewModel
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 /**
@@ -121,6 +126,7 @@ fun QueryWorkbenchContentSection(
 ) {
     val queryVm = rememberQueryEditorViewModelOrNull(viewModel)
     val collections by viewModel.collections.collectAsStateWithLifecycle()
+    var showImportSheet by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxSize()) {
         if (queryVm == null) {
             // Session has not finished hydrating yet (no currentDittoId). Render a small
@@ -148,6 +154,12 @@ fun QueryWorkbenchContentSection(
                     onModeSelect = { queryVm.setExecuteMode(it) },
                     onCaptureProfilingDataChange = { queryVm.setCaptureProfilingData(it) },
                     onCaptureQueryMetricsChange = { queryVm.setCaptureQueryMetrics(it) },
+                    onGenerateStatement = { kind ->
+                        queryVm.insertGeneratedStatement(kind)?.let { viewModelError ->
+                            android.util.Log.w("QueryWorkbench", "statement generation: $viewModelError")
+                        }
+                    },
+                    onImportJson = { showImportSheet = true },
                 )
                 QueryEditorScreen(
                     viewModel = queryVm,
@@ -175,6 +187,15 @@ fun QueryWorkbenchContentSection(
             onAdd = { collection, fields -> viewModel.addIndex(collection, fields) },
             // onAdd is suspend: the sheet awaits the result to show errors inline.
             onDismiss = { viewModel.showAddIndex = false },
+        )
+    }
+
+    // Import-JSON sheet — dispatched from the toolbar options menu.
+    if (showImportSheet) {
+        ImportJsonSheet(
+            importService = koinInject(),
+            collections = collections,
+            onDismiss = { showImportSheet = false },
         )
     }
 }
@@ -228,6 +249,24 @@ private fun QueryWorkbenchBottomBar(
 
     var overflowExpanded by remember { mutableStateOf(false) }
     var pageSizeExpanded by remember { mutableStateOf(false) }
+
+    // SAF save dialog for the results export (full result, not just the page).
+    val exportContext = LocalContext.current
+    val exportScope = rememberCoroutineScope()
+    val jsonExportLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        val payload = viewModel.resultsJsonForExport()
+        if (uri != null && payload != null) {
+            exportScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    exportContext.contentResolver.openOutputStream(uri)?.use { stream ->
+                        stream.write(payload.toByteArray(Charsets.UTF_8))
+                    } ?: error("Could not open destination")
+                }
+            }
+        }
+    }
 
     val totalCount = queryResult?.totalCount ?: 0
     val pageCount = if (totalCount == 0) 1 else (totalCount + pageSize - 1) / pageSize
@@ -299,6 +338,15 @@ private fun QueryWorkbenchBottomBar(
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
                             )
+                        },
+                    )
+                    // SwiftUI parity: export the ENTIRE result set (all pages) as JSON.
+                    DropdownMenuItem(
+                        text = { Text("Export results as JSON…") },
+                        enabled = (queryResult?.documents?.isNotEmpty() == true),
+                        onClick = {
+                            overflowExpanded = false
+                            jsonExportLauncher.launch("query_results.json")
                         },
                     )
                     DropdownMenuItem(

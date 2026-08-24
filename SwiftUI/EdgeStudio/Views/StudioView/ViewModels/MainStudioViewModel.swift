@@ -100,12 +100,6 @@ extension MainStudioView {
         var metricsInspectorMenuItems: [MenuItem] = []
         var selectedMetricsInspectorMenuItem: MenuItem
 
-        // Metrics Inspector – Prometheus export form state (ephemeral UI)
-        var metricsPrometheusURLText = ""
-        var metricsPrometheusIntervalText = "60"
-        var metricsPrometheusStatusMessage = ""
-        var metricsPrometheusIsConfigured = false
-
         // MARK: - Load Task
 
         /// Tracks the structured-concurrency task that loads initial data so
@@ -169,10 +163,7 @@ extension MainStudioView {
 
             // Metrics Inspector toolbar
             let metricsDocsItem = MenuItem(id: 11, name: "Docs", systemIcon: "book.closed")
-            metricsInspectorMenuItems = [
-                metricsDocsItem,
-                MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
-            ]
+            metricsInspectorMenuItems = [metricsDocsItem]
             selectedMetricsInspectorMenuItem = metricsDocsItem
         }
 

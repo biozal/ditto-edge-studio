@@ -118,6 +118,7 @@ val dataModule = module {
     single { okhttp3.OkHttpClient() }
     single { kotlinx.serialization.json.Json { ignoreUnknownKeys = true } }
     single { LocalQueryExecutionService(get<com.costoda.dittoedgestudio.data.ditto.DittoManager>()) }
+    single { com.costoda.dittoedgestudio.data.repository.JsonImportService(get<com.costoda.dittoedgestudio.data.ditto.DittoManager>()) }
     single {
         com.costoda.dittoedgestudio.data.repository.HttpQueryExecutionService(
             client = get(),
@@ -240,6 +241,7 @@ val dataModule = module {
                 collectionsRepository = get(),
                 loggingCaptureService = get(),
                 observableRepository = get(),
+                historyRepository = get(),
             )
         } onClose { it?.close() }
     }

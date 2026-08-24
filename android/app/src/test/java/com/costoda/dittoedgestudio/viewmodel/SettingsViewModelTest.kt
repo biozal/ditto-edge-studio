@@ -79,5 +79,17 @@ class SettingsViewModelTest {
         override suspend fun setPresenceSplitView(enabled: Boolean) {
             _presenceSplitView.value = enabled
         }
+
+        private val _lastOpenDatabaseId = MutableStateFlow<Long?>(null)
+        override val lastOpenDatabaseId = _lastOpenDatabaseId
+        override suspend fun setLastOpenDatabaseId(id: Long?) {
+            _lastOpenDatabaseId.value = id
+        }
+
+        private val _showWelcome = MutableStateFlow(true)
+        override val showWelcomeOnNewDatabase = _showWelcome
+        override suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean) {
+            _showWelcome.value = enabled
+        }
     }
 }

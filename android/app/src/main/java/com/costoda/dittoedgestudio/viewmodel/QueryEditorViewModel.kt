@@ -467,6 +467,44 @@ class QueryEditorViewModel(
         workbench.currentPage.value = 0
     }
 
+    // ── DQL statement generator (SwiftUI queryGenerateAndInsert parity) ───────
+
+    /**
+     * Generates a [kind] statement template from the current query's collection and
+     * the first result row's fields, and replaces the editor draft with it.
+     * Returns an error message or null on success.
+     */
+    fun insertGeneratedStatement(kind: com.costoda.dittoedgestudio.domain.model.DqlStatementKind): String? {
+        val query = workbench.queryText.value
+        if (query.isBlank()) return "No query available"
+        val collection = com.costoda.dittoedgestudio.domain.model.DqlGenerator.collectionName(query)
+            ?: return "Could not extract collection name from query"
+        val sample = workbench.queryResult.value?.documents?.firstOrNull()
+        val fields = com.costoda.dittoedgestudio.domain.model.DqlGenerator.fieldNames(sample)
+        val gen = com.costoda.dittoedgestudio.domain.model.DqlGenerator
+        val statement = when (kind) {
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.SELECT ->
+                gen.generateSelect(collection, fields)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.INSERT ->
+                gen.generateInsert(collection, fields, sample)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.UPDATE ->
+                gen.generateUpdate(collection, fields, sample)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.DELETE ->
+                gen.generateDelete(collection)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.EVICT ->
+                gen.generateEvict(collection)
+        }
+        workbench.queryText.value = statement
+        return null
+    }
+
+    /** Full result set as a JSON array string for export (not just the visible page). */
+    fun resultsJsonForExport(): String? =
+        workbench.queryResult.value?.documents?.let {
+            if (it.isEmpty()) null
+            else com.costoda.dittoedgestudio.domain.model.queryDocumentsToJson(it)
+        }
+
     fun selectDocument(doc: Map<String, Any?>) {
         workbench.selectedDocument.value = doc
         workbench.selectedInspectorTab.value = QueryInspectorTab.JSON

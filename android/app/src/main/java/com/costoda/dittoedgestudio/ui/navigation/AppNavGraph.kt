@@ -22,6 +22,7 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,12 +54,15 @@ import com.costoda.dittoedgestudio.ui.adaptive.inspectorDefaultVisible
 import com.costoda.dittoedgestudio.ui.adaptive.showsListDetail
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.qrcode.QrScannerScreen
+import com.costoda.dittoedgestudio.ui.qrcode.SubscriptionQrScannerScreen
 import com.costoda.dittoedgestudio.ui.recovery.KeyFailureScreen
 import com.costoda.dittoedgestudio.ui.settings.SettingsScreen
+import com.costoda.dittoedgestudio.ui.welcome.WelcomeScreen
 import com.costoda.dittoedgestudio.viewmodel.AppHealthViewModel
 import com.costoda.dittoedgestudio.viewmodel.DbHealthState
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
+import kotlinx.coroutines.flow.first
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
@@ -171,6 +175,27 @@ fun AppNavGraph() {
     val presenceSplitView by appPreferences.presenceSplitView
         .collectAsStateWithLifecycle(initialValue = false)
 
+    // ── Last-open database restoration (SwiftUI SceneStorage parity) ─────────
+    // Record whenever a studio session is active; on cold start, jump straight into
+    // the last database (stacked above DatabaseListKey so Back still lands on the list).
+    val databaseRepository = koinInject<com.costoda.dittoedgestudio.data.repository.DatabaseRepository>()
+    LaunchedEffect(studioContext?.second) {
+        studioContext?.second?.let { appPreferences.setLastOpenDatabaseId(it) }
+    }
+    var restoreAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (restoreAttempted) return@LaunchedEffect
+        restoreAttempted = true
+        val lastId = appPreferences.lastOpenDatabaseId.first()
+        if (lastId != null &&
+            backStack.size == 1 && backStack.firstOrNull() == DatabaseListKey &&
+            // Guard against the database having been deleted since.
+            databaseRepository.getById(lastId) != null
+        ) {
+            backStack.add(SubscriptionsKey(databaseId = lastId))
+        }
+    }
+
     // At Medium+ widths (≥600dp — includes an open flip phone at ~690dp) allow the
     // ListDetailSceneStrategy two horizontal partitions so list + detail sit side-by-side
     // (iPad NavigationSplitView behavior); below that, single-pane drill-in.
@@ -243,6 +268,20 @@ fun AppNavGraph() {
 
                     entry<SettingsKey> {
                         SettingsScreen(onBack = { backStack.removeLastOrNull() })
+                    }
+
+                    entry<WelcomeKey> {
+                        WelcomeScreen(onClose = { backStack.removeLastOrNull() })
+                    }
+
+                    entry<SubscriptionQrScannerKey> { key ->
+                        // Resolves the studio session's VM (the studio keys stay on the
+                        // back stack underneath, keeping the Koin scope alive).
+                        val studioVm = rememberStudioViewModel(key.databaseId)
+                        SubscriptionQrScannerScreen(
+                            viewModel = studioVm,
+                            onClose = { backStack.removeLastOrNull() },
+                        )
                     }
 
                     entry<DatabaseEditorKey> { key ->
@@ -352,7 +391,12 @@ fun AppNavGraph() {
                             // (<600dp, or drawer-mode widths when split is off) and in the
                             // Presence toolbar's Subscriptions dialog (rail-mode widths).
                             if (studioWindowSizeClass().showsListDetail && presenceSplitView) {
-                                PresenceListSection(viewModel = viewModel)
+                                PresenceListSection(
+                                    viewModel = viewModel,
+                                    onScanSubscriptionsQr = {
+                                        backStack.add(SubscriptionQrScannerKey(key.databaseId))
+                                    },
+                                )
                             } else {
                                 PresenceContentSection(viewModel = viewModel)
                             }
@@ -514,6 +558,10 @@ fun AppNavGraph() {
                     PresenceListSection(
                         viewModel = viewModel,
                         onAfterAddOrEditTriggered = closeDrawer,
+                        onScanSubscriptionsQr = {
+                            closeDrawer()
+                            backStack.add(SubscriptionQrScannerKey(databaseId))
+                        },
                     )
                 }
             }
@@ -541,9 +589,24 @@ fun AppNavGraph() {
             else -> null
         }
 
+        // Auto-show the Welcome tour exactly once per session for a fresh
+        // database (SwiftUI performLoad parity), subject to the user preference.
+        // Reactive: hydration completes asynchronously after the studio opens.
+        LaunchedEffect(viewModel) {
+            viewModel.welcomeCandidateFlow.collect { candidate ->
+                if (candidate &&
+                    viewModel.consumeWelcomeTrigger() &&
+                    appPreferences.showWelcomeOnNewDatabase.first()
+                ) {
+                    backStack.add(WelcomeKey(databaseId))
+                }
+            }
+        }
+
         StudioScaffold(
             currentSection = section,
             session = viewModel.session,
+            onShowWelcome = { backStack.add(WelcomeKey(databaseId)) },
             // Close button (top-bar X): exit the studio entirely. Pop every studio entry
             // (sections + children) for this databaseId so we land back on whatever
             // non-studio key precedes them (typically DatabaseListKey).
