@@ -268,6 +268,92 @@ class LogPatternEngineTest {
         assertEquals(severityLabel(5), "CRITICAL")
     }
 
+    // ── Bundled-catalog fixtures (ported from the VS Code extension's
+    //    src/logAnalyzer/patterns/__fixtures__) ──────────────────────────────
+
+    private fun catalogEngine(): LogPatternEngine {
+        // JVM unit tests run with the module dir as working directory.
+        val raw = java.io.File("src/main/assets/problem_patterns.json").readText()
+        val bodies: Map<String, LogPatternBody> =
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                .decodeFromString(raw)
+        val patterns = bodies.mapValues { (key, body) ->
+            LogPattern(key, body, body.severity, parseLevelFilter(body.levelFilter), PatternSource.BUNDLED)
+        }
+        return LogPatternEngine(patterns)
+    }
+
+    private fun sdkEntry(level: DittoLogLevel, message: String) = entry(
+        level = level,
+        message = message,
+        component = LogComponent.SYNC,
+    )
+
+    @Test
+    fun `catalog contains the four v5-1 replication-eviction patterns`() {
+        val engine = catalogEngine()
+        val keys = engine.compiled.map { it.key }
+        assertEquals(13, keys.size)
+        for (k in listOf(
+            "replication_metadata_corrupt_recovery",
+            "replication_consecutive_resets",
+            "replication_reset_local_trigger",
+            "post_eviction_cleanup_frequent",
+        )) {
+            assertTrue("$k missing from catalog", keys.contains(k))
+        }
+    }
+
+    @Test
+    fun `fixture — metadata corrupt recovery matches at WARN`() {
+        val engine = catalogEngine()
+        val message = "session metadata database was corrupt on open; deleting and " +
+            "reinitializing this peer's metadata, then retrying " +
+            "{\"remote.peer_id\":\"peer-9f2a\",\"error\":\"corruption: checksum mismatch\"}"
+        assertEquals(
+            listOf("replication_metadata_corrupt_recovery"),
+            engine.scan(sdkEntry(DittoLogLevel.Warning, message)).map { it.key },
+        )
+        assertTrue(engine.scan(sdkEntry(DittoLogLevel.Info, message)).isEmpty())
+    }
+
+    @Test
+    fun `fixture — consecutive resets match at WARN, first-reset INFO does not`() {
+        val engine = catalogEngine()
+        val warnMessage = "resetting replication state with remote peer; sync performance " +
+            "may be temporarily degraded {\"consecutive_resets\":3}"
+        val infoMessage = "resetting replication state with remote peer; sync performance " +
+            "may be temporarily degraded"
+        assertEquals(
+            listOf("replication_consecutive_resets"),
+            engine.scan(sdkEntry(DittoLogLevel.Warning, warnMessage)).map { it.key },
+        )
+        assertTrue(engine.scan(sdkEntry(DittoLogLevel.Info, infoMessage)).isEmpty())
+    }
+
+    @Test
+    fun `fixture — local-trigger reset matches at WARN, benign INFO does not`() {
+        val engine = catalogEngine()
+        val warnMessage = "replication reset was triggered by local peer {\"error\":\"metadata was corrupt on open\"}"
+        val infoMessage = "replication reset was triggered by local peer {\"error\":\"session forgotten\"}"
+        assertEquals(
+            listOf("replication_reset_local_trigger"),
+            engine.scan(sdkEntry(DittoLogLevel.Warning, warnMessage)).map { it.key },
+        )
+        assertTrue(engine.scan(sdkEntry(DittoLogLevel.Info, infoMessage)).isEmpty())
+    }
+
+    @Test
+    fun `fixture — post-eviction cleanup matches at INFO (no level filter)`() {
+        val engine = catalogEngine()
+        val message = "post-eviction session cleanup is running too frequently, which may " +
+            "cause excessive local overhead {\"run_count\":3,\"window_ms\":30000}"
+        assertEquals(
+            listOf("post_eviction_cleanup_frequent"),
+            engine.scan(sdkEntry(DittoLogLevel.Info, message)).map { it.key },
+        )
+    }
+
     private fun validBody(
         pattern: String = "boom",
         severity: Int = 3,

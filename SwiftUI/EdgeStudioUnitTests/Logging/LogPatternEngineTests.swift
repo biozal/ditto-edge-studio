@@ -229,6 +229,31 @@ struct LogPatternEngineTests {
 
     @Test("bundled catalog file parses and validates cleanly")
     func bundledCatalogValidates() throws {
+        let bodies = try loadBundledCatalog()
+        #expect(bodies.count == 13)
+        for (key, body) in bodies {
+            #expect(LogPatternEngine.rejectReason(key: key, body: body, source: .bundled) == nil)
+        }
+    }
+
+    // MARK: - Catalog fixtures (ported from the VS Code extension's
+    //         src/logAnalyzer/patterns/__fixtures__)
+
+    private func catalogEngine() throws -> LogPatternEngine {
+        let bodies = try loadBundledCatalog()
+        var patterns: [String: LogPattern] = [:]
+        for (key, body) in bodies {
+            patterns[key] = LogPattern(
+                key: key,
+                body: body,
+                levelFilter: parseLogLevelFilter(body.levelFilter),
+                source: .bundled
+            )
+        }
+        return LogPatternEngine(patterns: patterns)
+    }
+
+    private func loadBundledCatalog() throws -> [String: LogPatternBody] {
         // Tests run against the test bundle, not the app bundle — locate the
         // resource relative to this source file instead.
         let resourceURL = URL(fileURLWithPath: #filePath)
@@ -237,11 +262,68 @@ struct LogPatternEngineTests {
             .deletingLastPathComponent() // SwiftUI/
             .appendingPathComponent("EdgeStudio/Resources/problem_patterns.json")
         let data = try Data(contentsOf: resourceURL)
-        let bodies = try JSONDecoder().decode([String: LogPatternBody].self, from: data)
-        #expect(bodies.count == 9)
-        for (key, body) in bodies {
-            #expect(LogPatternEngine.rejectReason(key: key, body: body, source: .bundled) == nil)
+        return try JSONDecoder().decode([String: LogPatternBody].self, from: data)
+    }
+
+    private func sdkEntry(_ level: DittoLogLevel, _ message: String) -> LogEntry {
+        makeEntry(level: level, message: message, component: .sync)
+    }
+
+    @Test("catalog contains the four v5-1 replication/eviction patterns")
+    func catalogContainsNewPatterns() throws {
+        let keys = try catalogEngine().compiled.map(\.key)
+        #expect(keys.count == 13)
+        for key in [
+            "replication_metadata_corrupt_recovery",
+            "replication_consecutive_resets",
+            "replication_reset_local_trigger",
+            "post_eviction_cleanup_frequent",
+        ] {
+            #expect(keys.contains(key), Comment(rawValue: "\(key) missing from catalog"))
         }
+    }
+
+    @Test("fixture — metadata corrupt recovery matches at WARN only")
+    func fixtureMetadataCorrupt() throws {
+        let engine = try catalogEngine()
+        let message = "session metadata database was corrupt on open; deleting and reinitializing "
+            + "this peer's metadata, then retrying "
+            + "{\"remote.peer_id\":\"peer-9f2a\",\"error\":\"corruption: checksum mismatch\"}"
+        #expect(
+            engine.scan(sdkEntry(.warning, message)).map(\.key) == ["replication_metadata_corrupt_recovery"]
+        )
+        #expect(engine.scan(sdkEntry(.info, message)).isEmpty)
+    }
+
+    @Test("fixture — consecutive resets match at WARN, first-reset INFO does not")
+    func fixtureConsecutiveResets() throws {
+        let engine = try catalogEngine()
+        let warnMessage = "resetting replication state with remote peer; sync performance may be "
+            + "temporarily degraded {\"consecutive_resets\":3}"
+        let infoMessage = "resetting replication state with remote peer; sync performance may be temporarily degraded"
+        #expect(
+            engine.scan(sdkEntry(.warning, warnMessage)).map(\.key) == ["replication_consecutive_resets"])
+        #expect(engine.scan(sdkEntry(.info, infoMessage)).isEmpty)
+    }
+
+    @Test("fixture — local-trigger reset matches at WARN, benign INFO does not")
+    func fixtureLocalTriggerReset() throws {
+        let engine = try catalogEngine()
+        let warnMessage = "replication reset was triggered by local peer {\"error\":\"metadata was corrupt on open\"}"
+        let infoMessage = "replication reset was triggered by local peer {\"error\":\"session forgotten\"}"
+        #expect(
+            engine.scan(sdkEntry(.warning, warnMessage)).map(\.key) == ["replication_reset_local_trigger"])
+        #expect(engine.scan(sdkEntry(.info, infoMessage)).isEmpty)
+    }
+
+    @Test("fixture — post-eviction cleanup matches at INFO (no level filter)")
+    func fixturePostEviction() throws {
+        let engine = try catalogEngine()
+        let message = "post-eviction session cleanup is running too frequently, which may cause "
+            + "excessive local overhead {\"run_count\":3,\"window_ms\":30000}"
+        #expect(
+            engine.scan(sdkEntry(.info, message)).map(\.key) == ["post_eviction_cleanup_frequent"]
+        )
     }
 
     private func validBody(

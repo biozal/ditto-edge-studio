@@ -101,7 +101,8 @@ struct LogPatternEngine: Sendable {
     /// Nested-quantifier shapes — `(a+)+`, `(\w+\s*)+`, `(a*){2,}` — whose
     /// backtracking cost is exponential in the input length (NSRegularExpression
     /// has no timeout). Parity with the extension's ReDoS guard.
-    // swiftlint:disable:next force_try (constant pattern, validated by LogPatternEngineTests)
+    // Constant pattern validated by LogPatternEngineTests.
+    // swiftlint:disable:next force_try
     private static let nestedQuantifier = try! NSRegularExpression(
         pattern: #"\([^)]*[+*][^)]*\)\s*[+*{]"#
     )
