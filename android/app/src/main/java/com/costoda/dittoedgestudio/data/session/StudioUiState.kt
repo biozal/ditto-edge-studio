@@ -92,6 +92,9 @@ class QueryWorkbenchState {
     val queryProfile = MutableStateFlow<QueryProfile?>(null)
     val isFavorited = MutableStateFlow(false)
 
+    /** Advice from the most recent `ADVISE` run (SDK 5.1), cleared on new executions. */
+    val queryAdvice = MutableStateFlow<com.costoda.dittoedgestudio.domain.model.QueryAdvice?>(null)
+
     /** Picker selection — "Local" or "HTTP". Survives rail-section switches. */
     val executeMode: MutableStateFlow<String> = MutableStateFlow("Local")
 

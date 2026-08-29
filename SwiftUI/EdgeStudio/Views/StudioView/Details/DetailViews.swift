@@ -239,6 +239,24 @@ extension MainStudioView {
                     QueryEditorView(queryText: $viewModel.queryVM.selectedQuery)
                         .frame(height: geometry.size.height * 0.5)
 
+                    // ADVISE (SDK 5.1) index-advice card — sits between editor and
+                    // results so it doesn't displace the results pane's layout.
+                    if let advice = viewModel.queryVM.queryAdvice {
+                        QueryAdviceCardView(
+                            advice: advice,
+                            onApply: { suggestion in
+                                do {
+                                    try await viewModel.queryVM.applyAdviceSuggestion(suggestion, appState: appState)
+                                    return true
+                                } catch {
+                                    return false
+                                }
+                            },
+                            onDismiss: { viewModel.queryVM.queryAdvice = nil }
+                        )
+                        .transition(.opacity)
+                    }
+
                     Divider()
 
                     QueryResultsView(
@@ -499,6 +517,15 @@ extension MainStudioView {
                             Spacer()
 
                             Menu {
+                                // ADVISE (SDK 5.1) — index suggestions for the editor query.
+                                Button {
+                                    Task { await viewModel.queryVM.runAdvise(appState: appState) }
+                                } label: {
+                                    Label("Advise (index suggestions)…", systemImage: "lightbulb")
+                                }
+                                .disabled(!viewModel.queryVM.canRunAdvise)
+                                .accessibilityIdentifier("QueryAdviseMenuItem")
+                                Divider()
                                 Button("Export JSON") { queryIsExporting = true }
                                 Divider()
                                 Button("Generate SELECT") { queryGenerateAndInsert(.select) }
@@ -543,6 +570,15 @@ extension MainStudioView {
 
     private var queryGenerateDQLButton: some View {
         Menu {
+            // ADVISE (SDK 5.1) — index suggestions for the editor query.
+            Button {
+                Task { await viewModel.queryVM.runAdvise(appState: appState) }
+            } label: {
+                Label("Advise (index suggestions)…", systemImage: "lightbulb")
+            }
+            .disabled(!viewModel.queryVM.canRunAdvise)
+            .accessibilityIdentifier("QueryAdviseMenuItem")
+            Divider()
             Button("SELECT with all fields") { queryGenerateAndInsert(.select) }
             Button("INSERT template") { queryGenerateAndInsert(.insert) }
             Button("UPDATE template") { queryGenerateAndInsert(.update) }

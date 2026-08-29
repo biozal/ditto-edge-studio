@@ -160,7 +160,20 @@ fun QueryWorkbenchContentSection(
                         }
                     },
                     onImportJson = { showImportSheet = true },
+                    onAdvise = { queryVm.adviseQuery() },
+                    adviseEnabled = com.costoda.dittoedgestudio.domain.model.DqlStatements
+                        .isSelectStatement(queryText),
                 )
+
+                // ADVISE (SDK 5.1) index-advice card between toolbar and editor.
+                val queryAdvice by queryVm.queryAdvice.collectAsStateWithLifecycle()
+                queryAdvice?.let { advice ->
+                    QueryAdviceCard(
+                        advice = advice,
+                        onApply = { suggestion -> queryVm.applyAdviceSuggestion(suggestion) },
+                        onDismiss = { queryVm.dismissAdvice() },
+                    )
+                }
                 QueryEditorScreen(
                     viewModel = queryVm,
                     modifier = Modifier.fillMaxSize(),

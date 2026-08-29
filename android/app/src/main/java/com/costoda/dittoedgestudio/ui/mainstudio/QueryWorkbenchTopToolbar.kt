@@ -64,6 +64,10 @@ fun QueryWorkbenchTopToolbar(
     // SwiftUI parity: JSON data import + DQL statement templates + results export.
     onImportJson: (() -> Unit)? = null,
     onGenerateStatement: ((com.costoda.dittoedgestudio.domain.model.DqlStatementKind) -> Unit)? = null,
+    // ADVISE (SDK 5.1): non-null enables the entry; `adviseEnabled` reflects
+    // "editor holds a SELECT" (ADVISE advises SELECTs only).
+    onAdvise: (() -> Unit)? = null,
+    adviseEnabled: Boolean = false,
 ) {
     var targetMenuExpanded by remember { mutableStateOf(false) }
     var optionsExpanded by remember { mutableStateOf(false) }
@@ -172,7 +176,9 @@ fun QueryWorkbenchTopToolbar(
                 // auto-opens the Metrics inspector tab — handled by the ViewModel).
                 DropdownMenuItem(
                     text = { Text("Run EXPLAIN") },
-                    enabled = !isExecuting && queryText.isNotBlank(),
+                    // `EXPLAIN ADVISE …` is not valid syntax (extension parity).
+                    enabled = !isExecuting && queryText.isNotBlank() &&
+                        !com.costoda.dittoedgestudio.domain.model.DqlStatements.isAdviseStatement(queryText),
                     onClick = {
                         optionsExpanded = false
                         keyboardController?.hide()
@@ -180,6 +186,18 @@ fun QueryWorkbenchTopToolbar(
                     },
                     modifier = Modifier.testTag("QueryOptions.RunExplain"),
                 )
+                if (onAdvise != null) {
+                    DropdownMenuItem(
+                        text = { Text("Run ADVISE") },
+                        enabled = adviseEnabled && !isExecuting,
+                        onClick = {
+                            optionsExpanded = false
+                            keyboardController?.hide()
+                            onAdvise()
+                        },
+                        modifier = Modifier.testTag("QueryOptions.RunAdvise"),
+                    )
+                }
                 // This switch writes the same DataStore pref as Settings →
                 // "Collect Metrics" — keep the label identical so users can
                 // recognize it as the same setting.
