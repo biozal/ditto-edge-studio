@@ -244,6 +244,12 @@ class MainStudioViewModel(
         get() = session.systemMetrics
     fun startSystemMetricsPolling() = session.startSystemMetricsPolling()
     fun stopSystemMetricsPolling() = session.stopSystemMetricsPolling()
+
+    // ── Debug console (SDK 5.1 debug_socket) ─────────────────────────────────
+    val debugConsoleActive: StateFlow<Boolean> get() = session.debugConsoleActive
+    suspend fun executeDebugStatement(statement: String): Result<String> =
+        session.executeDebugStatement(statement)
+    suspend fun closeDebugConsole() = session.closeDebugConsole()
     fun consumeWelcomeTrigger(): Boolean = session.consumeWelcomeTrigger()
 
     fun selectObserver(observer: DittoObservable) {

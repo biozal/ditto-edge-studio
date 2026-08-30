@@ -93,6 +93,7 @@ class StudioSessionTest {
         appPreferences = mockk<com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway>().also {
             io.mockk.every { it.collectSystemMetrics } returns kotlinx.coroutines.flow.MutableStateFlow(true)
         },
+        context = mockk(relaxed = true),
         ioDispatcher = testDispatcher,
         teardownDispatcher = testDispatcher,
     )

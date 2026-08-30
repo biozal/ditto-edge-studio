@@ -243,6 +243,7 @@ val dataModule = module {
                 observableRepository = get(),
                 historyRepository = get(),
                 appPreferences = get(),
+                context = androidContext(),
             )
         } onClose { it?.close() }
     }

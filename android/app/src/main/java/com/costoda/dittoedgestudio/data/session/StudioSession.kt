@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.data.session
 
 import android.util.Log
 import com.costoda.dittoedgestudio.BuildConfig
+import com.costoda.dittoedgestudio.data.ditto.DebugSocketClient
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -72,6 +73,7 @@ class StudioSession(
     private val observableRepository: ObservableRepository,
     private val historyRepository: com.costoda.dittoedgestudio.data.repository.HistoryRepository,
     private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway,
+    private val context: android.content.Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val teardownDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -259,6 +261,52 @@ class StudioSession(
     fun stopSystemMetricsPolling() {
         systemMetricsJob?.cancel()
         systemMetricsJob = null
+    }
+
+    // ── Debug Console (SDK 5.1 debug_socket) ─────────────────────────────────
+    // Parity with the extension's Debug Console: runtime `ALTER SYSTEM` spawns an
+    // unauthenticated newline-DQL listener on a unix socket inside app-private
+    // storage; the client is serial-FIFO with a 30 s timeout and a 64 MiB line cap.
+    private val debugSocketClient = DebugSocketClient()
+
+    /** True while the debug socket listener is up (set when the console opened). */
+    private val _debugConsoleActive = MutableStateFlow(false)
+    val debugConsoleActive: StateFlow<Boolean> = _debugConsoleActive.asStateFlow()
+
+    private fun debugSocketPath(): String = java.io.File(context.cacheDir, "ditto-debug.sock").absolutePath
+
+    /**
+     * Enables the debug socket for this session's Ditto and connects the client.
+     * Idempotent. Returns the socket path on success.
+     */
+    suspend fun openDebugConsole(): Result<String> {
+        val ditto = dittoManager.currentInstance()
+            ?: return Result.failure(IllegalStateException("No active Ditto instance"))
+        return runCatching {
+            val path = debugSocketPath()
+            ditto.store.execute("ALTER SYSTEM SET debug_socket = '$path'")
+            debugSocketClient.connect(path)
+            _debugConsoleActive.value = true
+            path
+        }
+    }
+
+    /** Runs one DQL statement over the debug socket. Opens the console on demand. */
+    suspend fun executeDebugStatement(statement: String): Result<String> {
+        if (!_debugConsoleActive.value) {
+            openDebugConsole().onFailure { return Result.failure(it) }
+        }
+        return runCatching { debugSocketClient.execute(statement) }
+    }
+
+    /** Closes the client and tears the listener down (listener dies with Ditto anyway). */
+    suspend fun closeDebugConsole() {
+        _debugConsoleActive.value = false
+        debugSocketClient.closeAndWait()
+        runCatching {
+            dittoManager.currentInstance()
+                ?.store?.execute("ALTER SYSTEM SET debug_socket = ''")
+        }
     }
 
     /**
@@ -745,6 +793,8 @@ class StudioSession(
         runCatching { loggingCaptureService.stopTransportConditionObservation() }
         runCatching { loggingCaptureService.stopConnectionRequestHandler() }
         stopSystemMetricsPolling()
+        runCatching { debugSocketClient.close() }
+        _debugConsoleActive.value = false
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }

@@ -39,6 +39,9 @@ extension MainStudioView {
         var attachmentVM: AttachmentViewModel
         var subObsVM: SubscriptionObserverViewModel
 
+        /// Debug Console service (SDK 5.1 debug_socket). One per studio session.
+        var debugConsoleService = DebugConsoleService()
+
         // MARK: - Direct Dependencies (parent-only orchestration)
 
         @ObservationIgnored
@@ -320,6 +323,7 @@ extension MainStudioView {
             Log.info("[Close] Session invalidated (\(String(format: "%.3f", invalidateElapsed))s)")
 
             // 2. Clean up UI state immediately on main actor across all sub-VMs.
+            await debugConsoleService.close()
             subObsVM.reset()
             collections = []
             queryVM.reset()

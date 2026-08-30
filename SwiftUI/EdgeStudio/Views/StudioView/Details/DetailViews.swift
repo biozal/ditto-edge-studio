@@ -352,6 +352,19 @@ extension MainStudioView {
             contentType: .json,
             defaultFilename: "query_results"
         ) { _ in }
+        .sheet(
+            isPresented: $showDebugConsole,
+            // iPadOS swipe-to-dismiss bypasses the view's Close button — the sheet's
+            // onDismiss keeps the teardown (client close + listener ALTER SYSTEM '').
+            onDismiss: {
+                Task { await viewModel.debugConsoleService.close() }
+            }
+        ) {
+            DebugConsoleView(
+                service: viewModel.debugConsoleService,
+                onClose: { showDebugConsole = false }
+            )
+        }
         .overlay(alignment: .top) {
             if let message = queryCopiedDQLNotification {
                 Text(message)
@@ -526,6 +539,13 @@ extension MainStudioView {
                                 .disabled(!viewModel.queryVM.canRunAdvise)
                                 .accessibilityIdentifier("QueryAdviseMenuItem")
                                 Divider()
+                                Button {
+                                    showDebugConsole = true
+                                } label: {
+                                    Label("Debug Console…", systemImage: "terminal")
+                                }
+                                .accessibilityIdentifier("QueryDebugConsoleMenuItem")
+                                Divider()
                                 Button("Export JSON") { queryIsExporting = true }
                                 Divider()
                                 Button("Generate SELECT") { queryGenerateAndInsert(.select) }
@@ -578,6 +598,13 @@ extension MainStudioView {
             }
             .disabled(!viewModel.queryVM.canRunAdvise)
             .accessibilityIdentifier("QueryAdviseMenuItem")
+            Divider()
+            Button {
+                showDebugConsole = true
+            } label: {
+                Label("Debug Console…", systemImage: "terminal")
+            }
+            .accessibilityIdentifier("QueryDebugConsoleMenuItem")
             Divider()
             Button("SELECT with all fields") { queryGenerateAndInsert(.select) }
             Button("INSERT template") { queryGenerateAndInsert(.insert) }
