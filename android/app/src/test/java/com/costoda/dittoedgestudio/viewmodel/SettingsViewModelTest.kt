@@ -91,5 +91,11 @@ class SettingsViewModelTest {
         override suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean) {
             _showWelcome.value = enabled
         }
+
+        private val _collectSystemMetrics = MutableStateFlow(true)
+        override val collectSystemMetrics = _collectSystemMetrics
+        override suspend fun setCollectSystemMetrics(enabled: Boolean) {
+            _collectSystemMetrics.value = enabled
+        }
     }
 }

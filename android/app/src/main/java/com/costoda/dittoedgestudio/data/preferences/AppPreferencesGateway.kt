@@ -35,4 +35,12 @@ interface AppPreferencesGateway {
      */
     val showWelcomeOnNewDatabase: Flow<Boolean>
     suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean)
+
+    /**
+     * Whether the SDK 5.1 `system:metrics` exporter is enabled before Ditto opens.
+     * Startup-gated in the SDK (runtime changes are ignored), so the toggle's effect
+     * applies at the next database open. Default true (extension parity).
+     */
+    val collectSystemMetrics: Flow<Boolean>
+    suspend fun setCollectSystemMetrics(enabled: Boolean)
 }

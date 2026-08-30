@@ -38,6 +38,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -70,6 +71,7 @@ class StudioSession(
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
     private val historyRepository: com.costoda.dittoedgestudio.data.repository.HistoryRepository,
+    private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val teardownDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -156,6 +158,108 @@ class StudioSession(
      */
     fun consumeWelcomeTrigger(): Boolean =
         _welcomeCandidate.value && welcomeAutoShown.compareAndSet(false, true)
+
+    // ── system:metrics (SDK 5.1) dashboard ────────────────────────────────────
+    // Parity port of the extension's SystemMetricsService: the virtual collection
+    // flushes the registry per read, so samples accumulate deltas since connect.
+    private val systemMetricSamples =
+        java.util.Collections.synchronizedMap(mutableMapOf<String, com.costoda.dittoedgestudio.domain.model.SystemMetricSample>())
+
+    private val _systemMetrics = MutableStateFlow(
+        com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+            samples = emptyList(),
+            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
+        ),
+    )
+    val systemMetrics: StateFlow<com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot> =
+        _systemMetrics.asStateFlow()
+
+    private var systemMetricsJob: Job? = null
+
+    /**
+     * Starts 5-second polling of `SELECT * FROM system:metrics`. Idempotent; call from
+     * the dashboard's on-visible and [stopSystemMetricsPolling] on-hidden. When the
+     * "Collect system metrics" setting is off, reports SETTING_DISABLED and stays idle
+     * (the exporter is startup-gated — nothing to poll until the next open).
+     */
+    fun startSystemMetricsPolling() {
+        if (systemMetricsJob?.isActive == true) return
+        systemMetricsJob = sessionScope.launch {
+            if (!appPreferences.collectSystemMetrics.first()) {
+                _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                    samples = emptyList(),
+                    status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.SETTING_DISABLED,
+                )
+                return@launch
+            }
+            val sinceMs = System.currentTimeMillis()
+            var zeroed = false
+            while (true) {
+                // Re-check per iteration (extension + Swift parity): hydrate() is async, so
+                // arriving at the dashboard before it completes must recover automatically.
+                val ditto = dittoManager.currentInstance()
+                if (ditto == null) {
+                    _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                        samples = emptyList(),
+                        status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.NO_CONNECTION,
+                    )
+                    delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+                    continue
+                }
+                if (!zeroed) {
+                    // First poll of a session: samples may predate us (shared session on
+                    // section re-entry) — reset so "since connect" matches this open.
+                    synchronized(systemMetricSamples) { systemMetricSamples.clear() }
+                    zeroed = true
+                }
+                try {
+                    val rows = ditto.store.execute(SYSTEM_METRICS_QUERY) { result ->
+                        result.items.mapNotNull { item ->
+                            runCatching {
+                                com.costoda.dittoedgestudio.data.repository.parseJsonToMap(
+                                    org.json.JSONObject(item.jsonString()),
+                                )
+                            }.getOrNull()
+                        }
+                    }
+                    if (com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.isExporterDisabled(rows)) {
+                        _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                            samples = emptyList(),
+                            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.EXPORTER_DISABLED,
+                        )
+                    } else {
+                        synchronized(systemMetricSamples) {
+                            com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.accumulate(
+                                rows,
+                                samples = systemMetricSamples,
+                            )
+                        }
+                        _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                            samples = synchronized(systemMetricSamples) {
+                                systemMetricSamples.values.toList().sortedBy { it.key }
+                            },
+                            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.READY,
+                            sinceMs = sinceMs,
+                            polledAtMs = System.currentTimeMillis(),
+                        )
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                        samples = emptyList(),
+                        status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.ERROR,
+                        errorMessage = e.message,
+                    )
+                }
+                delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stopSystemMetricsPolling() {
+        systemMetricsJob?.cancel()
+        systemMetricsJob = null
+    }
 
     /**
      * Bounded capture buffer (SwiftUI `ObservableEventStore` parity): events are
@@ -640,6 +744,7 @@ class StudioSession(
         runCatching { collectionsRepository.stopObserving() }
         runCatching { loggingCaptureService.stopTransportConditionObservation() }
         runCatching { loggingCaptureService.stopConnectionRequestHandler() }
+        stopSystemMetricsPolling()
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }
@@ -704,6 +809,10 @@ class StudioSession(
 
         /** SwiftUI `observedEventFlushInterval` parity (100 ms event coalescing). */
         private const val OBSERVER_EVENT_FLUSH_INTERVAL_MS = 100L
+
+        /** `system:metrics` poll cadence (extension parity: 5 s while visible). */
+        private const val SYSTEM_METRICS_POLL_INTERVAL_MS = 5_000L
+        private const val SYSTEM_METRICS_QUERY = "SELECT * FROM system:metrics"
 
         /** WARN threshold for slow Ditto teardown; we still wait for completion past this. */
         private const val CLOSE_WARN_TIMEOUT_MS: Long = 5_000L

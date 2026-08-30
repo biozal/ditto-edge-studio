@@ -28,6 +28,16 @@ All cards sum to the total Ditto data directory size shown at the top.
 
 ---
 
+## System Metrics
+
+The **System** tab (SDK 5.1) polls Ditto's `system:metrics` virtual collection every 5 seconds while Database Metrics is on screen. The SDK flushes its registry on every read, so values shown are **accumulated since the database was opened**, with the per-poll delta as a green `▲ +n` marker.
+
+Namespace chips (All / Network / Store / Sync / Other) filter the counter table. A warning banner appears when `ditto.network.dsoq.connection.opened` and `.closed` diverge — a possible connection-leak or handshake signal.
+
+The exporter is enabled before Ditto starts (Settings → **Collect system metrics**, on by default); because the SDK reads it only at open, toggling it takes effect the next time you open a database.
+
+---
+
 ## Per-Collection Breakdown
 
 One card appears per user collection, sorted largest-first by estimated document payload size. Each card shows the collection name, estimated size, and document count.

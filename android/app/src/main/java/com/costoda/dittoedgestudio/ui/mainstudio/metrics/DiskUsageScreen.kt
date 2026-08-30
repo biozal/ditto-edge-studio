@@ -55,16 +55,37 @@ import java.util.Locale
 private enum class Section(val label: String) {
     Files("Files"),
     Collections("Collections"),
+    System("System"),
 }
 
 @Composable
 fun DiskUsageScreen(
     viewModel: DiskUsageViewModel,
     modifier: Modifier = Modifier,
+    // Session-scoped system-metrics feed (SDK 5.1 system:metrics). Null when the
+    // caller has no studio session (previews, non-studio tests).
+    mainViewModel: com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel? = null,
 ) {
     val metrics by viewModel.metrics.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsStateWithLifecycle()
+    val systemMetrics: com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot =
+        if (mainViewModel != null) {
+            mainViewModel.systemMetrics.collectAsStateWithLifecycle().value
+        } else {
+            com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                samples = emptyList(),
+                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
+            )
+        }
+
+    // Visibility-gated polling: the dashboard only polls while this section shows.
+    if (mainViewModel != null) {
+        androidx.compose.runtime.DisposableEffect(mainViewModel) {
+            mainViewModel.startSystemMetricsPolling()
+            onDispose { mainViewModel.stopSystemMetricsPolling() }
+        }
+    }
 
     // Persist the selected section across rotations and process death. Enum default-saver
     // serialises by name; safe so long as Section is kept as-is in the same package.
@@ -86,6 +107,7 @@ fun DiskUsageScreen(
                 snap = metrics!!,
                 selected = selectedSection,
                 onSelect = { selectedSection = it },
+                systemMetrics = systemMetrics,
             )
         }
     }
@@ -146,12 +168,14 @@ private fun MetricsBody(
     snap: DatabaseMetrics,
     selected: Section,
     onSelect: (Section) -> Unit,
+    systemMetrics: com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SectionSelector(selected = selected, onSelect = onSelect)
         when (selected) {
             Section.Files -> FilesPane(snap)
             Section.Collections -> CollectionsPane(snap)
+            Section.System -> SystemMetricsPane(snapshot = systemMetrics)
         }
     }
 }

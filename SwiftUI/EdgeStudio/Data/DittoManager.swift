@@ -22,6 +22,10 @@ actor DittoManager {
 
     static let shared = DittoManager()
 
+    /// Env var the SDK maps to `metrics_exporter_virtual_collection_enabled`
+    /// (startup-gated — see `hydrateDittoSelectedDatabase`).
+    static let systemMetricsEnvVar = "DITTO_METRICS_EXPORTER_VIRTUAL_COLLECTION_ENABLED"
+
     func closeDittoSelectedDatabase() async {
         let closeStart = CFAbsoluteTimeGetCurrent()
 
@@ -153,6 +157,16 @@ actor DittoManager {
 
             // Store the persistence directory for log capture
             activePersistenceDirectory = localDirectoryPath
+
+            // Startup-gated SDK 5.1 knob: `metrics_exporter_virtual_collection_enabled`
+            // is read once at Ditto construction (runtime ALTER SYSTEM is ignored), so
+            // the env var must be set BEFORE Ditto.open. When the setting is off we
+            // actively unset it — a stale "true" must not survive within this process.
+            if UserDefaults.standard.object(forKey: "collectSystemMetrics") as? Bool ?? true {
+                setenv(Self.systemMetricsEnvVar, "true", 1)
+            } else {
+                unsetenv(Self.systemMetricsEnvVar)
+            }
 
             var dittoInstance: Ditto?
             let config = try Self.createDatabaseConfig(

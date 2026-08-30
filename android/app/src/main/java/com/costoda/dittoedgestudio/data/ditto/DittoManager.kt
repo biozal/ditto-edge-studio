@@ -14,11 +14,13 @@ import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class DittoManager(
     private val coroutineScope: CoroutineScope,
     private val logCaptureService: DittoLogCaptureService? = null,
+    private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway? = null,
 ) {
 
     private var ditto: Ditto? = null
@@ -45,6 +47,9 @@ class DittoManager(
     }
 
     companion object {
+        /** Env var the SDK maps to `metrics_exporter_virtual_collection_enabled`. */
+        internal const val SYSTEM_METRICS_ENV_VAR = "DITTO_METRICS_EXPORTER_VIRTUAL_COLLECTION_ENABLED"
+
         private const val TAG = "DittoManager"
     }
 
@@ -68,6 +73,13 @@ class DittoManager(
         if (logCaptureService != null) {
             runCatching { DittoLogger.minimumLogLevel = DittoLogLevel.Info }
         }
+
+        // Startup-gated SDK 5.1 knob: `metrics_exporter_virtual_collection_enabled` is
+        // read once at Ditto construction (runtime ALTER SYSTEM is ignored), so the
+        // env var must be flipped BEFORE DittoFactory.create. When the setting is off
+        // we actively unset it — a stale "true" from an earlier toggle-on must not
+        // survive within the same process.
+        applySystemMetricsEnv()
 
         val config = buildConfig(database)
         val newDitto = withContext(Dispatchers.IO) {
@@ -225,6 +237,23 @@ class DittoManager(
             // subscriptions to never be loaded.
             runCatching { current.close() }
                 .onFailure { e -> Log.w(TAG, "Error closing Ditto instance: ${e.message}") }
+        }
+    }
+
+    /**
+     * Applies the "Collect system metrics" preference to the process env the native
+     * SDK reads at Ditto construction. No-op when preferences weren't injected
+     * (unit tests construct DittoManager without them).
+     */
+    private suspend fun applySystemMetricsEnv() {
+        val prefs = appPreferences ?: return
+        val enabled = prefs.collectSystemMetrics.first()
+        runCatching {
+            if (enabled) {
+                android.system.Os.setenv(SYSTEM_METRICS_ENV_VAR, "true", true)
+            } else {
+                android.system.Os.unsetenv(SYSTEM_METRICS_ENV_VAR)
+            }
         }
     }
 

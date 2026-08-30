@@ -359,8 +359,8 @@ fun AppNavGraph() {
 
                     // ── Scene-driven section: Database Metrics ───────────────────────────
                     entry<DiskUsageKey> { key ->
-                        StudioSectionContainer(key.databaseId, StudioNavItem.DISK_USAGE) {
-                            DiskUsageSection()
+                        StudioSectionContainer(key.databaseId, StudioNavItem.DISK_USAGE) { viewModel ->
+                            DiskUsageSection(mainViewModel = viewModel)
                         }
                     }
 

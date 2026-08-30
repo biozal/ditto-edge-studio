@@ -106,7 +106,7 @@ val dataModule = module {
             },
         )
     }
-    single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
+    single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>(), get<AppPreferencesGateway>()) }
     single<SystemRepository> {
         SystemRepositoryImpl(
             get<CoroutineScope>(),
@@ -242,6 +242,7 @@ val dataModule = module {
                 loggingCaptureService = get(),
                 observableRepository = get(),
                 historyRepository = get(),
+                appPreferences = get(),
             )
         } onClose { it?.close() }
     }

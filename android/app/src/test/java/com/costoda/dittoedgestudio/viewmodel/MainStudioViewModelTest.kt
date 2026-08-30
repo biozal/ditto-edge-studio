@@ -260,6 +260,9 @@ class MainStudioViewModelTest {
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
         historyRepository = mockk(relaxed = true),
+        appPreferences = mockk<com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway>().also {
+            io.mockk.every { it.collectSystemMetrics } returns kotlinx.coroutines.flow.MutableStateFlow(true)
+        },
         ioDispatcher = testDispatcher,
     )
 

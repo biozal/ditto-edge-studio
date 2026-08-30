@@ -901,4 +901,10 @@ private class FakeAppPreferences(initialMetricsEnabled: Boolean) :
     override suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean) {
         showWelcomeOnNewDatabase.value = enabled
     }
+
+    // Not exercised by these tests — the system:metrics exporter hook lives in DittoManager.
+    override val collectSystemMetrics = kotlinx.coroutines.flow.MutableStateFlow(true)
+    override suspend fun setCollectSystemMetrics(enabled: Boolean) {
+        collectSystemMetrics.value = enabled
+    }
 }

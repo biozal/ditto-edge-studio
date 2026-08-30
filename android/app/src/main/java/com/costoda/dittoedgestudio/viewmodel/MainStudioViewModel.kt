@@ -238,6 +238,12 @@ class MainStudioViewModel(
 
     // ── Welcome screen (auto-show on fresh databases) ────────────────────────
     val welcomeCandidateFlow: StateFlow<Boolean> get() = session.welcomeCandidate
+
+    // ── system:metrics dashboard (SDK 5.1) ───────────────────────────────────
+    val systemMetrics: StateFlow<com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot>
+        get() = session.systemMetrics
+    fun startSystemMetricsPolling() = session.startSystemMetricsPolling()
+    fun stopSystemMetricsPolling() = session.stopSystemMetricsPolling()
     fun consumeWelcomeTrigger(): Boolean = session.consumeWelcomeTrigger()
 
     fun selectObserver(observer: DittoObservable) {

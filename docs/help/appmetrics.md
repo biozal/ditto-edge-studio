@@ -58,6 +58,14 @@ Tap the **?** on any collection card to see what is and is not included in the e
 
 > The collection breakdown requires reading all documents across all collections. For large databases this can take several seconds — a spinner appears while the calculation runs.
 
+## System Metrics
+
+The **System Metrics** section (SDK 5.1) polls Ditto's `system:metrics` virtual collection every 5 seconds while the App Metrics view is visible. Because the SDK flushes its registry on every read, values shown are **accumulated since the database was opened** — with the per-poll delta shown as a green `▲ +n` marker.
+
+Use the namespace filter (All / Network / Store / Sync / Other) to narrow the table. A warning banner appears when `ditto.network.dsoq.connection.opened` and `.closed` diverge — a possible connection-leak or handshake signal.
+
+The exporter is enabled before Ditto starts (Settings → **Collect system metrics**, on by default); because the SDK reads it only at open, toggling it takes effect the next time you open a database. If the exporter wasn't enabled for the current session, the section explains how to enable it.
+
 ### Tips
 
 - **Store vs collection sum**: The Store card measures the full SQLite file (including indexes and CRDT history). Collection cards measure only current document payloads. The gap is normal.

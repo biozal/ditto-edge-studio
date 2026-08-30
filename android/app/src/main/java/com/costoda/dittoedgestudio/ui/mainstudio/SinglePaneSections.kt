@@ -63,10 +63,13 @@ fun AppMetricsSection(
 @Composable
 fun DiskUsageSection(
     modifier: Modifier = Modifier,
+    // Session-scoped studio VM feeds the system:metrics dashboard (SDK 5.1).
+    mainViewModel: com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel? = null,
 ) {
     val diskUsageViewModel: DiskUsageViewModel = koinViewModel()
     DiskUsageScreen(
         viewModel = diskUsageViewModel,
         modifier = modifier.fillMaxSize(),
+        mainViewModel = mainViewModel,
     )
 }
