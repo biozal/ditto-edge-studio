@@ -88,7 +88,7 @@ actor DebugSocketClient {
             connection = conn
             try await waitForReady(conn, timeout: connectTimeout)
         }
-        let active = connection!
+        guard let active = connection else { throw ClientError.notConnected }
 
         do {
             return try await withThrowingTaskGroup(of: String.self) { group in
@@ -102,9 +102,12 @@ actor DebugSocketClient {
                     active.cancel()
                     throw ClientError.timeout
                 }
-                let result = try await group.next()
+                guard let result = try await group.next() else {
+                    group.cancelAll()
+                    throw ClientError.notConnected
+                }
                 group.cancelAll()
-                return result!
+                return result
             }
         } catch {
             // Timeout / responseTooLarge / peer-drop: tear the connection down so
@@ -177,7 +180,7 @@ actor DebugSocketClient {
             if let newlineIndex = receiveBuffer.firstIndex(of: 0x0A) {
                 let line = receiveBuffer[..<newlineIndex]
                 receiveBuffer = receiveBuffer[(newlineIndex + 1)...]
-                return String(decoding: line, as: UTF8.self)
+                return String(bytes: line, encoding: .utf8) ?? ""
             }
             if receiveBuffer.count > maxLineBytes {
                 throw ClientError.responseTooLarge

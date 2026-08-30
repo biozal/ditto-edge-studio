@@ -98,9 +98,9 @@ struct LogPatternEngine: Sendable {
     /// Parity with the extension's MAX_USER_PATTERN_LENGTH.
     static let maxUserPatternLength = 512
 
-    /// Nested-quantifier shapes — `(a+)+`, `(\w+\s*)+`, `(a*){2,}` — whose
-    /// backtracking cost is exponential in the input length (NSRegularExpression
-    /// has no timeout). Parity with the extension's ReDoS guard.
+    // Nested-quantifier shapes — `(a+)+`, `(\w+\s*)+`, `(a*){2,}` — whose
+    // backtracking cost is exponential in the input length (NSRegularExpression
+    // has no timeout). Parity with the extension's ReDoS guard.
     // Constant pattern validated by LogPatternEngineTests.
     // swiftlint:disable:next force_try
     private static let nestedQuantifier = try! NSRegularExpression(

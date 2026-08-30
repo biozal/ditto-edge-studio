@@ -4,7 +4,6 @@ import Testing
 
 @Suite("SystemMetrics accumulator tests")
 struct SystemMetricsAccumulatorTests {
-
     private func counterRow(_ key: String, delta: Any, labels: [String: String] = [:]) -> [String: Any] {
         var row: [String: Any] = ["key": key, "description": "desc", "unit": "", "delta": delta]
         if !labels.isEmpty { row["labels"] = labels }
@@ -31,7 +30,7 @@ struct SystemMetricsAccumulatorTests {
         SystemMetricsAccumulator.accumulate(
             rows: [
                 counterRow("m", delta: 1, labels: ["db": "main"]),
-                counterRow("m", delta: 4, labels: ["db": "auth"]),
+                counterRow("m", delta: 4, labels: ["db": "auth"])
             ],
             into: &samples
         )
@@ -64,7 +63,7 @@ struct SystemMetricsAccumulatorTests {
             rows: [
                 ["status": "disabled", "description": "x"], // placeholder
                 ["key": ""], // empty key
-                counterRow("ok", delta: 1.5),
+                counterRow("ok", delta: 1.5)
             ],
             into: &samples
         )

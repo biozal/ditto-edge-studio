@@ -27,12 +27,10 @@ import AppKit
 
 @Suite("QueryResultRowMenu Helpers")
 struct QueryResultRowMenuTests {
-
     // MARK: - extractIdString(fromJSON:)
 
     @Suite("extractIdString")
     struct ExtractIdStringTests {
-
         @Test(.tags(.utility, .fast))
         func `String _id is returned raw — the common Ditto case`() {
             // The overwhelmingly common shape: a UUID-ish string _id.
@@ -108,7 +106,6 @@ struct QueryResultRowMenuTests {
     // so they must not run concurrently or one could read back the other's write.
     @Suite("setClipboardString", .serialized)
     struct SetClipboardStringTests {
-
         #if os(macOS)
         @Test(.tags(.utility, .fast))
         func `Writes the value to the macOS pasteboard so it round-trips`() {

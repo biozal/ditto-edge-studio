@@ -4,12 +4,10 @@ import Testing
 
 @Suite("MetricsBackend Tests")
 struct MetricsBackendTests {
-
     // MARK: - InMemoryMetricsStore Tests
 
     @Suite("InMemoryMetricsStore")
     struct InMemoryMetricsStoreTests {
-
         @Test("record() stores samples for label", .tags(.model, .fast))
         func testRecordStoresSamples() async {
             // ARRANGE
@@ -117,7 +115,6 @@ struct MetricsBackendTests {
 
     @Suite("AppMetricsCounter")
     struct AppMetricsCounterTests {
-
         @Test("increment fires without error", .tags(.model, .fast))
         func testIncrementFiresWithoutError() async throws {
             // ARRANGE
@@ -138,7 +135,6 @@ struct MetricsBackendTests {
 
     @Suite("AppMetricsTimer")
     struct AppMetricsTimerTests {
-
         @Test("recordMilliseconds fires without error", .tags(.model, .fast))
         func testRecordMillisecondsFiresWithoutError() async throws {
             // ARRANGE

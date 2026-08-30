@@ -4,7 +4,6 @@ import Testing
 
 @Suite("Debug console mutation gating")
 struct DebugConsoleMutationTests {
-
     @Test("mutating prefixes are detected case-insensitively with leading whitespace")
     func mutatingDetected() {
         #expect(isMutatingDqlStatement("INSERT INTO t DOCUMENTS ({})"))

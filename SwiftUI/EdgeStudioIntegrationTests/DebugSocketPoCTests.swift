@@ -56,7 +56,6 @@ private final class ResumeGate: @unchecked Sendable {
 
 @Suite("Debug socket PoC", .enabled(if: DebugSocketPoCCredentials.hasCredentials))
 struct DebugSocketPoC {
-
     private static var credentials: (databaseId: String, offlineToken: String)? {
         DebugSocketPoCCredentials.value
     }
@@ -124,19 +123,25 @@ struct DebugSocketPoC {
                 try await Task.sleep(for: .seconds(10))
                 connection.cancel() // force the suspended receive to error out
                 throw NSError(domain: "DebugSocketPoC", code: -3, userInfo: [
-                    NSLocalizedDescriptionKey: "no response line within 10s",
+                    NSLocalizedDescriptionKey: "no response line within 10s"
                 ])
             }
             let first = try await group.next()
             group.cancelAll()
-            return first!
+            guard let first else {
+                throw NSError(domain: "DebugSocketPoC", code: -4, userInfo: [
+                    NSLocalizedDescriptionKey: "task group returned no result"
+                ])
+            }
+            return first
         }
         #expect(line.contains("dummy"))
         #expect(line.trimmingCharacters(in: .whitespaces).hasPrefix("["))
 
         // Tear down the listener before the instance is released.
+        // (sync.stop() is synchronous in SDK 5.1.)
         _ = try? await ditto.store.execute(query: "ALTER SYSTEM SET debug_socket = ''")
-        try? await ditto.sync.stop()
+        ditto.sync.stop()
         withExtendedLifetime(ditto) {}
     }
 
@@ -165,7 +170,7 @@ struct DebugSocketPoC {
             let chunk = try await receiveChunk(connection)
             buffer.append(chunk)
             if let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                return String(decoding: buffer[..<newlineIndex], as: UTF8.self)
+                return String(bytes: buffer[..<newlineIndex], encoding: .utf8) ?? ""
             }
         }
     }
@@ -179,7 +184,7 @@ struct DebugSocketPoC {
                     cont.resume(returning: data)
                 } else if isComplete {
                     cont.resume(throwing: NSError(domain: "DebugSocketPoC", code: -2, userInfo: [
-                        NSLocalizedDescriptionKey: "socket closed before a full line arrived",
+                        NSLocalizedDescriptionKey: "socket closed before a full line arrived"
                     ]))
                 } else {
                     // Empty keep-alive chunk — keep waiting by returning empty data.

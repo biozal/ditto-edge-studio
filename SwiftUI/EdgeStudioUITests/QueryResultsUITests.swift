@@ -20,7 +20,6 @@ import XCTest
 
 @MainActor
 final class QueryResultsUITests: UITestBase {
-
     private let pageCollection = "e2e_page"
     private let tableCollection = "e2e_table"
 
@@ -51,7 +50,9 @@ final class QueryResultsUITests: UITestBase {
         }
 
         guard waitForPageIndicator("1 of 2", timeout: 10) else {
-            if app.alerts.count > 0 { XCTFail("Pagination blocked by Alert: \(app.alerts.firstMatch.label)") }
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 { XCTFail("Pagination blocked by Alert: \(app.alerts.firstMatch.label)") }
             captureScreenshot(named: "FAIL-page-1-of-2", lifetime: .keepAlways)
             XCTFail("12 results at pageSize 10 should show '1 of 2'.")
             try cleanup(token: token, collection: pageCollection)

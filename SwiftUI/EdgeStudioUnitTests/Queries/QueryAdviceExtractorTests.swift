@@ -4,7 +4,6 @@ import Testing
 
 @Suite("QueryAdvice extractor tests")
 struct QueryAdviceExtractorTests {
-
     private let sampleAdviceJSON = """
     {"advice": {
       "statement": "SELECT * FROM atest WHERE e=1\\n",

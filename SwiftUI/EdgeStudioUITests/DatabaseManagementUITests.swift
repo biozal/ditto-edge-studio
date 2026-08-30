@@ -10,7 +10,6 @@
 import XCTest
 
 final class DatabaseManagementUITests: UITestBase {
-
     /// Tapping AddDatabaseButton opens the editor sheet exposing NameTextField.
     ///
     /// This does NOT require the plist — it only drives the UI to open the sheet,
@@ -42,7 +41,9 @@ final class DatabaseManagementUITests: UITestBase {
         // ASSERT — form is present (validate via NameTextField, not a picker).
         let nameField = app.textFields["NameTextField"].firstMatch
         guard nameField.waitForExistence(timeout: 10) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("Editor form did not appear — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-no-editor-form", lifetime: .keepAlways)
@@ -78,7 +79,9 @@ final class DatabaseManagementUITests: UITestBase {
         let anyCard = app.descendants(matching: .any).matching(predicate).firstMatch
 
         guard anyCard.waitForExistence(timeout: 15) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("No database card appeared — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-no-card-after-add", lifetime: .keepAlways)

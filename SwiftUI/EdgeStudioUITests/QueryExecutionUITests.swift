@@ -26,7 +26,6 @@ import XCTest
 
 @MainActor
 final class QueryExecutionUITests: UITestBase {
-
     /// Inserts a real document, selects it back, and asserts the inserted value
     /// actually appears in the results pane — proving query execution returns and
     /// renders real data, not just that a container exists.
@@ -67,7 +66,9 @@ final class QueryExecutionUITests: UITestBase {
         )
         let resultsPane = app.descendants(matching: .any)["QueryResultsView"].firstMatch
         guard resultsPane.waitForExistence(timeout: 15) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("INSERT failed — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-insert-no-results", lifetime: .keepAlways)
@@ -88,7 +89,9 @@ final class QueryExecutionUITests: UITestBase {
             .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "marker", token))
             .firstMatch
         if !resultDoc.waitForExistence(timeout: 15) {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("SELECT failed — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-select-no-data", lifetime: .keepAlways)

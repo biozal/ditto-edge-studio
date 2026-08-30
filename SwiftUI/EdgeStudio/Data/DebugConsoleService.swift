@@ -79,7 +79,7 @@ final class DebugConsoleService {
                   withJSONObject: obj,
                   options: [.prettyPrinted, .sortedKeys]
               ) else { return raw }
-        return String(decoding: pretty, as: UTF8.self)
+        return String(bytes: pretty, encoding: .utf8) ?? raw
     }
 }
 

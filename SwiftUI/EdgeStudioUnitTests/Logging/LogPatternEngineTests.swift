@@ -78,7 +78,7 @@ struct LogPatternEngineTests {
     func exactLevelFilter() {
         let engine = LogPatternEngine(patterns: [
             "err": makePattern(key: "err", pattern: "deadlock", levelFilter: "error"),
-            "wrn": makePattern(key: "wrn", pattern: "deadlock", levelFilter: "warn"),
+            "wrn": makePattern(key: "wrn", pattern: "deadlock", levelFilter: "warn")
         ])
         // An error line must not fire the warn-scoped variant.
         let errorMatches = engine.scan(makeEntry(level: .error, message: "deadlock elapsed"))
@@ -90,7 +90,7 @@ struct LogPatternEngineTests {
     @Test("tag filter matches against the component display name")
     func tagFilterScoping() {
         let engine = LogPatternEngine(patterns: [
-            "p": makePattern(key: "p", pattern: "msg", tagFilter: "Sync"),
+            "p": makePattern(key: "p", pattern: "msg", tagFilter: "Sync")
         ])
         #expect(!engine.scan(makeEntry(message: "msg here", component: .sync)).isEmpty)
         #expect(engine.scan(makeEntry(message: "msg here", component: .store)).isEmpty)
@@ -99,7 +99,7 @@ struct LogPatternEngineTests {
     @Test("user tag is carried on the compiled pattern")
     func userTagCarried() {
         let engine = LogPatternEngine(patterns: [
-            "p": makePattern(key: "p", pattern: "msg", userTag: "auth-flow"),
+            "p": makePattern(key: "p", pattern: "msg", userTag: "auth-flow")
         ])
         #expect(engine.scan(makeEntry(message: "msg here"))[0].userTag == "auth-flow")
     }
@@ -110,7 +110,7 @@ struct LogPatternEngineTests {
         let entries = [
             makeEntry(message: "nothing"),
             makeEntry(message: "err one"),
-            makeEntry(message: "err two"),
+            makeEntry(message: "err two")
         ]
         let matches = engine.scanAll(entries)
         #expect(matches.count == 2)
@@ -277,7 +277,7 @@ struct LogPatternEngineTests {
             "replication_metadata_corrupt_recovery",
             "replication_consecutive_resets",
             "replication_reset_local_trigger",
-            "post_eviction_cleanup_frequent",
+            "post_eviction_cleanup_frequent"
         ] {
             #expect(keys.contains(key), Comment(rawValue: "\(key) missing from catalog"))
         }

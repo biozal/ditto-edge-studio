@@ -1019,7 +1019,7 @@ actor SQLCipherService {
             try await execute("COMMIT")
             return result
         } catch {
-            try? await execute("ROLLBACK")
+            _ = try? await execute("ROLLBACK")
             throw error
         }
     }

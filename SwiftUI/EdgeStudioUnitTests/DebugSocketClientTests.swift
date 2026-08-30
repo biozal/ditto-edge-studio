@@ -8,7 +8,6 @@ import Testing
 /// `DebugSocketPoCTests` in the integration target).
 @Suite("DebugSocketClient tests")
 struct DebugSocketClientTests {
-
     // MARK: - Echo server helper (NWListener can't listen on unix sockets —
     // POSIX it is)
 
@@ -20,9 +19,7 @@ struct DebugSocketClientTests {
         private var delayMsStorage: UInt64
 
         /// Thread-safe mutable delay (the timeout test flips it between runs).
-        var delayMs: UInt64 {
-            get { delayLock.lock(); defer { delayLock.unlock() }; return delayMsStorage }
-        }
+        var delayMs: UInt64 { delayLock.lock(); defer { delayLock.unlock() }; return delayMsStorage }
         func setDelayMs(_ value: UInt64) {
             delayLock.lock(); delayMsStorage = value; delayLock.unlock()
         }

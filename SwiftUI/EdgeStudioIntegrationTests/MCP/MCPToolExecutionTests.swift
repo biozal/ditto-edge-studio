@@ -11,7 +11,6 @@ import Testing
 /// All tests are serialized because only one server can run at a time.
 @Suite("MCP Tool Execution Tests", .serialized, .tags(.mcp, .mcpTools))
 struct MCPToolExecutionTests {
-
     // MARK: - Protocol Handshake
 
     @Test("initialize over HTTP returns protocolVersion 2024-11-05", .tags(.mcp, .mcpTools))

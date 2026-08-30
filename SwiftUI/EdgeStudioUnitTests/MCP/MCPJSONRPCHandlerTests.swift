@@ -13,7 +13,6 @@ import Testing
 /// in the app (DittoManager) is a singleton.
 @Suite("MCP JSON-RPC Handler Tests", .serialized, .tags(.mcp))
 struct MCPJSONRPCHandlerTests {
-
     // MARK: - Helpers
 
     private func makeBody(_ dict: [String: Any]) -> Data {
@@ -88,9 +87,9 @@ struct MCPJSONRPCHandlerTests {
 
         // ASSERT
         for tool in tools {
-            #expect(tool["name"] as? String != nil)
-            #expect(tool["description"] as? String != nil)
-            #expect(tool["inputSchema"] as? [String: Any] != nil)
+            #expect(tool["name"] is String)
+            #expect(tool["description"] is String)
+            #expect(tool["inputSchema"] is [String: Any])
         }
     }
 

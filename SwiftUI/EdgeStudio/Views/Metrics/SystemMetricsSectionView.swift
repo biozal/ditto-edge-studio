@@ -30,7 +30,7 @@ enum SystemMetricsNamespaceFilter: String, CaseIterable, Identifiable {
             return Self.allCases.compactMap(\.prefixes).flatMap(\.self)
                 .contains { sample.key.hasPrefix($0) } == false
         default:
-            return prefixes!.contains { sample.key.hasPrefix($0) }
+            return prefixes?.contains { sample.key.hasPrefix($0) } ?? false
         }
     }
 }

@@ -25,7 +25,6 @@ import XCTest
 
 @MainActor
 final class NavigationLifecycleUITests: UITestBase {
-
     // MARK: - Sidebar navigation
 
     /// Proves sidebar navigation actually swaps the detail view. The Query

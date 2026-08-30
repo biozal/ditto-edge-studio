@@ -358,13 +358,14 @@ extension MainStudioView {
             // onDismiss keeps the teardown (client close + listener ALTER SYSTEM '').
             onDismiss: {
                 Task { await viewModel.debugConsoleService.close() }
+            },
+            content: {
+                DebugConsoleView(
+                    service: viewModel.debugConsoleService,
+                    onClose: { showDebugConsole = false }
+                )
             }
-        ) {
-            DebugConsoleView(
-                service: viewModel.debugConsoleService,
-                onClose: { showDebugConsole = false }
-            )
-        }
+        )
         .overlay(alignment: .top) {
             if let message = queryCopiedDQLNotification {
                 Text(message)
