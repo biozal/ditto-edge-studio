@@ -20,6 +20,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.ObserveEventStore
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
@@ -124,6 +125,9 @@ class StudioSession(
 
     private val _transportCloudSyncEnabled = MutableStateFlow(true)
     val transportCloudSyncEnabled: StateFlow<Boolean> = _transportCloudSyncEnabled.asStateFlow()
+
+    private val _transportMulticastConfig = MutableStateFlow(MulticastConfig())
+    val transportMulticastConfig: StateFlow<MulticastConfig> = _transportMulticastConfig.asStateFlow()
 
     private val _isApplyingTransport = MutableStateFlow(false)
     val isApplyingTransport: StateFlow<Boolean> = _isApplyingTransport.asStateFlow()
@@ -465,6 +469,7 @@ class StudioSession(
                     _transportLanEnabled.value = database.isLanEnabled
                     _transportWifiAwareEnabled.value = database.isAwdlEnabled
                     _transportCloudSyncEnabled.value = database.isCloudSyncEnabled
+                    _transportMulticastConfig.value = database.multicastConfig
 
                     val ditto = dittoManager.hydrate(database)
                     systemRepository.startObserving(ditto)
@@ -729,13 +734,20 @@ class StudioSession(
             }
         }
 
-    fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
+    fun applyTransportSettings(
+        bt: Boolean,
+        lan: Boolean,
+        wifiAware: Boolean,
+        multicast: MulticastConfig = _transportMulticastConfig.value,
+    ) {
         val ditto = dittoManager.currentInstance() ?: return
         val db = currentDatabase ?: return
         sessionScope.launch {
             _isApplyingTransport.value = true
-            runCatching {
-                // 1. Stop sync and observers
+            val applied = try {
+                // 1. Stop sync and observers. This also satisfies the SDK's
+                //    multicast constraint: multicastBeta changes are deferred while
+                //    sync is active, so every apply happens with sync stopped.
                 ditto.sync.stop()
                 systemRepository.stopObserving()
 
@@ -744,6 +756,10 @@ class StudioSession(
                     isBluetoothLeEnabled = bt,
                     isLanEnabled = lan,
                     isAwdlEnabled = wifiAware,
+                    isMulticastEnabled = multicast.enabled,
+                    multicastGroupAddress = multicast.groupAddress,
+                    multicastPort = multicast.port,
+                    multicastInterfaceName = multicast.interfaceName,
                 )
                 dittoManager.applyTransportConfig(ditto, updatedDb)
 
@@ -753,20 +769,35 @@ class StudioSession(
                 databaseRepository.save(updatedDb)
                 currentDatabase = updatedDb
                 dittoManager.refreshActiveConfigIfMatching(updatedDb)
-
-                // 4. Restart sync through the DittoManager funnel — every sync start
-                // re-applies and re-verifies the advanced configuration — then
-                // re-register observers.
-                dittoManager.startSync()
-                systemRepository.startObserving(ditto)
-            }.onFailure { e ->
+                true
+            } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
                 }
+                false
+            } finally {
+                // 4. Restart sync through the DittoManager funnel — every sync start
+                // re-applies and re-verifies the advanced configuration — then
+                // re-register observers. Under finally so a throw above can never
+                // leave sync stopped on a live database.
+                runCatching { dittoManager.startSync() }
+                runCatching { systemRepository.startObserving(ditto) }
             }
-            _transportBluetoothEnabled.value = bt
-            _transportLanEnabled.value = lan
-            _transportWifiAwareEnabled.value = wifiAware
+            // Publish the requested values only when they were actually applied. On
+            // failure re-publish the persisted config so the UI shows the live
+            // state, not a requested state the SDK never took.
+            if (applied) {
+                _transportBluetoothEnabled.value = bt
+                _transportLanEnabled.value = lan
+                _transportWifiAwareEnabled.value = wifiAware
+                _transportMulticastConfig.value = multicast
+            } else {
+                val persisted = currentDatabase ?: db
+                _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
+                _transportLanEnabled.value = persisted.isLanEnabled
+                _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
+                _transportMulticastConfig.value = persisted.multicastConfig
+            }
             _isApplyingTransport.value = false
         }
     }

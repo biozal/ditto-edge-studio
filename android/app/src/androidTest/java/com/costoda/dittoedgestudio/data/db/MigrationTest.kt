@@ -19,11 +19,11 @@ import org.junit.runner.RunWith
  * silently wiping all user-saved data (database configs, subscriptions,
  * observers, favorites, history). These tests guard that policy:
  *
- *  1. The current schema JSON (6.json) exists, is readable, and matches the
+ *  1. The current schema JSON (7.json) exists, is readable, and matches the
  *     entities/DAOs compiled into the app — i.e. KSP is still exporting on
  *     every build and the latest schema is committed.
- *  2. The full migration chain (v1 -> v6) runs without throwing and
- *     produces a schema that validates against 6.json — i.e. the
+ *  2. The full migration chain (v1 -> v7) runs without throwing and
+ *     produces a schema that validates against 7.json — i.e. the
  *     hand-written migrations stay consistent with the entity changes.
  *
  * Caveat: production [AppDatabase] uses SQLCipher's [SupportOpenHelperFactory],
@@ -42,7 +42,7 @@ class MigrationTest {
     )
 
     /**
-     * Validates the current schema (v6) by creating a fresh DB at the current
+     * Validates the current schema (v7) by creating a fresh DB at the current
      * version and then opening it through the real Room builder. Room compares
      * the live entity hash against the exported schema JSON and throws if they
      * diverge — this is the smoke that catches "engineer changed an entity
@@ -63,6 +63,7 @@ class MigrationTest {
                 AppDatabase.MIGRATION_3_4,
                 AppDatabase.MIGRATION_4_5,
                 AppDatabase.MIGRATION_5_6,
+                AppDatabase.MIGRATION_6_7,
             )
             // No fallbackToDestructiveMigration — see AppDatabase.create() comment.
             .build()
@@ -74,12 +75,12 @@ class MigrationTest {
     }
 
     /**
-     * Walks the full migration chain v1 -> v6 to make sure the
+     * Walks the full migration chain v1 -> v7 to make sure the
      * hand-written migrations still produce a schema that matches the
-     * exported v6 JSON.
+     * exported v7 JSON.
      */
     @Test
-    fun migrate1To6_preservesSchema() {
+    fun migrate1To7_preservesSchema() {
         helper.createDatabase(TEST_DB, 1).close()
 
         helper.runMigrationsAndValidate(
@@ -90,8 +91,56 @@ class MigrationTest {
             AppDatabase.MIGRATION_2_3,
             AppDatabase.MIGRATION_3_4,
             AppDatabase.MIGRATION_4_5,
-            AppDatabase.MIGRATION_5_6
+            AppDatabase.MIGRATION_5_6,
+            AppDatabase.MIGRATION_6_7
         ).close()
+    }
+
+    /**
+     * v6 -> v7 adds the multicast (beta) transport columns; existing rows must
+     * survive with multicast DISABLED and SDK-default group/port so upgrading
+     * never silently changes a database's transport behavior.
+     */
+    @Test
+    fun migrate6To7_addsMulticastColumnsDisabledByDefault() {
+        helper.createDatabase(TEST_DB, 6).apply {
+            execSQL(
+                """
+                INSERT INTO databaseConfigs (
+                    name, databaseId, mode, allowUntrustedCerts,
+                    isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
+                    token, authUrl, websocketUrl, httpApiUrl, httpApiKey,
+                    secretKey, logLevel, isStrictModeEnabled
+                ) VALUES (
+                    'Migrated', 'db-migrated', 'server', 0,
+                    1, 1, 0, 1,
+                    'tok', 'https://auth.example.com', '', '', '',
+                    '', 'info', 0
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            CURRENT_VERSION,
+            /* validateDroppedTables = */ true,
+            AppDatabase.MIGRATION_6_7
+        )
+
+        db.query(
+            "SELECT isMulticastEnabled, multicastGroupAddress, multicastPort, " +
+                "multicastInterfaceName FROM databaseConfigs"
+        ).use { cursor ->
+            assertNotNull(cursor)
+            org.junit.Assert.assertTrue(cursor.moveToFirst())
+            org.junit.Assert.assertEquals(0, cursor.getInt(0))
+            org.junit.Assert.assertEquals("224.1.2.3", cursor.getString(1))
+            org.junit.Assert.assertEquals(6003, cursor.getInt(2))
+            org.junit.Assert.assertTrue(cursor.isNull(3))
+        }
+        db.close()
     }
 
     /**
@@ -281,6 +330,6 @@ class MigrationTest {
         private const val TEST_DB = "migration-test.db"
 
         // Keep in sync with @Database(version = ...) on AppDatabase.
-        private const val CURRENT_VERSION = 6
+        private const val CURRENT_VERSION = 7
     }
 }

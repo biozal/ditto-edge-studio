@@ -1,7 +1,13 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.presence
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -65,6 +71,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -85,6 +93,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -106,6 +116,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -125,6 +137,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -148,6 +162,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -189,6 +205,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = false,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -196,6 +214,192 @@ class PresenceGraphViewTest {
 
         composeRule.onNodeWithContentDescription("Pixel 10a").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Galaxy Tab").assertIsDisplayed()
+    }
+
+    @Test
+    fun focusMode_bannerAppearsOnTapInExpandedModeAndExits() {
+        // Expanded (Direct OFF) mode: tapping a remote peer enters the focused-
+        // neighbourhood view and shows the banner; the ✕ button exits and the
+        // banner leaves the semantics tree. The focused id is hoisted state, so
+        // the test threads a remember the way MainStudioViewModel does in app.
+        composeRule.setContent {
+            EdgeStudioTheme {
+                val focusState = remember { mutableStateOf<String?>(null) }
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(remotePeer("p1", "Device 1")),
+                    ),
+                    showDirectConnectedOnly = false,
+                    onToggleDirectConnectedOnly = {},
+                    focusedPeerId = focusState.value,
+                    onFocusedPeerChange = { focusState.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Exit focus").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+    }
+
+    @Test
+    fun focusMode_tappingContextPeerExitsFocus() {
+        // Expanded mode: focus Device 1; Device 2 is connected only to local
+        // (not to Device 1), so it renders as dimmed context. Tapping it falls
+        // through to a canvas click (extension nodeAt parity: non-orbit nodes
+        // are skipped by the hit-test) and exits focus instead of refocusing.
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(
+                MeshPeer(peerKey = "p1", deviceName = "Device 1"),
+                MeshPeer(peerKey = "p2", deviceName = "Device 2"),
+            ),
+            edges = listOf(
+                MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.LAN),
+                MeshEdge(peer1 = "local", peer2 = "p2", type = ConnectionType.LAN),
+            ),
+        )
+        composeRule.setContent {
+            EdgeStudioTheme {
+                val focusState = remember { mutableStateOf<String?>(null) }
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(
+                            remotePeer("p1", "Device 1"),
+                            remotePeer("p2", "Device 2"),
+                        ),
+                        meshTopology = mesh,
+                    ),
+                    showDirectConnectedOnly = false,
+                    onToggleDirectConnectedOnly = {},
+                    focusedPeerId = focusState.value,
+                    onFocusedPeerChange = { focusState.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Device 2").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+    }
+
+    @Test
+    fun focusMode_directModeTapShowsNoBanner() {
+        // Direct mode: a tap only dims (selection) — no focus banner.
+        composeRule.setContent {
+            EdgeStudioTheme {
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(remotePeer("p1", "Device 1")),
+                    ),
+                    showDirectConnectedOnly = true,
+                    onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+    }
+
+    @Test
+    fun modeToggle_withEqualProjection_discardsFocus() {
+        // The direct star and the published mesh can project to the SAME graph
+        // (all-direct mesh with matching order). A mode toggle must still run
+        // the mode-change bookkeeping — discarding an active focus session —
+        // even though graphModel/layout don't change shape.
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(MeshPeer(peerKey = "p1", deviceName = "Device 1")),
+            edges = listOf(MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.LAN)),
+        )
+        composeRule.setContent {
+            EdgeStudioTheme {
+                val focusState = remember { mutableStateOf<String?>(null) }
+                val directOnly = remember { mutableStateOf(false) }
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        localPeer = localPeer(),
+                        remotePeers = listOf(remotePeer("p1", "Device 1")),
+                        meshTopology = mesh,
+                    ),
+                    showDirectConnectedOnly = directOnly.value,
+                    onToggleDirectConnectedOnly = { directOnly.value = !directOnly.value },
+                    focusedPeerId = focusState.value,
+                    onFocusedPeerChange = { focusState.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        // Expanded: tap the peer to enter focus.
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+
+        // Toggle Direct ON via the control switch — focus must be discarded even
+        // though both projections contain the same single peer.
+        composeRule.onNodeWithContentDescription("Direct Connected Only").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed()
+    }
+
+    @Test
+    fun focusMode_reentryAfterSubtreeDispose_restoresFocus() {
+        // The focused id is hoisted so it survives the Peers ↔ Viewer tab switch,
+        // which disposes this subtree. On re-add the view must re-enter focus
+        // (rebuilding the view-local orbit + pre-focus camera) instead of
+        // dropping the session. Driven by a state-holder that removes/re-adds
+        // the graph view, the way the tab `when` does.
+        composeRule.setContent {
+            EdgeStudioTheme {
+                val focusState = remember { mutableStateOf<String?>(null) }
+                val graphVisible = remember { mutableStateOf(true) }
+                Box(
+                    Modifier.semantics { contentDescription = "Toggle graph host" }
+                        .clickable { graphVisible.value = !graphVisible.value },
+                )
+                if (graphVisible.value) {
+                    PresenceGraphView(
+                        peersUiState = PeersUiState.Active(
+                            localPeer = localPeer(),
+                            remotePeers = listOf(remotePeer("p1", "Device 1")),
+                        ),
+                        showDirectConnectedOnly = false,
+                        onToggleDirectConnectedOnly = {},
+                        focusedPeerId = focusState.value,
+                        onFocusedPeerChange = { focusState.value = it },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+
+        // Tab away: the subtree (banner included) leaves composition.
+        composeRule.onNodeWithContentDescription("Toggle graph host").performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+
+        // Tab back: the hoisted id survived, so focus re-enters and the banner
+        // returns. If re-entry dropped the id instead, this would not reappear.
+        composeRule.onNodeWithContentDescription("Toggle graph host").performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+
+        // Focus is functional after re-entry — the exit affordance still works.
+        composeRule.onNodeWithContentDescription("Exit focus").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
     }
 
     @Test
@@ -209,6 +413,8 @@ class PresenceGraphViewTest {
                     ),
                     showDirectConnectedOnly = true,
                     onToggleDirectConnectedOnly = {},
+                    focusedPeerId = null,
+                    onFocusedPeerChange = {},
                     modifier = Modifier.fillMaxSize(),
                 )
             }

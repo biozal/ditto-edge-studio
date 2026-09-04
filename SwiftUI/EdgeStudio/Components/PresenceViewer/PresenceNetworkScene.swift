@@ -20,8 +20,43 @@ class PresenceNetworkScene: SKScene {
     /// Initial zoom level to apply when scene first appears
     var initialZoomLevel: CGFloat = 1.0
 
+    /// Whether the floating-squares background is visible and animating
+    /// (the VS Code extension's background-effects toggle).
+    var backgroundEffectsEnabled = true {
+        didSet {
+            backgroundLayer?.isEnabled = backgroundEffectsEnabled
+        }
+    }
+
     /// When true, only draw connection lines that involve the local peer directly
-    var showDirectConnectedOnly = true
+    var showDirectConnectedOnly = true {
+        didSet {
+            guard showDirectConnectedOnly != oldValue else { return }
+            // A mode change can require layout even when the peer/connection key
+            // sets are identical (radiusScale changes) — the extension's
+            // `layoutDirty` flag (scene.ts). Consumed by the next
+            // `updatePresenceGraph`, so the new mode's layout runs exactly once
+            // even when the snapshots are unchanged.
+            layoutDirty = true
+            // Entering Direct (compact) mode with an inherited full-mesh zoom can
+            // leave the small ring lost in empty space — fit it on the next layout.
+            // The fit only ever zooms OUT, never over the user's chosen zoom-in
+            // (VS Code extension scene.ts parity).
+            if showDirectConnectedOnly {
+                fitDirectLayoutOnNextRecalculate = true
+            }
+            // A mode toggle always discards focus, selection, and hover — the
+            // visible graph (and so the selected peer's neighbourhood) is
+            // changing (extension `setShowDirectConnectedOnly` parity:
+            // clearFocusView + setHovered(undefined); both clear paths restore
+            // dimmed alphas in this same pass). Skips the layout restore: the
+            // mode toggle's own graph push runs the single layout for the new
+            // mode (the extension's one-layout-per-toggle invariant).
+            clearFocusMode(restoreLayout: false)
+            clearHighlight()
+            clearHover()
+        }
+    }
 
     /// Callbacks
     /// Called when user changes zoom level via scroll wheel or gestures
@@ -50,6 +85,23 @@ class PresenceNetworkScene: SKScene {
     private var lastPeerKeysSnapshot: Set<String> = []
     private var lastConnectionsSnapshot: Set<String> = [] // "fromKey-toKey-type" format
 
+    /// Peer keys from the latest presence push (plus the cloud node when
+    /// connected). `peerNodes` keeps removed nodes alive for their 0.3 s
+    /// fade-out, so focus liveness must be answered from this model snapshot
+    /// instead — otherwise focus re-enters on a dying node (the extension
+    /// removes peers synchronously and clears focus in the same pass,
+    /// scene.ts `applyInput`).
+    private var currentModelPeerKeys: Set<String> = []
+
+    /// Force-layout flag (the extension's `layoutDirty`): set by the
+    /// Direct/Expanded mode toggle, which changes `radiusScale` without
+    /// necessarily changing any peer or connection keys. Makes the next
+    /// `updatePresenceGraph` run layout exactly once even when the snapshots
+    /// are unchanged, consuming `fitDirectLayoutOnNextRecalculate` in that
+    /// same pass so it can't linger. Internal getter for the scene tests
+    /// (the mode-toggle-forces-exactly-one-layout-pass invariant).
+    private(set) var layoutDirty = false
+
     // Interaction state
     private var selectedNode: PeerNode?
     private var isDraggingNode = false
@@ -72,10 +124,36 @@ class PresenceNetworkScene: SKScene {
     private let focusDimPeerAlpha: CGFloat = 0.35
     private let focusFadeDuration: TimeInterval = 0.2
 
+    /// Focus mode (Expanded/full-mesh view only) — the VS Code extension's
+    /// focused-neighbourhood view. Tapping a remote peer with Direct OFF re-lays-out
+    /// that peer at the centre with its direct neighbours on one orbit; the rest of
+    /// the mesh stays in place as dimmed context (alphas in PresenceFocusPlanner).
+    /// Exit via the banner button, re-tapping the focused peer, or tapping empty
+    /// canvas. A mode toggle always discards focus.
+    private(set) var focusedPeerKey: String?
+    /// (focusedKey, focusedDisplayName) — a nil key means focus exited. Feeds the
+    /// SwiftUI banner overlay.
+    var onFocusChanged: ((String?, String?) -> Void)?
+    private var focusNeighbourhood: Set<String> = []
+    private var preFocusCameraScale: CGFloat?
+    private var preFocusCameraPosition: CGPoint?
+    private let focusTransitionDuration: TimeInterval = 0.3
+
+    // Idle freeze (VS Code extension parity): the animated background pauses after
+    // 3 s without user input or presence pushes, and resumes on the next either.
+    private var lastActivityAt: TimeInterval = 0
+    private let idleFreezeDelay: TimeInterval = 3.0
+
     // Layout
     private let centerPosition = CGPoint.zero
     private var layoutEngine = NetworkLayoutEngine()
     private var currentRingAssignments: [Int: [String]] = [:]
+    /// Ring spread multiplier for full-mesh (Direct OFF) mode — the VS Code
+    /// extension's EXPANDED_RADIUS_SCALE.
+    private let expandedRadiusScale: CGFloat = 1.75
+    /// Set when entering Direct mode; consumed by the next layout to fit the
+    /// compact ring in the viewport (zoom-out only).
+    private var fitDirectLayoutOnNextRecalculate = false
 
     // MARK: - Scene Lifecycle
 
@@ -88,11 +166,42 @@ class PresenceNetworkScene: SKScene {
         setupCamera()
         setupLayers()
         setupBackground()
+        // `backgroundEffectsEnabled` is assigned before presentation (scene
+        // creation), when the didSet still no-ops on the nil layer — apply the
+        // stored value now that `setupBackground` has created the layer.
+        backgroundLayer?.isEnabled = backgroundEffectsEnabled
 
         // Apply initial zoom level from configuration
         cameraNode.setScale(initialZoomLevel)
 
+        // Idle-freeze watchdog (1 Hz check; cheap — no per-frame cost).
+        lastActivityAt = CACurrentMediaTime()
+        run(
+            SKAction.repeatForever(SKAction.sequence([
+                SKAction.wait(forDuration: 1.0),
+                SKAction.run { [weak self] in self?.checkIdleFreeze() }
+            ])),
+            withKey: "idleFreezeWatchdog"
+        )
+
         isReady = true
+    }
+
+    /// Any user input or presence push counts as activity and unfreezes the
+    /// background layer (extension idle-freeze parity).
+    private func noteActivity() {
+        lastActivityAt = CACurrentMediaTime()
+        if backgroundLayer?.isFrozen == true {
+            backgroundLayer?.isFrozen = false
+        }
+    }
+
+    private func checkIdleFreeze() {
+        guard backgroundEffectsEnabled else { return }
+        let shouldFreeze = CACurrentMediaTime() - lastActivityAt > idleFreezeDelay
+        if shouldFreeze != (backgroundLayer?.isFrozen ?? false) {
+            backgroundLayer?.isFrozen = shouldFreeze
+        }
     }
 
     // MARK: - Setup
@@ -133,6 +242,7 @@ class PresenceNetworkScene: SKScene {
     /// Now accepts PeerProtocol to support both real DittoPeer and mock test data
     func updatePresenceGraph(localPeer: PeerProtocol, remotePeers: [PeerProtocol]) {
         guard isReady else { return }
+        noteActivity() // presence pushes count as activity for the idle freeze
         // Store local peer key (use peerKeyString for dictionary lookups)
         localPeerKey = localPeer.peerKeyString
 
@@ -158,6 +268,14 @@ class PresenceNetworkScene: SKScene {
         // Cloud connectivity is only knowable for the local device — the SDK does not
         // expose remote peer cloud status through the presence graph.
         let hasCloudConnection = localPeer.isConnectedToDittoCloud
+
+        // Snapshot the model's current peer keys for focus liveness before any
+        // add/remove animation starts (see the property's doc comment).
+        var modelPeerKeys = newPeerKeys
+        if hasCloudConnection {
+            modelPeerKeys.insert(cloudNodeKey)
+        }
+        currentModelPeerKeys = modelPeerKeys
 
         // Add or remove cloud node (treated as a regular peer)
         if hasCloudConnection {
@@ -189,7 +307,8 @@ class PresenceNetworkScene: SKScene {
         let peersChanged = currentPeerKeys != lastPeerKeysSnapshot
         let connectionsChanged = currentConnections != lastConnectionsSnapshot
 
-        if peersChanged || connectionsChanged {
+        if peersChanged || connectionsChanged || layoutDirty {
+            layoutDirty = false
             // Check if user is currently interacting with the scene
             if isUserInteracting {
                 // Defer layout until interaction completes
@@ -265,25 +384,19 @@ class PresenceNetworkScene: SKScene {
         // Build what connections SHOULD exist (without clearing current ones yet)
         var expectedConnectionIds: Set<String> = []
 
-        // Collect peer-to-peer connection IDs using actual endpoints (peerKeyString1/2).
-        // Deduplicate globally by (pairKey, type) — the SDK returns A→B and B→A as separate
-        // DittoConnection objects with the same type, so normalization prevents double entries.
+        // Collect peer-to-peer edges from the local peer AND all remote peers via the
+        // shared aggregator (single source for change detection and the draw loop below).
+        // The local peer's own connection list matters: Ditto usually reports an
+        // undirected edge from both endpoints, but the local side is authoritative for
+        // edges attached to this process — a transport (notably multicast) is lost when
+        // only the local side advertises the edge.
         let localPeerKey = localPeer.peerKeyString
-        var seenExpectedPairTypes: Set<String> = []
-        for remotePeer in remotePeers {
-            for connection in remotePeer.connectionProtocols {
-                let pk1 = connection.peerKeyString1
-                let pk2 = connection.peerKeyString2
-                // Apply the same filter as the draw loop so change-detection stays in sync
-                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey {
-                    continue
-                }
-                let pairKey = [pk1, pk2].sorted().joined(separator: "_")
-                let id = "\(pairKey)_\(connection.type)"
-                guard seenExpectedPairTypes.insert(id).inserted else { continue }
-                expectedConnectionIds.insert(id)
-            }
-        }
+        let edges = PresenceEdgeAggregator.aggregate(
+            localPeer: localPeer,
+            remotePeers: remotePeers,
+            showDirectConnectedOnly: showDirectConnectedOnly
+        )
+        expectedConnectionIds.formUnion(edges.map(\.connectionId))
 
         // Add cloud connection ID — only the local peer's cloud connection is knowable.
         if hasCloudConnection {
@@ -301,45 +414,23 @@ class PresenceNetworkScene: SKScene {
         connectionLines.values.forEach { $0.removeFromParent() }
         connectionLines.removeAll()
 
-        // Group connections by peer pair (to detect bidirectional connections)
+        // Group the aggregated edges by peer pair (to detect bidirectional connections).
+        // Drawing edges between the real participants of each connection means multihop
+        // peers (e.g. iPhone→DT0-4196→Mac) appear linked to their actual neighbor, not
+        // falsely drawn as if they connect directly to the local device.
         var peerPairConnections: [String: [PeerConnectionInfo]] = [:]
-
-        // Collect all peer-to-peer connections using actual endpoints from peerKeyString1/2.
-        // This correctly draws edges between the real participants of each connection, so
-        // multihop peers (e.g. iPhone→DT0-4196→Mac) appear linked to their actual neighbor,
-        // not falsely drawn as if they connect directly to the local device.
-        // Deduplicate globally by (pairKey, type) — the SDK returns A→B and B→A as separate
-        // DittoConnection objects with the same type but different IDs.
-        var seenPairTypes: Set<String> = []
-        for remotePeer in remotePeers {
-            for connection in remotePeer.connectionProtocols {
-                let pk1 = connection.peerKeyString1
-                let pk2 = connection.peerKeyString2
-                guard !pk1.isEmpty, !pk2.isEmpty else { continue }
-
-                // When filtering to direct connections only, skip edges that don't
-                // involve the local device (e.g., PeerA ↔ PeerB connections).
-                if showDirectConnectedOnly, pk1 != localPeerKey, pk2 != localPeerKey {
-                    continue
-                }
-
-                let pairKey = [pk1, pk2].sorted().joined(separator: "_")
-                let connectionId = "\(pairKey)_\(connection.type)"
-
-                guard seenPairTypes.insert(connectionId).inserted else { continue }
-
-                if peerPairConnections[pairKey] == nil {
-                    peerPairConnections[pairKey] = []
-                }
-
-                peerPairConnections[pairKey]?.append(PeerConnectionInfo(
-                    connectionId: connectionId,
-                    from: pk1,
-                    to: pk2,
-                    type: connection.type,
-                    isCloud: false
-                ))
+        for edge in edges {
+            if peerPairConnections[edge.pairKey] == nil {
+                peerPairConnections[edge.pairKey] = []
             }
+
+            peerPairConnections[edge.pairKey]?.append(PeerConnectionInfo(
+                connectionId: edge.connectionId,
+                from: edge.from,
+                to: edge.to,
+                type: edge.type,
+                isCloud: false
+            ))
         }
 
         // Add cloud connection — only the local peer connects to Ditto Cloud from this device's
@@ -449,15 +540,25 @@ class PresenceNetworkScene: SKScene {
             ))
         }
 
-        // Calculate BFS-based ring layout
+        // Calculate BFS-based ring layout. Expanded (full-mesh) mode spreads the
+        // rings wider and packs crowded BFS layers across multiple visual rings;
+        // measured pill widths keep long labels from overlapping.
         let layoutResult = layoutEngine.calculateLayout(
             localPeerKey: localKey,
-            allPeers: peerNodes,
-            connections: connectionInfo
+            allPeers: Array(peerNodes.keys),
+            connections: connectionInfo,
+            radiusScale: showDirectConnectedOnly ? 1 : expandedRadiusScale,
+            peerFootprints: peerNodes.mapValues { $0.getSpriteSize().width }
         )
 
         // Store ring assignments for connection routing optimization (Phase 3, Task 8)
         currentRingAssignments = layoutResult.ringAssignments
+
+        // Entering Direct mode fits the (smaller) compact layout to the viewport.
+        if fitDirectLayoutOnNextRecalculate {
+            fitDirectLayoutOnNextRecalculate = false
+            fitZoomToLayout(layoutResult)
+        }
 
         // Animate all peers (including cloud) to their calculated positions WITH line updates
         let animationDuration: TimeInterval = 0.5
@@ -465,7 +566,17 @@ class PresenceNetworkScene: SKScene {
         for (peerKey, targetPosition) in layoutResult.positions {
             guard let peerNode = peerNodes[peerKey] else { continue }
 
-            // Animate to new position
+            // Focus mode owns the neighbourhood's positions — the mesh layout pass
+            // only moves the (dimmed) context nodes; `refreshFocusAfterTopologyChange`
+            // re-lays out the orbit afterwards.
+            if focusedPeerKey != nil, focusNeighbourhood.contains(peerKey) {
+                continue
+            }
+
+            // Animate to new position. A stale focusMove (0.3 s) must not fight
+            // this pass: under SpriteKit's keyed actions both would run, and the
+            // LONGER one wins — kill the loser so the newest pass owns position.
+            peerNode.removeAction(forKey: "focusMove")
             let move = SKAction.move(to: targetPosition, duration: animationDuration)
             move.timingMode = .easeInEaseOut
             peerNode.run(move, withKey: "layoutMove")
@@ -491,16 +602,75 @@ class PresenceNetworkScene: SKScene {
         }
     }
 
+    /// The scene-unit extent visible through a view of `viewSize` at camera
+    /// scale 1.0. The scene is a fixed 1000×800 with `scaleMode = .aspectFill`,
+    /// so SpriteKit scales it by s = max(viewW/1000, viewH/800) to fill the
+    /// view — the visible scene-unit extent is `viewSize / s`, smaller than the
+    /// raw view size whenever s > 1. Both fit-zoom computations must divide by
+    /// s or they under-zoom and the layout overflows.
+    private func visibleSceneSize(for viewSize: CGSize) -> CGSize {
+        let s = max(viewSize.width / size.width, viewSize.height / size.height)
+        guard s > 0, s.isFinite else { return viewSize }
+        return CGSize(width: viewSize.width / s, height: viewSize.height / s)
+    }
+
+    /// Zooms the camera OUT (never in) until the layout fits the viewport.
+    ///
+    /// Mirrors the VS Code extension's `fitZoomToLayout` (scene.ts): entering
+    /// Direct mode inherits whatever zoom the full-mesh view had, which can leave
+    /// the compact ring tiny in a sea of empty canvas. The fit only applies when
+    /// the layout overflows at the current scale, and never zooms in past the
+    /// user's chosen level. Note SKCamera scale semantics: a LARGER scale shows
+    /// MORE of the scene (zoomed out).
+    private func fitZoomToLayout(_ layoutResult: NetworkLayoutEngine.LayoutResult) {
+        guard let view else { return }
+
+        // Per-node extents measured from the CAMERA position, not the origin —
+        // a panned camera must still frame the whole layout (the extension fits
+        // `|position + camera|` per node, scene.ts `fitZoomToLayout`).
+        let cameraPosition = cameraNode.position
+        var maxX: CGFloat = 0
+        var maxY: CGFloat = 0
+        for (peerKey, position) in layoutResult.positions {
+            let nodeSize = peerNodes[peerKey]?.getSpriteSize() ?? CGSize(width: 60, height: 22.5)
+            maxX = max(maxX, abs(position.x - cameraPosition.x) + nodeSize.width / 2)
+            maxY = max(maxY, abs(position.y - cameraPosition.y) + nodeSize.height / 2)
+        }
+        guard maxX > 0, maxY > 0 else { return }
+
+        // Margin: 20pt breathing room per edge, so the outermost labels aren't
+        // clipped by the viewport edge.
+        let viewSize = visibleSceneSize(for: view.bounds.size)
+        guard viewSize.width > 0, viewSize.height > 0 else { return }
+        let availableWidth = max(1, viewSize.width / 2 - 20)
+        let availableHeight = max(1, viewSize.height / 2 - 20)
+
+        let fitScale = max(maxX / availableWidth, maxY / availableHeight)
+        let current = cameraNode.xScale
+        // Zoom-out only, capped at the app's zoom-out limit (the same 4.0 cap the
+        // toolbar buttons enforce).
+        let target = min(fitScale, 4.0)
+        guard target > current else { return }
+
+        let zoomAction = SKAction.scale(to: target, duration: 0.3)
+        zoomAction.timingMode = .easeInEaseOut
+        cameraNode.run(zoomAction)
+        onZoomChanged?(target)
+    }
+
     // MARK: - Animations
 
-    private func animatePeerAppearance(node: SKNode) {
+    private func animatePeerAppearance(node: PeerNode) {
         // Initial state: invisible, small, at center
         node.alpha = 0.0
         node.setScale(0.5)
         node.position = centerPosition
 
-        // Target state: visible, normal size, at final position
-        let fadeIn = SKAction.fadeIn(withDuration: 0.4)
+        // Target state: the CURRENT resting alpha (not blindly 1.0 — a peer
+        // joining while focus/selection is active must arrive dimmed, because
+        // this 0.4 s fade would otherwise outlive the 0.2–0.3 s dim fades and
+        // win), normal size, at final position.
+        let fadeIn = SKAction.fadeAlpha(to: restingAlpha(forPeerKey: node.peerKey), duration: 0.4)
         let scaleUp = SKAction.scale(to: 1.0, duration: 0.4)
 
         // Note: Position will be set by layout algorithm
@@ -528,19 +698,67 @@ class PresenceNetworkScene: SKScene {
     }
 
     private func animateLineDrawing(line: ConnectionLine) {
-        // Start with alpha 0, fade in
+        // Start with alpha 0, fade in — to the CURRENT resting alpha, never
+        // blindly to 1.0: a connection rebuild during focus/selection recreates
+        // every line, and this 0.4 s fade-in would otherwise outlive the
+        // 0.2–0.3 s dim fades and leave context lines fully opaque.
         line.alpha = 0.0
 
-        let fadeIn = SKAction.fadeIn(withDuration: 0.4)
+        let fadeIn = SKAction.fadeAlpha(to: restingAlpha(for: line), duration: 0.4)
         fadeIn.timingMode = .easeInEaseOut
 
         line.run(fadeIn, withKey: "lineDrawAnimation")
+    }
+
+    /// The resting alpha for a line under the current focus/selection state.
+    /// The dim state is authoritative: freshly created lines fade in to THIS
+    /// value, never blindly to 1.0 (see `animateLineDrawing`).
+    private func restingAlpha(for line: ConnectionLine) -> CGFloat {
+        if let focusedKey = focusedPeerKey {
+            let touchesFocus = line.fromPeerKey == focusedKey || line.toPeerKey == focusedKey
+            return touchesFocus ? 1.0 : PresenceFocusPlanner.contextLineAlpha
+        }
+        if let highlighted = highlightedNode {
+            let isIncident = line.fromPeerKey == highlighted.peerKey
+                || line.toPeerKey == highlighted.peerKey
+            return isIncident ? 1.0 : focusDimEdgeAlpha
+        }
+        return 1.0
+    }
+
+    /// The resting alpha for a peer pill — same authority as
+    /// `restingAlpha(for:)`, applied by the peer-appear fade.
+    private func restingAlpha(forPeerKey peerKey: String) -> CGFloat {
+        if focusedPeerKey != nil {
+            return focusNeighbourhood.contains(peerKey) ? 1.0 : PresenceFocusPlanner.contextPeerAlpha
+        }
+        if let highlighted = highlightedNode {
+            return highlightNeighbourhood(of: highlighted.peerKey).contains(peerKey)
+                ? 1.0
+                : focusDimPeerAlpha
+        }
+        return 1.0
+    }
+
+    /// The selected peer plus every peer at the other end of an incident line —
+    /// the tap-to-isolate neighbourhood.
+    private func highlightNeighbourhood(of peerKey: String) -> Set<String> {
+        var neighbourhood: Set<String> = [peerKey]
+        for (_, line) in connectionLines {
+            if line.fromPeerKey == peerKey {
+                neighbourhood.insert(line.toPeerKey)
+            } else if line.toPeerKey == peerKey {
+                neighbourhood.insert(line.fromPeerKey)
+            }
+        }
+        return neighbourhood
     }
 
     // MARK: - Mouse/Touch Handling
 
     #if os(macOS)
     override func mouseDown(with event: NSEvent) {
+        noteActivity()
         let location = event.location(in: self)
         let touchedNodes = nodes(at: location)
 
@@ -585,13 +803,13 @@ class PresenceNetworkScene: SKScene {
     }
 
     override func mouseUp(with event: NSEvent) {
-        // Tap (no drag) → toggle persistent highlight on the peer that was hit, or
-        // clear the highlight if the tap landed on empty canvas.
+        // Tap (no drag) → route to focus mode (Expanded) or tap-to-isolate (Direct),
+        // or clear focus/highlight if the tap landed on empty canvas.
         if !didDragSincePointerDown {
             if let peer = selectedNode {
-                toggleHighlight(for: peer)
+                handlePeerTap(peer)
             } else {
-                clearHighlight()
+                handleCanvasTap()
             }
         }
         endInteraction()
@@ -636,12 +854,15 @@ class PresenceNetworkScene: SKScene {
 
     override func scrollWheel(with event: NSEvent) {
         // Zoom with scroll wheel
+        noteActivity()
         guard let camera = cameraNode else { return }
 
         // deltaY > 0 = scroll up = zoom out
         // deltaY < 0 = scroll down = zoom in
+        // Range: camera scale 0.5–4.0 (= the VS Code extension's 2.0–0.25
+        // magnification range; large meshes need the deep zoom-out).
         let zoomDelta: CGFloat = event.deltaY > 0 ? 0.05 : -0.05
-        let newScale = max(0.5, min(2.0, camera.xScale + zoomDelta))
+        let newScale = max(0.5, min(4.0, camera.xScale + zoomDelta))
 
         // Apply zoom smoothly
         let scaleAction = SKAction.scale(to: newScale, duration: 0.1)
@@ -657,6 +878,7 @@ class PresenceNetworkScene: SKScene {
     // MARK: - Touch Handling (iOS / iPadOS)
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        noteActivity()
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         let touchedNodes = nodes(at: location)
@@ -700,9 +922,9 @@ class PresenceNetworkScene: SKScene {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         if !didDragSincePointerDown {
             if let peer = selectedNode {
-                toggleHighlight(for: peer)
+                handlePeerTap(peer)
             } else {
-                clearHighlight()
+                handleCanvasTap()
             }
         }
         endInteraction()
@@ -741,6 +963,9 @@ class PresenceNetworkScene: SKScene {
         if highlightedNode === peer {
             clearHighlight()
         } else {
+            // Same ghost-tap guard as `handlePeerTap`: never select a peer the
+            // model has already dropped (its node is mid fade-out).
+            guard currentModelPeerKeys.contains(peer.peerKey) else { return }
             // Switching from one peer to another: tear down the old focus first so the
             // new applyFocus call starts from a clean restored state.
             if highlightedNode != nil {
@@ -761,6 +986,15 @@ class PresenceNetworkScene: SKScene {
         restoreAllAlpha()
     }
 
+    /// Clear transient hover emphasis (the extension's `setHovered(undefined)`):
+    /// restores the previously-hovered peer unless it's the persistent selection.
+    private func clearHover() {
+        if let hovered = hoveredNode, hovered !== highlightedNode {
+            hovered.setHighlighted(false)
+        }
+        hoveredNode = nil
+    }
+
     /// Apply the focus visualization for [highlightedNode]: scale up + glow on incident
     /// edges, dim non-incident edges to 0.2 alpha, dim non-neighbourhood peers to 0.35.
     /// Direct port of the Android tap-to-isolate UX.
@@ -773,29 +1007,26 @@ class PresenceNetworkScene: SKScene {
 
         // Build the neighbourhood: the selected peer plus every peer at the other end
         // of an incident connection.
-        var neighbourhood: Set<String> = [peerKey]
-        for (_, line) in connectionLines {
-            if line.fromPeerKey == peerKey {
-                neighbourhood.insert(line.toPeerKey)
-            } else if line.toPeerKey == peerKey {
-                neighbourhood.insert(line.fromPeerKey)
-            }
-        }
+        let neighbourhood = highlightNeighbourhood(of: peerKey)
 
         // Dim non-incident edges. Use a stable key so reapply-after-topology-change
-        // overrides the previous focus action instead of stacking with it.
+        // overrides the previous focus action instead of stacking with it. Kill any
+        // still-running creation fade first — the 0.4 s lineDrawAnimation would
+        // outlive this 0.2 s dim and win (the dim state is authoritative).
         for (_, line) in connectionLines {
             let isIncident = line.fromPeerKey == peerKey || line.toPeerKey == peerKey
             let target: CGFloat = isIncident ? 1.0 : focusDimEdgeAlpha
+            line.removeAction(forKey: "lineDrawAnimation")
             line.run(
                 SKAction.fadeAlpha(to: target, duration: focusFadeDuration),
                 withKey: "focusFade"
             )
         }
 
-        // Dim non-neighbourhood peers.
+        // Dim non-neighbourhood peers (same creation-fade race closed here).
         for (key, peerNode) in peerNodes {
             let target: CGFloat = neighbourhood.contains(key) ? 1.0 : focusDimPeerAlpha
+            peerNode.removeAction(forKey: "appearAnimation")
             peerNode.run(
                 SKAction.fadeAlpha(to: target, duration: focusFadeDuration),
                 withKey: "focusFade"
@@ -805,13 +1036,17 @@ class PresenceNetworkScene: SKScene {
 
     /// Restore every node and edge to full alpha. Called by [clearHighlight].
     private func restoreAllAlpha() {
+        // Kill any still-running creation fades first: they would outlive this
+        // 0.2 s restore and re-dim (or re-hide) a node the user just released.
         for (_, line) in connectionLines {
+            line.removeAction(forKey: "lineDrawAnimation")
             line.run(
                 SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
                 withKey: "focusFade"
             )
         }
         for (_, peerNode) in peerNodes {
+            peerNode.removeAction(forKey: "appearAnimation")
             peerNode.run(
                 SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
                 withKey: "focusFade"
@@ -822,13 +1057,263 @@ class PresenceNetworkScene: SKScene {
     /// Re-evaluate focus after a topology change: if the highlighted peer is still in
     /// the scene, reapply (so new peers/edges inherit the dim); otherwise clear it
     /// (the user's selected peer left the mesh).
+    ///
+    /// Liveness is checked against `currentModelPeerKeys` (the latest presence
+    /// push), not `peerNodes`: removed nodes stay in `peerNodes` for their 0.3 s
+    /// fade-out, which would re-enter focus on a dying node and leave focus
+    /// dangling until the next push (extension scene.ts `applyInput` parity —
+    /// peers are removed synchronously and focus clears in the same pass).
     private func refreshFocusAfterTopologyChange() {
+        // Focus mode first: the focused peer leaving the mesh exits focus; a changed
+        // neighbourhood re-lays out the orbit. (The main layout pass already restored
+        // context positions, so the exit path skips its own restore.)
+        if let focusedKey = focusedPeerKey {
+            if currentModelPeerKeys.contains(focusedKey) {
+                enterFocusMode(for: focusedKey)
+            } else {
+                clearFocusMode(restoreLayout: false)
+            }
+        }
         guard let highlighted = highlightedNode else { return }
-        if peerNodes.values.contains(where: { $0 === highlighted }) {
+        if currentModelPeerKeys.contains(highlighted.peerKey) {
             applyFocus()
         } else {
             clearHighlight()
         }
+    }
+
+    // MARK: - Focus Mode (Expanded/full-mesh only)
+
+    /// Route a tap on a peer: Direct mode keeps the tap-to-isolate dimming;
+    /// Expanded mode enters/toggles the focused-neighbourhood view. The local peer
+    /// is never focusable — in Direct mode every line touches it, so focusing it
+    /// would exempt the whole graph from dimming (extension `selectPeer` parity).
+    ///
+    /// Internal (not private) so the scene unit tests can drive the tap-routing
+    /// table directly.
+    func handlePeerTap(_ peer: PeerNode) {
+        let key = peer.peerKey
+        // Ignore taps on nodes the model has already dropped: removed peers stay
+        // in `peerNodes` for their 0.3 s fade-out (sliding toward centre), and
+        // focusing/selecting one would be a ghost — focus liveness is answered
+        // from the model snapshot (`currentModelPeerKeys`), never the node tree.
+        guard currentModelPeerKeys.contains(key) else { return }
+        if showDirectConnectedOnly {
+            guard key != localPeerKey else {
+                handleCanvasTap()
+                return
+            }
+            toggleHighlight(for: peer)
+            return
+        }
+        if let focusedKey = focusedPeerKey {
+            if key == focusedKey {
+                // Re-tapping the focused peer exits focus.
+                clearFocusMode()
+            } else if focusNeighbourhood.contains(key) {
+                // Orbit peer: refocus on it. The local peer is an invalid
+                // selection (extension `selectPeer` clears the selection and
+                // keeps focus), so tapping it inside the orbit is a no-op.
+                if key != localPeerKey {
+                    enterFocusMode(for: key)
+                }
+            } else {
+                // Dimmed context peer: the extension's `nodeAt` skips non-orbit
+                // nodes, so this tap lands on the canvas — exit focus.
+                clearFocusMode()
+            }
+            return
+        }
+        guard key != localPeerKey else {
+            handleCanvasTap()
+            return
+        }
+        enterFocusMode(for: key)
+    }
+
+    /// Tapping empty canvas exits focus (or clears the Direct-mode selection).
+    private func handleCanvasTap() {
+        if focusedPeerKey != nil {
+            clearFocusMode()
+        } else {
+            clearHighlight()
+        }
+    }
+
+    /// Enter (or refresh) the focused-neighbourhood view for `key`.
+    ///
+    /// The focus layout reuses the shared engine with the focused peer as centre —
+    /// its crowding floor plus the measured pill footprints make the orbit
+    /// label-aware (superseding the extension's `expandFocusedRingForLabels`).
+    private func enterFocusMode(for key: String) {
+        guard !showDirectConnectedOnly,
+              let focusedNode = peerNodes[key],
+              key != localPeerKey,
+              // Liveness comes from the model snapshot, not `peerNodes`: a
+              // departed peer's node lingers for its fade-out and must not be
+              // (re-)focusable — that would be a ghost focus.
+              currentModelPeerKeys.contains(key) else { return }
+
+        // Focus replaces any selection highlight; refocusing starts from full alpha.
+        if highlightedNode != nil {
+            clearHighlight()
+        }
+        restoreAllAlpha()
+
+        let currentEdges = connectionLines.map { connectionId, line in
+            PresenceEdge(
+                connectionId: connectionId,
+                pairKey: "",
+                from: line.fromPeerKey,
+                to: line.toPeerKey,
+                type: line.connectionType
+            )
+        }
+        let neighbours = PresenceFocusPlanner.neighbourKeys(of: key, edges: currentEdges)
+        let focusKeys = [key] + neighbours
+        let focusEdges = currentEdges
+            .filter { $0.from == key || $0.to == key }
+            .map { NetworkLayoutEngine.ConnectionInfo(fromPeer: $0.from, toPeer: $0.to) }
+        let footprints = peerNodes.mapValues { $0.getSpriteSize().width }
+
+        let focusLayout = layoutEngine.calculateLayout(
+            localPeerKey: key,
+            allPeers: focusKeys,
+            connections: focusEdges,
+            radiusScale: 1,
+            peerFootprints: footprints
+        )
+
+        focusedPeerKey = key
+        focusNeighbourhood = Set(focusKeys)
+
+        // Move only the neighbourhood; the rest of the mesh stays put as context.
+        for (peerKey, target) in focusLayout.positions {
+            guard let node = peerNodes[peerKey] else { continue }
+            // A stale layoutMove (0.5 s) would outlive this 0.3 s focus move and
+            // win — a topology-push neighbour added by the mesh pass would end up
+            // off-orbit. Kill the loser so the focus pass owns the position.
+            node.removeAction(forKey: "layoutMove")
+            let move = SKAction.move(to: target, duration: focusTransitionDuration)
+            move.timingMode = .easeInEaseOut
+            node.run(move, withKey: "focusMove")
+        }
+        // Keep the incident edges attached to the moving orbit.
+        run(SKAction.customAction(withDuration: focusTransitionDuration) { [weak self] _, _ in
+            self?.updateAllConnectionPaths()
+        }, withKey: "focusLineUpdate")
+
+        // Dim the context mesh. Kill any still-running creation fades first —
+        // a line/peer created by the same push's rebuild would otherwise keep
+        // fading in past these 0.3 s dim fades and end fully opaque.
+        for (peerKey, node) in peerNodes {
+            let target: CGFloat = focusNeighbourhood.contains(peerKey)
+                ? 1.0
+                : PresenceFocusPlanner.contextPeerAlpha
+            node.removeAction(forKey: "appearAnimation")
+            node.run(
+                SKAction.fadeAlpha(to: target, duration: focusTransitionDuration),
+                withKey: "focusFade"
+            )
+        }
+        for (_, line) in connectionLines {
+            let touchesFocus = line.fromPeerKey == key || line.toPeerKey == key
+            let target: CGFloat = touchesFocus ? 1.0 : PresenceFocusPlanner.contextLineAlpha
+            line.removeAction(forKey: "lineDrawAnimation")
+            line.run(
+                SKAction.fadeAlpha(to: target, duration: focusTransitionDuration),
+                withKey: "focusFade"
+            )
+        }
+
+        // Focus zoom: magnify to a useful close-up (1.25× default → camera scale
+        // 0.8), never exceeding the fit for the complete neighbourhood. Stored for
+        // restore on exit — but only on first entry, not on a refresh re-entry.
+        if preFocusCameraScale == nil {
+            preFocusCameraScale = cameraNode.xScale
+            preFocusCameraPosition = cameraNode.position
+        }
+        let fitScale = PresenceFocusPlanner.fitScale(
+            layoutRadius: focusLayout.ringRadii.values.max() ?? 0,
+            maxPillWidth: peerNodes.values.map { $0.getSpriteSize().width }.max() ?? 60,
+            viewSize: visibleSceneSize(for: view?.bounds.size ?? .zero),
+            padding: 88
+        )
+        let targetScale = PresenceFocusPlanner.focusCameraScale(
+            fitScale: fitScale,
+            currentScale: cameraNode.xScale
+        )
+        let zoomGroup = SKAction.group([
+            SKAction.scale(to: targetScale, duration: focusTransitionDuration),
+            // The focused peer sits at the layout origin — centre the camera there.
+            SKAction.move(to: centerPosition, duration: focusTransitionDuration)
+        ])
+        zoomGroup.timingMode = .easeInEaseOut
+        cameraNode.run(zoomGroup, withKey: "focusZoom")
+        onZoomChanged?(targetScale)
+        onFocusChanged?(key, focusedNode.deviceName)
+    }
+
+    /// Exit the focused-neighbourhood view and (by default) restore the full-mesh
+    /// layout plus the pre-focus camera. Pass `restoreLayout: false` when the caller
+    /// is about to push a fresh graph state that re-lays out anyway (mode toggle,
+    /// topology change), so the layout runs exactly once.
+    private func clearFocusMode(restoreLayout: Bool = true) {
+        // Always notify, even with nothing to clear: the hoisted banner name
+        // (`focusedPeerName`) survives scene teardown on a tab switch, and the
+        // banner's ✕ must still clear it when the fresh scene has no focus to
+        // exit. Only the scene-side restore is guarded.
+        guard focusedPeerKey != nil else {
+            onFocusChanged?(nil, nil)
+            return
+        }
+        focusedPeerKey = nil
+        focusNeighbourhood = []
+        restoreAllAlpha()
+
+        let targetScale = preFocusCameraScale ?? 1.0
+        let targetPosition = preFocusCameraPosition ?? centerPosition
+        preFocusCameraScale = nil
+        preFocusCameraPosition = nil
+        cameraNode.removeAction(forKey: "focusZoom")
+        let restore = SKAction.group([
+            SKAction.scale(to: targetScale, duration: focusTransitionDuration),
+            SKAction.move(to: targetPosition, duration: focusTransitionDuration)
+        ])
+        restore.timingMode = .easeInEaseOut
+        cameraNode.run(restore, withKey: "focusZoom")
+        onZoomChanged?(targetScale)
+        onFocusChanged?(nil, nil)
+
+        if restoreLayout {
+            recalculateLayout()
+        }
+    }
+
+    /// Public exit for the banner's ✕ button.
+    func exitFocusMode() {
+        clearFocusMode()
+    }
+
+    /// Re-enter focus after the scene was recreated — the Peers ↔ Viewer tab
+    /// switch tears the scene down while the hoisted focus key survives on the
+    /// view model (Android `presenceFocusedPeerId` parity).
+    ///
+    /// Call after a graph push. Re-enters when the peer is still in the current
+    /// model and the mode is Expanded; otherwise clears the hoisted banner
+    /// state via `onFocusChanged`. No-ops while the scene is not ready (the
+    /// next push retries) or while a focus is already active. `preFocusCamera*`
+    /// intentionally stays scene-local: the restore zooms from the current
+    /// camera state.
+    func restoreFocusAfterRebuild(for key: String) {
+        guard isReady, focusedPeerKey == nil else { return }
+        guard !showDirectConnectedOnly, currentModelPeerKeys.contains(key) else {
+            // Peer left the mesh (or Direct mode, where focus doesn't exist):
+            // drop the hoist.
+            onFocusChanged?(nil, nil)
+            return
+        }
+        enterFocusMode(for: key)
     }
 
     // MARK: - Reset View
@@ -838,6 +1323,17 @@ class PresenceNetworkScene: SKScene {
     /// when a user has panned/zoomed the graph off-screen or dragged peers around and
     /// needs to get back to a clean view. Mirrors the Android viewer's reset button.
     func resetCameraAndRelayout() {
+        // Within focus mode the reset only restores 100% magnification (the
+        // neighbourhood stays centred) — mirroring the extension's
+        // `resetViewToLocal`, which resets `focusViewZoom` and nothing else.
+        guard focusedPeerKey == nil else {
+            let zoom = SKAction.scale(to: 1.0, duration: 0.3)
+            zoom.timingMode = .easeInEaseOut
+            cameraNode.run(zoom, withKey: "focusZoom")
+            cameraNode.run(SKAction.move(to: centerPosition, duration: 0.3), withKey: "focusPan")
+            onZoomChanged?(1.0)
+            return
+        }
         let resetCamera = SKAction.group([
             SKAction.move(to: centerPosition, duration: 0.3),
             SKAction.scale(to: 1.0, duration: 0.3)
@@ -857,9 +1353,11 @@ class PresenceNetworkScene: SKScene {
     /// Adjust zoom using a pinch gesture scale factor (incremental delta).
     /// - Parameter pinchScale: The current pinch gesture scale (>1 = zoom in, <1 = zoom out).
     func adjustZoom(by pinchScale: CGFloat) {
+        noteActivity()
         guard let camera = cameraNode else { return }
         // Pinch scale > 1 = spread fingers = zoom in = camera scale decreases
-        let newScale = max(0.5, min(2.0, camera.xScale / pinchScale))
+        // (range 0.5–4.0 — see scrollWheel for the mapping note).
+        let newScale = max(0.5, min(4.0, camera.xScale / pinchScale))
         let scaleAction = SKAction.scale(to: newScale, duration: 0.1)
         scaleAction.timingMode = .easeOut
         camera.run(scaleAction, withKey: "pinchZoom")

@@ -100,6 +100,9 @@ fun ConnectionsMenuButton(
                 if (connections.lan > 0) {
                     add(Triple("LAN", connections.lan, connectionColor(ConnectionType.LAN, isCloud = false)))
                 }
+                if (connections.multicast > 0) {
+                    add(Triple("Multicast", connections.multicast, connectionColor(ConnectionType.Multicast, isCloud = false)))
+                }
                 if (connections.dittoServer > 0) {
                     add(Triple("Ditto Server", connections.dittoServer, connectionColor(ConnectionType.WebSocket, isCloud = true)))
                 }

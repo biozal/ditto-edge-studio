@@ -3,6 +3,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio.presence
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -40,12 +41,39 @@ private const val PEER_DIAMETER_DP: Float = 60f
 private const val PEER_RING_PADDING_DP: Float = 20f
 
 /**
+ * Ring spread multiplier for full-mesh (Direct OFF) mode — the VS Code
+ * extension's `EXPANDED_RADIUS_SCALE`, iOS `PresenceNetworkScene.expandedRadiusScale`.
+ */
+internal const val EXPANDED_RADIUS_SCALE: Float = 1.75f
+
+/**
+ * Conservative center-to-center footprint used only when expanded (full-mesh)
+ * mode packs a BFS layer across multiple visual rings. Pills have variable
+ * widths, so this intentionally errs on the side of fewer peers per ring.
+ */
+private const val EXPANDED_NODE_FOOTPRINT_DP: Float = 200f
+
+/**
  * Compute a BFS-based ring layout for the given peers.
  *
  * The cloud node (when present in [peerIds]) is laid out like any other ring-1 peer.
  * The plan originally specified pinning it to top-center at `(0, +1.5 × r1)`, but
  * that override caused vertical collisions when another ring-1 peer landed near 90°
  * (notably iPhone, whose edge would then visually pass through the cloud line).
+ *
+ * [radiusScale] (default 1) multiplies the base ring radius and the per-ring
+ * increment. Expanded mode (> 1) also packs each BFS layer into as many concentric
+ * visual rings as needed: direct peers stay closest to the local peer, and later
+ * BFS layers do not start until the previous layer is complete. The crowding-based
+ * minimum-circumference floor is intentionally NOT scaled (pill sizes don't
+ * change), so very small meshes don't drift apart for no reason.
+ *
+ * [peerFootprints] carries renderer-measured pill widths (in the same dp space as
+ * the layout) so long pills aren't packed too tightly; peers without a
+ * measurement fall back to [EXPANDED_NODE_FOOTPRINT_DP] / [PEER_DIAMETER_DP].
+ *
+ * Kept in lockstep with iOS `NetworkLayoutEngine.swift` and the VS Code
+ * extension's `src/presence/NetworkLayoutEngine.ts`.
  *
  * @param localPeerId  the local device's peer key. Always placed at origin (ring 0).
  * @param peerIds      all peer keys to lay out (must include [localPeerId]).
@@ -55,19 +83,99 @@ internal fun calculateRadialLayout(
     localPeerId: String,
     peerIds: Iterable<String>,
     edges: Iterable<LayoutEdgeInput>,
+    radiusScale: Float = 1f,
+    peerFootprints: Map<String, Float>? = null,
 ): LayoutResult {
     val allPeers: Set<String> = peerIds.toSet() + localPeerId
     val adjacency = buildAdjacency(edges)
-    val (ringAssignments, parentMap) = performBfs(localPeerId, adjacency, allPeers)
-    val ringRadii = calculateRingRadii(ringAssignments)
+    val (bfsRings, parentMap) = performBfs(localPeerId, adjacency, allPeers)
+    val expanded = radiusScale > 1f
+
+    val orderedBfsRings = if (expanded) {
+        // Preserve the useful ring-1 chord locality before a crowded direct layer
+        // is split across multiple visual rings.
+        val logicalRing1 = bfsRings[1]
+        if (logicalRing1 != null && logicalRing1.size > 1) {
+            bfsRings + (1 to sortRing1Peers(logicalRing1, adjacency))
+        } else {
+            bfsRings
+        }
+    } else {
+        bfsRings
+    }
+    val ringAssignments = if (expanded) {
+        packBfsRings(orderedBfsRings, radiusScale, peerFootprints)
+    } else {
+        orderedBfsRings
+    }
+
+    val ringRadii = calculateRingRadii(ringAssignments, radiusScale, peerFootprints)
     val positions = calculatePositions(
         ringAssignments = ringAssignments,
         ringRadii = ringRadii,
         localPeerId = localPeerId,
         parentMap = parentMap,
         adjacency = adjacency,
+        expanded = expanded,
     )
     return LayoutResult(positions, ringAssignments, ringRadii)
+}
+
+// ── Expanded-mode ring packing ─────────────────────────────────────────────────
+
+/**
+ * Convert logical BFS layers into visual rings for expanded (full-mesh) mode.
+ * A crowded layer may consume several rings, but the next BFS layer never starts
+ * until the current layer is complete.
+ */
+private fun packBfsRings(
+    bfsRings: Map<Int, List<String>>,
+    radiusScale: Float,
+    peerFootprints: Map<String, Float>?,
+): Map<Int, List<String>> {
+    val packed = HashMap<Int, List<String>>()
+    packed[0] = bfsRings[0] ?: emptyList()
+
+    var visualRing = 1
+    for (logicalRing in bfsRings.keys.filter { it > 0 }.sorted()) {
+        val peers = bfsRings[logicalRing] ?: continue
+        var offset = 0
+        while (offset < peers.size) {
+            val capacity = peersPerExpandedRing(visualRing, radiusScale, peers.drop(offset), peerFootprints)
+            // Clamp to the remaining peers (the TS original relies on slice()'s
+            // silent clamping; subList throws instead).
+            val end = minOf(offset + capacity, peers.size)
+            packed[visualRing] = peers.subList(offset, end)
+            offset = end
+            visualRing += 1
+        }
+    }
+    return packed
+}
+
+/**
+ * How many peers fit on one visual ring at the given radius scale.
+ *
+ * Arc length is a useful first approximation, but equal-angle points are
+ * separated by a chord — so the capacity is reduced until the shortest chord in
+ * the ring can contain the widest pill plus its gap.
+ */
+private fun peersPerExpandedRing(
+    ring: Int,
+    radiusScale: Float,
+    peers: List<String>,
+    peerFootprints: Map<String, Float>?,
+): Int {
+    val radius = ((BASE_RADIUS_DP + (ring - 1) * RADIUS_INCREMENT_DP) * radiusScale).toDouble()
+    val widestPill = peers.fold(0f) { widest, peer ->
+        max(widest, peerFootprints?.get(peer) ?: 0f)
+    }
+    val footprint = (max(EXPANDED_NODE_FOOTPRINT_DP, widestPill + PEER_RING_PADDING_DP)).toDouble()
+    var capacity = max(1, floor(2.0 * PI * radius / footprint).toInt())
+    while (capacity > 1 && 2.0 * radius * sin(PI / capacity) < footprint) {
+        capacity -= 1
+    }
+    return capacity
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────────
@@ -97,8 +205,12 @@ private fun performBfs(
 
     while (queue.isNotEmpty()) {
         val (peer, ring) = queue.removeFirst()
+        // Sorted for determinism: HashSet iteration order is not contractual, and
+        // without this a peer's ring/angle could vary between runs (and differ
+        // between the direct and expanded passes of one toggle). Mirrors the
+        // iOS engine's sorted-neighbor BFS.
         val neighbors = adjacency[peer] ?: continue
-        for (n in neighbors) {
+        for (n in neighbors.sorted()) {
             if (n in visited) continue
             visited += n
             val nextRing = ring + 1
@@ -111,21 +223,52 @@ private fun performBfs(
     val disconnected = allPeers - visited
     if (disconnected.isNotEmpty()) {
         val maxRing = ringAssignments.keys.maxOrNull() ?: 0
-        ringAssignments[maxRing + 1] = disconnected.toMutableList()
+        // Sorted — Set iteration order must not leak into ring order.
+        ringAssignments[maxRing + 1] = disconnected.sorted().toMutableList()
     }
     return ringAssignments.mapValues { (_, v) -> v.toList() } to parentMap
 }
 
-private fun calculateRingRadii(ringAssignments: Map<Int, List<String>>): Map<Int, Float> {
+/**
+ * Ring radii, expanded when a ring is crowded.
+ *
+ * The crowding floor is intentionally NOT scaled by [radiusScale]: pill sizes are
+ * fixed, so the floor represents physical crowding, not visual breathing room.
+ *
+ * Two floors per ring, and the binding one wins:
+ *  - Circumference: the ring's total arc must fit every pill plus its gap.
+ *  - Chord (VS Code extension `expandDirectRingForLabels` parity): equal-angle
+ *    neighbours are separated by the chord 2R·sin(π/n), which is shorter than
+ *    their arc share — at small ring counts the arc floor under-expands and wide
+ *    pills overlap, so the widest pill plus gap must fit inside the chord.
+ */
+private fun calculateRingRadii(
+    ringAssignments: Map<Int, List<String>>,
+    radiusScale: Float,
+    peerFootprints: Map<String, Float>?,
+): Map<Int, Float> {
     val radii = HashMap<Int, Float>()
     radii[0] = 0f
     for (ring in ringAssignments.keys.sorted()) {
         if (ring == 0) continue
-        val peerCount = ringAssignments[ring]?.size ?: 0
-        val base = BASE_RADIUS_DP + (ring - 1) * RADIUS_INCREMENT_DP
-        val minCircumference = peerCount * (PEER_DIAMETER_DP + PEER_RING_PADDING_DP)
-        val minRadius = (minCircumference / (2.0 * PI)).toFloat()
-        radii[ring] = max(base, minRadius)
+        val peers = ringAssignments[ring] ?: continue
+        val base = (BASE_RADIUS_DP + (ring - 1) * RADIUS_INCREMENT_DP) * radiusScale
+        var minCircumference = 0.0
+        var widestPill = 0f
+        for (peer in peers) {
+            val footprint = max(PEER_DIAMETER_DP, peerFootprints?.get(peer) ?: 0f)
+            minCircumference += footprint + PEER_RING_PADDING_DP
+            widestPill = max(widestPill, footprint)
+        }
+        val arcMinRadius = (minCircumference / (2.0 * PI)).toFloat()
+        // Chord floor: R ≥ (widestPill + gap) / (2·sin(π/n)). A single node has
+        // no neighbour, so no chord constraint (sin(π/1) ≈ 0 would blow up).
+        val chordMinRadius = if (peers.size > 1) {
+            ((widestPill + PEER_RING_PADDING_DP) / (2.0 * sin(PI / peers.size))).toFloat()
+        } else {
+            0f
+        }
+        radii[ring] = max(base, max(arcMinRadius, chordMinRadius))
     }
     return radii
 }
@@ -136,6 +279,7 @@ private fun calculatePositions(
     localPeerId: String,
     parentMap: Map<String, String>,
     adjacency: Map<String, Set<String>>,
+    expanded: Boolean,
 ): Map<String, Point2D> {
     val positions = HashMap<String, Point2D>()
     positions[localPeerId] = Point2D(0f, 0f)
@@ -146,7 +290,21 @@ private fun calculatePositions(
         val radius = ringRadii[ring] ?: continue
         if (peers.isEmpty()) continue
 
-        if (ring == 1) {
+        if (expanded) {
+            // Every visual ring is an independent orbit. Parent anchoring would
+            // bunch siblings together again, so expanded rings always use equal
+            // angular spacing. Ring 1 keeps its chord-locality ordering (re-sorted
+            // per packed subset so connected pairs stay adjacent within a ring).
+            val ordered = if (ring == 1) sortRing1Peers(peers, adjacency) else peers
+            val angles = calculateOptimalAngles(ordered.size)
+            for ((i, peer) in ordered.withIndex()) {
+                val a = angles[i]
+                positions[peer] = Point2D(
+                    (radius * cos(a)).toFloat(),
+                    (radius * sin(a)).toFloat(),
+                )
+            }
+        } else if (ring == 1) {
             val ordered = sortRing1Peers(peers, adjacency)
             val angles = calculateOptimalAngles(ordered.size)
             for ((i, peer) in ordered.withIndex()) {

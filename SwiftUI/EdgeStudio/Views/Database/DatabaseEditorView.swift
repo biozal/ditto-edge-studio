@@ -823,6 +823,10 @@ extension DatabaseEditorView {
         var isLanEnabled = true
         var isAwdlEnabled = true
         var isCloudSyncEnabled = true
+        var isMulticastEnabled = false
+        var multicastGroupAddress = MulticastConfig.defaultGroupAddress
+        var multicastPort = MulticastConfig.defaultPort
+        var multicastInterfaceName: String?
 
         // MARK: Advanced Configuration
 
@@ -879,6 +883,10 @@ extension DatabaseEditorView {
             isLanEnabled = appConfig.isLanEnabled
             isAwdlEnabled = appConfig.isAwdlEnabled
             isCloudSyncEnabled = appConfig.isCloudSyncEnabled
+            isMulticastEnabled = appConfig.isMulticastEnabled
+            multicastGroupAddress = appConfig.multicastGroupAddress
+            multicastPort = appConfig.multicastPort
+            multicastInterfaceName = appConfig.multicastInterfaceName
             collectionSyncScopes = appConfig.collectionSyncScopes
             // Canonicalised on the way in: a stored `.boolean` row spelled `true`/`FALSE`
             // is valid but unrenderable — the value picker tags are exactly
@@ -1216,6 +1224,10 @@ extension DatabaseEditorView {
                     isLanEnabled: isLanEnabled,
                     isAwdlEnabled: isAwdlEnabled,
                     isCloudSyncEnabled: isCloudSyncEnabled,
+                    isMulticastEnabled: isMulticastEnabled,
+                    multicastGroupAddress: multicastGroupAddress,
+                    multicastPort: multicastPort,
+                    multicastInterfaceName: multicastInterfaceName,
                     logLevel: logLevel,
                     isStrictModeEnabled: isStrictModeEnabled,
                     collectionSyncScopes: normalizedSyncScopes(),

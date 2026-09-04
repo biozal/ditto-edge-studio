@@ -106,7 +106,14 @@ val dataModule = module {
             },
         )
     }
-    single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>(), get<AppPreferencesGateway>()) }
+    single {
+        DittoManager(
+            get<CoroutineScope>(),
+            get<DittoLogCaptureService>(),
+            get<AppPreferencesGateway>(),
+            com.costoda.dittoedgestudio.data.ditto.MulticastLockController(androidContext()),
+        )
+    }
     single<SystemRepository> {
         SystemRepositoryImpl(
             get<CoroutineScope>(),

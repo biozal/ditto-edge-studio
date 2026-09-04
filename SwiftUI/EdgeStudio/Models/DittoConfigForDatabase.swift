@@ -34,6 +34,13 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
     var isAwdlEnabled: Bool
     var isCloudSyncEnabled: Bool
 
+    // Reliable UDP multicast transport (beta, Ditto SDK 5.1.0). Default OFF —
+    // unlike the other p2p transports it requires all peers on the same L2 segment.
+    var isMulticastEnabled: Bool
+    var multicastGroupAddress: String
+    var multicastPort: Int
+    var multicastInterfaceName: String?
+
     /// Developer Options
     var logLevel: String
     var isStrictModeEnabled: Bool
@@ -71,6 +78,10 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         isLanEnabled: Bool = true,
         isAwdlEnabled: Bool = true,
         isCloudSyncEnabled: Bool = true,
+        isMulticastEnabled: Bool = false,
+        multicastGroupAddress: String = MulticastConfig.defaultGroupAddress,
+        multicastPort: Int = MulticastConfig.defaultPort,
+        multicastInterfaceName: String? = nil,
         logLevel: String = "info",
         isStrictModeEnabled: Bool = false,
         collectionSyncScopes: [CollectionSyncScope],
@@ -90,6 +101,10 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         self.isLanEnabled = isLanEnabled
         self.isAwdlEnabled = isAwdlEnabled
         self.isCloudSyncEnabled = isCloudSyncEnabled
+        self.isMulticastEnabled = isMulticastEnabled
+        self.multicastGroupAddress = multicastGroupAddress
+        self.multicastPort = multicastPort
+        self.multicastInterfaceName = multicastInterfaceName
         self.logLevel = logLevel
         self.isStrictModeEnabled = isStrictModeEnabled
         self.collectionSyncScopes = collectionSyncScopes
@@ -111,6 +126,10 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         case isLanEnabled
         case isAwdlEnabled
         case isCloudSyncEnabled
+        case isMulticastEnabled
+        case multicastGroupAddress
+        case multicastPort
+        case multicastInterfaceName
         case logLevel
         case isStrictModeEnabled
         case collectionSyncScopes
@@ -140,6 +159,10 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         try container.encode(isLanEnabled, forKey: .isLanEnabled)
         try container.encode(isAwdlEnabled, forKey: .isAwdlEnabled)
         try container.encode(isCloudSyncEnabled, forKey: .isCloudSyncEnabled)
+        try container.encode(isMulticastEnabled, forKey: .isMulticastEnabled)
+        try container.encode(multicastGroupAddress, forKey: .multicastGroupAddress)
+        try container.encode(multicastPort, forKey: .multicastPort)
+        try container.encode(multicastInterfaceName, forKey: .multicastInterfaceName)
         try container.encode(logLevel, forKey: .logLevel)
         try container.encode(isStrictModeEnabled, forKey: .isStrictModeEnabled)
         try container.encode(collectionSyncScopes, forKey: .collectionSyncScopes)
@@ -178,6 +201,19 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
         isLanEnabled = try container.decodeIfPresent(Bool.self, forKey: .isLanEnabled) ?? true
         isAwdlEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAwdlEnabled) ?? true
         isCloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCloudSyncEnabled) ?? true
+        // Multicast defaults to OFF (not true like the other transports): it is a
+        // beta transport that requires all peers on the same L2 segment, so an
+        // upgrade must never silently enable it. Older payloads (incl. QR codes)
+        // simply lack the keys.
+        isMulticastEnabled = try container.decodeIfPresent(Bool.self, forKey: .isMulticastEnabled) ?? false
+        multicastGroupAddress = try container.decodeIfPresent(
+            String.self, forKey: .multicastGroupAddress
+        ) ?? MulticastConfig.defaultGroupAddress
+        multicastPort = try container.decodeIfPresent(Int.self, forKey: .multicastPort)
+            ?? MulticastConfig.defaultPort
+        multicastInterfaceName = try container.decodeIfPresent(
+            String.self, forKey: .multicastInterfaceName
+        )
         // Developer options with backward compatibility
         logLevel = try container.decodeIfPresent(String.self, forKey: .logLevel) ?? "info"
         isStrictModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .isStrictModeEnabled) ?? false
@@ -190,6 +226,25 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
             .decodeIfPresent([CollectionSyncScope].self, forKey: .collectionSyncScopes) ?? []
         startupSettings = try container
             .decodeIfPresent([StartupSetting].self, forKey: .startupSettings) ?? []
+
+        // Multicast validation at the decode boundary, UNCONDITIONALLY (not gated
+        // on the enable flag — a disabled config carrying garbage must not
+        // resurrect it when the user later toggles multicast on). Port 0 is the
+        // SDK's broken "any port" sentinel and UInt16(clamping:) silently
+        // truncates out-of-range values, so an invalid group/port can never reach
+        // the SDK: reset all three fields to the SDK defaults, and flip an
+        // ENABLED config off — an unusable transport must not stay enabled.
+        // Mirrors Android's QrCodeDecoder; covers every JSON-decode path (QR v1/v2,
+        // plist, exported JSON), not just the QR scanner. (Runs last: @Observable
+        // stored properties must all be initialized before `self` is used.)
+        if !MulticastConfig.isValidGroupAddress(multicastGroupAddress) || !(1 ... 65535).contains(multicastPort) {
+            multicastGroupAddress = MulticastConfig.defaultGroupAddress
+            multicastPort = MulticastConfig.defaultPort
+            multicastInterfaceName = nil
+            if isMulticastEnabled {
+                isMulticastEnabled = false
+            }
+        }
     }
 
     /// A copy with the advanced settings stripped, for QR sharing.
@@ -214,6 +269,10 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
             isLanEnabled: isLanEnabled,
             isAwdlEnabled: isAwdlEnabled,
             isCloudSyncEnabled: isCloudSyncEnabled,
+            isMulticastEnabled: isMulticastEnabled,
+            multicastGroupAddress: multicastGroupAddress,
+            multicastPort: multicastPort,
+            multicastInterfaceName: multicastInterfaceName,
             logLevel: logLevel,
             isStrictModeEnabled: isStrictModeEnabled,
             collectionSyncScopes: [],
