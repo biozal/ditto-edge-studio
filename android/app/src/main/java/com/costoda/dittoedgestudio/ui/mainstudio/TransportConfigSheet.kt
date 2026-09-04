@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.Podcasts
@@ -74,6 +76,11 @@ internal fun TransportConfigContent(viewModel: MainStudioViewModel) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // The multicast advanced fields made the content taller than the
+            // sheet on smaller windows (foldable cover screen, split screen);
+            // without this the bottom of the sheet is clipped with no way to
+            // reach it.
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
         Surface(
