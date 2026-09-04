@@ -933,7 +933,10 @@ fun PresenceGraphView(
             )
         }
 
-        // Bottom-right control stack: reset / Direct toggle / zoom controls.
+        // Bottom-right control stack, matching the VS Code extension's layout
+        // (presence-graph-element.ts `.controls`): Direct toggle row, zoom row,
+        // then the always-visible action row (reset + eye, side by side) on the
+        // LAST row below the zoom controls.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -941,50 +944,6 @@ fun PresenceGraphView(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Reset view — restores 100% zoom, recenters the camera, and animates any
-            // dragged peers back to their layout-assigned positions. Without this, a
-            // user who pans far off-canvas has no way to find their graph again.
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                FilledIconButton(
-                    onClick = {
-                        transform.value = Transform.Identity
-                        selectedPeerId.value = null
-                        for ((_, state) in peerStates) {
-                            scope.launch {
-                                state.position.animateTo(
-                                    state.target,
-                                    tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing),
-                                )
-                            }
-                            if (state.scale.value != 1f) {
-                                scope.launch {
-                                    state.scale.animateTo(
-                                        1f,
-                                        tween(HIGHLIGHT_ANIM_MS, easing = FastOutSlowInEasing),
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                        .semantics { contentDescription = "Reset view" },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CenterFocusStrong,
-                        contentDescription = null,
-                    )
-                }
-            }
             // Direct toggle — hidden by the controls-visibility (eye) toggle.
             if (controlsVisible) {
                 Card(
@@ -1061,28 +1020,78 @@ fun PresenceGraphView(
                     }
                 }
             }
-            // Controls-visibility (eye) toggle — always visible (extension parity):
-            // hides/shows the legend + Direct toggle + zoom cluster.
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                FilledIconButton(
-                    onClick = { onToggleControlsVisible() },
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                        .semantics { contentDescription = "Toggle controls visibility" },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Action row — ALWAYS visible (extension parity: `.action-row` is the
+            // only control left on screen when the eye hides the rest): reset
+            // view + controls-visibility (eye) toggle, side by side below the
+            // zoom controls. (The extension also has a background-effects button
+            // here; the Android viewer has no background particles by design.)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Reset view — restores 100% zoom, recenters the camera, and
+                // animates any dragged peers back to their layout-assigned
+                // positions. Without this, a user who pans far off-canvas has no
+                // way to find their graph again.
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    Icon(
-                        imageVector = if (controlsVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                        contentDescription = null,
-                    )
+                    FilledIconButton(
+                        onClick = {
+                            transform.value = Transform.Identity
+                            selectedPeerId.value = null
+                            for ((_, state) in peerStates) {
+                                scope.launch {
+                                    state.position.animateTo(
+                                        state.target,
+                                        tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing),
+                                    )
+                                }
+                                if (state.scale.value != 1f) {
+                                    scope.launch {
+                                        state.scale.animateTo(
+                                            1f,
+                                            tween(HIGHLIGHT_ANIM_MS, easing = FastOutSlowInEasing),
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .semantics { contentDescription = "Reset view" },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CenterFocusStrong,
+                            contentDescription = null,
+                        )
+                    }
+                }
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    FilledIconButton(
+                        onClick = { onToggleControlsVisible() },
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .semantics { contentDescription = "Toggle controls visibility" },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = if (controlsVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                            contentDescription = null,
+                        )
+                    }
                 }
             }
         }
