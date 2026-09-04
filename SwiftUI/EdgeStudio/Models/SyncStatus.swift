@@ -67,7 +67,7 @@ enum ConnectionType: Equatable, Codable {
         case .webSocket:
             return ConnectivityIcon.network
         case .multicast:
-            return ConnectivityIcon.ethernet
+            return ConnectivityIcon.broadcast
         case .unknown:
             return SystemIcon.question
         }
@@ -79,7 +79,9 @@ enum ConnectionType: Equatable, Codable {
         case .accessPoint: return Color(red: 0.05, green: 0.52, blue: 0.25)
         case .p2pWiFi: return Color(red: 0.78, green: 0.10, blue: 0.22)
         case .webSocket: return Color(red: 0.85, green: 0.48, blue: 0.00)
-        case .multicast: return Color(red: 0.0, green: 0.55, blue: 0.60)
+        // Multicast gold matches the VS Code extension card gradient
+        // (rgb(255,214,10) → rgb(170,125,0)).
+        case .multicast: return Color(red: 1.0, green: 0.84, blue: 0.04)
         case .unknown: return Color(red: 0.35, green: 0.35, blue: 0.40)
         }
     }
@@ -90,7 +92,7 @@ enum ConnectionType: Equatable, Codable {
         case .accessPoint: return Color(red: 0.02, green: 0.32, blue: 0.14)
         case .p2pWiFi: return Color(red: 0.50, green: 0.04, blue: 0.12)
         case .webSocket: return Color(red: 0.60, green: 0.30, blue: 0.00)
-        case .multicast: return Color(red: 0.0, green: 0.32, blue: 0.36)
+        case .multicast: return Color(red: 0.667, green: 0.49, blue: 0.0)
         case .unknown: return Color(red: 0.20, green: 0.20, blue: 0.25)
         }
     }

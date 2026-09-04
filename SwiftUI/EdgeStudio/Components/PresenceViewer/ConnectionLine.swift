@@ -65,8 +65,11 @@ class ConnectionLine: SKNode {
                 dashPattern = [10, 3, 2, 3] // Dash-dot pattern
 
             case .multicast: // LAN multicast (beta, SDK 5.1.0)
-                lineColor = SKColor(red: 0.0, green: 0.55, blue: 0.60, alpha: 1.0)
-                dashPattern = [4, 4] // Even dashes (distinct from LAN/P2P)
+                // Bright golden-yellow dotted line so multicast stands apart from
+                // the red P2P WiFi, blue Bluetooth, green LAN, and orange WebSocket
+                // lines. Matches the VS Code extension's multicast style (#FFD60A).
+                lineColor = SKColor(red: 1.0, green: 0.84, blue: 0.04, alpha: 1.0)
+                dashPattern = [2, 3] // Dotted
 
             @unknown default:
                 // Default/unknown connection type
