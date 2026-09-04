@@ -65,20 +65,82 @@ data class PeerEdge(
 data class Transform(val offset: Offset, val scale: Float) {
     companion object {
         val Identity: Transform = Transform(Offset.Zero, 1f)
-        const val MIN_SCALE: Float = 0.5f
-        const val MAX_SCALE: Float = 2.5f
+
+        /** 0.25 = the VS Code extension's minimum zoom — the deep zoom-out a large
+         *  full-mesh layout needs. */
+        const val MIN_SCALE: Float = 0.25f
+
+        /** 2.0 = the VS Code extension's maximum zoom (plan open question #6:
+         *  align, resolved in review). */
+        const val MAX_SCALE: Float = 2.0f
     }
+}
+
+/**
+ * Pure focus-mode decisions for [PresenceGraphView] — the VS Code extension's
+ * `scene.ts` focus view (`neighboursOf`,
+ * `clampZoom(min(max(zoom, FOCUS_ZOOM), fitZoom))`), extracted for JVM unit tests.
+ *
+ * Note the Compose [Transform.scale] IS the magnification (higher = zoomed in),
+ * so the extension's zoom formula applies directly — no camera-scale inversion
+ * like on SpriteKit.
+ */
+internal object PresenceFocusPlanner {
+    /** Default focus magnification (extension `FOCUS_ZOOM`). */
+    const val FOCUS_ZOOM: Float = 1.25f
+
+    /** Focus-view context dimming — the rest of the mesh stays as backdrop. */
+    const val CONTEXT_PEER_ALPHA: Float = 0.08f
+    const val CONTEXT_LINE_ALPHA: Float = 0.04f
+
+    /** Keys directly connected to [key] among [edges] — sorted, no self. */
+    fun neighbourKeys(key: String, edges: List<PeerEdge>): List<String> {
+        val neighbours = sortedSetOf<String>()
+        for (edge in edges) {
+            if (edge.fromPeerId == key && edge.toPeerId != key) neighbours += edge.toPeerId
+            if (edge.toPeerId == key && edge.fromPeerId != key) neighbours += edge.fromPeerId
+        }
+        return neighbours.toList()
+    }
+
+    /** Max magnification that fits the content in the viewport (1f when degenerate). */
+    fun fitZoom(
+        contentWidthPx: Float,
+        contentHeightPx: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+    ): Float {
+        if (contentWidthPx <= 0f || contentHeightPx <= 0f || viewWidthPx <= 0f || viewHeightPx <= 0f) {
+            return 1f
+        }
+        return minOf(viewWidthPx / contentWidthPx, viewHeightPx / contentHeightPx)
+    }
+
+    /**
+     * Focus zoom target: magnify to at least [FOCUS_ZOOM], never exceed the fit for
+     * the complete neighbourhood, clamped to the view's scale range. The extension's
+     * `clampZoom(min(max(zoom, FOCUS_ZOOM), fitZoom))` verbatim.
+     */
+    fun focusScale(fitZoom: Float, currentZoom: Float): Float =
+        minOf(maxOf(currentZoom, FOCUS_ZOOM), fitZoom)
+            .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE)
 }
 
 /**
  * Projected graph model: nodes + edges + the local peer's id (or null if unavailable).
  * Produced by [toGraphModel]; consumed by the layout engine and the renderer.
+ *
+ * [isExpandedProjection] reports which projection was ACTUALLY built — not which
+ * mode the toggle is in. The full-mesh builder falls back to the direct-only star
+ * when no mesh topology has been published yet, and that fallback must lay out at
+ * the compact (1×) scale, not the expanded one.
  */
 @Immutable
 data class PresenceGraphModel(
     val nodes: List<PeerNode>,
     val edges: List<PeerEdge>,
     val localPeerId: String?,
+    val isExpandedProjection: Boolean = false,
 )
 
 /**
@@ -156,25 +218,20 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
     )
 
     val realRemotePeers = remotePeers.filterNot { it.isDittoServer }
-    for (peer in realRemotePeers) {
-        nodes.add(
-            PeerNode(
-                peerId = peer.peerId,
-                displayName = peer.deviceName?.takeIf { it.isNotBlank() } ?: peer.peerId.take(8),
-                deviceKind = detectDeviceKind(peer.deviceName),
-                isLocal = false,
-                isCloud = false,
-            ),
-        )
-    }
 
+    // Edges first: the Direct node set derives from the surviving edges'
+    // endpoints (extension parity). A peer whose connections were all stripped
+    // by the repository's enabled-transport filter must NOT render as an
+    // edgeless floating node.
     val edges = mutableListOf<PeerEdge>()
     val seenPairTypes = mutableSetOf<String>()
+    val connectedPeerIds = mutableSetOf<String>()
     for (peer in realRemotePeers) {
         for (conn in peer.connections) {
             val pairKey = listOf(localId, peer.peerId).sorted().joinToString(separator = "_")
             val edgeId = "${pairKey}_${conn.type}"
             if (!seenPairTypes.add(edgeId)) continue
+            connectedPeerIds += peer.peerId
             edges.add(
                 PeerEdge(
                     edgeId = edgeId,
@@ -189,8 +246,26 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
         }
     }
 
+    for (peer in realRemotePeers) {
+        if (peer.peerId !in connectedPeerIds) continue
+        nodes.add(
+            PeerNode(
+                peerId = peer.peerId,
+                displayName = peer.deviceName?.takeIf { it.isNotBlank() } ?: peer.peerId.take(8),
+                deviceKind = detectDeviceKind(peer.deviceName),
+                isLocal = false,
+                isCloud = false,
+            ),
+        )
+    }
+
     appendCloudNodeAndEdge(local, localId, nodes, edges)
-    return PresenceGraphModel(nodes = nodes, edges = edges, localPeerId = localId)
+    return PresenceGraphModel(
+        nodes = nodes,
+        edges = edges,
+        localPeerId = localId,
+        isExpandedProjection = false,
+    )
 }
 
 /**
@@ -264,7 +339,12 @@ private fun PeersUiState.Active.buildFullMeshModel(
     }
 
     appendCloudNodeAndEdge(local, localId, nodes, edges)
-    return PresenceGraphModel(nodes = nodes, edges = edges, localPeerId = localId)
+    return PresenceGraphModel(
+        nodes = nodes,
+        edges = edges,
+        localPeerId = localId,
+        isExpandedProjection = true,
+    )
 }
 
 private fun appendCloudNodeAndEdge(

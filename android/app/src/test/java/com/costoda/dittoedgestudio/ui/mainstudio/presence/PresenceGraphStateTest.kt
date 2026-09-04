@@ -144,6 +144,47 @@ class PresenceGraphStateTest {
     }
 
     @Test
+    fun `multicast connection produces a multicast edge in direct mode`() {
+        val peer = makePeer(
+            id = "p1",
+            connections = listOf(
+                PeerConnectionInfo(id = "c1", type = ConnectionType.Multicast),
+            ),
+        )
+        val state = PeersUiState.Active(localPeer = makeLocal(), remotePeers = listOf(peer))
+        val model = state.toGraphModel(showDirectConnectedOnly = true)
+
+        assertEquals(1, model.edges.size)
+        assertEquals(ConnectionType.Multicast, model.edges[0].type)
+    }
+
+    @Test
+    fun `OFF mode preserves multicast mesh edges`() {
+        // Mirrors the VS Code extension's peer-info test "preserves multicast edges":
+        // a multicast edge reported in the mesh must survive into the graph model.
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(
+                MeshPeer(peerKey = "p1", deviceName = "A"),
+                MeshPeer(peerKey = "p2", deviceName = "B"),
+            ),
+            edges = listOf(
+                MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.Multicast),
+                MeshEdge(peer1 = "p1", peer2 = "p2", type = ConnectionType.Multicast),
+            ),
+        )
+        val state = PeersUiState.Active(
+            localPeer = makeLocal(),
+            remotePeers = emptyList(),
+            meshTopology = mesh,
+        )
+        val model = state.toGraphModel(showDirectConnectedOnly = false)
+
+        assertEquals(2, model.edges.size)
+        assertTrue(model.edges.all { it.type == ConnectionType.Multicast })
+    }
+
+    @Test
     fun `OFF mode surfaces non-direct peers from meshTopology`() {
         // A direct peer (p1) AND a peer not directly connected to local (p2). With the
         // toggle ON, only p1 should appear. With it OFF, both p1 and p2 should appear.
@@ -199,6 +240,56 @@ class PresenceGraphStateTest {
         )
         val model = state.toGraphModel(showDirectConnectedOnly = false)
         assertEquals(1, model.edges.size)
+    }
+
+    @Test
+    fun `direct mode drops a peer whose connections were all stripped`() {
+        // The repository keeps a peer whose RAW connections touch local, but the
+        // enabled-transport filter can strip every surviving connection. Such a
+        // peer must not render as an edgeless floating node — the Direct node set
+        // derives from the gated edges' endpoints (extension parity).
+        val stripped = makePeer("p1", deviceName = "Pixel 10a", connections = emptyList())
+        val state = PeersUiState.Active(
+            localPeer = makeLocal(),
+            remotePeers = listOf(stripped),
+        )
+        val model = state.toGraphModel(showDirectConnectedOnly = true)
+
+        assertEquals(listOf("local"), model.nodes.map { it.peerId })
+        assertTrue(model.edges.isEmpty())
+    }
+
+    @Test
+    fun `expanded fallback to the direct star is not an expanded projection`() {
+        // No mesh published yet (MeshTopology.Empty): the OFF projection falls
+        // back to the direct-only star and must report itself as compact so the
+        // view lays it out at 1× instead of the expanded radius scale.
+        val state = PeersUiState.Active(
+            localPeer = makeLocal(),
+            remotePeers = listOf(makePeer("p1")),
+            meshTopology = MeshTopology.Empty,
+        )
+        val model = state.toGraphModel(showDirectConnectedOnly = false)
+
+        assertFalse(model.isExpandedProjection)
+        assertEquals(2, model.nodes.size) // still the direct star, not an empty mesh
+    }
+
+    @Test
+    fun `published mesh is an expanded projection`() {
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(MeshPeer(peerKey = "p1", deviceName = "A")),
+            edges = listOf(MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.LAN)),
+        )
+        val state = PeersUiState.Active(
+            localPeer = makeLocal(),
+            remotePeers = listOf(makePeer("p1")),
+            meshTopology = mesh,
+        )
+
+        assertTrue(state.toGraphModel(showDirectConnectedOnly = false).isExpandedProjection)
+        assertFalse(state.toGraphModel(showDirectConnectedOnly = true).isExpandedProjection)
     }
 
     @Test

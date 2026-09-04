@@ -25,6 +25,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
 import com.costoda.dittoedgestudio.domain.model.IndexField
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -168,6 +169,25 @@ class MainStudioViewModel(
         _showDirectConnectedOnly.update { !it }
     }
 
+    // Presence-viewer controls visibility (the VS Code extension's eye toggle) —
+    // hides the legend + Direct toggle + zoom cluster; reset and the eye itself
+    // always remain. Session-scoped here so it survives rail-section navigation.
+    private val _presenceControlsVisible = MutableStateFlow(true)
+    val presenceControlsVisible: StateFlow<Boolean> = _presenceControlsVisible.asStateFlow()
+    fun togglePresenceControlsVisible() {
+        _presenceControlsVisible.update { !it }
+    }
+
+    // Presence-viewer focus mode: the focused peer id (Expanded mesh only, null
+    // when unfocused). Hoisted here (like presenceControlsVisible) because the
+    // Peers ↔ Viewer tab switch disposes the PresenceGraphView subtree —
+    // view-local state would kill an active focus session on every tab hop.
+    private val _presenceFocusedPeerId = MutableStateFlow<String?>(null)
+    val presenceFocusedPeerId: StateFlow<String?> = _presenceFocusedPeerId.asStateFlow()
+    fun setPresenceFocusedPeer(peerId: String?) {
+        _presenceFocusedPeerId.value = peerId
+    }
+
     // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`
     // inside the transport-config sheet, and for non-Compose readers (tests).
     val syncEnabled: Boolean get() = session.syncEnabled.value
@@ -176,6 +196,7 @@ class MainStudioViewModel(
     val transportLanEnabled: Boolean get() = session.transportLanEnabled.value
     val transportWifiAwareEnabled: Boolean get() = session.transportWifiAwareEnabled.value
     val transportCloudSyncEnabled: Boolean get() = session.transportCloudSyncEnabled.value
+    val transportMulticastConfig: MulticastConfig get() = session.transportMulticastConfig.value
 
     init {
         // Idempotent — StudioSession.hydrate is safe to invoke on first VM creation only,
@@ -279,8 +300,13 @@ class MainStudioViewModel(
             onFailure = { it.message ?: "Failed to create index" },
         )
 
-    fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
-        session.applyTransportSettings(bt, lan, wifiAware)
+    fun applyTransportSettings(
+        bt: Boolean,
+        lan: Boolean,
+        wifiAware: Boolean,
+        multicast: MulticastConfig = session.transportMulticastConfig.value,
+    ) {
+        session.applyTransportSettings(bt, lan, wifiAware, multicast)
         transportConfigVisible = false
     }
 

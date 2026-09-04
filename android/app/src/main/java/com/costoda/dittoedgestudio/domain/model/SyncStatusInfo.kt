@@ -37,6 +37,9 @@ enum class ConnectionType(val displayName: String) {
     Bluetooth("Bluetooth"),
     LAN("LAN"),
     P2PWiFi("P2P WiFi"),
+
+    /** Reliable UDP multicast transport (beta, Ditto SDK 5.1.0). */
+    Multicast("Multicast"),
     WebSocket("WebSocket"),
     Unknown("Unknown"),
 }
