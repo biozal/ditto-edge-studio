@@ -175,27 +175,6 @@ fun AppNavGraph() {
     val presenceSplitView by appPreferences.presenceSplitView
         .collectAsStateWithLifecycle(initialValue = false)
 
-    // ── Last-open database restoration (SwiftUI SceneStorage parity) ─────────
-    // Record whenever a studio session is active; on cold start, jump straight into
-    // the last database (stacked above DatabaseListKey so Back still lands on the list).
-    val databaseRepository = koinInject<com.costoda.dittoedgestudio.data.repository.DatabaseRepository>()
-    LaunchedEffect(studioContext?.second) {
-        studioContext?.second?.let { appPreferences.setLastOpenDatabaseId(it) }
-    }
-    var restoreAttempted by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (restoreAttempted) return@LaunchedEffect
-        restoreAttempted = true
-        val lastId = appPreferences.lastOpenDatabaseId.first()
-        if (lastId != null &&
-            backStack.size == 1 && backStack.firstOrNull() == DatabaseListKey &&
-            // Guard against the database having been deleted since.
-            databaseRepository.getById(lastId) != null
-        ) {
-            backStack.add(SubscriptionsKey(databaseId = lastId))
-        }
-    }
-
     // At Medium+ widths (≥600dp — includes an open flip phone at ~690dp) allow the
     // ListDetailSceneStrategy two horizontal partitions so list + detail sit side-by-side
     // (iPad NavigationSplitView behavior); below that, single-pane drill-in.
