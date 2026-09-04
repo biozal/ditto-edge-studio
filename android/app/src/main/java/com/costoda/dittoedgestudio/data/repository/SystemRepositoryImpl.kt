@@ -140,49 +140,36 @@ class SystemRepositoryImpl(
             )
         }
 
-        // 5a. Build the full mesh topology — every connection the SDK knows about,
-        //     plus every discovered peer that participates in at least one of those
-        //     edges. The Presence Viewer needs this when the user toggles "Direct
-        //     Connected" off; everything else keeps using the filtered [_peers] list
-        //     above per the presence-graph pitfall rule.
+        // 5a. Build the unfiltered mesh topology — every peer the SDK knows about plus
+        //     every connection between them. The Presence Viewer needs this when the
+        //     user toggles "Direct Connected" off; everything else keeps using the
+        //     filtered [_peers] list above per the presence-graph pitfall rule.
         val allPeersDeduped = graph.remotePeers
             .groupBy { it.peerKey }
             .mapValues { (_, peers) ->
                 peers.maxByOrNull { it.dittoSdkVersion != null } ?: peers.first()
             }
             .values
+        val meshPeerList = allPeersDeduped.map { peer ->
+            MeshPeer(
+                peerKey = peer.peerKey,
+                deviceName = peer.deviceName.takeIf { it.isNotBlank() },
+            )
+        }
         val seenEdgeKeys = mutableSetOf<String>()
         val meshEdgeList = buildList {
-            // Ditto usually reports the same undirected edge from both endpoints, but
-            // the local peer is the authoritative source for edges attached to this
-            // process. Aggregate it too so a transport (notably multicast) is not
-            // lost when only the local side advertises the edge. (Same fix as the
-            // VS Code extension's buildPresenceGraphView.)
-            for (peer in listOf(graph.localPeer) + allPeersDeduped) {
+            for (peer in allPeersDeduped) {
                 for (conn in peer.connections) {
                     val p1 = conn.peer1
                     val p2 = conn.peer2
                     if (p1.isBlank() || p2.isBlank()) continue
-                    val sortedPair = listOf(p1, p2).sorted()
-                    val key = "${sortedPair[0]}_${sortedPair[1]}_${conn.connectionType}"
-                    if (!seenEdgeKeys.add(key)) continue
-                    add(MeshEdge(p1, p2, conn.connectionType.toConnectionType()))
+                    val edgeKey = listOf(p1, p2).sorted().joinToString("_") + "_${conn.connectionType}"
+                    if (seenEdgeKeys.add(edgeKey)) {
+                        add(MeshEdge(peer1 = p1, peer2 = p2, type = conn.connectionType.toConnectionType()))
+                    }
                 }
             }
         }
-        // Orphan filter (extension pass 2): remote peers appearing in no aggregated
-        // edge are dropped — otherwise they float as pills on the outermost ring in
-        // the sync stop→start window. The local peer is always shown regardless —
-        // it's added by the graph model builder, not from this list.
-        val meshPeerList = filterOrphanMeshPeers(
-            peers = allPeersDeduped.map { peer ->
-                MeshPeer(
-                    peerKey = peer.peerKey,
-                    deviceName = peer.deviceName.takeIf { it.isNotBlank() },
-                )
-            },
-            edges = meshEdgeList,
-        )
 
         // 5b. Publish all derived flows.
         _peers.value = remotePeers
@@ -327,21 +314,3 @@ internal fun ConnectionType.isEnabledIn(config: com.costoda.dittoedgestudio.doma
         ConnectionType.Multicast -> config.isMulticastEnabled
         ConnectionType.Unknown -> true
     }
-
-/**
- * Keep only peers that participate in at least one mesh edge (VS Code extension
- * `buildPresenceGraphView` pass 2). Drops orphan peers the SDK has discovered
- * (mDNS/BLE) but holds no current connection to — most visible in the window
- * right after `sync.stop()` → `sync.start()`, when transports stay alive across
- * the toggle but sync sessions don't. Edge participation (not an empty
- * own-connections list) is the criterion so a peer that only appears as peer2
- * in another peer's connection list is still drawn.
- */
-internal fun filterOrphanMeshPeers(peers: List<MeshPeer>, edges: List<MeshEdge>): List<MeshPeer> {
-    val peersInAnyEdge = HashSet<String>(edges.size * 2)
-    for (edge in edges) {
-        peersInAnyEdge.add(edge.peer1)
-        peersInAnyEdge.add(edge.peer2)
-    }
-    return peers.filter { it.peerKey in peersInAnyEdge }
-}

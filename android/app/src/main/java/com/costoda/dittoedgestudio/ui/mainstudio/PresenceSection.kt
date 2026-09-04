@@ -178,20 +178,10 @@ fun PresenceContentSection(
                 else -> {
                     val showDirectOnly by viewModel.showDirectConnectedOnly
                         .collectAsStateWithLifecycle()
-                    val controlsVisible by viewModel.presenceControlsVisible
-                        .collectAsStateWithLifecycle()
-                    // Hoisted so an active focus session survives the Peers ↔
-                    // Viewer tab switch (the tab `when` disposes the subtree).
-                    val focusedPeerId by viewModel.presenceFocusedPeerId
-                        .collectAsStateWithLifecycle()
                     PresenceGraphView(
                         peersUiState = peersUiState,
                         showDirectConnectedOnly = showDirectOnly,
                         onToggleDirectConnectedOnly = { viewModel.toggleDirectConnectedOnly() },
-                        focusedPeerId = focusedPeerId,
-                        onFocusedPeerChange = { viewModel.setPresenceFocusedPeer(it) },
-                        controlsVisible = controlsVisible,
-                        onToggleControlsVisible = { viewModel.togglePresenceControlsVisible() },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
