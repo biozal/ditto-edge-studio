@@ -219,14 +219,17 @@ struct NetworkLayoutEngineTests {
             localPeerKey: "local", allPeers: peers, connections: connections, radiusScale: 1.75
         )
 
-        // ASSERT — the direct layer fills the first visual rings before the
-        // multi-hop peer is placed outside them.
+        // ASSERT — hop order still decides who sits innermost: ring 1 is all direct
+        // peers and the multi-hop peer lands on the outermost ring. What it must NOT
+        // do is claim a ring of its own — before the balanced packer, "indirect" was
+        // alone on ring 3 at a radius half again as large as ring 2, dangling on a
+        // long spoke.
         let ring1 = r.ringAssignments[1] ?? []
         let ring2 = r.ringAssignments[2] ?? []
-        let ring3 = r.ringAssignments[3] ?? []
         #expect(!ring1.isEmpty && ring1.allSatisfy { direct.contains($0) })
-        #expect(!ring2.isEmpty && ring2.allSatisfy { direct.contains($0) })
-        #expect(ring3 == ["indirect"])
+        #expect(ring2.count > 1, "the multi-hop peer must share a ring, not get its own")
+        #expect(ring2.contains("indirect"), "the multi-hop peer belongs on the outermost ring")
+        #expect(r.ringAssignments[3] == nil)
 
         // Visual rings must expand outward.
         let radii = r.ringRadii.filter { $0.key > 0 }.sorted { $0.key < $1.key }.map(\.value)
@@ -345,5 +348,112 @@ struct NetworkLayoutEngineTests {
         for key in peers {
             #expect(a.positions[key] == b.positions[key], "position for \(key) differs across runs")
         }
+    }
+
+    // MARK: Balanced rings (expanded mode)
+
+    /// Peer counts per ring, innermost first (ring 0 excluded).
+    private func ringSizes(_ r: NetworkLayoutEngine.LayoutResult) -> [Int] {
+        r.ringAssignments.keys.sorted().filter { $0 > 0 }
+            .map { r.ringAssignments[$0]?.count ?? 0 }
+    }
+
+    private func fullMesh(_ peerCount: Int) -> NetworkLayoutEngine.LayoutResult {
+        let peers = ["local"] + (0 ..< peerCount).map { String(format: "P%03d", $0) }
+        var connections: [Conn] = []
+        for i in 0 ..< peers.count {
+            for j in (i + 1) ..< peers.count {
+                connections.append(edge(peers[i], peers[j]))
+            }
+        }
+        return NetworkLayoutEngine().calculateLayout(
+            localPeerKey: "local", allPeers: peers, connections: connections, radiusScale: 1.75
+        )
+    }
+
+    @Test("no ring is left stranded with a lone peer", .tags(.fast))
+    func noStrandedRings() {
+        // ARRANGE — 14 fully-meshed peers plus a 2-hop and a 3-hop straggler. This is
+        // the on-device shape: the stragglers each used to take a whole ring to
+        // themselves, hundreds of points out, on a spoke pointing straight up.
+        let core = (0 ..< 14).map { String(format: "core%02d", $0) }
+        let peers = ["local"] + core + ["hop2", "hop3"]
+        let meshed = ["local"] + core
+        var connections: [Conn] = []
+        for i in 0 ..< meshed.count {
+            for j in (i + 1) ..< meshed.count {
+                connections.append(edge(meshed[i], meshed[j]))
+            }
+        }
+        connections.append(edge(core[0], "hop2"))
+        connections.append(edge("hop2", "hop3"))
+
+        // ACT
+        let r = NetworkLayoutEngine().calculateLayout(
+            localPeerKey: "local", allPeers: peers, connections: connections, radiusScale: 1.75
+        )
+
+        // ASSERT
+        let sizes = ringSizes(r)
+        #expect(sizes.allSatisfy { $0 > 1 }, "every ring must carry more than one peer, got \(sizes)")
+        #expect(r.positions.count == peers.count)
+    }
+
+    @Test("ring populations grow outward, never trailing off into a remainder", .tags(.fast))
+    func ringsGrowOutward() {
+        // 60 peers used to pack as 6/12/17/23/2 — two nodes stranded on the outermost
+        // orbit at the largest radius in the scene.
+        for peerCount in [12, 25, 40, 60, 90, 120] {
+            let sizes = ringSizes(fullMesh(peerCount))
+            #expect(sizes.reduce(0, +) == peerCount, "all \(peerCount) peers must be placed")
+            for i in 1 ..< sizes.count {
+                #expect(
+                    sizes[i] >= sizes[i - 1],
+                    "orbits must not shrink outward at n=\(peerCount), got \(sizes)"
+                )
+            }
+        }
+    }
+
+    @Test("neighbour spacing stays comparable across orbits", .tags(.fast))
+    func spacingBalancedAcrossRings() {
+        // Capacity-proportional sharing is what makes the rings read as balanced: the
+        // chord between neighbours should be roughly equal on every orbit.
+        let r = fullMesh(60)
+        let gaps = r.ringAssignments.keys.sorted().filter { $0 > 0 }.map { ring -> CGFloat in
+            let count = CGFloat(r.ringAssignments[ring]?.count ?? 1)
+            return 2 * (r.ringRadii[ring] ?? 0) * sin(.pi / count)
+        }
+        let smallest = gaps.min() ?? 0
+        let largest = gaps.max() ?? 0
+        #expect(largest <= smallest * 2, "spacing should stay within 2x across rings, got \(gaps)")
+    }
+
+    @Test("a three-hop chain collapses onto one orbit instead of one ring per hop", .tags(.fast))
+    func shortChainUsesOneOrbit() {
+        let peers = ["local", "a", "b", "c"]
+        let connections = [edge("local", "a"), edge("a", "b"), edge("b", "c")]
+
+        let r = NetworkLayoutEngine().calculateLayout(
+            localPeerKey: "local", allPeers: peers, connections: connections, radiusScale: 1.75
+        )
+
+        #expect(ringSizes(r) == [3], "three peers fit a single orbit")
+    }
+
+    @Test("consecutive rings do not stack their first peer on the same spoke", .tags(.fast))
+    func ringsAreStaggered() {
+        let r = fullMesh(120)
+        let startAngles = r.ringAssignments.keys.sorted().filter { $0 > 0 }
+            .compactMap { ring -> CGFloat? in
+                guard let first = r.ringAssignments[ring]?.first,
+                      let point = r.positions[first] else { return nil }
+                return angle(of: point)
+            }
+        let distinct = Set(startAngles.map { Int(($0 * 1000).rounded()) })
+        #expect(
+            distinct.count == startAngles.count,
+            "every ring started at 90 degrees, drawing a seam straight up"
+        )
     }
 }
