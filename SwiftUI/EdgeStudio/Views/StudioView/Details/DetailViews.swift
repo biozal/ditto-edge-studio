@@ -271,6 +271,7 @@ extension MainStudioView {
                         // viewer at `Components/ProfileViewer/`.
                         profile: viewModel.queryVM.latestProfile,
                         lastQueryText: viewModel.queryVM.selectedQuery,
+                        debugConsoleService: viewModel.debugConsoleService,
                         onJsonSelected: { json in
                             viewModel.showJsonInInspector(json)
                             showInspector = true
@@ -352,20 +353,6 @@ extension MainStudioView {
             contentType: .json,
             defaultFilename: "query_results"
         ) { _ in }
-        .sheet(
-            isPresented: $showDebugConsole,
-            // iPadOS swipe-to-dismiss bypasses the view's Close button — the sheet's
-            // onDismiss keeps the teardown (client close + listener ALTER SYSTEM '').
-            onDismiss: {
-                Task { await viewModel.debugConsoleService.close() }
-            },
-            content: {
-                DebugConsoleView(
-                    service: viewModel.debugConsoleService,
-                    onClose: { showDebugConsole = false }
-                )
-            }
-        )
         .overlay(alignment: .top) {
             if let message = queryCopiedDQLNotification {
                 Text(message)
@@ -540,13 +527,6 @@ extension MainStudioView {
                                 .disabled(!viewModel.queryVM.canRunAdvise)
                                 .accessibilityIdentifier("QueryAdviseMenuItem")
                                 Divider()
-                                Button {
-                                    showDebugConsole = true
-                                } label: {
-                                    Label("Debug Console…", systemImage: "terminal")
-                                }
-                                .accessibilityIdentifier("QueryDebugConsoleMenuItem")
-                                Divider()
                                 Button("Export JSON") { queryIsExporting = true }
                                 Divider()
                                 Button("Generate SELECT") { queryGenerateAndInsert(.select) }
@@ -583,6 +563,9 @@ extension MainStudioView {
                 .disabled(viewModel.queryVM.isQueryExecuting)
                 .accessibilityIdentifier("ExecuteQueryButton")
             }
+            ToolbarItem(placement: .primaryAction) {
+                queryGenerateDQLButton
+            }
         }
         #endif
     }
@@ -599,13 +582,6 @@ extension MainStudioView {
             }
             .disabled(!viewModel.queryVM.canRunAdvise)
             .accessibilityIdentifier("QueryAdviseMenuItem")
-            Divider()
-            Button {
-                showDebugConsole = true
-            } label: {
-                Label("Debug Console…", systemImage: "terminal")
-            }
-            .accessibilityIdentifier("QueryDebugConsoleMenuItem")
             Divider()
             Button("SELECT with all fields") { queryGenerateAndInsert(.select) }
             Button("INSERT template") { queryGenerateAndInsert(.insert) }
@@ -911,11 +887,11 @@ extension MainStudioView {
             if observeEvent != nil {
                 HStack(spacing: 8) {
                     Picker("", selection: $observeDetailViewMode) {
-                        // Filter out .profile — it doesn't apply to
-                        // observe events (they're not queries). The
-                        // switch below uses `default` so the case
-                        // stays unreachable but exhaustive.
-                        ForEach(ResultViewTab.allCases.filter { $0 != .profile }, id: \.self) { tab in
+                        // Allow-list rather than a filter: observe events are
+                        // not queries, so neither .profile nor the DQL .console
+                        // applies here. The switch below keeps them exhaustive
+                        // but unreachable.
+                        ForEach([ResultViewTab.raw, .table], id: \.self) { tab in
                             Label(tab.rawValue, systemImage: tab.icon).tag(tab)
                         }
                     }
@@ -961,10 +937,9 @@ extension MainStudioView {
                             showInspector = true
                         }
                     )
-                case .profile:
-                    // Unreachable — the picker above filters .profile
-                    // out. Present here only so the switch is
-                    // exhaustive for the compiler.
+                case .profile, .console:
+                    // Unreachable — the picker above lists only .raw/.table.
+                    // Present here only so the switch is exhaustive.
                     EmptyView()
                 }
             } else {

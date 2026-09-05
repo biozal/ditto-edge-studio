@@ -26,7 +26,6 @@ struct MainStudioView: View {
     @State var observerCurrentPage = 1
     @State var observerPageSize = 25
     @State var queryIsExporting = false
-    @State var showDebugConsole = false
     @State var queryCopiedDQLNotification: String?
     /// Sidebar disclosure state. Private — sidebar code in
     /// `SidebarViews.swift` toggles via `expandedBinding(for:)` /
