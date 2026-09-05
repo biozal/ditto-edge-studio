@@ -59,7 +59,7 @@ struct NetworkLayoutEngineTests {
     }
 
     @Test("chain of 3 — ring-2 peer sits on its parent's radial, further out", .tags(.fast))
-    func chainOfThree() {
+    func chainOfThree() throws {
         // ARRANGE + ACT
         let r = NetworkLayoutEngine().calculateLayout(
             localPeerKey: "local",
@@ -70,14 +70,14 @@ struct NetworkLayoutEngineTests {
         // ASSERT
         #expect(r.ringAssignments[1] == ["A"])
         #expect(r.ringAssignments[2] == ["B"])
-        let a = r.positions["A"]!
-        let b = r.positions["B"]!
+        let a = try #require(r.positions["A"])
+        let b = try #require(r.positions["B"])
         #expect(abs(angle(of: a) - angle(of: b)) < 1e-6)
         #expect(radius(of: b) > radius(of: a))
     }
 
     @Test("star with 4 ring-1 peers and no inter-peer edges → evenly spaced", .tags(.fast))
-    func starEvenSpacing() {
+    func starEvenSpacing() throws {
         // ARRANGE + ACT
         let r = NetworkLayoutEngine().calculateLayout(
             localPeerKey: "local",
@@ -87,7 +87,7 @@ struct NetworkLayoutEngineTests {
 
         // ASSERT — adjacent angle gaps are all π/2
         #expect(r.ringAssignments[1]?.count == 4)
-        let angles = ["A", "B", "C", "D"].map { angle(of: r.positions[$0]!) }.sorted()
+        let angles = try ["A", "B", "C", "D"].map { angle(of: try #require(r.positions[$0])) }.sorted()
         for i in 1 ..< angles.count {
             #expect(abs((angles[i] - angles[i - 1]) - .pi / 2) < 1e-6)
         }
@@ -123,7 +123,7 @@ struct NetworkLayoutEngineTests {
     }
 
     @Test("small ring with wide pills expands to the chord floor, not just the arc floor", .tags(.fast))
-    func chordAwareRingExpansion() {
+    func chordAwareRingExpansion() throws {
         // ARRANGE — 4 direct peers × 340pt pills. The arc floor is
         // 4×(340+20)/2π ≈ 229, but equal-angle peers are separated by the CHORD
         // 2R·sin(π/4) ≈ 1.41R — 324pt at the arc floor, short of the 360pt
@@ -146,7 +146,7 @@ struct NetworkLayoutEngineTests {
         #expect((r.ringRadii[1] ?? 0) >= chordFloor - 0.5, "ring radius is below the chord floor")
 
         // …and adjacent centres never come closer than a pill width (no overlap).
-        let positions = direct.map { r.positions[$0]! }
+        let positions = try direct.map { try #require(r.positions[$0]) }
         for i in positions.indices {
             let next = positions[(i + 1) % positions.count]
             let distance = hypot(positions[i].x - next.x, positions[i].y - next.y)
@@ -160,7 +160,7 @@ struct NetworkLayoutEngineTests {
         let peers = ["local", "A", "B", "C", "X", "Y", "Z"]
         let connections = [
             edge("local", "A"), edge("local", "B"), edge("local", "C"),
-            edge("A", "X"), edge("B", "Y"),
+            edge("A", "X"), edge("B", "Y")
         ]
 
         // ACT
@@ -181,7 +181,7 @@ struct NetworkLayoutEngineTests {
     // MARK: Expanded mode (radiusScale > 1)
 
     @Test("radiusScale spreads rings outward proportionally", .tags(.fast))
-    func radiusScaleSpreadsRings() {
+    func radiusScaleSpreadsRings() throws {
         // ARRANGE — 4-peer star; the crowding floor doesn't kick in, so the
         // scale is the only factor.
         let peers = ["local", "A", "B", "C", "D"]
@@ -199,8 +199,8 @@ struct NetworkLayoutEngineTests {
         let radius2 = r2.ringRadii[1] ?? 0
         #expect(abs(radius2 - radius1 * 1.75) < 1e-6)
         for key in ["A", "B", "C", "D"] {
-            let p1 = r1.positions[key]!
-            let p2 = r2.positions[key]!
+            let p1 = try #require(r1.positions[key])
+            let p2 = try #require(r2.positions[key])
             #expect(abs(p2.x - p1.x * 1.75) < 1e-6, "\(key).x should scale 1.75×")
             #expect(abs(p2.y - p1.y * 1.75) < 1e-6, "\(key).y should scale 1.75×")
         }
@@ -241,7 +241,7 @@ struct NetworkLayoutEngineTests {
     }
 
     @Test("expanded mode evenly spaces peers within every visual ring", .tags(.fast))
-    func expandedEvenSpacing() {
+    func expandedEvenSpacing() throws {
         // ARRANGE — 30 direct peers overflow ring 1 into several visual rings
         let peers = ["local"] + (0 ..< 30).map { "P\($0)" }
         let connections = peers.dropFirst().map { edge("local", $0) }
@@ -253,7 +253,7 @@ struct NetworkLayoutEngineTests {
 
         // ASSERT — each populated visual ring is evenly spaced
         for (ring, ringPeers) in r.ringAssignments where ring > 0 && ringPeers.count > 1 {
-            let angles = ringPeers.map { angle(of: r.positions[$0]!) }.sorted()
+            let angles = try ringPeers.map { angle(of: try #require(r.positions[$0])) }.sorted()
             let expectedGap = 2 * CGFloat.pi / CGFloat(ringPeers.count)
             for i in 1 ..< angles.count {
                 #expect(
@@ -265,7 +265,7 @@ struct NetworkLayoutEngineTests {
     }
 
     @Test("expanded mode uses supplied pill footprints when packing rings", .tags(.fast))
-    func expandedUsesFootprints() {
+    func expandedUsesFootprints() throws {
         // ARRANGE — 12 direct peers with very wide (340pt) pills
         let direct = (0 ..< 12).map { "P\($0)" }
         let peers = ["local"] + direct
@@ -287,7 +287,7 @@ struct NetworkLayoutEngineTests {
 
         // …and the chord between neighbors is never shorter than the pill width.
         for (ring, ringPeers) in r.ringAssignments where ring > 0 && ringPeers.count > 1 {
-            let positions = ringPeers.map { r.positions[$0]! }
+            let positions = try ringPeers.map { try #require(r.positions[$0]) }
             for i in positions.indices {
                 let next = positions[(i + 1) % positions.count]
                 let distance = hypot(positions[i].x - next.x, positions[i].y - next.y)
@@ -336,7 +336,7 @@ struct NetworkLayoutEngineTests {
         let peers = ["local", "A", "B", "C", "D"]
         let connections = [
             edge("local", "A"), edge("local", "B"), edge("local", "C"), edge("local", "D"),
-            edge("A", "B"), edge("C", "D"),
+            edge("A", "B"), edge("C", "D")
         ]
         let engine = NetworkLayoutEngine()
 

@@ -54,7 +54,7 @@ struct MulticastConfigTests {
             "224.1.2.03",
             "+224.1.2.3", // explicit sign
             "224. 1.2.3", // inner whitespace
-            "224.1.2.٣", // non-ASCII digit (Arabic-Indic 3) — Int() accepts it
+            "224.1.2.٣" // non-ASCII digit (Arabic-Indic 3) — Int() accepts it
         ]
     )
     func `Lenient-parse group addresses are rejected by strict octet parsing`(address: String) {

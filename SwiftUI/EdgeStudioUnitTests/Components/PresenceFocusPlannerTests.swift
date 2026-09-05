@@ -28,7 +28,7 @@ struct PresenceFocusPlannerTests {
     func neighbourKeysBothDirections() {
         // ARRANGE
         let edges = [
-            edge("A", "local"), edge("A", "B"), edge("B", "C"), edge("A", "A"),
+            edge("A", "local"), edge("A", "B"), edge("B", "C"), edge("A", "A")
         ]
 
         // ACT

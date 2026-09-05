@@ -15,7 +15,7 @@ struct MulticastConfig: Equatable, Codable, Sendable {
     var isEnabled = false
     var groupAddress: String = MulticastConfig.defaultGroupAddress
     var port: Int = MulticastConfig.defaultPort
-    var interfaceName: String? = nil
+    var interfaceName: String?
 
     static let defaultGroupAddress = "224.1.2.3"
     static let defaultPort = 6003
