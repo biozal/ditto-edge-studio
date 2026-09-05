@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
@@ -910,10 +911,11 @@ fun PresenceGraphView(
         //    extension, which rejects the local key everywhere.
         //  - Expanded, unfocused: tapping a remote peer enters focus on it;
         //    tapping Me is an invalid selection (no-op — Me is never focusable).
-        //  - Expanded, focused: re-tapping the focused peer exits focus; tapping
-        //    an ORBIT peer refocuses on it; tapping a dimmed CONTEXT peer (or Me
-        //    while he's off the orbit) is a canvas click — the extension's
-        //    nodeAt skips non-orbit nodes, so the tap exits focus; Me ON the
+        //  - Expanded, FOCUSED: a tap means "show me this peer" — it opens (or
+        //    closes) that peer's detail card, for every peer including Me and the
+        //    focused peer itself. The meanings this displaced are still reachable:
+        //    exit focus via the banner ✕ or an empty-canvas tap, and refocus via
+        //    the card's "Focus this peer" action. Me ON the
         //    orbit is an invalid selection (no-op, focus stays).
         //
         // Me is intentionally excluded from `hitTestPeer` in the parent gesture
@@ -955,13 +957,12 @@ fun PresenceGraphView(
                             // are still reachable: exit focus via the banner ✕ or an
                             // empty-canvas tap, and refocus via the card's own action,
                             // where it is labelled instead of hidden in a gesture.
-                            focused != null -> {
-                                expandedPeerId.value =
-                                    if (expandedPeerId.value == node.peerId) null else node.peerId
-                            }
                             // Direct mode: tap only dims (selection) — extension parity,
                             // except that local "Me" stays selectable here
-                            // (documented intentional deviation).
+                            // (documented intentional deviation). Tested BEFORE focus so
+                            // that in the single frame after a Direct toggle lands, but
+                            // before the effect clears the hoisted focus id, a tap can't
+                            // be routed to the card instead of to selection.
                             showDirectConnectedOnly -> {
                                 val newValue = if (selectedPeerId.value == node.peerId) null else node.peerId
                                 if (BuildConfig.DEBUG) {
@@ -969,20 +970,9 @@ fun PresenceGraphView(
                                 }
                                 selectedPeerId.value = newValue
                             }
-                            focused != null -> when {
-                                // Re-tapping the focused peer exits focus.
-                                node.peerId == focused -> exitFocusMode()
-                                // Me ON the orbit: invalid selection (the
-                                // extension's selectPeer rejects the local key)
-                                // — no-op, focus stays.
-                                node.peerId == graphModel.localPeerId &&
-                                    node.peerId in focusNeighbourhood -> Unit
-                                // Orbit peer → refocus on it.
-                                node.peerId in focusNeighbourhood -> enterFocusMode(node.peerId)
-                                // Dimmed CONTEXT peer (and Me off the orbit): the
-                                // extension's nodeAt skips non-orbit nodes, so the
-                                // tap lands as a canvas click — exit focus.
-                                else -> exitFocusMode()
+                            focused != null -> {
+                                expandedPeerId.value =
+                                    if (expandedPeerId.value == node.peerId) null else node.peerId
                             }
                             // Expanded, unfocused: Me is never focusable (invalid
                             // selection → no-op); any other tap enters focus.
@@ -1004,35 +994,42 @@ fun PresenceGraphView(
             val openNode = graphModel.nodes.firstOrNull { it.peerId == openPeerId }
             if (openNode != null) {
                 val cardMargin = with(density) { 16.dp.toPx() }
-                val measured = cardSizePx.value
                 Box(
                     modifier = Modifier
                         .onSizeChanged { cardSizePx.value = IntOffset(it.width, it.height) }
                         .offset {
+                            // Read inside the lambda: cardSizePx is written during
+                            // layout, so a composition-phase read would place a
+                            // newly-swapped card using the previous card's height.
+                            val measuredNow = cardSizePx.value
                             val placement = centreDetailCard(
-                                cardWidthPx = measured.x.toFloat(),
-                                cardHeightPx = measured.y.toFloat(),
+                                cardWidthPx = measuredNow.x.toFloat(),
+                                cardHeightPx = measuredNow.y.toFloat(),
                                 viewportWidthPx = sceneSizePx.value.x.toFloat(),
                                 viewportHeightPx = sceneSizePx.value.y.toFloat(),
                                 marginPx = cardMargin,
                             )
                             IntOffset(placement.x.roundToInt(), placement.y.roundToInt())
                         }
-                        // Tap the card to close it. This also keeps the tap away from the
-                        // graph's canvas handler, which would otherwise read it as an
-                        // empty-canvas tap. Children (the Focus action, the scroll) are
-                        // hit first and consume their own gestures, so they still work —
-                        // an earlier attempt to swallow every event here instead ran in
-                        // the Main pass and cancelled every tap INSIDE the card.
-                        // Non-tap gestures are handled by the isPointOnOpenCard guard in
-                        // the graph's own gesture handler.
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { expandedPeerId.value = null }
+                        // Tap the card to close it.
+                        //
+                        // detectTapGestures rather than `clickable` on purpose: clickable
+                        // sets shouldMergeDescendantSemantics, which collapses the whole
+                        // card into one semantics node and makes every row unreachable to
+                        // a screen reader. This keeps the rows individually focusable.
+                        //
+                        // Children (the Focus action, the scroll) are hit first and
+                        // consume their own gestures, so they still work — an earlier
+                        // attempt to swallow every event here instead consumed in the
+                        // Main pass and cancelled every tap INSIDE the card. Non-tap
+                        // gestures, and any press the card doesn't claim, are handled by
+                        // the isPointOnOpenCard guard in the graph's gesture handler.
+                        .pointerInput(Unit) {
+                            detectTapGestures { expandedPeerId.value = null }
+                        }
                         // Placement depends on the card's own measured size, so hide it
                         // for the single frame before that is known.
-                        .alpha(if (measured == IntOffset.Zero) 0f else 1f),
+                        .alpha(if (cardSizePx.value == IntOffset.Zero) 0f else 1f),
                 ) {
                     PeerDetailCard(
                         node = openNode,

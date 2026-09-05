@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.costoda.dittoedgestudio.domain.model.MeshEdge
 import com.costoda.dittoedgestudio.domain.model.MeshPeer
@@ -247,11 +248,12 @@ class PresenceGraphViewTest {
     }
 
     @Test
-    fun focusMode_tappingContextPeerExitsFocus() {
-        // Expanded mode: focus Device 1; Device 2 is connected only to local
-        // (not to Device 1), so it renders as dimmed context. Tapping it falls
-        // through to a canvas click (extension nodeAt parity: non-orbit nodes
-        // are skipped by the hit-test) and exits focus instead of refocusing.
+    fun focusMode_tappingPeerOpensItsDetailCard() {
+        // Expanded mode: focus Device 1, then tap Device 2 (connected only to local, so
+        // it renders as dimmed context). A tap while focused now means "show me this
+        // peer" — it opens that peer's detail card and LEAVES focus intact. It used to
+        // exit focus; that meaning moved to the banner ✕ and the empty-canvas tap, and
+        // refocusing moved to the card's "Focus this peer" action.
         val mesh = MeshTopology(
             localPeerKey = "local",
             peers = listOf(
@@ -286,8 +288,62 @@ class PresenceGraphViewTest {
 
         composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
         composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+
+        // Tapping a peer opens its card and does NOT disturb the focus session.
         composeRule.onNodeWithContentDescription("Device 2").assertIsDisplayed().performClick()
-        composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Details for Device 2").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+
+        // Accordion: tapping a different peer swaps the card rather than stacking.
+        composeRule.onNodeWithContentDescription("Device 1").performClick()
+        composeRule.onNodeWithContentDescription("Details for Device 1").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Details for Device 2").assertDoesNotExist()
+
+        // Tapping the same peer again closes it.
+        composeRule.onNodeWithContentDescription("Device 1").performClick()
+        composeRule.onNodeWithContentDescription("Details for Device 1").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
+    }
+
+    @Test
+    fun focusMode_detailCardShowsNoSyncSessionForAnIndirectPeer() {
+        // Device 2 reaches the mesh only through Device 1, so this device holds no sync
+        // session with it and system:data_sync_info has no row — the card must say so
+        // rather than rendering a blank commit id.
+        val mesh = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(
+                MeshPeer(peerKey = "p1", deviceName = "Device 1"),
+                MeshPeer(peerKey = "p2", deviceName = "Device 2"),
+            ),
+            edges = listOf(
+                MeshEdge(peer1 = "local", peer2 = "p1", type = ConnectionType.LAN),
+                MeshEdge(peer1 = "p1", peer2 = "p2", type = ConnectionType.LAN),
+            ),
+        )
+        composeRule.setContent {
+            EdgeStudioTheme {
+                val focusState = remember { mutableStateOf<String?>(null) }
+                PresenceGraphView(
+                    peersUiState = PeersUiState.Active(
+                        // Only Device 1 is directly connected.
+                        localPeer = localPeer(),
+                        remotePeers = listOf(remotePeer("p1", "Device 1")),
+                        meshTopology = mesh,
+                    ),
+                    showDirectConnectedOnly = false,
+                    onToggleDirectConnectedOnly = {},
+                    focusedPeerId = focusState.value,
+                    onFocusedPeerChange = { focusState.value = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Device 2").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("Details for Device 2").assertIsDisplayed()
+        composeRule.onNodeWithText("No sync session — not directly connected").assertIsDisplayed()
     }
 
     @Test

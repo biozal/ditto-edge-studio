@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.presence
 
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.TextButton
@@ -84,16 +85,19 @@ internal fun PeerDetailCard(
     Card(
         modifier = modifier
             .width(PEER_DETAIL_CARD_WIDTH)
-            .heightIn(max = maxHeight)
-            .semantics { contentDescription = "Details for ${node.displayName}" },
+            .heightIn(max = maxHeight),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
     ) {
+        // Keyed on the peer: the card swaps in place (same composition slot) when the
+        // user taps a different peer, so an unkeyed scroll state would open B's card at
+        // A's offset — past its own title, or clamped mid-card.
+        val scrollState = remember(node.peerId) { ScrollState(0) }
         Column(
             modifier = Modifier
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(12.dp),
         ) {
             // No close button: tapping the card dismisses it, which is the gesture
@@ -105,6 +109,13 @@ internal fun PeerDetailCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                // Described here rather than on the Card. A contentDescription on the
+                // card node suppresses the text payload of everything inside it, so a
+                // screen reader announced "Details for <peer>" and nothing else — the
+                // OS, SDK, cloud, metadata and sync rows all became unspeakable.
+                modifier = Modifier.semantics {
+                    contentDescription = "Details for ${node.displayName}"
+                },
             )
 
             if (detail == null) {
@@ -157,7 +168,7 @@ internal fun PeerDetailCard(
                     Text(
                         text = "Sync progress is tracked per remote peer, not for the local device.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 detail.isDirectlyConnected -> {
@@ -182,7 +193,7 @@ internal fun PeerDetailCard(
                     Text(
                         text = "Commit progress is only tracked for peers this device syncs with directly.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -227,8 +238,12 @@ private fun DetailRow(
             text = value ?: missing,
             style = MaterialTheme.typography.labelSmall,
             fontFamily = if (monospace) FontFamily.Monospace else null,
+            // onSurfaceVariant, not `outline`: outline is a divider colour and lands at
+            // ~2.1:1 against this card's surface in both themes, well under the 4.5:1 AA
+            // floor for 11sp text — which would make the "why this is empty" copy
+            // effectively invisible, i.e. the blank it was written to prevent.
             color = if (value == null) {
-                MaterialTheme.colorScheme.outline
+                MaterialTheme.colorScheme.onSurfaceVariant
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
