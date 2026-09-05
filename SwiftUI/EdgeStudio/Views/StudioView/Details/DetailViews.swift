@@ -271,7 +271,6 @@ extension MainStudioView {
                         // viewer at `Components/ProfileViewer/`.
                         profile: viewModel.queryVM.latestProfile,
                         lastQueryText: viewModel.queryVM.selectedQuery,
-                        debugConsoleService: viewModel.debugConsoleService,
                         onJsonSelected: { json in
                             viewModel.showJsonInInspector(json)
                             showInspector = true
@@ -888,9 +887,8 @@ extension MainStudioView {
                 HStack(spacing: 8) {
                     Picker("", selection: $observeDetailViewMode) {
                         // Allow-list rather than a filter: observe events are
-                        // not queries, so neither .profile nor the DQL .console
-                        // applies here. The switch below keeps them exhaustive
-                        // but unreachable.
+                        // not queries, so .profile does not apply here. The
+                        // switch below keeps it exhaustive but unreachable.
                         ForEach([ResultViewTab.raw, .table], id: \.self) { tab in
                             Label(tab.rawValue, systemImage: tab.icon).tag(tab)
                         }
@@ -937,7 +935,7 @@ extension MainStudioView {
                             showInspector = true
                         }
                     )
-                case .profile, .console:
+                case .profile:
                     // Unreachable — the picker above lists only .raw/.table.
                     // Present here only so the switch is exhaustive.
                     EmptyView()

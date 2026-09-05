@@ -15,15 +15,14 @@ import Testing
 
 @Suite("ResultViewTab")
 struct ResultViewTabTests {
-    @Test("case order pins the ⌘1…⌘4 shortcuts", .tags(.fast))
+    @Test("case order pins the ⌘1…⌘3 shortcuts", .tags(.fast))
     func caseOrderPinsShortcuts() {
         // ARRANGE + ACT
         let order = ResultViewTab.allCases
 
-        // ASSERT — Console is last, so it gets ⌘4; reordering would silently
-        // reassign every shortcut.
-        #expect(order == [.raw, .table, .profile, .console])
-        #expect(order.firstIndex(of: .console).map { $0 + 1 } == 4)
+        // ASSERT — reordering would silently reassign every shortcut.
+        #expect(order == [.raw, .table, .profile])
+        #expect(order.firstIndex(of: .profile).map { $0 + 1 } == 3)
     }
 
     @Test("raw values are the segment labels the UI tests address", .tags(.fast))
@@ -32,7 +31,6 @@ struct ResultViewTabTests {
         #expect(ResultViewTab.raw.rawValue == "Raw")
         #expect(ResultViewTab.table.rawValue == "Table")
         #expect(ResultViewTab.profile.rawValue == "Profile")
-        #expect(ResultViewTab.console.rawValue == "Console")
     }
 
     @Test("every tab has a distinct, non-empty icon", .tags(.fast))
@@ -43,18 +41,16 @@ struct ResultViewTabTests {
         // ASSERT
         #expect(icons.allSatisfy { !$0.isEmpty })
         #expect(Set(icons).count == ResultViewTab.allCases.count)
-        #expect(ResultViewTab.console.icon == "terminal")
     }
 
     @Test("observe events expose only the tabs that apply to them", .tags(.fast))
     func observeEventTabsExcludeQueryOnlyViews() {
-        // ARRANGE — the Observers picker lists this allow-list; .profile and
-        // .console are query-only and must never appear there.
+        // ARRANGE — the Observers picker lists this allow-list; .profile is
+        // query-only and must never appear there.
         let observeTabs: [ResultViewTab] = [.raw, .table]
 
         // ASSERT
         #expect(!observeTabs.contains(.profile))
-        #expect(!observeTabs.contains(.console))
         #expect(observeTabs.allSatisfy { ResultViewTab.allCases.contains($0) })
     }
 }

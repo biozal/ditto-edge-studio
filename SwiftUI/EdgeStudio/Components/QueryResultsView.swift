@@ -5,7 +5,6 @@ enum ResultViewTab: String, CaseIterable {
     case raw = "Raw"
     case table = "Table"
     case profile = "Profile"
-    case console = "Console"
 
     var icon: String {
         switch self {
@@ -15,10 +14,6 @@ enum ResultViewTab: String, CaseIterable {
         // a database-specific symbol. The Profile tab content swaps
         // this icon at the Card vs Plan sub-picker in Slice 3.
         case .profile: return "list.bullet.indent"
-        // The DQL Console is a peer of the result views rather than a view of
-        // the results — it lives here because an always-visible segment is the
-        // only placement that stays discoverable on every platform.
-        case .console: return "terminal"
         }
     }
 }
@@ -40,10 +35,6 @@ struct QueryResultsView: View {
     /// query" — `profile` being nil isn't sufficient to tell them
     /// apart on its own.
     var lastQueryText = ""
-    /// DQL Console service for the Console tab, owned by `MainStudioViewModel`
-    /// so the socket and its scrollback survive tab switches. Nil in previews,
-    /// where the tab renders its unavailable state instead.
-    var debugConsoleService: DebugConsoleService?
 
     @State private var selectedTab: ResultViewTab = .raw
     @Binding var currentPage: Int
@@ -80,7 +71,6 @@ struct QueryResultsView: View {
         pageSize: Binding<Int>,
         profile: QueryProfile? = nil,
         lastQueryText: String = "",
-        debugConsoleService: DebugConsoleService? = nil,
         onJsonSelected: ((String) -> Void)? = nil,
         onAddAttachment: ((String) -> Void)? = nil,
         onDeleteAttachment: ((String) -> Void)? = nil
@@ -90,7 +80,6 @@ struct QueryResultsView: View {
         _pageSize = pageSize
         self.profile = profile
         self.lastQueryText = lastQueryText
-        self.debugConsoleService = debugConsoleService
         self.onJsonSelected = onJsonSelected
         self.onAddAttachment = onAddAttachment
         self.onDeleteAttachment = onDeleteAttachment
@@ -115,8 +104,7 @@ struct QueryResultsView: View {
             .padding(.vertical, 6)
             .accessibilityIdentifier("ResultsViewModeToggle")
             .background {
-                // ⌘1 / ⌘2 / ⌘3 / ⌘4 switch the result view (Raw / Table /
-                // Profile / Console)
+                // ⌘1 / ⌘2 / ⌘3 switch the result view (Raw / Table / Profile)
                 // from the keyboard — nicer for power users, and lets UI tests
                 // switch views without clicking the segmented control.
                 ForEach(Array(ResultViewTab.allCases.enumerated()), id: \.element) { index, tab in
@@ -156,16 +144,6 @@ struct QueryResultsView: View {
                         metricsEnabled: metricsEnabled,
                         lastQueryText: lastQueryText
                     )
-                case .console:
-                    if let debugConsoleService {
-                        DebugConsoleView(service: debugConsoleService)
-                    } else {
-                        ContentUnavailableView(
-                            "Console Unavailable",
-                            systemImage: "terminal",
-                            description: Text("Open a database to run DQL over the debug socket.")
-                        )
-                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
