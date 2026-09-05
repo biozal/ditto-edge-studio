@@ -163,7 +163,6 @@ fun QueryWorkbenchContentSection(
                     onAdvise = { queryVm.adviseQuery() },
                     adviseEnabled = com.costoda.dittoedgestudio.domain.model.DqlStatements
                         .isSelectStatement(queryText),
-                    onOpenDebugConsole = { viewModel.session.uiState.showDebugConsole = true },
                 )
 
                 // ADVISE (SDK 5.1) index-advice card between toolbar and editor.
@@ -210,22 +209,6 @@ fun QueryWorkbenchContentSection(
             importService = koinInject(),
             collections = collections,
             onDismiss = { showImportSheet = false },
-        )
-    }
-
-    // Debug console — same hoisting rationale as the editor sheets above.
-    if (viewModel.session.uiState.showDebugConsole) {
-        val consoleScope = rememberCoroutineScope()
-        DebugConsoleSheet(
-            onExecute = { statement ->
-                viewModel.executeDebugStatement(statement).getOrThrow()
-            },
-            onDismiss = {
-                // Tear the unauthenticated listener down on dismiss (Swift parity —
-                // the console's Close path does the same there).
-                consoleScope.launch { viewModel.closeDebugConsole() }
-                viewModel.session.uiState.showDebugConsole = false
-            },
         )
     }
 }
