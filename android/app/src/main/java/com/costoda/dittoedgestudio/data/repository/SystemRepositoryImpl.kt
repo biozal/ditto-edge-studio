@@ -17,6 +17,7 @@ import com.ditto.kotlin.DittoConnectionType
 import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
+import com.ditto.kotlin.serialization.DittoJsonSerializable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -175,12 +176,7 @@ class SystemRepositoryImpl(
         // the sync stop→start window. The local peer is always shown regardless —
         // it's added by the graph model builder, not from this list.
         val meshPeerList = filterOrphanMeshPeers(
-            peers = allPeersDeduped.map { peer ->
-                MeshPeer(
-                    peerKey = peer.peerKey,
-                    deviceName = peer.deviceName.takeIf { it.isNotBlank() },
-                )
-            },
+            peers = allPeersDeduped.map { peer -> peer.toMeshPeer() },
             edges = meshEdgeList,
         )
 
@@ -239,16 +235,55 @@ class SystemRepositoryImpl(
                 // gradient. Mirrors SwiftUI SystemRepository's
                 // `mapped.filter { isConnectionTypeEnabled($0.type, config:) }`.
                 .filter { info -> config == null || info.type.isEnabledIn(config) },
-            peerMetadata = peerMetadata
-                .takeIf { !it.isNull }
-                ?.toString(),
-            identityServiceMetadata = identityServiceMetadata
-                .takeIf { !it.isNull }
-                ?.toString(),
+            // ObjectValue.toString() is Kotlin map syntax ("{role=my kiosk}"), NOT JSON —
+            // verified: org.json.JSONObject rejects it. The raw string is kept only for
+            // RemotePeerCard's verbatim display; never derive a key count from it, use
+            // the counts below.
+            peerMetadata = peerMetadata.takeIf { it.isNotEmpty() }?.toString(),
+            peerMetadataKeyCount = peerMetadata.keyCountOrZero(),
+            identityServiceMetadata = identityServiceMetadata.takeIf { it.isNotEmpty() }?.toString(),
+            identityServiceMetadataKeyCount = identityServiceMetadata.keyCountOrZero(),
             syncedUpToLocalCommitId = docs?.optLongOrNull(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID),
             lastUpdateReceivedTime = docs?.optLongOrNull(FIELD_LAST_UPDATE_RECEIVED_TIME)?.toDouble(),
         )
     }
+
+    /**
+     * Full `DittoPeer` projection for the mesh view. Everything here is available for
+     * INDIRECT peers as well — the presence graph reports the same fields regardless of
+     * whether we can reach the peer. Sync progress is deliberately absent: it comes from
+     * `system:data_sync_info`, which only has rows for peers we actually receive data
+     * from.
+     *
+     * Metadata is reduced to (raw JSON, top-level key count) here rather than in the UI
+     * so the SDK's serialization types stay out of the Compose layer, and so the key
+     * count is computed once per presence update instead of once per recomposition.
+     */
+    private fun DittoPeer.toMeshPeer(): MeshPeer {
+        // NOT `takeIf { !it.isNull }`: isNull asks "is this the JSON literal null?", so
+        // it is false for an ObjectValue even when the object is empty — verified
+        // against the SDK (empty ObjectValue: isNull=false, isEmpty=true, toString="{}").
+        // Using it would give every peer that never set metadata a non-blank "{}" and
+        // the card would report metadata "present" for all of them.
+        val peerMeta = peerMetadata.takeIf { it.isNotEmpty() }
+        val identityMeta = identityServiceMetadata.takeIf { it.isNotEmpty() }
+        return MeshPeer(
+            peerKey = peerKey,
+            deviceName = deviceName.takeIf { it.isNotBlank() },
+            os = os?.toPeerOS() ?: PeerOS.Unknown,
+            dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
+            isConnectedToDittoServer = isConnectedToDittoServer,
+            isCompatible = isCompatible,
+            peerMetadata = peerMeta?.toString(),
+            peerMetadataKeyCount = peerMeta?.keyCountOrZero() ?: 0,
+            identityServiceMetadata = identityMeta?.toString(),
+            identityServiceMetadataKeyCount = identityMeta?.keyCountOrZero() ?: 0,
+        )
+    }
+
+    /** Top-level key count, 0 if the SDK object can't be converted (never throws). */
+    private fun DittoJsonSerializable.ObjectValue.keyCountOrZero(): Int =
+        runCatching { toMap().size }.getOrDefault(0)
 
     private fun JSONObject.optLongOrNull(key: String): Long? =
         if (has(key) && !isNull(key)) optLong(key) else null

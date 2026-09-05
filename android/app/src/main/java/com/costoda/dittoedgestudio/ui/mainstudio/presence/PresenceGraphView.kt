@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.presence
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -55,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -176,6 +179,16 @@ fun PresenceGraphView(
     // screen a mesh update must never yank a deliberate zoom-in back out from
     // under the person reading a peer name. "Reset view" hands control back.
     val userAdjustedZoom = remember { mutableStateOf(false) }
+    // The one peer whose detail card is open, or null. Accordion semantics: opening one
+    // closes the other, because two screen-space overlays would occlude each other with
+    // no layout keeping them apart. Deliberately view-local — a card anchored to a node
+    // must not outlive the subtree that positions it, so a tab switch closes it.
+    val expandedPeerId = remember { mutableStateOf<String?>(null) }
+    // Measured card size. The card is positioned from its own size, which isn't known
+    // until it has been laid out, so it stays invisible for that one frame rather than
+    // flashing at the wrong place.
+    val cardSizePx = remember { mutableStateOf(IntOffset.Zero) }
+    val cardMarginPx = with(density) { 16.dp.toPx() }
     // The mode that produced the last APPLIED layout. Owned by the layout-apply
     // effect below — a flip means "discard focus + selection, and fit-zoom when
     // entering Direct", honouring the extension's one-layout-per-toggle invariant.
@@ -288,7 +301,15 @@ fun PresenceGraphView(
     // that peer at the centre with its direct neighbours on one orbit; the rest of
     // the mesh stays in place as dimmed context. Exit via the banner ✕, re-tapping
     // the focused peer, or tapping empty canvas. A mode toggle always discards it.
-    fun enterFocusMode(peerId: String) {
+    /**
+     * @param recenterCamera false when this is a *refresh* of an existing focus session
+     *   (a layout pass while already focused) rather than the user entering focus. A
+     *   refresh must leave the camera alone: presence emissions arrive constantly, and
+     *   re-centring on each one would throw away the pan and zoom the user set while
+     *   reading a peer — the same "camera must not fight the user" rule the auto-fit
+     *   follows.
+     */
+    fun enterFocusMode(peerId: String, recenterCamera: Boolean = true) {
         if (currentShowDirectOnly) return
         if (peerId == currentGraphModel.localPeerId) return // the local peer is never focusable
         if (peerStates[peerId] == null) return
@@ -335,9 +356,11 @@ fun PresenceGraphView(
         val sizePx = sceneSizePx.value
         val contentW = (maxRadiusDp * 2f * currentPxPerDp) + maxPillPx + (128f * currentPxPerDp)
         val contentH = (maxRadiusDp * 2f * currentPxPerDp) + maxPillPx + (176f * currentPxPerDp)
-        val fit = PresenceFocusPlanner.fitZoom(contentW, contentH, sizePx.x.toFloat(), sizePx.y.toFloat())
-        val targetScale = PresenceFocusPlanner.focusScale(fitZoom = fit, currentZoom = transform.value.scale)
-        transform.value = Transform(offset = Offset.Zero, scale = targetScale)
+        if (recenterCamera) {
+            val fit = PresenceFocusPlanner.fitZoom(contentW, contentH, sizePx.x.toFloat(), sizePx.y.toFloat())
+            val targetScale = PresenceFocusPlanner.focusScale(fitZoom = fit, currentZoom = transform.value.scale)
+            transform.value = Transform(offset = Offset.Zero, scale = targetScale)
+        }
     }
 
     fun exitFocusMode(restorePositions: Boolean = true) {
@@ -415,7 +438,8 @@ fun PresenceGraphView(
             // composition of a tab-switch re-entry): the focus camera would be
             // computed against a zero size and the re-entry effect below re-fires
             // once onSizeChanged reports the real viewport.
-            focused != null && sceneSizePx.value != IntOffset.Zero -> enterFocusMode(focused)
+            focused != null && sceneSizePx.value != IntOffset.Zero ->
+                enterFocusMode(focused, recenterCamera = false)
             else -> Unit
         }
 
@@ -492,6 +516,21 @@ fun PresenceGraphView(
         if (sceneSizePx.value == IntOffset.Zero) return@LaunchedEffect // wait for the viewport
         if (peerStates[focused] == null) return@LaunchedEffect // layout hasn't placed it yet
         enterFocusMode(focused)
+    }
+
+    // Close the open card whenever the thing it is anchored to stops existing: details
+    // switched off, focus left, or the peer dropped out of the mesh. A card floating
+    // over a node that is gone is worse than no card.
+    LaunchedEffect(focusedPeerId, graphModel.nodes) {
+        val open = expandedPeerId.value ?: return@LaunchedEffect
+        if (focusedPeerId == null || graphModel.nodes.none { it.peerId == open }) {
+            expandedPeerId.value = null
+        }
+    }
+
+    // Android back dismisses the card before anything else consumes it.
+    BackHandler(enabled = expandedPeerId.value != null) {
+        expandedPeerId.value = null
     }
 
     val pathPool = remember { mutableMapOf<String, Path>() }
@@ -620,6 +659,13 @@ fun PresenceGraphView(
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(requireUnconsumed = false)
                     val downPosition = firstDown.position
+                    // Belt and braces with the card's own pointer consumption: if the
+                    // press landed inside the open card, this gesture is not ours. Read
+                    // from MutableState (never captured values) — this lambda is
+                    // pointerInput(Unit) and keeps the first composition's scope.
+                    if (isPointOnOpenCard(downPosition, expandedPeerId.value, cardSizePx.value, sceneSizePx.value, cardMarginPx)) {
+                        return@awaitEachGesture
+                    }
                     val hitPeerId = hitTestPeer(
                         point = downPosition,
                         nodes = currentGraphModel.nodes,
@@ -655,9 +701,16 @@ fun PresenceGraphView(
                             // child just toggled selection — never overwrite that.
                             val anyConsumed = event.changes.any { it.isConsumed }
                             if (!dragStarted && hitPeerId == null && !anyConsumed) {
-                                selectedPeerId.value = null
-                                // Empty-canvas tap also exits focus mode (extension parity).
-                                exitFocusMode()
+                                if (expandedPeerId.value != null) {
+                                    // Dismiss the open card WITHOUT leaving focus — the
+                                    // user is closing an inspector, not backing out of
+                                    // the peer they are investigating.
+                                    expandedPeerId.value = null
+                                } else {
+                                    selectedPeerId.value = null
+                                    // Empty-canvas tap also exits focus mode (extension parity).
+                                    exitFocusMode()
+                                }
                             }
                             if (isPeerDrag) {
                                 if (BuildConfig.DEBUG) Log.d(TAG, "Drag end peer=${draggingPeerId.value}")
@@ -818,6 +871,9 @@ fun PresenceGraphView(
                     val selected = selectedPeerId.value
                     val focused = focusedPeerId
                     val isSelectedPeer = focused == null && selected != null && node.peerId == selected
+                    // The peer whose card is open reads as "selected" so it is obvious
+                    // which pill the floating card belongs to.
+                    val isExpandedPeer = node.peerId == expandedPeerId.value
                     // Neighbourhood membership: focus mode uses the focus orbit;
                     // selection mode uses the selected peer's incident edges.
                     val isInNeighbourhood = when {
@@ -829,8 +885,9 @@ fun PresenceGraphView(
                     // neighbourhood stay full alpha, everyone else dims (0.35
                     // selection / 0.08 focus context) so the structure pops.
                     val dimAlpha = if (focused != null) PresenceFocusPlanner.CONTEXT_PEER_ALPHA else 0.35f
-                    val pillScale = state.scale.value * if (isSelectedPeer) 1.1f else 1f
-                    val pillAlpha = state.alpha.value * if (isInNeighbourhood) 1f else dimAlpha
+                    val pillScale = state.scale.value * if (isSelectedPeer || isExpandedPeer) 1.1f else 1f
+                    val pillAlpha = state.alpha.value *
+                        if (isInNeighbourhood || isExpandedPeer) 1f else dimAlpha
                     drawPresencePeerPill(
                         center = canvasPos,
                         widthPx = measurement.width * transform.value.scale,
@@ -890,6 +947,18 @@ fun PresenceGraphView(
                     .clickable {
                         val focused = focusedPeerId
                         when {
+                            // In focus mode a tap ALWAYS opens (or closes) that peer's
+                            // detail card. Tap used to mean three different things here
+                            // — re-tap exits focus, orbit peer refocuses, dimmed peer
+                            // exits — which is unlearnable; the card is what people
+                            // actually come to focus mode for. The displaced meanings
+                            // are still reachable: exit focus via the banner ✕ or an
+                            // empty-canvas tap, and refocus via the card's own action,
+                            // where it is labelled instead of hidden in a gesture.
+                            focused != null -> {
+                                expandedPeerId.value =
+                                    if (expandedPeerId.value == node.peerId) null else node.peerId
+                            }
                             // Direct mode: tap only dims (selection) — extension parity,
                             // except that local "Me" stays selectable here
                             // (documented intentional deviation).
@@ -922,6 +991,69 @@ fun PresenceGraphView(
                         }
                     },
             )
+        }
+
+        // Expanded detail card. Screen-space and CENTRED: fixed dp, not multiplied by
+        // the camera zoom, and not anchored to its peer. Anchoring put the card wherever
+        // the peer happened to be, including hard against an edge where the parent's
+        // clipToBounds() cut off the sync rows — the rows the card exists for. It
+        // deliberately never reaches `peerFootprints`; the orbit must not move when a
+        // card opens.
+        val openPeerId = expandedPeerId.value
+        if (openPeerId != null) {
+            val openNode = graphModel.nodes.firstOrNull { it.peerId == openPeerId }
+            if (openNode != null) {
+                val cardMargin = with(density) { 16.dp.toPx() }
+                val measured = cardSizePx.value
+                Box(
+                    modifier = Modifier
+                        .onSizeChanged { cardSizePx.value = IntOffset(it.width, it.height) }
+                        .offset {
+                            val placement = centreDetailCard(
+                                cardWidthPx = measured.x.toFloat(),
+                                cardHeightPx = measured.y.toFloat(),
+                                viewportWidthPx = sceneSizePx.value.x.toFloat(),
+                                viewportHeightPx = sceneSizePx.value.y.toFloat(),
+                                marginPx = cardMargin,
+                            )
+                            IntOffset(placement.x.roundToInt(), placement.y.roundToInt())
+                        }
+                        // Tap the card to close it. This also keeps the tap away from the
+                        // graph's canvas handler, which would otherwise read it as an
+                        // empty-canvas tap. Children (the Focus action, the scroll) are
+                        // hit first and consume their own gestures, so they still work —
+                        // an earlier attempt to swallow every event here instead ran in
+                        // the Main pass and cancelled every tap INSIDE the card.
+                        // Non-tap gestures are handled by the isPointOnOpenCard guard in
+                        // the graph's own gesture handler.
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { expandedPeerId.value = null }
+                        // Placement depends on the card's own measured size, so hide it
+                        // for the single frame before that is known.
+                        .alpha(if (measured == IntOffset.Zero) 0f else 1f),
+                ) {
+                    PeerDetailCard(
+                        node = openNode,
+                        maxHeightPx = sceneSizePx.value.y - (cardMargin * 2f),
+                        // Tap no longer refocuses, so the traversal it used to provide
+                        // lives here instead — labelled rather than hidden in a gesture.
+                        onFocusPeer = if (
+                            openNode.peerId != focusedPeerId &&
+                            openNode.peerId != graphModel.localPeerId &&
+                            !openNode.isCloud
+                        ) {
+                            {
+                                expandedPeerId.value = null
+                                enterFocusMode(openNode.peerId)
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
         }
 
         // Focus banner (top-center) — mirrors the VS Code extension's
@@ -1194,6 +1326,38 @@ private fun rememberPulseAlphaState(active: Boolean): State<Float> {
 }
 
 /** Convert a y-up math-coord position to canvas pixels (post transform, post y-flip). */
+/**
+ * True when a press landed on the open detail card, which is centred in the viewport.
+ *
+ * The graph's gesture handler must ignore those presses: the card is an overlay the
+ * canvas knows nothing about, so without this a tap on the card reads as an
+ * empty-canvas tap (dismissing it) and a drag on the card can grab whichever peer
+ * happens to sit underneath.
+ */
+private fun isPointOnOpenCard(
+    point: Offset,
+    openPeerId: String?,
+    cardSizePx: IntOffset,
+    viewportPx: IntOffset,
+    marginPx: Float,
+): Boolean {
+    if (openPeerId == null || cardSizePx == IntOffset.Zero) return false
+    val placement = centreDetailCard(
+        cardWidthPx = cardSizePx.x.toFloat(),
+        cardHeightPx = cardSizePx.y.toFloat(),
+        viewportWidthPx = viewportPx.x.toFloat(),
+        viewportHeightPx = viewportPx.y.toFloat(),
+        marginPx = marginPx,
+    )
+    return cardContains(
+        pointX = point.x,
+        pointY = point.y,
+        placement = placement,
+        cardWidthPx = cardSizePx.x.toFloat(),
+        cardHeightPx = cardSizePx.y.toFloat(),
+    )
+}
+
 private fun mathToCanvas(pos: Offset, sceneCenter: Offset, transform: Transform): Offset {
     val scaled = Offset(pos.x * transform.scale, -pos.y * transform.scale)
     return Offset(
@@ -1291,7 +1455,14 @@ private fun applyLayoutDiff(
             }
         } else {
             existing.exiting = false
-            if (node.peerId !in skipRepositioning) {
+            // Already parked exactly where this layout wants it: nothing to animate.
+            // Worth the check because a layout pass now runs on every presence emission
+            // (peer detail carries sync progress, which ticks constantly), and without
+            // it every node's position coroutine would be cancelled and relaunched
+            // several times a second on a busy mesh. Compares the live position too, so
+            // a peer the user dragged away still animates home.
+            val settled = existing.target == target && existing.position.value == target
+            if (node.peerId !in skipRepositioning && !settled) {
                 existing.target = target
                 // Cancel any in-flight animation coroutines on each Animatable before
                 // launching a replacement. Animatable.animateTo internally cancels its

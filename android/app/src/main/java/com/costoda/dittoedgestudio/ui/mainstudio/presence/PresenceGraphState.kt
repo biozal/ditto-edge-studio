@@ -6,6 +6,7 @@ import androidx.compose.ui.geometry.Offset
 import com.costoda.dittoedgestudio.data.session.PeersUiState
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
+import com.costoda.dittoedgestudio.domain.model.PeerOS
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 
 /**
@@ -32,6 +33,44 @@ data class PeerNode(
     val deviceKind: PeerDeviceKind,
     val isLocal: Boolean,
     val isCloud: Boolean,
+    /**
+     * Everything the SDK knows about this peer, for the focus-mode detail card. Null
+     * only for the synthetic cloud node, which has no `DittoPeer` behind it — the local
+     * peer gets a record built from `LocalPeerInfo`.
+     */
+    val detail: PeerDetail? = null,
+)
+
+/**
+ * The full per-peer payload behind a detail card.
+ *
+ * Every field except the last three comes from `DittoPeer` and is therefore populated
+ * for **indirect** peers as well — the presence graph reports the same shape whether or
+ * not we can reach the peer. [os], [dittoSdkVersion] and [isCompatible] are still
+ * nullable because the SDK learns them gradually.
+ *
+ * [syncedUpToLocalCommitId] and [lastUpdateReceivedTime] come from
+ * `system:data_sync_info`, a local table computed from where this device actually
+ * receives data. It has no rows for peers we have no sync session with, so those two are
+ * null for every indirect peer — by design, not by failure. [isDirectlyConnected]
+ * distinguishes "we have a session and nothing has synced yet" from "there is no session
+ * to report on", which is the difference the card has to show.
+ */
+@Immutable
+data class PeerDetail(
+    val peerKey: String,
+    val deviceName: String?,
+    val os: PeerOS,
+    val dittoSdkVersion: String?,
+    val isConnectedToDittoServer: Boolean?,
+    val isCompatible: Boolean?,
+    val peerMetadata: String?,
+    val peerMetadataKeyCount: Int,
+    val identityServiceMetadata: String?,
+    val identityServiceMetadataKeyCount: Int,
+    val isDirectlyConnected: Boolean,
+    val syncedUpToLocalCommitId: Long?,
+    val lastUpdateReceivedTime: Double?,
 )
 
 /**
@@ -247,15 +286,7 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
     localId: String,
 ): PresenceGraphModel {
     val nodes = mutableListOf<PeerNode>()
-    nodes.add(
-        PeerNode(
-            peerId = localId,
-            displayName = "Me",
-            deviceKind = detectDeviceKind(local.deviceName),
-            isLocal = true,
-            isCloud = false,
-        ),
-    )
+    nodes.add(localPeerNode(local, localId))
 
     val realRemotePeers = remotePeers.filterNot { it.isDittoServer }
 
@@ -295,6 +326,25 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
                 deviceKind = detectDeviceKind(peer.deviceName),
                 isLocal = false,
                 isCloud = false,
+                // Direct mode only ever shows peers we have a session with, so the sync
+                // fields are always meaningful here. isConnectedToDittoServer and
+                // isCompatible aren't carried on SyncStatusInfo — they're mesh-topology
+                // facts, so they stay null rather than being guessed at.
+                detail = PeerDetail(
+                    peerKey = peer.peerId,
+                    deviceName = peer.deviceName?.takeIf { it.isNotBlank() },
+                    os = peer.osInfo,
+                    dittoSdkVersion = peer.dittoSdkVersion,
+                    isConnectedToDittoServer = null,
+                    isCompatible = null,
+                    peerMetadata = peer.peerMetadata,
+                    peerMetadataKeyCount = peer.peerMetadataKeyCount,
+                    identityServiceMetadata = peer.identityServiceMetadata,
+                    identityServiceMetadataKeyCount = peer.identityServiceMetadataKeyCount,
+                    isDirectlyConnected = true,
+                    syncedUpToLocalCommitId = peer.syncedUpToLocalCommitId,
+                    lastUpdateReceivedTime = peer.lastUpdateReceivedTime,
+                ),
             ),
         )
     }
@@ -326,24 +376,21 @@ private fun PeersUiState.Active.buildFullMeshModel(
         return buildDirectOnlyModel(local, localId)
     }
     val nodes = mutableListOf<PeerNode>()
-    nodes.add(
-        PeerNode(
-            peerId = localId,
-            displayName = "Me",
-            deviceKind = detectDeviceKind(local.deviceName),
-            isLocal = true,
-            isCloud = false,
-        ),
-    )
+    nodes.add(localPeerNode(local, localId))
 
     // Carry direct-peer device-name overrides forward so a peer that's both in
     // SyncStatusInfo and the raw graph keeps the same label.
     val directNameById = remotePeers.associate { it.peerId to it.deviceName }
+    // Sync progress is joined in by peer key. `remotePeers` is already filtered to
+    // directly connected peers, so membership here IS the directness test — and the
+    // peers missing from it are exactly the ones system:data_sync_info has no rows for.
+    val directById = remotePeers.associateBy { it.peerId }
     for (peer in mesh.peers) {
         if (peer.peerKey == localId) continue
         val name = directNameById[peer.peerKey]?.takeIf { !it.isNullOrBlank() }
             ?: peer.deviceName?.takeIf { it.isNotBlank() }
             ?: peer.peerKey.take(8)
+        val direct = directById[peer.peerKey]
         nodes.add(
             PeerNode(
                 peerId = peer.peerKey,
@@ -351,6 +398,29 @@ private fun PeersUiState.Active.buildFullMeshModel(
                 deviceKind = detectDeviceKind(name),
                 isLocal = false,
                 isCloud = false,
+                detail = PeerDetail(
+                    peerKey = peer.peerKey,
+                    deviceName = peer.deviceName?.takeIf { it.isNotBlank() }
+                        ?: direct?.deviceName?.takeIf { it.isNotBlank() },
+                    os = if (peer.os != PeerOS.Unknown) peer.os else direct?.osInfo ?: PeerOS.Unknown,
+                    dittoSdkVersion = peer.dittoSdkVersion ?: direct?.dittoSdkVersion,
+                    isConnectedToDittoServer = peer.isConnectedToDittoServer,
+                    isCompatible = peer.isCompatible,
+                    peerMetadata = peer.peerMetadata ?: direct?.peerMetadata,
+                    peerMetadataKeyCount = maxOf(
+                        peer.peerMetadataKeyCount,
+                        direct?.peerMetadataKeyCount ?: 0,
+                    ),
+                    identityServiceMetadata = peer.identityServiceMetadata
+                        ?: direct?.identityServiceMetadata,
+                    identityServiceMetadataKeyCount = maxOf(
+                        peer.identityServiceMetadataKeyCount,
+                        direct?.identityServiceMetadataKeyCount ?: 0,
+                    ),
+                    isDirectlyConnected = direct != null,
+                    syncedUpToLocalCommitId = direct?.syncedUpToLocalCommitId,
+                    lastUpdateReceivedTime = direct?.lastUpdateReceivedTime,
+                ),
             ),
         )
     }
@@ -386,6 +456,42 @@ private fun PeersUiState.Active.buildFullMeshModel(
         isExpandedProjection = true,
     )
 }
+
+/**
+ * The local device's node, with a real detail record.
+ *
+ * Tapping "Me" opens a card like any other peer, and the local device is the one we know
+ * most about — leaving [PeerNode.detail] null made that card claim the local device was
+ * a synthetic node with no peer record, which is simply false.
+ *
+ * The sync rows are absent by design: `system:data_sync_info` tracks what remote peers
+ * have confirmed of OUR commits, so there is no row for ourselves. [PeerDetail.peerKey]
+ * and [PeerNode.isLocal] let the card say that plainly instead of implying a missing
+ * connection.
+ */
+private fun localPeerNode(local: LocalPeerInfo, localId: String): PeerNode = PeerNode(
+    peerId = localId,
+    displayName = "Me",
+    deviceKind = detectDeviceKind(local.deviceName),
+    isLocal = true,
+    isCloud = false,
+    detail = PeerDetail(
+        peerKey = localId,
+        deviceName = local.deviceName.takeIf { it.isNotBlank() },
+        os = PeerOS.Android,
+        dittoSdkVersion = local.sdkVersion.takeIf { it.isNotBlank() && it != "Unknown" },
+        isConnectedToDittoServer = local.isCloudConnected,
+        // Compatibility is a statement about a REMOTE peer's protocol versus ours.
+        isCompatible = null,
+        peerMetadata = null,
+        peerMetadataKeyCount = 0,
+        identityServiceMetadata = null,
+        identityServiceMetadataKeyCount = 0,
+        isDirectlyConnected = false,
+        syncedUpToLocalCommitId = null,
+        lastUpdateReceivedTime = null,
+    ),
+)
 
 private fun appendCloudNodeAndEdge(
     local: LocalPeerInfo,

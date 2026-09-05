@@ -8,7 +8,14 @@ data class SyncStatusInfo(
     val dittoSdkVersion: String?,
     val connections: List<PeerConnectionInfo> = emptyList(),
     val peerMetadata: String? = null,
+    /**
+     * Top-level key count of [peerMetadata]. Carried from the SDK's typed object rather
+     * than derived from the string: `ObjectValue.toString()` emits Kotlin map syntax,
+     * not JSON, so parsing it back always fails.
+     */
+    val peerMetadataKeyCount: Int = 0,
     val identityServiceMetadata: String? = null,
+    val identityServiceMetadataKeyCount: Int = 0,
     val syncedUpToLocalCommitId: Long? = null,
     val lastUpdateReceivedTime: Double? = null,
 ) {

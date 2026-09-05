@@ -141,14 +141,6 @@ import kotlinx.coroutines.launch
     // Rail items actually shown — metrics sections drop out when collection is disabled.
     val railItems = remember(metricsEnabled) { StudioNavItem.visibleEntries(metricsEnabled) }
 
-    // Back button: when the drawer is open, the back press should close the
-    // drawer (matches the long-standing Android pattern), NOT pop the whole
-    // studio entry. Only enabled while the drawer is open so the handler doesn't
-    // interfere with normal back navigation when the drawer is dismissed.
-    BackHandler(enabled = drawerState.isOpen) {
-        coroutineScope.launch { drawerState.close() }
-    }
-
     // Ctrl+1..7 section-switch shortcut modifier — shared by both layout branches.
     // onPreviewKeyEvent on the outermost focusable container intercepts the event before any
     // descendant (rail items, text fields) can consume it. The container is made focusable()
@@ -377,5 +369,20 @@ import kotlinx.coroutines.launch
                 }
             }
         } // end railShortcutModifier Box (drawer-mode layout)
+    }
+
+    // Back button: when the drawer is open, the back press should close the drawer
+    // (matches the long-standing Android pattern), NOT pop the whole studio entry. Only
+    // enabled while the drawer is open so the handler doesn't interfere with normal back
+    // navigation when the drawer is dismissed.
+    //
+    // Registered AFTER content() on purpose. OnBackPressedDispatcher dispatches to the
+    // most recently added enabled callback, and content composed inside this scaffold can
+    // register its own BackHandler (the presence viewer's detail card does). A drawer
+    // covering that content must outrank it, or back silently dismisses something the
+    // user cannot see while the drawer stays open. Moving this call is the whole fix —
+    // keep it last.
+    BackHandler(enabled = drawerState.isOpen) {
+        coroutineScope.launch { drawerState.close() }
     }
 }

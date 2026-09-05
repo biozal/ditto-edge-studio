@@ -93,11 +93,12 @@ class SystemRepositoryTest {
         every { dittoSdkVersion } returns "5.1.0"
         every { os } returns null
         every { isConnectedToDittoServer } returns false
-        every { peerMetadata } returns mockk<DittoJsonSerializable.ObjectValue> {
-            every { isNull } returns true
-        }
-        every { identityServiceMetadata } returns mockk<DittoJsonSerializable.ObjectValue> {
-            every { isNull } returns true
-        }
+        every { isCompatible } returns null
+        // Real empty objects, not mocks stubbing `isNull = true` — the SDK cannot
+        // produce that state (an ObjectValue is never JSON null), and stubbing it hid
+        // the fact that the emptiness guard never fired, so every peer without metadata
+        // was reported as having some.
+        every { peerMetadata } returns DittoJsonSerializable.ObjectValue()
+        every { identityServiceMetadata } returns DittoJsonSerializable.ObjectValue()
     }
 }
