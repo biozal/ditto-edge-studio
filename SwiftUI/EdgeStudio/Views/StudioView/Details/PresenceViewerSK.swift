@@ -72,8 +72,28 @@ struct PresenceViewerSK: View {
                 .padding(.top, 12)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
+
+            // Detail card — centred in the viewport, above the SpriteKit scene rather
+            // than inside it, so it is never scaled by the camera and never reaches the
+            // layout engine's peerFootprints. Anchoring it to its peer would put it
+            // wherever that peer happened to be, including hard against an edge where
+            // the bottom rows — the sync rows the card exists for — are clipped.
+            if let detail = viewModel.openPeerDetail {
+                PeerDetailCardView(
+                    detail: detail,
+                    onFocusPeer: viewModel.canFocusOpenPeer ? { viewModel.focusOpenPeer() } : nil
+                )
+                // Tap-to-close is attached BEFORE the centring frame, so the gesture
+                // covers the card's own bounds only. Attaching it after would make the
+                // full-size frame swallow taps beside the card, which must still reach
+                // the scene as canvas taps (dismiss, or exit focus when no card is open).
+                .onTapGesture { viewModel.dismissDetail() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
         .onAppear {
             createScene()
         }
@@ -142,7 +162,25 @@ struct PresenceViewerSK: View {
         newScene.onFocusChanged = { [weak viewModel] key, name in
             viewModel?.focusedPeerKey = key
             viewModel?.focusedPeerName = name
+            // Focus ending takes any open card with it — the card belongs to a focus
+            // session, and a card anchored to one that has ended is stale.
+            if key == nil {
+                viewModel?.dismissDetail()
+            }
         }
+
+        // In focus mode a tap means "show me this peer".
+        newScene.onPeerDetailRequested = { [weak viewModel] key in
+            viewModel?.toggleDetail(for: key)
+        }
+
+        // Empty-canvas tap while a card is open dismisses the card and keeps focus.
+        newScene.onDetailDismissRequested = { [weak viewModel] in
+            viewModel?.dismissDetail()
+        }
+
+        // A rebuilt scene starts with no card; keep its flag in step with the VM.
+        newScene.hasOpenDetailCard = viewModel.detailPeerKey != nil
 
         scene = newScene
         viewModel.scene = newScene
@@ -324,6 +362,45 @@ extension PresenceViewerSK {
         /// with `focusedPeerName` via the scene's `onFocusChanged`.
         var focusedPeerKey: String?
 
+        /// The peer whose detail card is open, or nil. Accordion semantics: opening one
+        /// closes the other, because two centred overlays would occlude each other.
+        /// Hoisted like `focusedPeerKey` so a card survives a scene rebuild.
+        var detailPeerKey: String?
+
+        /// Sync rows for the open card, keyed by peer key. Refreshed alongside each
+        /// presence push. Only directly connected peers ever appear:
+        /// `system:data_sync_info` is a local table computed from where this device
+        /// actually receives data, so it has no row for an indirect peer or for
+        /// ourselves — which is exactly what the card's three-way sync section reports.
+        private(set) var syncStatusByPeerKey: [String: SyncStatusInfo] = [:]
+
+        /// Detail for the open card, or nil when no card is open (or its peer has left
+        /// the mesh — a card anchored to a peer that is gone must not survive).
+        var openPeerDetail: PresencePeerDetail? {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return nil }
+            let isLocal = key == localPeer.peerKeyString
+            guard let peer = isLocal ? localPeer : rawRemotePeers.first(where: { $0.peerKeyString == key }) else {
+                return nil
+            }
+            let directKeys = PresenceEdgeAggregator.directVisiblePeerKeys(
+                localPeer: localPeer,
+                remotePeers: rawRemotePeers
+            )
+            return PresencePeerDetail(
+                peer: peer,
+                isLocal: isLocal,
+                isDirectlyConnected: directKeys.contains(key),
+                syncStatus: syncStatusByPeerKey[key]
+            )
+        }
+
+        /// Whether the open card's peer can be focused from here — not already focused,
+        /// and not the local device (which is never a valid focus target).
+        var canFocusOpenPeer: Bool {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return false }
+            return key != focusedPeerKey && key != localPeer.peerKeyString
+        }
+
         /// Whether the graph controls (legend, Direct toggle, zoom cluster) are
         /// visible. The eye button and reset control always remain — the VS Code
         /// extension's controls-visibility toggle. Lives on the VM so it survives
@@ -402,6 +479,10 @@ extension PresenceViewerSK {
                             presencePushTask = nil
                             guard !Task.isCancelled else { return }
                             updateSceneWithCurrentFilter()
+                            // Sync rows ride the same 250 ms window as the graph push,
+                            // so an open card's commit id stays current without adding a
+                            // second cadence. Only ever populated for direct peers.
+                            await refreshSyncStatus()
                         }
                     }
                 }
@@ -488,9 +569,50 @@ extension PresenceViewerSK {
             zoomLevel = 1.0
         }
 
-        /// Exit focus mode (the banner's ✕ button).
+        /// Exit focus mode (the banner's ✕ button). Any open card goes with it — it is
+        /// anchored to a focus session that no longer exists.
         func exitFocusMode() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
             scene?.exitFocusMode()
+        }
+
+        /// Toggle the detail card for `key` (accordion: same peer closes, another swaps).
+        func toggleDetail(for key: String) {
+            detailPeerKey = (detailPeerKey == key) ? nil : key
+            scene?.hasOpenDetailCard = detailPeerKey != nil
+        }
+
+        /// Dismiss the open card without leaving focus.
+        func dismissDetail() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+        }
+
+        /// Focus the peer whose card is open (the card's labelled action), replacing the
+        /// traversal that tapping an orbit peer used to provide.
+        func focusOpenPeer() {
+            guard let key = detailPeerKey else { return }
+            dismissDetail()
+            scene?.restoreFocusAfterRebuild(for: key)
+        }
+
+        /// Refresh the sync rows. Degrades to an empty lookup rather than failing the
+        /// card: the presence-graph half is still worth showing when sync is stopped.
+        func refreshSyncStatus() async {
+            guard let ditto = await DittoManager.shared.dittoSelectedApp else { return }
+            var lookup: [String: SyncStatusInfo] = [:]
+            do {
+                let results = try await ditto.store.execute(query: "SELECT * FROM system:data_sync_info")
+                for item in results.items {
+                    let dict = item.value.compactMapValues { $0 }
+                    guard let peerKey = dict["_id"] as? String else { continue }
+                    lookup[peerKey] = SyncStatusInfo(from: dict)
+                }
+            } catch {
+                Log.debug("Presence detail card: system:data_sync_info unavailable — \(error.localizedDescription)")
+            }
+            syncStatusByPeerKey = lookup
         }
 
         // MARK: - Cleanup

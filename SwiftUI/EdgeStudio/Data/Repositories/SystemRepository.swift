@@ -87,27 +87,9 @@ actor SystemRepository {
         localPeerKeyString: String? = nil,
         filteredBy config: DittoConfigForDatabase? = nil
     ) -> PeerEnrichmentData {
-        // Convert DittoPeerOS to custom PeerOS
-        let osInfo: PeerOS? = {
-            guard let dittoOS = peer.os else { return nil }
-
-            // Map DittoPeerOS to custom PeerOS enum
-            let osString = "\(dittoOS)"
-
-            if osString.contains("iOS") || osString.contains("ios") {
-                return .iOS(version: nil)
-            } else if osString.contains("Android") || osString.contains("android") {
-                return .android(version: nil)
-            } else if osString.contains("macOS") || osString.contains("macos") {
-                return .macOS(version: nil)
-            } else if osString.contains("Linux") || osString.contains("linux") {
-                return .linux(version: nil)
-            } else if osString.contains("Windows") || osString.contains("windows") {
-                return .windows(version: nil)
-            } else {
-                return .unknown(name: osString)
-            }
-        }()
+        // Shared with the presence viewer's detail card via PeerOS(dittoPeerOS:) so the
+        // peer list and the card cannot drift apart on OS naming.
+        let osInfo: PeerOS? = PeerOS(dittoPeerOS: peer.os)
 
         // Convert DittoAddress to custom PeerAddressInfo
         // Note: peer.address is deprecated but still usable for display purposes

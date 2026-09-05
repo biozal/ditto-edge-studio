@@ -62,6 +62,17 @@ class PresenceNetworkScene: SKScene {
     /// Called when user changes zoom level via scroll wheel or gestures
     var onZoomChanged: ((CGFloat) -> Void)?
 
+    /// Called when a peer is tapped while the focused view is active. In focus mode a tap
+    /// means "show me this peer" — the host presents a detail card. The meanings this
+    /// displaced remain reachable: exit focus via the banner ✕ or an empty-canvas tap,
+    /// and refocus via the card's own labelled action.
+    var onPeerDetailRequested: ((String) -> Void)?
+
+    /// Called when a tap should dismiss any open detail card (empty canvas, or leaving
+    /// focus). Kept separate from `onPeerDetailRequested` so the host owns card state and
+    /// the scene stays a pure reporter of gestures.
+    var onDetailDismissRequested: (() -> Void)?
+
     // Scene layers
     private var backgroundLayer: FloatingSquaresLayer?
     private var connectionsLayer: SKNode!
@@ -1106,22 +1117,15 @@ class PresenceNetworkScene: SKScene {
             toggleHighlight(for: peer)
             return
         }
-        if let focusedKey = focusedPeerKey {
-            if key == focusedKey {
-                // Re-tapping the focused peer exits focus.
-                clearFocusMode()
-            } else if focusNeighbourhood.contains(key) {
-                // Orbit peer: refocus on it. The local peer is an invalid
-                // selection (extension `selectPeer` clears the selection and
-                // keeps focus), so tapping it inside the orbit is a no-op.
-                if key != localPeerKey {
-                    enterFocusMode(for: key)
-                }
-            } else {
-                // Dimmed context peer: the extension's `nodeAt` skips non-orbit
-                // nodes, so this tap lands on the canvas — exit focus.
-                clearFocusMode()
-            }
+        if focusedPeerKey != nil {
+            // In focus mode a tap ALWAYS means "show me this peer" — it opens (or closes)
+            // that peer's detail card, for every peer including the focused one and the
+            // local device. Tap previously meant three different things here (re-tap
+            // exits, orbit peer refocuses, dimmed peer exits), which is unlearnable, and
+            // the card is what people come to focus mode for. All three displaced
+            // meanings are still reachable: the banner ✕ and an empty-canvas tap exit
+            // focus, and the card carries a labelled "Focus this peer" action.
+            onPeerDetailRequested?(key)
             return
         }
         guard key != localPeerKey else {
@@ -1133,12 +1137,22 @@ class PresenceNetworkScene: SKScene {
 
     /// Tapping empty canvas exits focus (or clears the Direct-mode selection).
     private func handleCanvasTap() {
+        // An open card is dismissed first, and focus is kept: the user is closing an
+        // inspector, not backing out of the peer they are investigating.
+        if let onDetailDismissRequested, hasOpenDetailCard {
+            onDetailDismissRequested()
+            return
+        }
         if focusedPeerKey != nil {
             clearFocusMode()
         } else {
             clearHighlight()
         }
     }
+
+    /// Set by the host while a detail card is on screen, so an empty-canvas tap can
+    /// dismiss the card rather than exiting focus.
+    var hasOpenDetailCard = false
 
     /// Enter (or refresh) the focused-neighbourhood view for `key`.
     ///

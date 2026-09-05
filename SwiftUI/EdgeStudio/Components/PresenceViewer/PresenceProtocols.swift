@@ -7,6 +7,52 @@ protocol PeerProtocol {
     var deviceName: String { get }
     var connectionProtocols: [any ConnectionProtocol] { get }
     var isConnectedToDittoCloud: Bool { get }
+
+    // MARK: Detail-card fields
+
+    //
+    // The presence graph reports all of these for peers the local device cannot reach,
+    // which is most of a focus orbit — the orbit is the *focused* peer's neighbourhood,
+    // not ours. They are deliberately NOT sourced from `SyncStatusInfo`, which only
+    // exists for directly connected peers.
+    //
+    // Nullable because the SDK learns them gradually: a peer can appear in the graph
+    // before its OS or SDK version is known.
+
+    /// Operating system reported by the peer, if known yet.
+    var peerOS: PeerOS? { get }
+    /// Ditto SDK version the peer runs, if known yet.
+    var sdkVersionString: String? { get }
+    /// Whether the peer's protocol is compatible with ours, if known yet.
+    var isCompatiblePeer: Bool? { get }
+    /// Peer metadata as JSON, plus its top-level key count. Nil when the peer has set none.
+    var peerMetadataJSON: (json: String, keyCount: Int)? { get }
+    /// Identity-service metadata (set by the auth webhook) as JSON, plus its key count.
+    var identityMetadataJSON: (json: String, keyCount: Int)? { get }
+}
+
+/// Defaults so conformers that predate the detail card (notably `MockPeer`) keep
+/// compiling, and so a test fixture never has to invent SDK values it doesn't model.
+extension PeerProtocol {
+    var peerOS: PeerOS? {
+        nil
+    }
+
+    var sdkVersionString: String? {
+        nil
+    }
+
+    var isCompatiblePeer: Bool? {
+        nil
+    }
+
+    var peerMetadataJSON: (json: String, keyCount: Int)? {
+        nil
+    }
+
+    var identityMetadataJSON: (json: String, keyCount: Int)? {
+        nil
+    }
 }
 
 /// Protocol abstraction for connection data
@@ -37,6 +83,44 @@ extension DittoPeer: PeerProtocol {
 
     var connectionProtocols: [any ConnectionProtocol] {
         connections.map { $0 as ConnectionProtocol }
+    }
+
+    // MARK: Detail-card bridges
+
+    var peerOS: PeerOS? {
+        PeerOS(dittoPeerOS: os)
+    }
+
+    var sdkVersionString: String? {
+        dittoSDKVersion?.isEmpty == false ? dittoSDKVersion : nil
+    }
+
+    var isCompatiblePeer: Bool? {
+        isCompatible
+    }
+
+    /// Unlike the Kotlin SDK — where `peerMetadata` is a typed `ObjectValue` whose
+    /// `toString()` is Kotlin map syntax rather than JSON, and whose `isNull` is a type
+    /// discriminator rather than an emptiness test — the Swift SDK hands back a plain
+    /// dictionary. Emptiness and JSON encoding are both honest here, so this mirrors
+    /// `SystemRepository`'s existing conversion rather than inventing a second one.
+    var peerMetadataJSON: (json: String, keyCount: Int)? {
+        Self.encodeMetadata(peerMetadata)
+    }
+
+    var identityMetadataJSON: (json: String, keyCount: Int)? {
+        Self.encodeMetadata(identityServiceMetadata)
+    }
+
+    private static func encodeMetadata(_ metadata: [String: Any?]) -> (json: String, keyCount: Int)? {
+        let filtered = metadata.compactMapValues { $0 }
+        guard !filtered.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: filtered, options: [.prettyPrinted, .sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else
+        {
+            return nil
+        }
+        return (json, filtered.count)
     }
 }
 
@@ -235,6 +319,34 @@ enum PresenceFocusPlanner {
     /// Focus-view context dimming (the rest of the mesh stays as backdrop).
     static let contextPeerAlpha: CGFloat = 0.08
     static let contextLineAlpha: CGFloat = 0.04
+}
+
+// MARK: - PeerOS Bridge
+
+extension PeerOS {
+    /// Map the SDK's `DittoPeerOS` onto the app's `PeerOS`.
+    ///
+    /// Extracted from `SystemRepository.extractPeerEnrichment` so the presence viewer's
+    /// detail card and the peer list cannot drift apart on OS naming. The string match
+    /// is kept verbatim from that original: `DittoPeerOS` has no exhaustive public case
+    /// list to switch over, so its description is what there is to work with.
+    init?(dittoPeerOS: DittoPeerOS?) {
+        guard let dittoPeerOS else { return nil }
+        let name = "\(dittoPeerOS)"
+        if name.contains("iOS") || name.contains("ios") {
+            self = .iOS(version: nil)
+        } else if name.contains("Android") || name.contains("android") {
+            self = .android(version: nil)
+        } else if name.contains("macOS") || name.contains("macos") {
+            self = .macOS(version: nil)
+        } else if name.contains("Linux") || name.contains("linux") {
+            self = .linux(version: nil)
+        } else if name.contains("Windows") || name.contains("windows") {
+            self = .windows(version: nil)
+        } else {
+            self = .unknown(name: name)
+        }
+    }
 }
 
 // MARK: - Mock Implementations for Testing

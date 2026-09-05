@@ -77,51 +77,70 @@ final class PresenceNetworkSceneTests {
         #expect(scene.focusedPeerKey == "A")
     }
 
-    @Test("Re-tapping the focused peer exits focus", .tags(.fast))
-    func retapExitsFocus() throws {
+    // Once focused, a tap means "show me this peer" — it reports the peer to the host,
+    // which opens a detail card, and leaves the focus session alone. Tap used to mean
+    // three different things here (re-tap exits, orbit peer refocuses, dimmed peer
+    // exits), which is unlearnable; those meanings moved to the banner ✕, the
+    // empty-canvas tap, and the card's own labelled "Focus this peer" action.
+
+    @Test("Re-tapping the focused peer requests its detail card, keeping focus", .tags(.fast))
+    func retapRequestsDetail() throws {
         let scene = makeScene()
         pushRoutingMesh(scene)
         scene.handlePeerTap(try node("A", in: scene))
+        var requested: [String] = []
+        scene.onPeerDetailRequested = { requested.append($0) }
 
         scene.handlePeerTap(try node("A", in: scene))
 
-        #expect(scene.focusedPeerKey == nil)
+        #expect(requested == ["A"])
+        #expect(scene.focusedPeerKey == "A", "focus must survive a detail tap")
     }
 
-    @Test("Tapping an orbit peer refocuses on it", .tags(.fast))
-    func orbitTapRefocuses() throws {
+    @Test("Tapping an orbit peer requests its detail card, keeping focus", .tags(.fast))
+    func orbitTapRequestsDetail() throws {
         let scene = makeScene()
         pushRoutingMesh(scene)
         scene.handlePeerTap(try node("A", in: scene))
+        var requested: [String] = []
+        scene.onPeerDetailRequested = { requested.append($0) }
 
-        // B is in A's orbit (the A–B edge) — refocus.
+        // B is in A's orbit (the A–B edge). Refocusing on it is now the card's action.
         scene.handlePeerTap(try node("B", in: scene))
 
-        #expect(scene.focusedPeerKey == "B")
-    }
-
-    @Test("Tapping the local peer inside the orbit is a no-op", .tags(.fast))
-    func localInOrbitTapIsNoOp() throws {
-        let scene = makeScene()
-        pushRoutingMesh(scene)
-        scene.handlePeerTap(try node("A", in: scene))
-
-        // local is in A's orbit (the local–A edge) but is never focusable.
-        scene.handlePeerTap(try node("local", in: scene))
-
+        #expect(requested == ["B"])
         #expect(scene.focusedPeerKey == "A")
     }
 
-    @Test("Tapping a dimmed context peer exits focus", .tags(.fast))
-    func contextTapExitsFocus() throws {
+    @Test("Tapping the local peer while focused requests its card too", .tags(.fast))
+    func localInOrbitTapRequestsDetail() throws {
+        // The local device used to be a no-op here. It has a real detail record — it is
+        // the peer we know most about — so it gets a card like any other.
         let scene = makeScene()
         pushRoutingMesh(scene)
         scene.handlePeerTap(try node("A", in: scene))
+        var requested: [String] = []
+        scene.onPeerDetailRequested = { requested.append($0) }
 
-        // C is outside A's neighbourhood — the tap lands as a canvas tap.
+        scene.handlePeerTap(try node("local", in: scene))
+
+        #expect(requested == ["local"])
+        #expect(scene.focusedPeerKey == "A")
+    }
+
+    @Test("Tapping a dimmed context peer requests its detail card, keeping focus", .tags(.fast))
+    func contextTapRequestsDetail() throws {
+        let scene = makeScene()
+        pushRoutingMesh(scene)
+        scene.handlePeerTap(try node("A", in: scene))
+        var requested: [String] = []
+        scene.onPeerDetailRequested = { requested.append($0) }
+
+        // C is outside A's neighbourhood — it still has facts worth reading.
         scene.handlePeerTap(try node("C", in: scene))
 
-        #expect(scene.focusedPeerKey == nil)
+        #expect(requested == ["C"])
+        #expect(scene.focusedPeerKey == "A")
     }
 
     // MARK: (b) Focused-peer departure exits focus (via the model snapshot)
