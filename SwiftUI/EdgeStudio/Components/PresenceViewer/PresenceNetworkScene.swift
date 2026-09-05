@@ -49,6 +49,12 @@ class PresenceNetworkScene: SKScene {
     // Change detection to avoid unnecessary animations
     private var lastPeerKeysSnapshot: Set<String> = []
     private var lastConnectionsSnapshot: Set<String> = [] // "fromKey-toKey-type" format
+    /// The filter mode that produced the last APPLIED layout. A flip changes the ring
+    /// radius scale and the packing strategy, so it has to count as a topology change:
+    /// when every peer is directly connected and there are no remote-to-remote edges,
+    /// both snapshots below are identical across the toggle and the layout would
+    /// otherwise be skipped, leaving the mesh at the wrong scale.
+    private var lastDirectOnlySnapshot: Bool?
 
     // Interaction state
     private var selectedNode: PeerNode?
@@ -188,8 +194,9 @@ class PresenceNetworkScene: SKScene {
 
         let peersChanged = currentPeerKeys != lastPeerKeysSnapshot
         let connectionsChanged = currentConnections != lastConnectionsSnapshot
+        let modeChanged = lastDirectOnlySnapshot != showDirectConnectedOnly
 
-        if peersChanged || connectionsChanged {
+        if peersChanged || connectionsChanged || modeChanged {
             // Check if user is currently interacting with the scene
             if isUserInteracting {
                 // Defer layout until interaction completes
@@ -203,6 +210,7 @@ class PresenceNetworkScene: SKScene {
             // Update snapshots
             lastPeerKeysSnapshot = currentPeerKeys
             lastConnectionsSnapshot = currentConnections
+            lastDirectOnlySnapshot = showDirectConnectedOnly
 
             // After a topology change, re-apply the tap-to-isolate focus so brand-new
             // peers/edges respect the dim, and clear the focus entirely if the
@@ -449,11 +457,26 @@ class PresenceNetworkScene: SKScene {
             ))
         }
 
-        // Calculate BFS-based ring layout
+        // Measured pill widths feed ring capacity, so a mesh of long device names
+        // packs fewer peers per orbit instead of overlapping them.
+        var peerFootprints: [String: CGFloat] = [:]
+        for (peerKey, node) in peerNodes {
+            let width = node.calculateAccumulatedFrame().width
+            if width > 0 {
+                peerFootprints[peerKey] = width
+            }
+        }
+
+        // Calculate BFS-based ring layout. With the "Direct Connected Only" filter off
+        // the whole mesh is on screen, so switch to expanded mode: rings spread wider
+        // and the mesh is packed into as many balanced concentric orbits as it needs,
+        // rather than crowding every peer onto one ring.
         let layoutResult = layoutEngine.calculateLayout(
             localPeerKey: localKey,
             allPeers: peerNodes,
-            connections: connectionInfo
+            connections: connectionInfo,
+            radiusScale: showDirectConnectedOnly ? 1.0 : NetworkLayoutEngine.expandedRadiusScale,
+            peerFootprints: peerFootprints
         )
 
         // Store ring assignments for connection routing optimization (Phase 3, Task 8)
