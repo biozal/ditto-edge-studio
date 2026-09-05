@@ -115,6 +115,9 @@ private const val EXIT_ANIM_MS = 300
 private const val LAYOUT_ANIM_MS = 500
 private const val HIGHLIGHT_ANIM_MS = 150
 
+/** Breathing room kept around the mesh when auto-fitting the camera, in dp. */
+private const val FIT_MARGIN_DP = 40f
+
 private val RemoteGreenLight = Color(0xFF0D8540)
 private val RemoteGreenDark = Color(0xFF1FA858)
 
@@ -168,6 +171,11 @@ fun PresenceGraphView(
     // next applied layout — zoom-out only, never past the user's chosen zoom-in.
     // (VS Code extension `fitZoomToLayout` parity; not fired on initial composition.)
     val fitDirectLayout = remember { mutableStateOf(false) }
+    // True once the user has taken manual control of the camera (pinch, or the
+    // +/- buttons). While set, the auto-fit below stands down: on a debugging
+    // screen a mesh update must never yank a deliberate zoom-in back out from
+    // under the person reading a peer name. "Reset view" hands control back.
+    val userAdjustedZoom = remember { mutableStateOf(false) }
     // The mode that produced the last APPLIED layout. Owned by the layout-apply
     // effect below — a flip means "discard focus + selection, and fit-zoom when
     // entering Direct", honouring the extension's one-layout-per-toggle invariant.
@@ -345,6 +353,35 @@ fun PresenceGraphView(
         }
     }
 
+    /**
+     * Zoom out (never in) until every peer pill of [layout] — and therefore every
+     * device name — is inside the viewport.
+     *
+     * Peer names are the payload of this view when debugging a mesh, so a name
+     * clipped by the container is a functional bug, not a cosmetic one. The
+     * default 100% camera only fits on a wide display: one expanded ring spans
+     * ~433 dp plus a pill, against 344 dp of usable width on a folded Galaxy Z
+     * Fold cover screen.
+     *
+     * Zoom-out only, so this can never fight a user who has zoomed in.
+     */
+    fun fitCameraToLayout(layout: LayoutResult) {
+        val maxRadiusDp = layout.ringRadii.values.maxOrNull() ?: return
+        val sizePx = sceneSizePx.value
+        if (maxRadiusDp <= 0f || sizePx == IntOffset.Zero) return
+        val target = PresenceFocusPlanner.meshFitZoom(
+            maxRingRadiusDp = maxRadiusDp,
+            maxPillWidthPx = currentPills.values.maxOfOrNull { it.width } ?: 0f,
+            pxPerDp = currentPxPerDp,
+            viewWidthPx = sizePx.x.toFloat(),
+            viewHeightPx = sizePx.y.toFloat(),
+            marginPx = FIT_MARGIN_DP * currentPxPerDp,
+        )
+        if (target < transform.value.scale) {
+            transform.value = transform.value.copy(scale = target)
+        }
+    }
+
     // One layout pass = the position diff PLUS the mode/focus bookkeeping that
     // must travel with it (extension invariant: a mode toggle discards focus +
     // selection and arms the Direct fit-zoom). Shared by the layout-apply effect
@@ -384,25 +421,9 @@ fun PresenceGraphView(
 
         if (fitDirectLayout.value) {
             fitDirectLayout.value = false
-            // Zoom OUT (smaller scale shows more content) until the compact layout
-            // fits the viewport — never zoom in past the user's chosen level.
-            val maxRadiusDp = layout.ringRadii.values.maxOrNull() ?: 0f
-            val sizePx = sceneSizePx.value
-            if (maxRadiusDp > 0f && sizePx != IntOffset.Zero) {
-                val maxPillPx = currentPills.values.maxOfOrNull { it.width } ?: 0f
-                val layoutDiameterPx = (maxRadiusDp * 2f * currentPxPerDp) + maxPillPx + (40f * currentPxPerDp)
-                if (layoutDiameterPx > 0f) {
-                    val fitScale = minOf(
-                        sizePx.x.toFloat() / layoutDiameterPx,
-                        sizePx.y.toFloat() / layoutDiameterPx,
-                    )
-                    val current = transform.value.scale
-                    val target = fitScale.coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE)
-                    if (target < current) {
-                        transform.value = transform.value.copy(scale = target)
-                    }
-                }
-            }
+            // A mode toggle is an explicit re-frame, so it re-fits even if the user
+            // had zoomed manually — matching the extension's fitZoomToLayout.
+            fitCameraToLayout(layout)
         }
     }
 
@@ -431,6 +452,23 @@ fun PresenceGraphView(
             )
         }
         applyLayoutWithBookkeeping(layoutResult)
+    }
+
+    // Auto-fit the camera so the entire mesh — every peer pill, and therefore every
+    // device name — stays inside the viewport. This is what makes the viewer usable
+    // on a narrow screen: the layout engine works in absolute dp (a single expanded
+    // ring is ~433 dp across before pills), so at the default 100% zoom the outer
+    // pills fall outside a 344 dp-wide folded Fold cover screen and get clipped by
+    // the container's clipToBounds(), cutting device names in half.
+    //
+    // Re-fires whenever the geometry that decides "does it fit" changes: the ring
+    // radii (topology / mode), the pill widths (a peer renamed, or joined with a
+    // longer name), or the viewport (rotation, fold/unfold, split-screen resize).
+    // Skipped while focused — the focus camera owns the zoom then — and once the
+    // user has driven the camera themselves.
+    LaunchedEffect(layoutResult.ringRadii, pillMeasurements, sceneSizePx.value, pxPerDp) {
+        if (userAdjustedZoom.value || focusedPeerId != null) return@LaunchedEffect
+        fitCameraToLayout(layoutResult)
     }
 
     // Focus re-entry after a Peers ↔ Viewer tab switch: the hoisted id survives
@@ -462,6 +500,9 @@ fun PresenceGraphView(
     // measures at a time inside drawBehind's sequential loop.
     val cloudPathMeasure = remember { androidx.compose.ui.graphics.PathMeasure() }
     val dashEffects = rememberDashEffects()
+    // Design-space (1x zoom) edge constants. drawPresenceEdge applies the camera zoom
+    // to each of them, so that a zoomed-out graph keeps its proportions instead of
+    // drawing 1x-sized thicknesses over a shrunken mesh.
     val cloudCircleSpacingPx = with(density) { 40.dp.toPx() }
     val baseStrokePx = with(density) { 2.dp.toPx() }
     val highlightStrokePx = with(density) { 3.dp.toPx() }
@@ -636,6 +677,7 @@ fun PresenceGraphView(
                         if (pressed.size >= 2) {
                             val zoom = event.calculateZoom()
                             if (zoom != 1f) {
+                                userAdjustedZoom.value = true
                                 transform.value = transform.value.copy(
                                     scale = (transform.value.scale * zoom)
                                         .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE),
@@ -751,6 +793,7 @@ fun PresenceGraphView(
                         arcOutward = edge.arcOutward,
                         parallelOffsetPx = parallelOffsetByEdgeId[edge.edgeId] ?: 0f,
                         cloudCircleSpacingPx = cloudCircleSpacingPx,
+                        zoom = transform.value.scale,
                         path = path,
                         pathMeasure = cloudPathMeasure,
                     )
@@ -797,6 +840,7 @@ fun PresenceGraphView(
                         textColor = textColor,
                         textLayout = measurement.text,
                         scale = pillScale,
+                        zoom = transform.value.scale,
                         alpha = pillAlpha,
                     )
                 }
@@ -889,7 +933,10 @@ fun PresenceGraphView(
                 shape = RoundedCornerShape(percent = 50),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
+                    // Horizontal padding bounds the banner to the viewport so a long
+                    // device name wraps onto a second line instead of growing the
+                    // pill past both screen edges and losing its own ends.
+                    .padding(top = 12.dp, start = 12.dp, end = 12.dp)
                     .semantics { contentDescription = "Focused on $focusedName" },
             ) {
                 Row(
@@ -906,6 +953,9 @@ fun PresenceGraphView(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
+                        // Wrap rather than ellipsise: the name is the reason the
+                        // banner exists, so it is never allowed to be truncated.
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     IconButton(
                         onClick = { exitFocusMode() },
@@ -986,6 +1036,7 @@ fun PresenceGraphView(
                     ) {
                     FilledIconButton(
                         onClick = {
+                            userAdjustedZoom.value = true
                             transform.value = transform.value.copy(
                                 scale = (transform.value.scale - 0.1f)
                                     .coerceAtLeast(Transform.MIN_SCALE),
@@ -1005,6 +1056,7 @@ fun PresenceGraphView(
                     )
                     FilledIconButton(
                         onClick = {
+                            userAdjustedZoom.value = true
                             transform.value = transform.value.copy(
                                 scale = (transform.value.scale + 0.1f)
                                     .coerceAtMost(Transform.MAX_SCALE),
@@ -1038,7 +1090,12 @@ fun PresenceGraphView(
                 ) {
                     FilledIconButton(
                         onClick = {
+                            // Hand the camera back to auto-fit: 100% first, then fit
+                            // the mesh so every device name lands back inside the
+                            // viewport even on a narrow screen.
                             transform.value = Transform.Identity
+                            userAdjustedZoom.value = false
+                            fitCameraToLayout(layoutResult)
                             selectedPeerId.value = null
                             for ((_, state) in peerStates) {
                                 scope.launch {

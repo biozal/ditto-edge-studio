@@ -10,7 +10,15 @@ import kotlin.math.sin
 
 /**
  * BFS ring-layout algorithm for the presence graph. Pure Kotlin, no Compose imports —
- * unit-testable on the JVM. A line-for-line port of iOS `NetworkLayoutEngine.swift`.
+ * unit-testable on the JVM. Ported from iOS `NetworkLayoutEngine.swift` and the VS Code
+ * extension's `src/presence/NetworkLayoutEngine.ts`.
+ *
+ * **Expanded-mode ring packing has deliberately diverged** from both — see
+ * [packBfsRings] and [calculateOptimalAngles]. The shared algorithm gave each BFS
+ * layer its own visual ring and started every ring at 90°, which stranded lone
+ * multi-hop peers on long spokes and drew a seam of stacked nodes straight up. The
+ * reference implementations have the same defect; it is masked there because their
+ * test meshes are a single wide layer. Port these two changes back when convenient.
  *
  * Coordinate system: positions are returned in y-UP math coordinates with the local
  * peer at `(0, 0)`. The Compose-side view layer is responsible for flipping y when
@@ -54,6 +62,13 @@ internal const val EXPANDED_RADIUS_SCALE: Float = 1.75f
 private const val EXPANDED_NODE_FOOTPRINT_DP: Float = 200f
 
 /**
+ * Hard ceiling on visual rings. Ring capacity grows with radius, so ~11 rings already
+ * seat over 500 peers — far past the 120-node mesh this view is built for. Purely a
+ * runaway guard on the packing loop.
+ */
+private const val MAX_VISUAL_RINGS: Int = 32
+
+/**
  * Compute a BFS-based ring layout for the given peers.
  *
  * The cloud node (when present in [peerIds]) is laid out like any other ring-1 peer.
@@ -72,8 +87,9 @@ private const val EXPANDED_NODE_FOOTPRINT_DP: Float = 200f
  * the layout) so long pills aren't packed too tightly; peers without a
  * measurement fall back to [EXPANDED_NODE_FOOTPRINT_DP] / [PEER_DIAMETER_DP].
  *
- * Kept in lockstep with iOS `NetworkLayoutEngine.swift` and the VS Code
- * extension's `src/presence/NetworkLayoutEngine.ts`.
+ * In lockstep with iOS `NetworkLayoutEngine.swift` and the VS Code extension's
+ * `src/presence/NetworkLayoutEngine.ts` apart from the expanded-mode packing and
+ * ring-angle stagger documented at the top of this file.
  *
  * @param localPeerId  the local device's peer key. Always placed at origin (ring 0).
  * @param peerIds      all peer keys to lay out (must include [localPeerId]).
@@ -124,9 +140,27 @@ internal fun calculateRadialLayout(
 // ── Expanded-mode ring packing ─────────────────────────────────────────────────
 
 /**
- * Convert logical BFS layers into visual rings for expanded (full-mesh) mode.
- * A crowded layer may consume several rings, but the next BFS layer never starts
- * until the current layer is complete.
+ * Convert logical BFS layers into balanced visual rings for expanded (full-mesh) mode.
+ *
+ * **Deliberate divergence from the VS Code extension and iOS.** Those implementations
+ * give every BFS layer its own fresh visual ring ("the next BFS layer never starts
+ * until the current layer is complete"). That reads well only when the mesh is a
+ * single wide layer. On a real multicast mesh, where a handful of peers are two or
+ * three hops out, it produces a ring holding exactly one peer at a huge radius — the
+ * lone node dangling on a long spoke, which is what the presence viewer was actually
+ * doing on device. A trailing remainder had the same effect: 60 peers packed as
+ * 6 / 12 / 17 / 23 / **2**, with two nodes stranded on the outermost orbit.
+ *
+ * Instead: flatten the layers in hop order (so low-hop peers still land innermost),
+ * take the fewest rings that can hold everyone, and spread the peers across those
+ * rings **in proportion to each ring's capacity**. Equal capacity share means equal
+ * spacing between neighbours on every orbit, which is what makes the rings read as
+ * balanced — outer rings legitimately hold more peers, exactly as the reference
+ * renderer looks when its mesh happens to be one wide layer.
+ *
+ * A peer two hops out can now share a ring with direct peers. That is the intended
+ * trade: ring index stops being a strict hop count, and becomes "roughly how far out
+ * you are", in exchange for orbits that stay balanced up to 120 nodes.
  */
 private fun packBfsRings(
     bfsRings: Map<Int, List<String>>,
@@ -136,21 +170,85 @@ private fun packBfsRings(
     val packed = HashMap<Int, List<String>>()
     packed[0] = bfsRings[0] ?: emptyList()
 
-    var visualRing = 1
-    for (logicalRing in bfsRings.keys.filter { it > 0 }.sorted()) {
-        val peers = bfsRings[logicalRing] ?: continue
-        var offset = 0
-        while (offset < peers.size) {
-            val capacity = peersPerExpandedRing(visualRing, radiusScale, peers.drop(offset), peerFootprints)
-            // Clamp to the remaining peers (the TS original relies on slice()'s
-            // silent clamping; subList throws instead).
-            val end = minOf(offset + capacity, peers.size)
-            packed[visualRing] = peers.subList(offset, end)
-            offset = end
-            visualRing += 1
-        }
+    // Hop order is preserved across the flatten, so ring 1 still fills with the
+    // nearest peers and the outermost ring still holds the furthest.
+    val ordered = bfsRings.keys.filter { it > 0 }.sorted().flatMap { bfsRings[it].orEmpty() }
+    if (ordered.isEmpty()) return packed
+
+    val capacities = expandedRingCapacities(ordered, radiusScale, peerFootprints)
+    val counts = distributeAcrossRings(ordered.size, capacities)
+
+    var offset = 0
+    for ((index, count) in counts.withIndex()) {
+        if (count <= 0) continue
+        packed[index + 1] = ordered.subList(offset, offset + count)
+        offset += count
     }
     return packed
+}
+
+/**
+ * Capacity of each visual ring, growing outward until the rings can hold [peers].
+ *
+ * Capacity is measured against the widest pill in the whole mesh rather than the
+ * widest still-unplaced one: the balanced packer decides all rings up front, so a
+ * per-ring measurement would depend on an assignment that hasn't happened yet.
+ */
+private fun expandedRingCapacities(
+    peers: List<String>,
+    radiusScale: Float,
+    peerFootprints: Map<String, Float>?,
+): List<Int> {
+    val capacities = mutableListOf<Int>()
+    var seated = 0
+    var ring = 1
+    while (seated < peers.size && ring <= MAX_VISUAL_RINGS) {
+        val capacity = peersPerExpandedRing(ring, radiusScale, peers, peerFootprints)
+        capacities += capacity
+        seated += capacity
+        ring += 1
+    }
+    // Degenerate guard: peersPerExpandedRing always returns >= 1, so the loop only
+    // exits early at the ring cap. Park any overflow on the outermost ring rather
+    // than dropping peers off the graph.
+    if (seated < peers.size && capacities.isNotEmpty()) {
+        capacities[capacities.lastIndex] += peers.size - seated
+    }
+    return capacities
+}
+
+/**
+ * Split [total] peers across rings in proportion to [capacities], never exceeding a
+ * ring's capacity. Largest-remainder apportionment, so the counts sum to exactly
+ * [total] and the rounding loss lands on the rings that were closest to another slot.
+ */
+private fun distributeAcrossRings(total: Int, capacities: List<Int>): IntArray {
+    val counts = IntArray(capacities.size)
+    val capacitySum = capacities.sum()
+    if (capacitySum <= 0 || total <= 0) return counts
+
+    val exact = capacities.map { total.toDouble() * it / capacitySum }
+    for (i in counts.indices) counts[i] = floor(exact[i]).toInt()
+
+    // Hand out what rounding dropped, largest fractional part first. Ties break on
+    // ring index so the same mesh always lays out the same way.
+    val byRemainder = exact.indices.sortedWith(
+        compareByDescending<Int> { exact[it] - floor(exact[it]) }.thenBy { it },
+    )
+    var remaining = total - counts.sum()
+    var progressed = true
+    while (remaining > 0 && progressed) {
+        progressed = false
+        for (index in byRemainder) {
+            if (remaining == 0) break
+            if (counts[index] < capacities[index]) {
+                counts[index] += 1
+                remaining -= 1
+                progressed = true
+            }
+        }
+    }
+    return counts
 }
 
 /**
@@ -296,7 +394,7 @@ private fun calculatePositions(
             // angular spacing. Ring 1 keeps its chord-locality ordering (re-sorted
             // per packed subset so connected pairs stay adjacent within a ring).
             val ordered = if (ring == 1) sortRing1Peers(peers, adjacency) else peers
-            val angles = calculateOptimalAngles(ordered.size)
+            val angles = calculateOptimalAngles(ordered.size, ring)
             for ((i, peer) in ordered.withIndex()) {
                 val a = angles[i]
                 positions[peer] = Point2D(
@@ -306,7 +404,7 @@ private fun calculatePositions(
             }
         } else if (ring == 1) {
             val ordered = sortRing1Peers(peers, adjacency)
-            val angles = calculateOptimalAngles(ordered.size)
+            val angles = calculateOptimalAngles(ordered.size, ring)
             for ((i, peer) in ordered.withIndex()) {
                 val a = angles[i]
                 positions[peer] = Point2D(
@@ -424,10 +522,18 @@ private fun sortRing1Peers(
     return path.toList()
 }
 
-/** Distribute [peerCount] peers evenly around a full circle, starting at the top (90°). */
-private fun calculateOptimalAngles(peerCount: Int): DoubleArray {
+/**
+ * Distribute [peerCount] peers evenly around a full circle.
+ *
+ * Ring 1 starts at the top (90°). Each ring further out is rotated by half of its own
+ * angular step, so consecutive orbits don't line their first peer up on the same
+ * radial spoke. Without the stagger every ring began at exactly 90°, drawing a seam
+ * of stacked nodes straight up from the local peer — and a ring holding a single peer
+ * always put it at the top, when either side of it was free.
+ */
+private fun calculateOptimalAngles(peerCount: Int, ringIndex: Int): DoubleArray {
     if (peerCount <= 0) return DoubleArray(0)
-    val start = PI / 2.0
     val step = 2.0 * PI / peerCount
+    val start = PI / 2.0 + step * 0.5 * (ringIndex - 1)
     return DoubleArray(peerCount) { i -> start + step * i }
 }

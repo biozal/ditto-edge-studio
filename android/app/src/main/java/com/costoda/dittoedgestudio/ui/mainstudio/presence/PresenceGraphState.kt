@@ -66,9 +66,14 @@ data class Transform(val offset: Offset, val scale: Float) {
     companion object {
         val Identity: Transform = Transform(Offset.Zero, 1f)
 
-        /** 0.25 = the VS Code extension's minimum zoom — the deep zoom-out a large
-         *  full-mesh layout needs. */
-        const val MIN_SCALE: Float = 0.25f
+        /**
+         * Minimum zoom. The VS Code extension uses 0.25, but it renders into a
+         * desktop panel roughly 1500 dp wide. A 120-node full mesh spans ~2590 dp
+         * including pills, which needs 0.13 to frame on a 344 dp phone screen and
+         * 0.27 on an unfolded Fold — so 0.25 clamps the auto-fit and clips the
+         * outer ring on exactly the large meshes that most need an overview.
+         */
+        const val MIN_SCALE: Float = 0.1f
 
         /** 2.0 = the VS Code extension's maximum zoom (plan open question #6:
          *  align, resolved in review). */
@@ -114,6 +119,41 @@ internal object PresenceFocusPlanner {
             return 1f
         }
         return minOf(viewWidthPx / contentWidthPx, viewHeightPx / contentHeightPx)
+    }
+
+    /**
+     * Zoom at which a whole mesh layout — the outermost ring PLUS the widest peer
+     * pill and a margin — fits inside the viewport.
+     *
+     * Peer names are drawn inside their pill, so fitting the *pill* footprint (not
+     * just the ring radius) is what guarantees every device name stays fully on
+     * screen. That matters most on narrow displays: a folded Galaxy Z Fold cover
+     * screen is 344 dp wide, while one expanded ring already spans ~433 dp plus a
+     * pill, so the default 100% camera clips the left/right pills against the
+     * view's `clipToBounds()`.
+     *
+     * The margin is treated as if it scaled with the content, which errs slightly
+     * conservative (a marginally wider fit than strictly required) — matching the
+     * Direct-mode fit this generalises.
+     *
+     * @param maxRingRadiusDp outermost ring radius in the layout engine's dp space.
+     * @param maxPillWidthPx  widest measured pill at 1x zoom.
+     * @param marginPx        breathing room around the content at 1x zoom.
+     */
+    @Suppress("LongParameterList")
+    fun meshFitZoom(
+        maxRingRadiusDp: Float,
+        maxPillWidthPx: Float,
+        pxPerDp: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+        marginPx: Float,
+    ): Float {
+        if (maxRingRadiusDp <= 0f || pxPerDp <= 0f) return 1f
+        val contentPx = (maxRingRadiusDp * 2f * pxPerDp) + maxPillWidthPx + marginPx
+        if (contentPx <= 0f) return 1f
+        return fitZoom(contentPx, contentPx, viewWidthPx, viewHeightPx)
+            .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE)
     }
 
     /**

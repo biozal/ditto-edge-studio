@@ -8,6 +8,7 @@ import org.junit.Test
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * Unit tests for [calculateRadialLayout]. Pure JVM — no Compose imports, no Android.
@@ -194,14 +195,16 @@ class PresenceGraphLayoutTest {
             "local", peers, edges, radiusScale = EXPANDED_RADIUS_SCALE,
         )
 
-        // The direct layer fills the first visual rings before the multi-hop peer
-        // is placed outside them.
+        // Hop order still decides who sits innermost — ring 1 is all direct peers and
+        // the multi-hop peer is on the outermost ring. What it must NOT do is claim a
+        // ring of its own: before the balanced packer, "indirect" was alone on ring 3
+        // at a radius half again as large as ring 2, dangling on a long spoke.
         val ring1 = result.ringAssignments[1] ?: emptyList()
         val ring2 = result.ringAssignments[2] ?: emptyList()
-        val ring3 = result.ringAssignments[3] ?: emptyList()
         assertTrue(ring1.isNotEmpty() && ring1.all { it in direct })
-        assertTrue(ring2.isNotEmpty() && ring2.all { it in direct })
-        assertEquals(listOf("indirect"), ring3)
+        assertTrue("the multi-hop peer must share a ring, not get its own", ring2.size > 1)
+        assertTrue("the multi-hop peer belongs on the outermost ring", "indirect" in ring2)
+        assertEquals(null, result.ringAssignments[3])
 
         // Visual rings must expand outward.
         val radii = result.ringRadii.filterKeys { it > 0 }.toSortedMap().values.toList()
@@ -326,5 +329,108 @@ class PresenceGraphLayoutTest {
         // Floor is ~254 (20 × 80dp / 2π); the tiny scale must not shrink it.
         assertTrue("crowding floor should hold ring at ~254, got ${tight.ringRadii[1]}",
             (tight.ringRadii[1] ?: 0f) > 200f)
+    }
+
+    // ── Balanced ring packing (expanded / full-mesh mode) ────────────────────
+
+    private fun ringSizes(result: LayoutResult): List<Int> =
+        result.ringAssignments.keys.filter { it > 0 }.sorted().map { result.ringAssignments[it]!!.size }
+
+    private fun fullMesh(n: Int): LayoutResult {
+        val peers = listOf("local") + (0 until n).map { "P%03d".format(it) }
+        val edges = buildList {
+            for (i in peers.indices) for (j in i + 1 until peers.size) {
+                add(LayoutEdgeInput(peers[i], peers[j]))
+            }
+        }
+        return calculateRadialLayout("local", peers, edges, radiusScale = EXPANDED_RADIUS_SCALE)
+    }
+
+    @Test
+    fun `no ring is left stranded with a lone peer`() {
+        // The on-device symptom: a couple of multi-hop stragglers each took a whole
+        // ring to themselves, hundreds of dp out, on a spoke pointing straight up.
+        val core = (0 until 14).map { "core%02d".format(it) }
+        val peers = listOf("local") + core + listOf("hop2", "hop3")
+        val edges = buildList {
+            val meshed = listOf("local") + core
+            for (i in meshed.indices) for (j in i + 1 until meshed.size) {
+                add(LayoutEdgeInput(meshed[i], meshed[j]))
+            }
+            add(LayoutEdgeInput(core.first(), "hop2"))
+            add(LayoutEdgeInput("hop2", "hop3"))
+        }
+
+        val result = calculateRadialLayout("local", peers, edges, radiusScale = EXPANDED_RADIUS_SCALE)
+
+        val sizes = ringSizes(result)
+        assertTrue("every ring must carry more than one peer, got $sizes", sizes.all { it > 1 })
+        assertEquals(peers.size, result.positions.size)
+    }
+
+    @Test
+    fun `rings grow outward in population, never shrinking to a remainder`() {
+        // 60 peers used to pack as 6/12/17/23/2 — the outermost orbit held two nodes.
+        for (n in listOf(12, 25, 40, 60, 90, 120)) {
+            val sizes = ringSizes(fullMesh(n))
+            assertEquals("all $n peers must be placed", n, sizes.sum())
+            for (i in 1 until sizes.size) {
+                assertTrue(
+                    "ring ${i + 1} must not hold fewer peers than ring $i (n=$n, $sizes)",
+                    sizes[i] >= sizes[i - 1],
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a peer never sits closer together than its neighbours on an inner ring`() {
+        // Capacity-proportional sharing means neighbour spacing stays roughly constant
+        // across orbits, which is what makes the rings read as balanced.
+        val result = fullMesh(60)
+        val gaps = result.ringAssignments.keys.filter { it > 0 }.sorted().map { ring ->
+            val n = result.ringAssignments[ring]!!.size
+            val radius = result.ringRadii[ring]!!
+            2.0 * radius * sin(PI / n)
+        }
+        val smallest = gaps.min()
+        val largest = gaps.max()
+        assertTrue(
+            "neighbour spacing should stay within 2x across rings, got $gaps",
+            largest <= smallest * 2.0,
+        )
+    }
+
+    @Test
+    fun `consecutive rings do not stack their first peer on the same spoke`() {
+        val result = fullMesh(120)
+        val startAngles = result.ringAssignments.keys.filter { it > 0 }.sorted().map { ring ->
+            val first = result.ringAssignments[ring]!!.first()
+            val p = result.positions[first]!!
+            var a = atan2(p.y.toDouble(), p.x.toDouble())
+            if (a < 0) a += 2 * PI
+            a
+        }
+        assertEquals(
+            "every ring started at 90 degrees, drawing a seam straight up",
+            startAngles.size,
+            startAngles.map { Math.round(it * 1000) }.toSet().size,
+        )
+    }
+
+    @Test
+    fun `a single straggler ring cannot park a peer at the top`() {
+        // Two peers one hop apart behind a single direct peer: the old packer put the
+        // 3-hop peer alone on its own ring at exactly 90 degrees.
+        val peers = listOf("local", "a", "b", "c")
+        val edges = listOf(
+            LayoutEdgeInput("local", "a"),
+            LayoutEdgeInput("a", "b"),
+            LayoutEdgeInput("b", "c"),
+        )
+        val result = calculateRadialLayout("local", peers, edges, radiusScale = EXPANDED_RADIUS_SCALE)
+
+        assertEquals("three peers fit one orbit", listOf(3), ringSizes(result))
+        assertEquals(peers.size, result.positions.size)
     }
 }
