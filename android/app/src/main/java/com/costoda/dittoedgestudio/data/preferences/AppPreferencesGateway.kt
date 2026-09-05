@@ -21,14 +21,6 @@ interface AppPreferencesGateway {
     suspend fun setPresenceSplitView(enabled: Boolean)
 
     /**
-     * The database the user last had open in the studio (Room `_id`). Restored on
-     * cold start (parity with SwiftUI's SceneStorage window restoration). Cleared
-     * implicitly when the database is deleted; the restore path validates existence.
-     */
-    val lastOpenDatabaseId: Flow<Long?>
-    suspend fun setLastOpenDatabaseId(id: Long?)
-
-    /**
      * "Show this screen when opening a new database" toggle for the Welcome
      * screen (parity with SwiftUI's `showWelcomeOnNewDatabase` AppStorage).
      * Default true — fresh databases get the onboarding tour.
