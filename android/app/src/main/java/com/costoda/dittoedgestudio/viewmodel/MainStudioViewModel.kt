@@ -279,10 +279,11 @@ class MainStudioViewModel(
         selectedEvent = event
     }
 
-    fun selectedObserverEvents(): List<DittoObserveEvent> {
-        val obsId = selectedObserver?.id ?: return emptyList()
-        return session.observerEventsFor(obsId)
-    }
+    // NOTE: deliberately no `selectedObserverEvents()` helper here. One existed and read
+    // `session.observerEventsFor(id)`, i.e. `_observerEvents.value` — a plain StateFlow
+    // field read, which Compose's snapshot system cannot observe. Callers looked correct
+    // and silently never recomposed when events arrived. Collect [observerEvents] in the
+    // composable and filter by the selected observer's id instead (see ObserverEventsSection).
 
     /**
      * Creates an index. Returns null on success or the error message on failure;

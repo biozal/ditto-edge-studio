@@ -1,7 +1,10 @@
 package com.costoda.dittoedgestudio.ui.mainstudio
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.costoda.dittoedgestudio.domain.model.DittoObservable
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 
@@ -49,9 +52,22 @@ fun ObserverEventsSection(
     viewModel: MainStudioViewModel,
     modifier: Modifier = Modifier,
 ) {
+    // Collect the events StateFlow rather than calling viewModel.selectedObserverEvents():
+    // that helper reads `_observerEvents.value` directly, and a plain StateFlow `.value`
+    // read is invisible to Compose's snapshot system. Nothing subscribed, so an active
+    // observer's events landed in the store and the pane never recomposed — it sat on
+    // "No events captured yet" forever. Collecting here registers the dependency.
+    val allEvents by viewModel.observerEvents.collectAsStateWithLifecycle()
+    val selected = viewModel.selectedObserver
+    val events = remember(allEvents, selected?.id) {
+        val observeId = selected?.id?.toString()
+        if (observeId == null) emptyList() else allEvents.filter { it.observeId == observeId }
+    }
+
     ObserverDetailScreen(
-        selectedObserver = viewModel.selectedObserver,
-        events = viewModel.selectedObserverEvents(),
+        selectedObserver = selected,
+        events = events,
+        isActive = selected?.let { viewModel.isObserverActive(it) } == true,
         selectedEvent = viewModel.selectedEvent,
         filterMode = viewModel.eventFilterMode,
         onSelectEvent = { viewModel.selectEvent(it) },
