@@ -65,8 +65,8 @@ class StudioKeyboardShortcutsTest {
     }
 
     @Test
-    fun `digit 8 returns null (beyond 7 entries)`() {
-        assertNull(studioNavItemForDigit(8))
+    fun `digit 9 returns null (beyond 8 entries)`() {
+        assertNull(studioNavItemForDigit(9))
     }
 
     @Test
@@ -79,11 +79,11 @@ class StudioKeyboardShortcutsTest {
     // ---------------------------------------------------------------------------
 
     @Test
-    fun `each StudioNavItem entry is reachable from exactly one digit 1-7`() {
+    fun `each StudioNavItem entry is reachable from exactly one digit 1-8`() {
         val entries = StudioNavItem.entries
         assertEquals(
-            "Expected 7 StudioNavItem entries; mapping table must be updated if this changes",
-            7,
+            "Expected 8 StudioNavItem entries; mapping table must be updated if this changes",
+            8,
             entries.size,
         )
         entries.forEachIndexed { index, item ->
@@ -97,8 +97,8 @@ class StudioKeyboardShortcutsTest {
     }
 
     @Test
-    fun `digits 1-7 cover every index in StudioNavItem entries`() {
-        val mapped = (1..7).mapNotNull { studioNavItemForDigit(it) }
+    fun `digits 1-8 cover every index in StudioNavItem entries`() {
+        val mapped = (1..8).mapNotNull { studioNavItemForDigit(it) }
         assertEquals(StudioNavItem.entries.toList(), mapped)
     }
 
@@ -109,10 +109,12 @@ class StudioKeyboardShortcutsTest {
     @Test
     fun `digit positions follow the visible items list when metrics are hidden`() {
         val visible = StudioNavItem.visibleEntries(metricsEnabled = false)
-        // With APP_METRICS and QUERY_METRICS hidden, DISK_USAGE shifts from digit 7 to 5.
+        // With APP_METRICS, QUERY_METRICS and SYSTEM_METRICS hidden, DISK_USAGE
+        // shifts from digit 7 to 5 and nothing sits beyond it.
         assertEquals(StudioNavItem.DISK_USAGE, studioNavItemForDigit(5, visible))
         assertNull(studioNavItemForDigit(6, visible))
         assertNull(studioNavItemForDigit(7, visible))
+        assertNull(studioNavItemForDigit(8, visible))
     }
 
 }

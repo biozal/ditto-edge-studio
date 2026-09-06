@@ -179,6 +179,17 @@ class StudioSession(
     private var systemMetricsJob: Job? = null
 
     /**
+     * Manual-refresh signal for the poll loop. Extra buffer capacity with
+     * DROP_OLDEST so a tap while a poll is in flight is never lost and repeated
+     * taps collapse into one pending wake-up.
+     */
+    private val systemMetricsRefreshRequests =
+        kotlinx.coroutines.flow.MutableSharedFlow<Unit>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+        )
+
+    /**
      * Starts 5-second polling of `SELECT * FROM system:metrics`. Idempotent; call from
      * the dashboard's on-visible and [stopSystemMetricsPolling] on-hidden. When the
      * "Collect system metrics" setting is off, reports SETTING_DISABLED and stays idle
@@ -205,7 +216,7 @@ class StudioSession(
                         samples = emptyList(),
                         status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.NO_CONNECTION,
                     )
-                    delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+                    awaitNextSystemMetricsPoll()
                     continue
                 }
                 if (!zeroed) {
@@ -253,14 +264,48 @@ class StudioSession(
                         errorMessage = e.message,
                     )
                 }
-                delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+                awaitNextSystemMetricsPoll()
             }
         }
+    }
+
+    /** Sleeps until the cadence elapses OR a manual refresh arrives, whichever
+     *  comes first — the poll loop's only wait. */
+    private suspend fun awaitNextSystemMetricsPoll() {
+        withTimeoutOrNull(SYSTEM_METRICS_POLL_INTERVAL_MS) {
+            systemMetricsRefreshRequests.first()
+        }
+    }
+
+    /**
+     * Wakes the poll loop for one immediate read ahead of the cadence. Safe while
+     * a poll is in flight: reads flush Ditto's registry, so an extra read only
+     * moves activity from the next poll's delta into this one — the accumulated
+     * totals stay correct. A no-op when nothing is polling.
+     */
+    fun refreshSystemMetricsNow() {
+        systemMetricsRefreshRequests.tryEmit(Unit)
     }
 
     fun stopSystemMetricsPolling() {
         systemMetricsJob?.cancel()
         systemMetricsJob = null
+    }
+
+    /**
+     * Pinned system-metrics series for THIS database, in pin order. Session-scoped
+     * so the list survives rail-section switches; the underlying DataStore write
+     * makes it survive process death too.
+     */
+    val systemMetricPins: StateFlow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>> =
+        appPreferences.systemMetricPins(databaseId)
+            .stateIn(sessionScope, SharingStarted.Eagerly, emptyList())
+
+    /** Wholesale replacement of the pinned list — the screen owns edits. */
+    fun setSystemMetricPins(
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) {
+        sessionScope.launch { appPreferences.setSystemMetricPins(databaseId, pins) }
     }
 
     // ── Debug Console (SDK 5.1 debug_socket) ─────────────────────────────────

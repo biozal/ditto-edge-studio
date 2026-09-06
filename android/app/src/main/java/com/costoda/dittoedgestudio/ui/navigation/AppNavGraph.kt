@@ -39,6 +39,7 @@ import com.costoda.dittoedgestudio.ui.database.DatabaseEditorScreen
 import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.AppMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.DiskUsageSection
+import com.costoda.dittoedgestudio.ui.mainstudio.SystemMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEditorHost
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
@@ -418,6 +419,13 @@ fun AppNavGraph() {
                     entry<DiskUsageKey> { key ->
                         StudioSectionContainer(key.databaseId, StudioNavItem.DISK_USAGE) { viewModel ->
                             DiskUsageSection(mainViewModel = viewModel)
+                        }
+                    }
+
+                    // ── Scene-driven section: System Metrics ─────────────────────────────
+                    entry<SystemMetricsKey> { key ->
+                        StudioSectionContainer(key.databaseId, StudioNavItem.SYSTEM_METRICS) { viewModel ->
+                            SystemMetricsSection(mainViewModel = viewModel)
                         }
                     }
 

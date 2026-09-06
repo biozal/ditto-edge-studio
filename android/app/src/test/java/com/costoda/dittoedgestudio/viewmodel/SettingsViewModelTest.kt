@@ -1,9 +1,12 @@
 package com.costoda.dittoedgestudio.viewmodel
 
 import com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway
+import com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -96,6 +99,15 @@ class SettingsViewModelTest {
         override val collectSystemMetrics = _collectSystemMetrics
         override suspend fun setCollectSystemMetrics(enabled: Boolean) {
             _collectSystemMetrics.value = enabled
+        }
+
+        // Pinned system-metrics series, in pin order. In-memory per database —
+        // the real gateway persists them in DataStore.
+        private val _pins = MutableStateFlow<Map<Long, List<SystemMetricSeriesRef>>>(emptyMap())
+        override fun systemMetricPins(databaseId: Long): Flow<List<SystemMetricSeriesRef>> =
+            _pins.map { it[databaseId].orEmpty() }
+        override suspend fun setSystemMetricPins(databaseId: Long, pins: List<SystemMetricSeriesRef>) {
+            _pins.value = _pins.value + (databaseId to pins.distinctBy { it.id })
         }
     }
 }

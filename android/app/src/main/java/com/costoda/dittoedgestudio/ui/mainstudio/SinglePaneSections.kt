@@ -5,14 +5,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.AppMetricsScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.DiskUsageScreen
+import com.costoda.dittoedgestudio.ui.mainstudio.metrics.SystemMetricsScreen
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import com.costoda.dittoedgestudio.viewmodel.DiskUsageViewModel
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import org.koin.androidx.compose.koinViewModel
 
 /**
- * Scene-driven section composables for the three single-pane rail sections:
- * Log Analyzer, App Metrics, and Database Metrics.
+ * Scene-driven section composables for the four single-pane rail sections:
+ * Log Analyzer, App Metrics, Database Metrics, and System Metrics.
  *
  * Each composable is the `content` lambda passed to [StudioSectionContainer] in
  * [com.costoda.dittoedgestudio.ui.navigation.AppNavGraph]. They resolve their
@@ -76,5 +77,23 @@ fun DiskUsageSection(
         viewModel = diskUsageViewModel,
         modifier = modifier.fillMaxSize(),
         mainViewModel = mainViewModel,
+    )
+}
+
+/**
+ * System Metrics section content (SDK 5.1 `system:metrics`).
+ *
+ * Everything it shows — the polled snapshot and the pinned series — is session
+ * scoped, so the whole screen is driven by the studio VM; there is no separate
+ * ViewModel to resolve.
+ */
+@Composable
+fun SystemMetricsSection(
+    mainViewModel: MainStudioViewModel,
+    modifier: Modifier = Modifier,
+) {
+    SystemMetricsScreen(
+        viewModel = mainViewModel,
+        modifier = modifier.fillMaxSize(),
     )
 }

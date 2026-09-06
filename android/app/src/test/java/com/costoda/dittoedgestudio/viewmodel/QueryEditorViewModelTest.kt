@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
@@ -906,5 +907,20 @@ private class FakeAppPreferences(initialMetricsEnabled: Boolean) :
     override val collectSystemMetrics = kotlinx.coroutines.flow.MutableStateFlow(true)
     override suspend fun setCollectSystemMetrics(enabled: Boolean) {
         collectSystemMetrics.value = enabled
+    }
+
+    // Not exercised by these tests — pinning is a System Metrics screen concern.
+    private val pins = kotlinx.coroutines.flow.MutableStateFlow(
+        emptyMap<Long, List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>>(),
+    )
+    override fun systemMetricPins(
+        databaseId: Long,
+    ): kotlinx.coroutines.flow.Flow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>> =
+        pins.map { it[databaseId].orEmpty() }
+    override suspend fun setSystemMetricPins(
+        databaseId: Long,
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) {
+        this.pins.value = this.pins.value + (databaseId to pins.distinctBy { it.id })
     }
 }

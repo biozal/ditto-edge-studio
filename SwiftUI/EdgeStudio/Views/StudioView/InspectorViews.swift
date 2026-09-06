@@ -10,7 +10,7 @@ extension MainStudioView {
                 queryTabInspectorView()
             case .observers:
                 observeDetailInspectorView()
-            case .appMetrics, .queryMetrics:
+            case .appMetrics, .queryMetrics, .systemMetrics:
                 metricsInspectorView()
             case .logging:
                 loggingInspectorView()
@@ -170,7 +170,11 @@ extension MainStudioView {
     }
 
     private func metricsDocsInspectorContent() -> some View {
-        let resourceName = viewModel.selectedSidebarDestination == .appMetrics ? "appmetrics" : "querymetrics"
+        let resourceName = switch viewModel.selectedSidebarDestination {
+        case .appMetrics: "appmetrics"
+        case .systemMetrics: "systemmetrics"
+        default: "querymetrics"
+        }
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Metrics Help").font(.headline)

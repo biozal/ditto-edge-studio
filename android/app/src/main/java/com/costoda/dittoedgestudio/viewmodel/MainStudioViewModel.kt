@@ -3,6 +3,7 @@ package com.costoda.dittoedgestudio.viewmodel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.outlined.DataUsage
+import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Storage
@@ -39,7 +40,8 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
     LOGGING("Log Analyzer", Icons.Outlined.Description),
     APP_METRICS("App Metrics", Icons.Outlined.Memory),
     QUERY_METRICS("Query Metrics", Icons.AutoMirrored.Outlined.ManageSearch),
-    DISK_USAGE("Database Metrics", Icons.Outlined.DataUsage);
+    DISK_USAGE("Database Metrics", Icons.Outlined.DataUsage),
+    SYSTEM_METRICS("System Metrics", Icons.Outlined.MonitorHeart);
 
     val helpFileName: String get() = when (this) {
         SUBSCRIPTIONS -> "subscription.md"
@@ -49,11 +51,13 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
         APP_METRICS -> "appmetrics.md"
         QUERY_METRICS -> "querymetrics.md"
         DISK_USAGE -> "diskusage.md"
+        SYSTEM_METRICS -> "systemmetrics.md"
     }
 
     /** True when this item only appears while "Collect Metrics" is enabled — mirrors
      *  SwiftUI's `SidebarDestination.isMetricsDestination`. */
-    val isMetricsDestination: Boolean get() = this == APP_METRICS || this == QUERY_METRICS
+    val isMetricsDestination: Boolean get() =
+        this == APP_METRICS || this == QUERY_METRICS || this == SYSTEM_METRICS
 
     companion object {
         /** Rail items visible for the given "Collect Metrics" setting — mirrors SwiftUI's
@@ -260,6 +264,15 @@ class MainStudioViewModel(
         get() = session.systemMetrics
     fun startSystemMetricsPolling() = session.startSystemMetricsPolling()
     fun stopSystemMetricsPolling() = session.stopSystemMetricsPolling()
+    fun refreshSystemMetricsNow() = session.refreshSystemMetricsNow()
+
+    /** Pinned system-metrics series for the open database, in pin order. */
+    val systemMetricPins: StateFlow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>>
+        get() = session.systemMetricPins
+
+    fun setSystemMetricPins(
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) = session.setSystemMetricPins(pins)
 
     // ── Debug console (SDK 5.1 debug_socket) ─────────────────────────────────
     val debugConsoleActive: StateFlow<Boolean> get() = session.debugConsoleActive
