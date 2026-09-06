@@ -228,8 +228,18 @@ struct SyncStatusInfo: Identifiable, Equatable {
         return "unknown"
     }
 
+    /// Equality means **identical as rendered**: every field a peer card draws
+    /// is compared.
+    ///
+    /// `addressInfo`, `identityMetadata`, `peerMetadata`, `connections` and
+    /// `lastUpdateReceivedTime` used to be excluded. That was safe only while
+    /// `SyncStatusViewModel` assigned `syncStatusItems` unconditionally — the
+    /// view refreshed regardless of what `==` said. Now that the assignment is
+    /// gated on inequality (so an idle presence tick stops invalidating the
+    /// whole detail tree), an excluded field would mean a card that never
+    /// updates when only that field changes. Every one of them is drawn by
+    /// `ConnectedPeersView.syncStatusCard`.
     static func == (lhs: SyncStatusInfo, rhs: SyncStatusInfo) -> Bool {
-        // Compare the properties that define equality
         lhs.id == rhs.id &&
             lhs.peerType == rhs.peerType &&
             lhs.syncSessionStatus == rhs.syncSessionStatus &&
@@ -237,8 +247,12 @@ struct SyncStatusInfo: Identifiable, Equatable {
             lhs.deviceName == rhs.deviceName &&
             lhs.osInfo == rhs.osInfo &&
             lhs.dittoSDKVersion == rhs.dittoSDKVersion &&
-            lhs.dominantConnectionType == rhs.dominantConnectionType
-        // Note: addressInfo and identityMetadata intentionally excluded
+            lhs.dominantConnectionType == rhs.dominantConnectionType &&
+            lhs.lastUpdateReceivedTime == rhs.lastUpdateReceivedTime &&
+            lhs.addressInfo == rhs.addressInfo &&
+            lhs.identityMetadata == rhs.identityMetadata &&
+            lhs.peerMetadata == rhs.peerMetadata &&
+            lhs.connections == rhs.connections
     }
 
     /// Cached formatter — `DateFormatter` init is expensive (~1ms) and this is

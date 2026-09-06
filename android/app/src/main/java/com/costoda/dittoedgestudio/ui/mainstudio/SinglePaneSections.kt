@@ -25,6 +25,10 @@ import org.koin.androidx.compose.koinViewModel
  *
  * [viewModel.loggingCaptureService] is the session-scoped [com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService],
  * forwarded directly to [LoggingScreen] — the same resolution used in the legacy monolith.
+ *
+ * The session's current database config is forwarded too, so the Logs toolbar's
+ * SDK log level can be read from and written back to it (SwiftUI persists the
+ * same choice via `DittoManager.changeDittoLogLevel`).
  */
 @Composable
 fun LoggingSection(
@@ -34,6 +38,7 @@ fun LoggingSection(
     LoggingScreen(
         captureService = viewModel.loggingCaptureService,
         modifier = modifier.fillMaxSize(),
+        activeDatabase = viewModel.session.currentDatabase(),
     )
 }
 

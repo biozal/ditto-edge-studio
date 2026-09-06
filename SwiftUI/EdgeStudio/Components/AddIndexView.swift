@@ -32,13 +32,11 @@ struct AddIndexView: View {
                         HStack(spacing: 12) {
                             TextField("Field \(index + 1)", text: $field.name)
                                 .autocorrectionDisabled()
-                            Picker("Direction", selection: $field.ascending) {
-                                Text("ASC").tag(true)
-                                Text("DESC").tag(false)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
-                            .frame(width: 140)
+                            DittoSegmentedPicker(
+                                options: [true, false],
+                                selection: $field.ascending
+                            ) { $0 ? "ASC" : "DESC" }
+                                .frame(width: 140)
                             if fields.count > 1 {
                                 Button {
                                     fields.removeAll { $0.id == field.id }

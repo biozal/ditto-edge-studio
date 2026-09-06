@@ -36,14 +36,25 @@ import com.costoda.dittoedgestudio.ui.theme.SulfurYellow
 fun CollectionListItem(
     collection: DittoCollection,
     modifier: Modifier = Modifier,
+    onSelect: ((DittoCollection) -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
+        // Two tap targets, mirroring SwiftUI's DisclosureGroup: the chevron
+        // expands to reveal indexes, the rest of the row loads
+        // `SELECT * FROM <name>` into the editor. Previously the whole row only
+        // expanded, so there was no way to query a collection by tapping it.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .then(
+                    if (onSelect != null) {
+                        Modifier.clickable { onSelect(collection) }
+                    } else {
+                        Modifier.clickable { expanded = !expanded }
+                    },
+                )
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -54,8 +65,14 @@ fun CollectionListItem(
                 } else {
                     Icons.AutoMirrored.Outlined.KeyboardArrowRight
                 },
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                contentDescription = if (expanded) {
+                    "Collapse ${collection.name} indexes"
+                } else {
+                    "Expand ${collection.name} indexes"
+                },
+                modifier = Modifier
+                    .size(16.dp)
+                    .clickable { expanded = !expanded },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Icon(
@@ -64,16 +81,27 @@ fun CollectionListItem(
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                text = collection.name,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface,
+            // Name on one line, count stacked beneath it — matching SwiftUI.
+            //
+            // Side by side the two compete for the same row, and on a phone (or
+            // a narrow drawer) the name loses: `order_items` truncated to
+            // `order_i…` while the badge kept its full width. Stacking fits both
+            // at every width, and the count reads as metadata about the row
+            // rather than a peer of its title.
+            Column(
                 modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            collection.docCount?.let { count ->
-                DocCountBadge(count)
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = collection.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                collection.docCount?.let { count ->
+                    DocCountBadge(count)
+                }
             }
         }
 
@@ -172,10 +200,12 @@ private fun DocCountBadge(count: Int) {
         shape = MaterialTheme.shapes.extraSmall,
     ) {
         Text(
+            // A step smaller than the collection name above it.
             text = count.toString(),
             style = MaterialTheme.typography.labelSmall,
             color = JetBlack,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
         )
     }
 }

@@ -43,15 +43,12 @@ struct DatabaseEditorView: View {
                 Form {
                     HStack {
                         Spacer()
-                        Picker("", selection: $viewModel.mode) {
-                            ForEach(AuthMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-                        .accessibilityIdentifier("AuthModePicker")
+                        DittoSegmentedPicker(
+                            options: AuthMode.allCases,
+                            selection: $viewModel.mode
+                        ) { $0.displayName }
+                            .frame(maxWidth: 300)
+                            .accessibilityIdentifier("AuthModePicker")
                         Spacer()
                     }
                     #if os(macOS)

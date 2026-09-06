@@ -336,7 +336,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    .frame(minWidth: 360, minHeight: 420)
+                #if os(macOS)
+                    .frame(minWidth: 620, minHeight: 800)
+                #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -376,6 +378,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
+                    #if os(macOS)
+                        .frame(minWidth: 620, minHeight: 800)
+                    #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {

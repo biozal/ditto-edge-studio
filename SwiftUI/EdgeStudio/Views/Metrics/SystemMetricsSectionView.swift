@@ -53,13 +53,21 @@ struct SystemMetricsSectionView: View {
             HStack(spacing: 8) {
                 Label("System Metrics", systemImage: "waveform.path.ecg")
                     .font(.headline)
-                Spacer()
-                Picker("", selection: $namespaceFilter) {
-                    ForEach(SystemMetricsNamespaceFilter.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 320)
+                Spacer(minLength: 0)
+            }
+
+            // Centered, per the segmented-picker pattern in CLAUDE.md — the
+            // Spacer pair is what does the centering. Previously this sat hard
+            // right of the heading, which read as an afterthought rather than
+            // as the control governing the table below it.
+            HStack {
+                Spacer(minLength: 0)
+                DittoSegmentedPicker(
+                    options: SystemMetricsNamespaceFilter.allCases,
+                    selection: $namespaceFilter
+                ) { $0.rawValue }
+                    .frame(maxWidth: 320)
+                Spacer(minLength: 0)
             }
 
             switch snapshot.status {

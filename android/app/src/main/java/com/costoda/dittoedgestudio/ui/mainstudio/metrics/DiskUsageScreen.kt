@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -200,11 +201,17 @@ private fun SectionSelector(
                         index = index,
                         count = Section.entries.size,
                     ),
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SulfurYellow,
-                        activeContentColor = Color.Black,
-                        activeBorderColor = SulfurYellow,
-                    ),
+                    // Brand yellow in dark mode only; light mode keeps the
+                    // Material defaults. See `dittoToggleButtonColors`.
+                    colors = if (isSystemInDarkTheme()) {
+                        SegmentedButtonDefaults.colors(
+                            activeContainerColor = SulfurYellow,
+                            activeContentColor = Color.Black,
+                            activeBorderColor = SulfurYellow,
+                        )
+                    } else {
+                        SegmentedButtonDefaults.colors()
+                    },
                 ) {
                     Text(section.label)
                 }

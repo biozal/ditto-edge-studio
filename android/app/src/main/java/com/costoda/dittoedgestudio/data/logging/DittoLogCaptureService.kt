@@ -15,8 +15,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Date
@@ -47,7 +52,22 @@ class DittoLogCaptureService(
         internal const val MAX_APP_ENTRIES = 5_000
         internal const val MAX_TRANSPORT_ENTRIES = 5_000
         internal const val MAX_CONNECTION_REQUEST_ENTRIES = 5_000
-        internal const val MAX_DISPLAYED_ENTRIES = 200
+        /**
+     * Cap on **rendered rows**, applied by `LoggingScreen` after filtering.
+     *
+     * It is deliberately *not* applied to [liveEntries]. Publishing only the
+     * newest 200 entries used to mean every number on the Logging screen —
+     * badges, both histograms, connection durations, tags, the time range, the
+     * context slice — was computed over at most 200 live lines while the store
+     * held up to [MAX_LIVE_ENTRIES]. It also silently neutralised pairing
+     * connection sessions "over the full buffer", because the full buffer the UI
+     * could see *was* 200 lines, and it made the [bufferNearlyFull] /
+     * [entriesDropped] banners describe a store the UI never read.
+     *
+     * The row cap belongs at the display layer; the data source publishes
+     * everything it retains.
+     */
+    internal const val MAX_DISPLAYED_ENTRIES = 200
     }
 
     // ── Layer 1: lock-free raw event buffer ──────────────────────────────────
@@ -68,6 +88,28 @@ class DittoLogCaptureService(
     private val _historicalEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val historicalEntries: StateFlow<List<LogEntry>> = _historicalEntries.asStateFlow()
 
+    /**
+     * [historicalEntries] and [liveEntries] merged into one chronological stream
+     * — the population the SDK tab analyses.
+     *
+     * Merged **here**, on a background dispatcher, rather than in a
+     * `derivedStateOf` in the composable. Both inputs are already sorted, so this
+     * is a linear two-pointer merge rather than a sort, and it now runs over up
+     * to [MAX_HISTORICAL_ENTRIES] + [MAX_LIVE_ENTRIES] = 20 000 entries every
+     * time [emitSnapshot] publishes (twice a second while capturing). Walking and
+     * allocating a list that size at that rate on the composition thread is
+     * exactly the kind of thing that makes the screen janky; `conflate()` also
+     * lets the merge drop intermediate buffers when publishing outruns it, which
+     * a `derivedStateOf` cannot do.
+     */
+    val sdkEntries: StateFlow<List<LogEntry>> =
+        combine(_historicalEntries, _liveEntries) { historical, live ->
+            mergeByTimestamp(historical, live)
+        }
+            .conflate()
+            .flowOn(Dispatchers.Default)
+            .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
     private val _appEntries = MutableStateFlow<List<LogEntry>>(emptyList())
     val appEntries: StateFlow<List<LogEntry>> = _appEntries.asStateFlow()
 
@@ -80,6 +122,34 @@ class DittoLogCaptureService(
     val connectionRequestEntries: StateFlow<List<LogEntry>> = _connectionRequestEntries.asStateFlow()
     private var transportConditionJob: Job? = null
     private var connectionRequestDitto: Ditto? = null
+
+    /**
+     * Monotonic counter that advances **every time any capture stream's content
+     * changes** — a live snapshot publish, a transport-condition or
+     * connection-request append, a historical/app reload, or a clear.
+     *
+     * It exists because list **size** is not a usable change key. Every stream
+     * here is a ring buffer trimmed to an exact cap ([MAX_LIVE_ENTRIES] and
+     * friends), so once a capture is at cap the size is pinned forever while the
+     * contents keep churning. A `snapshotFlow { … entries.size }` in the UI is
+     * distinct-until-changed, so it emits once on reaching the cap and then never
+     * again: the pattern scan, the analytics, both histograms and every badge
+     * freeze at the moment the buffer fills — precisely when a high-volume
+     * capture most needs them. (SwiftUI does not hit this because it trims with a
+     * 512-entry slack margin, so its count oscillates.)
+     *
+     * Consumers that need to re-run work when the log content changes must key on
+     * this value, not on a collection size. The measured behaviour is pinned by
+     * `DittoLogCaptureServiceTest` — "live buffer size pins at the cap while
+     * content keeps changing" and "ingestSequence advances after the cap where
+     * size does not".
+     */
+    private val _ingestSequence = MutableStateFlow(0L)
+    val ingestSequence: StateFlow<Long> = _ingestSequence.asStateFlow()
+
+    private fun bumpIngestSequence() {
+        _ingestSequence.update { it + 1 }
+    }
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -116,6 +186,7 @@ class DittoLogCaptureService(
         _entriesDropped.value = false
         displayNeedsRefresh = false
         lastSnapshotSize = 0
+        bumpIngestSequence()
 
         collectionJob = scope.launch(Dispatchers.IO) {
             collectDittoEvents()
@@ -158,6 +229,7 @@ class DittoLogCaptureService(
                         entries
                     }
                     _historicalEntries.value = trimmed
+                    bumpIngestSequence()
                 } finally {
                     runCatching { tempFile.delete() }
                 }
@@ -177,6 +249,7 @@ class DittoLogCaptureService(
                     entries
                 }
                 _appEntries.value = trimmed
+                bumpIngestSequence()
             }
         }
     }
@@ -186,23 +259,28 @@ class DittoLogCaptureService(
         _liveEntries.value = emptyList()
         _pendingNewEntriesCount.value = 0
         lastSnapshotSize = 0
+        bumpIngestSequence()
     }
 
     fun clearHistorical() {
         _historicalEntries.value = emptyList()
+        bumpIngestSequence()
     }
 
     fun clearApp() {
         loggingService.clearAllLogs()
         _appEntries.value = emptyList()
+        bumpIngestSequence()
     }
 
     fun clearTransportConditions() {
         _transportConditionEntries.value = emptyList()
+        bumpIngestSequence()
     }
 
     fun clearConnectionRequests() {
         _connectionRequestEntries.value = emptyList()
+        bumpIngestSequence()
     }
 
     // ── Transport conditions (SwiftUI DittoDelegate parity) ─────────────────
@@ -230,6 +308,7 @@ class DittoLogCaptureService(
                         if (it.size > MAX_TRANSPORT_ENTRIES) it.takeLast(MAX_TRANSPORT_ENTRIES) else it
                     }
                 }
+                bumpIngestSequence()
             }
         }
     }
@@ -266,6 +345,7 @@ class DittoLogCaptureService(
                     if (it.size > MAX_CONNECTION_REQUEST_ENTRIES) it.takeLast(MAX_CONNECTION_REQUEST_ENTRIES) else it
                 }
             }
+            bumpIngestSequence()
             DittoConnectionRequestAuthorization.Allow
         }
     }
@@ -365,20 +445,50 @@ class DittoLogCaptureService(
         displayNeedsRefresh = true
     }
 
-    private fun emitSnapshot() {
+    /**
+     * Publishes the **whole** retained backing store, not the newest
+     * [MAX_DISPLAYED_ENTRIES] — see that constant for what truncating here broke.
+     * Runs at most once per [DISPLAY_REFRESH_MS] and only when new entries
+     * actually arrived, so the copy is bounded to twice a second while capturing.
+     *
+     * `internal` rather than private so tests can drive it without running the
+     * display loop — the previous cap assertion passed vacuously because nothing
+     * ever published.
+     */
+    internal fun emitSnapshot() {
         val snapshot = synchronized(liveBackingStoreLock) {
-            if (liveBackingStore.size > MAX_DISPLAYED_ENTRIES) {
-                liveBackingStore.takeLast(MAX_DISPLAYED_ENTRIES)
-            } else {
-                liveBackingStore.toList()
-            }
+            lastSnapshotSize = liveBackingStore.size
+            liveBackingStore.toList()
         }
         _liveEntries.value = snapshot
-        lastSnapshotSize = synchronized(liveBackingStoreLock) { liveBackingStore.size }
         _pendingNewEntriesCount.value = 0
+        bumpIngestSequence()
     }
 
     /** Returns the flow of DittoLogger events — exposed for testing. */
     internal fun dittoLogEventFlow(): Flow<com.ditto.kotlin.DittoLogger.DittoLogEvent> =
         DittoLogger.observeLogEvents()
+
+    /**
+     * Linear merge of two lists that are each already in timestamp order — the
+     * shape both inputs always have. `(a + b).sortedBy { it.timestamp }` would
+     * box a `Date` comparison per element and hand TimSort a 20 000-element
+     * array to discover the same two runs; this walks it once.
+     *
+     * Ties keep the left (historical) entry first, matching `sortedBy`'s
+     * stability, so the ordering is unchanged from the previous implementation.
+     */
+    internal fun mergeByTimestamp(left: List<LogEntry>, right: List<LogEntry>): List<LogEntry> {
+        if (left.isEmpty()) return right
+        if (right.isEmpty()) return left
+        val out = ArrayList<LogEntry>(left.size + right.size)
+        var i = 0
+        var j = 0
+        while (i < left.size && j < right.size) {
+            if (right[j].timestamp.time < left[i].timestamp.time) out.add(right[j++]) else out.add(left[i++])
+        }
+        while (i < left.size) out.add(left[i++])
+        while (j < right.size) out.add(right[j++])
+        return out
+    }
 }

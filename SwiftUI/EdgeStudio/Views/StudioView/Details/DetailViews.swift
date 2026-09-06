@@ -17,28 +17,26 @@ extension MainStudioView {
 
                         Spacer()
 
-                        Picker("", selection: $selectedSyncTab) {
-                            Text("Peers").tag(0)
-                            Text("Viewer").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("SyncTabPicker")
+                        DittoSegmentedPicker(
+                            options: [0, 1],
+                            selection: $selectedSyncTab
+                        ) { $0 == 0 ? "Peers" : "Viewer" }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("SyncTabPicker")
 
                         Spacer()
                     }
 
                     // ── Narrow layout: picker on top, title below ─────────────────
                     VStack(alignment: .leading, spacing: 0) {
-                        Picker("", selection: $selectedSyncTab) {
-                            Text("Peers").tag(0)
-                            Text("Viewer").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.leading, 10)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("SyncTabPicker")
+                        DittoSegmentedPicker(
+                            options: [0, 1],
+                            selection: $selectedSyncTab
+                        ) { $0 == 0 ? "Peers" : "Viewer" }
+                            .padding(.leading, 10)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("SyncTabPicker")
 
                         Text("Presence")
                             .font(.title2)
@@ -53,16 +51,12 @@ extension MainStudioView {
                     .padding(.trailing, 5)
             }
 
-            // Dynamic subtitle outside ViewThatFits — updating this text no longer
-            // invalidates the layout-fitting measurement loop above.
-            if let statusInfo = viewModel.syncVM.syncStatusItems.first {
-                Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 10)
-                    .padding(.bottom, 4)
-            }
+            // Read inside a child view, never here. `syncTabsDetailView()` is a
+            // *method* on MainStudioView, so anything it touches becomes a
+            // dependency of MainStudioView.body — i.e. the whole
+            // NavigationSplitView, sidebar and ViewThatFits included. Reading
+            // the presence feed here re-ran all of that on every tick.
+            SyncLastUpdatedLabel(viewModel: viewModel)
 
             // Tab content
             Group {
@@ -81,7 +75,8 @@ extension MainStudioView {
             // toolbar's middle slot so the canvas stays unobstructed. The Peers tab
             // doesn't need any extra controls — the @ViewBuilder closure returns an
             // empty conditional branch in that case (the bar's middle slot collapses).
-            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+            // Same reasoning: the connections read is confined to a leaf.
+            SyncBottomBar(viewModel: viewModel) {
                 if selectedSyncTab == 1 {
                     PresenceViewerToolbarControls(viewModel: presenceViewerVM)
                 }
@@ -885,17 +880,15 @@ extension MainStudioView {
         VStack(alignment: .leading, spacing: 0) {
             if observeEvent != nil {
                 HStack(spacing: 8) {
-                    Picker("", selection: $observeDetailViewMode) {
-                        // Allow-list rather than a filter: observe events are
-                        // not queries, so .profile does not apply here. The
-                        // switch below keeps it exhaustive but unreachable.
-                        ForEach([ResultViewTab.raw, .table], id: \.self) { tab in
-                            Label(tab.rawValue, systemImage: tab.icon).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    // Allow-list rather than a filter: observe events are not
+                    // queries, so .profile does not apply here. The switch below
+                    // keeps it exhaustive but unreachable.
+                    DittoSegmentedPicker(
+                        options: [ResultViewTab.raw, .table],
+                        selection: $observeDetailViewMode,
+                        label: { Label($0.rawValue, systemImage: $0.icon).font(.caption.weight(.medium)) }
+                    )
                     .frame(width: 160)
-                    .labelsHidden()
 
                     Spacer()
 
@@ -949,5 +942,39 @@ extension MainStudioView {
             }
         }
         .padding(.leading, 12)
+    }
+}
+
+// MARK: - Presence-feed leaves
+
+/// The "Last updated" subtitle.
+///
+/// A separate `View` purely so the presence-feed read happens in *this* body
+/// rather than in `MainStudioView.body`. Observation records dependencies
+/// against whichever body performs the read, so confining it here confines the
+/// invalidation to a single line of text.
+private struct SyncLastUpdatedLabel: View {
+    @Bindable var viewModel: MainStudioView.ViewModel
+
+    var body: some View {
+        if let statusInfo = viewModel.syncVM.syncStatusItems.first {
+            Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 10)
+                .padding(.bottom, 4)
+        }
+    }
+}
+
+/// Wraps `DetailBottomBar` so the `connectionsByTransport` read is scoped to
+/// the bar instead of the enclosing split view. See `SyncLastUpdatedLabel`.
+private struct SyncBottomBar<Middle: View>: View {
+    @Bindable var viewModel: MainStudioView.ViewModel
+    @ViewBuilder var middle: Middle
+
+    var body: some View {
+        DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) { middle }
     }
 }

@@ -51,16 +51,16 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.queryVM.selectedQueryInspectorMenuItem) {
-                    ForEach(viewModel.queryVM.queryInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(ControlSize.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker. `verticalPadding` is the
+                // equivalent of the `.controlSize(.extraLarge)` this used to
+                // carry; the SF Symbol inherits the selected foreground style
+                // the same way a text segment would.
+                DittoSegmentedPicker(
+                    options: viewModel.queryVM.queryInspectorMenuItems,
+                    selection: $viewModel.queryVM.selectedQueryInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 20)) },
+                    verticalPadding: 8
+                )
                 .accessibilityIdentifier("InspectorSegmentedPicker")
                 Spacer()
             }
@@ -101,16 +101,16 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem) {
-                    ForEach(viewModel.subObsVM.observeInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker. `verticalPadding` is the
+                // equivalent of the `.controlSize(.extraLarge)` this used to
+                // carry; the SF Symbol inherits the selected foreground style
+                // the same way a text segment would.
+                DittoSegmentedPicker(
+                    options: viewModel.subObsVM.observeInspectorMenuItems,
+                    selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 20)) },
+                    verticalPadding: 8
+                )
                 .accessibilityIdentifier("ObserveInspectorSegmentedPicker")
                 Spacer()
             }
@@ -145,16 +145,16 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.selectedMetricsInspectorMenuItem) {
-                    ForEach(viewModel.metricsInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker. `verticalPadding` is the
+                // equivalent of the `.controlSize(.extraLarge)` this used to
+                // carry; the SF Symbol inherits the selected foreground style
+                // the same way a text segment would.
+                DittoSegmentedPicker(
+                    options: viewModel.metricsInspectorMenuItems,
+                    selection: $viewModel.selectedMetricsInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 20)) },
+                    verticalPadding: 8
+                )
                 .accessibilityIdentifier("MetricsInspectorSegmentedPicker")
                 Spacer()
             }

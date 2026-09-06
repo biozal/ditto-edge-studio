@@ -111,16 +111,20 @@ fun QueryMetricsListPane(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Query Metrics",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+                // No "Query Metrics" title here: the scaffold's top app bar
+                // already shows the section name, and repeating it inside a
+                // ~200dp list pane left it fighting two 48dp icon buttons and
+                // the record count for the same row. `weight(1f)` hands out
+                // *remaining* space, so the title was squeezed to its minimum
+                // intrinsic width and wrapped one character per line — "Q / u /
+                // e / ry" — with the count drawn over the top of it.
                 Text(
                     text = "${records.size} records",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
                 IconButton(
                     onClick = {
@@ -213,6 +217,8 @@ fun QueryMetricsListPane(
                         ) {
                             Text(
                                 text = formatQueryTimestamp(record.capturedAt),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),

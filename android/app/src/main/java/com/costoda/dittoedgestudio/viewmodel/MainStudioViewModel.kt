@@ -113,6 +113,22 @@ class MainStudioViewModel(
     var showAddIndex: Boolean
         get() = session.uiState.showAddIndex
         set(value) { session.uiState.showAddIndex = value }
+
+    /**
+     * Loads `SELECT * FROM <name>` into the query editor — what tapping a
+     * collection does in the SwiftUI sidebar
+     * (`SidebarViews.collectionTreeRows`), which Android was missing: its rows
+     * only expanded to reveal indexes.
+     *
+     * Writes straight to the session-scoped [QueryWorkbenchState] rather than
+     * going through `QueryEditorViewModel`, because that view model is created
+     * per composition of the content pane and is not in scope from the list
+     * pane. The state object is the shared one both panes read, so the editor
+     * picks the text up immediately.
+     */
+    fun loadCollectionQuery(collectionName: String) {
+        session.uiState.queryWorkbench.queryText.value = "SELECT * FROM $collectionName"
+    }
     var editingSubscription: DittoSubscription?
         get() = session.uiState.editingSubscription
         set(value) { session.uiState.editingSubscription = value }
