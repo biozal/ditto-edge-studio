@@ -8,7 +8,14 @@ data class SyncStatusInfo(
     val dittoSdkVersion: String?,
     val connections: List<PeerConnectionInfo> = emptyList(),
     val peerMetadata: String? = null,
+    /**
+     * Top-level key count of [peerMetadata]. Carried from the SDK's typed object rather
+     * than derived from the string: `ObjectValue.toString()` emits Kotlin map syntax,
+     * not JSON, so parsing it back always fails.
+     */
+    val peerMetadataKeyCount: Int = 0,
     val identityServiceMetadata: String? = null,
+    val identityServiceMetadataKeyCount: Int = 0,
     val syncedUpToLocalCommitId: Long? = null,
     val lastUpdateReceivedTime: Double? = null,
 ) {
@@ -37,6 +44,9 @@ enum class ConnectionType(val displayName: String) {
     Bluetooth("Bluetooth"),
     LAN("LAN"),
     P2PWiFi("P2P WiFi"),
+
+    /** Reliable UDP multicast transport (beta, Ditto SDK 5.1.0). */
+    Multicast("Multicast"),
     WebSocket("WebSocket"),
     Unknown("Unknown"),
 }

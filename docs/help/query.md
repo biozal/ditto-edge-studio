@@ -76,12 +76,6 @@ Profiles only fire for `SELECT` statements via the Local execute mode — `INSER
 
 For any `SELECT` in the editor, use **Advise (index suggestions)…** (macOS: query toolbar menu; iPhone: results overflow; Android: the query toolbar options menu → **Run ADVISE**). Edge Studio runs `ADVISE <your query>` and shows Ditto's index recommendations in a card: each suggestion is a ready-to-run `CREATE INDEX` statement with the planner's reason. Nothing executes until you confirm **Create Index** — applying creates the index verbatim. When there is nothing to advise on, the card shows the engine's outcome message instead. `EXPLAIN ADVISE …` is not valid DQL, so the EXPLAIN action is disabled while an ADVISE statement is in the editor.
 
-### Debug Console
-
-**Android only.** The query toolbar options menu → **Debug Console** opens a direct DQL console over the Ditto SDK 5.1 debug socket against this app's own embedded instance. Statements run over a local unix socket with a 30 s timeout. **This console runs full-syntax DQL** — mutating statements (`INSERT`/`UPDATE`/`DELETE`/`EVICT`/`ALTER SYSTEM`/…) apply immediately after a confirmation prompt.
-
-There is no equivalent on macOS / iPadOS: the query editor's **Local** execute mode already runs against the same embedded instance with no syntax restrictions, so a socket back to our own process added nothing the editor could not already do. Use the editor for `system:` collections and `ALTER SYSTEM` there.
-
 ### Row Actions (right-click / long-press)
 
 On macOS / iPadOS, **right-click** any document row in **Raw** or **Table** mode; on Android, **long-press** the row — either gesture opens a per-row action menu:

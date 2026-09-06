@@ -46,6 +46,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -140,14 +141,6 @@ import kotlinx.coroutines.launch
 
     // Rail items actually shown — metrics sections drop out when collection is disabled.
     val railItems = remember(metricsEnabled) { StudioNavItem.visibleEntries(metricsEnabled) }
-
-    // Back button: when the drawer is open, the back press should close the
-    // drawer (matches the long-standing Android pattern), NOT pop the whole
-    // studio entry. Only enabled while the drawer is open so the handler doesn't
-    // interfere with normal back navigation when the drawer is dismissed.
-    BackHandler(enabled = drawerState.isOpen) {
-        coroutineScope.launch { drawerState.close() }
-    }
 
     // Ctrl+1..7 section-switch shortcut modifier — shared by both layout branches.
     // onPreviewKeyEvent on the outermost focusable container intercepts the event before any
@@ -377,5 +370,30 @@ import kotlinx.coroutines.launch
                 }
             }
         } // end railShortcutModifier Box (drawer-mode layout)
+    }
+
+    // Back button: when the drawer is open, the back press should close the drawer
+    // (matches the long-standing Android pattern), NOT pop the whole studio entry. Only
+    // enabled while the drawer is open so the handler doesn't interfere with normal back
+    // navigation when the drawer is dismissed.
+    //
+    // A drawer covering the content must outrank any BackHandler that content registers
+    // (the presence viewer's detail card registers one), or back silently dismisses
+    // something the user cannot see while the drawer stays open.
+    //
+    // Source order is NOT enough, and an earlier attempt to fix this by simply moving
+    // the call below content() did not work. BackHandler registers inside
+    // DisposableEffect(lifecycleOwner, backDispatcher) — once, on first composition, and
+    // never again — while OnBackPressedDispatcher invokes the most recently ADDED enabled
+    // callback. Content deeper in the tree composes later than this scaffold (the
+    // presence graph only enters composition when the user picks the Viewer tab), so its
+    // callback is always newer no matter where this line sits.
+    //
+    // key() on the drawer state forces re-registration each time the drawer opens, which
+    // makes this callback the newest one at exactly the moment it needs to win.
+    key(drawerState.isOpen) {
+        BackHandler(enabled = drawerState.isOpen) {
+            coroutineScope.launch { drawerState.close() }
+        }
     }
 }

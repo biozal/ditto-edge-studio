@@ -17,6 +17,7 @@ import com.ditto.kotlin.DittoConnectionType
 import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
+import com.ditto.kotlin.serialization.DittoJsonSerializable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -187,11 +188,12 @@ class SystemRepositoryImpl(
             }
 
         val processedIds = mutableSetOf<String>()
+        val config = databaseProvider()
 
         // 3. Map presence peers with merged sync metrics
         val remotePeers = deduped.map { peer ->
             processedIds.add(peer.peerKey)
-            peer.toSyncStatusInfo(syncMetrics[peer.peerKey], localPeerKey)
+            peer.toSyncStatusInfo(syncMetrics[peer.peerKey], localPeerKey, config)
         }.toMutableList()
 
         // 4. Add Cloud Server peers from DQL not in presence graph
@@ -214,25 +216,25 @@ class SystemRepositoryImpl(
             )
         }
 
-        // 5a. Build the unfiltered mesh topology — every peer the SDK knows about plus
-        //     every connection between them. The Presence Viewer needs this when the
-        //     user toggles "Direct Connected" off; everything else keeps using the
-        //     filtered [_peers] list above per the presence-graph pitfall rule.
+        // 5a. Build the full mesh topology — every connection the SDK knows about,
+        //     plus every discovered peer that participates in at least one of those
+        //     edges. The Presence Viewer needs this when the user toggles "Direct
+        //     Connected" off; everything else keeps using the filtered [_peers] list
+        //     above per the presence-graph pitfall rule.
         val allPeersDeduped = graph.remotePeers
             .groupBy { it.peerKey }
             .mapValues { (_, peers) ->
                 peers.maxByOrNull { it.dittoSdkVersion != null } ?: peers.first()
             }
             .values
-        val meshPeerList = allPeersDeduped.map { peer ->
-            MeshPeer(
-                peerKey = peer.peerKey,
-                deviceName = peer.deviceName.takeIf { it.isNotBlank() },
-            )
-        }
         val seenEdgeKeys = mutableSetOf<String>()
         val meshEdgeList = buildList {
-            for (peer in allPeersDeduped) {
+            // Ditto usually reports the same undirected edge from both endpoints, but
+            // the local peer is the authoritative source for edges attached to this
+            // process. Aggregate it too so a transport (notably multicast) is not
+            // lost when only the local side advertises the edge. (Same fix as the
+            // VS Code extension's buildPresenceGraphView.)
+            for (peer in listOf(graph.localPeer) + allPeersDeduped) {
                 for (conn in peer.connections) {
                     val p1 = conn.peer1
                     val p2 = conn.peer2
@@ -244,6 +246,14 @@ class SystemRepositoryImpl(
                 }
             }
         }
+        // Orphan filter (extension pass 2): remote peers appearing in no aggregated
+        // edge are dropped — otherwise they float as pills on the outermost ring in
+        // the sync stop→start window. The local peer is always shown regardless —
+        // it's added by the graph model builder, not from this list.
+        val meshPeerList = filterOrphanMeshPeers(
+            peers = allPeersDeduped.map { peer -> peer.toMeshPeer() },
+            edges = meshEdgeList,
+        )
 
         // 5b. Publish all derived flows.
         _peers.value = remotePeers
@@ -251,7 +261,7 @@ class SystemRepositoryImpl(
             deduped,
             localPeerKey,
             dittoServerCount = remotePeers.count { it.isDittoServer },
-            config = databaseProvider(),
+            config = config,
         )
         _meshTopology.value = MeshTopology(
             localPeerKey = localPeerKey,
@@ -276,6 +286,7 @@ class SystemRepositoryImpl(
     private fun DittoPeer.toSyncStatusInfo(
         metrics: JSONObject? = null,
         localPeerKey: String,
+        config: com.costoda.dittoedgestudio.domain.model.DittoDatabase? = null,
     ): SyncStatusInfo {
         val docs = metrics?.optJSONObject(FIELD_DOCUMENTS)
         return SyncStatusInfo(
@@ -292,17 +303,62 @@ class SystemRepositoryImpl(
                         id = conn.id,
                         type = conn.connectionType.toConnectionType(),
                     )
-                },
-            peerMetadata = peerMetadata
-                .takeIf { !it.isNull }
-                ?.toString(),
-            identityServiceMetadata = identityServiceMetadata
-                .takeIf { !it.isNull }
-                ?.toString(),
+                }
+                // Drop stale connections on user-disabled transports (the SDK
+                // presence graph keeps reporting them after a transport config
+                // change) so one can't drive dominantConnectionType()/the card
+                // gradient. Mirrors SwiftUI SystemRepository's
+                // `mapped.filter { isConnectionTypeEnabled($0.type, config:) }`.
+                .filter { info -> config == null || info.type.isEnabledIn(config) },
+            // ObjectValue.toString() is Kotlin map syntax ("{role=my kiosk}"), NOT JSON —
+            // verified: org.json.JSONObject rejects it. The raw string is kept only for
+            // RemotePeerCard's verbatim display; never derive a key count from it, use
+            // the counts below.
+            peerMetadata = peerMetadata.takeIf { it.isNotEmpty() }?.toString(),
+            peerMetadataKeyCount = peerMetadata.keyCountOrZero(),
+            identityServiceMetadata = identityServiceMetadata.takeIf { it.isNotEmpty() }?.toString(),
+            identityServiceMetadataKeyCount = identityServiceMetadata.keyCountOrZero(),
             syncedUpToLocalCommitId = docs?.optLongOrNull(FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID),
             lastUpdateReceivedTime = docs?.optLongOrNull(FIELD_LAST_UPDATE_RECEIVED_TIME)?.toDouble(),
         )
     }
+
+    /**
+     * Full `DittoPeer` projection for the mesh view. Everything here is available for
+     * INDIRECT peers as well — the presence graph reports the same fields regardless of
+     * whether we can reach the peer. Sync progress is deliberately absent: it comes from
+     * `system:data_sync_info`, which only has rows for peers we actually receive data
+     * from.
+     *
+     * Metadata is reduced to (raw JSON, top-level key count) here rather than in the UI
+     * so the SDK's serialization types stay out of the Compose layer, and so the key
+     * count is computed once per presence update instead of once per recomposition.
+     */
+    private fun DittoPeer.toMeshPeer(): MeshPeer {
+        // NOT `takeIf { !it.isNull }`: isNull asks "is this the JSON literal null?", so
+        // it is false for an ObjectValue even when the object is empty — verified
+        // against the SDK (empty ObjectValue: isNull=false, isEmpty=true, toString="{}").
+        // Using it would give every peer that never set metadata a non-blank "{}" and
+        // the card would report metadata "present" for all of them.
+        val peerMeta = peerMetadata.takeIf { it.isNotEmpty() }
+        val identityMeta = identityServiceMetadata.takeIf { it.isNotEmpty() }
+        return MeshPeer(
+            peerKey = peerKey,
+            deviceName = deviceName.takeIf { it.isNotBlank() },
+            os = os?.toPeerOS() ?: PeerOS.Unknown,
+            dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
+            isConnectedToDittoServer = isConnectedToDittoServer,
+            isCompatible = isCompatible,
+            peerMetadata = peerMeta?.toString(),
+            peerMetadataKeyCount = peerMeta?.keyCountOrZero() ?: 0,
+            identityServiceMetadata = identityMeta?.toString(),
+            identityServiceMetadataKeyCount = identityMeta?.keyCountOrZero() ?: 0,
+        )
+    }
+
+    /** Top-level key count, 0 if the SDK object can't be converted (never throws). */
+    private fun DittoJsonSerializable.ObjectValue.keyCountOrZero(): Int =
+        runCatching { toMap().size }.getOrDefault(0)
 
     private fun JSONObject.optLongOrNull(key: String): Long? =
         if (has(key) && !isNull(key)) optLong(key) else null
@@ -319,7 +375,7 @@ class SystemRepositoryImpl(
     private fun DittoConnectionType.toConnectionType(): ConnectionType = when (this) {
         DittoConnectionType.Bluetooth -> ConnectionType.Bluetooth
         DittoConnectionType.AccessPoint -> ConnectionType.LAN
-        DittoConnectionType.Multicast -> ConnectionType.LAN
+        DittoConnectionType.Multicast -> ConnectionType.Multicast
         DittoConnectionType.P2PWiFi -> ConnectionType.P2PWiFi
         DittoConnectionType.WebSocket -> ConnectionType.WebSocket
     }
@@ -334,6 +390,7 @@ class SystemRepositoryImpl(
         var lan = 0
         var p2pWifi = 0
         var webSocket = 0
+        var multicast = 0
 
         peers.forEach { peer ->
             peer.connections
@@ -350,6 +407,7 @@ class SystemRepositoryImpl(
                         ConnectionType.LAN -> lan++
                         ConnectionType.P2PWiFi -> p2pWifi++
                         ConnectionType.WebSocket -> webSocket++
+                        ConnectionType.Multicast -> multicast++
                         ConnectionType.Unknown -> { /* skip */ }
                     }
                 }
@@ -361,6 +419,7 @@ class SystemRepositoryImpl(
             p2pWifi = p2pWifi,
             webSocket = webSocket,
             dittoServer = dittoServerCount,
+            multicast = multicast,
         )
     }
 }
@@ -372,5 +431,27 @@ internal fun ConnectionType.isEnabledIn(config: com.costoda.dittoedgestudio.doma
         ConnectionType.LAN -> config.isLanEnabled
         ConnectionType.P2PWiFi -> config.isAwdlEnabled
         ConnectionType.WebSocket -> config.isCloudSyncEnabled
+        // Multicast (beta, SDK 5.1.0) is configured via `peerToPeer.multicastBeta`
+        // from the per-database `isMulticastEnabled` flag (Transport Settings) —
+        // mirrors SwiftUI's isConnectionTypeEnabled.
+        ConnectionType.Multicast -> config.isMulticastEnabled
         ConnectionType.Unknown -> true
     }
+
+/**
+ * Keep only peers that participate in at least one mesh edge (VS Code extension
+ * `buildPresenceGraphView` pass 2). Drops orphan peers the SDK has discovered
+ * (mDNS/BLE) but holds no current connection to — most visible in the window
+ * right after `sync.stop()` → `sync.start()`, when transports stay alive across
+ * the toggle but sync sessions don't. Edge participation (not an empty
+ * own-connections list) is the criterion so a peer that only appears as peer2
+ * in another peer's connection list is still drawn.
+ */
+internal fun filterOrphanMeshPeers(peers: List<MeshPeer>, edges: List<MeshEdge>): List<MeshPeer> {
+    val peersInAnyEdge = HashSet<String>(edges.size * 2)
+    for (edge in edges) {
+        peersInAnyEdge.add(edge.peer1)
+        peersInAnyEdge.add(edge.peer2)
+    }
+    return peers.filter { it.peerKey in peersInAnyEdge }
+}

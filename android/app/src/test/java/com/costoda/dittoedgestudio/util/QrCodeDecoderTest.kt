@@ -2,6 +2,7 @@ package com.costoda.dittoedgestudio.util
 
 import android.util.Base64
 import com.costoda.dittoedgestudio.domain.model.AuthMode
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
@@ -46,6 +47,9 @@ class QrCodeDecoderTest {
         name: String = "Test DB",
         databaseId: String = "db-123",
         favorites: String = "",
+        isMulticastEnabled: Boolean = false,
+        multicastGroupAddress: String = "224.1.2.3",
+        multicastPort: Int = 6003,
     ): String {
         val favoritesJson = if (favorites.isNotEmpty()) {
             ""","favorites":[{"q":"$favorites"}]"""
@@ -71,6 +75,9 @@ class QrCodeDecoderTest {
                 "isLanEnabled": true,
                 "isAwdlEnabled": false,
                 "isCloudSyncEnabled": true,
+                "isMulticastEnabled": $isMulticastEnabled,
+                "multicastGroupAddress": "$multicastGroupAddress",
+                "multicastPort": $multicastPort,
                 "logLevel": "info"
               }$favoritesJson
             }
@@ -474,4 +481,87 @@ class QrCodeDecoderTest {
         assertEquals("wss://old.example.com", result.database.websocketUrl)
     }
 
+    // ─── Multicast decode-boundary validation ─────────────────────────────────
+    // The SDK coerces the port with toUShort() (0 → broken "any port" sentinel,
+    // 70000 → 4464) and only class-D (224-239) group addresses are valid, so an
+    // enabled-but-invalid multicast config is sanitized to disabled + defaults
+    // before it can reach Room/the SDK (same rules as the Transport Settings UI).
+
+    @Test
+    fun `decode preserves a valid multicast config`() {
+        val raw = buildV2Payload(
+            isMulticastEnabled = true,
+            multicastGroupAddress = "239.1.2.3",
+            multicastPort = 7000,
+        )
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertTrue(result!!.database.isMulticastEnabled)
+        assertEquals("239.1.2.3", result.database.multicastGroupAddress)
+        assertEquals(7000, result.database.multicastPort)
+    }
+
+    @Test
+    fun `decode disables multicast and resets defaults for an invalid port`() {
+        for (badPort in listOf(0, 70000)) {
+            val raw = buildV2Payload(isMulticastEnabled = true, multicastPort = badPort)
+
+            val result = QrCodeDecoder.decode(raw)
+
+            assertNotNull("port $badPort should still decode", result)
+            assertFalse("port $badPort", result!!.database.isMulticastEnabled)
+            assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, result.database.multicastGroupAddress)
+            assertEquals(MulticastConfig.DEFAULT_PORT, result.database.multicastPort)
+            assertNull(result.database.multicastInterfaceName)
+        }
+    }
+
+    @Test
+    fun `decode disables multicast and resets defaults for an invalid group address`() {
+        // 192.168.1.1 is a valid dotted-quad but not class-D (224-239).
+        val raw = buildV2Payload(isMulticastEnabled = true, multicastGroupAddress = "192.168.1.1")
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertFalse(result!!.database.isMulticastEnabled)
+        assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, result.database.multicastGroupAddress)
+        assertEquals(MulticastConfig.DEFAULT_PORT, result.database.multicastPort)
+        assertNull(result.database.multicastInterfaceName)
+    }
+
+    @Test
+    fun `decode resets garbage multicast values even when multicast is disabled`() {
+        // The sanitize is NOT gated on the enabled flag: garbage in a disabled
+        // config would otherwise persist and be applied into the (disabled)
+        // multicastBeta block. Enabled stays false; group/port/interface reset.
+        val raw = buildV2Payload(
+            isMulticastEnabled = false,
+            multicastGroupAddress = "999.1.1.1",
+            multicastPort = 0,
+        )
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertFalse(result!!.database.isMulticastEnabled)
+        assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, result.database.multicastGroupAddress)
+        assertEquals(MulticastConfig.DEFAULT_PORT, result.database.multicastPort)
+        assertNull(result.database.multicastInterfaceName)
+    }
+
+    @Test
+    fun `decode stores the trimmed group address`() {
+        // isValidGroupAddress trims before validating, so a padded address passes
+        // validation — the stored value must be the trimmed one.
+        val raw = buildV2Payload(isMulticastEnabled = true, multicastGroupAddress = " 239.1.2.3 ")
+
+        val result = QrCodeDecoder.decode(raw)
+
+        assertNotNull(result)
+        assertTrue(result!!.database.isMulticastEnabled)
+        assertEquals("239.1.2.3", result.database.multicastGroupAddress)
+    }
 }

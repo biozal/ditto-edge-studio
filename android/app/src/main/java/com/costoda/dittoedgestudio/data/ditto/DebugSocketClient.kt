@@ -22,6 +22,16 @@ import kotlinx.coroutines.withContext
  *
  * All public methods are safe to call from any dispatcher.
  */
+/*
+ * NOTE: currently unused by the app — retained deliberately.
+ *
+ * The in-app Debug Console this drove was removed: it opened a socket back to
+ * our *own* process to run DQL that the query editor already runs directly on
+ * the same Ditto instance, with no syntax restriction either way. `debug_socket`
+ * only earns its keep for an *external* process (which is why the VS Code
+ * extension needs it), so this client stays for a future
+ * attach-to-another-Ditto feature rather than being rewritten from scratch.
+ */
 class DebugSocketClient(
     private val connectTimeoutMs: Long = DEFAULT_CONNECT_TIMEOUT_MS, // unused: LocalSocket has no connect timeout
     private val queryTimeoutMs: Long = DEFAULT_QUERY_TIMEOUT_MS,

@@ -237,6 +237,44 @@ class StudioSessionTest {
     }
 
     @Test
+    fun `applyTransportSettings restarts sync and keeps persisted state when the apply throws`() = runTest {
+        // A failed live apply must not leave sync stopped, and the transport
+        // StateFlows must keep showing the persisted (actually-applied) values
+        // rather than the requested ones.
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true) {
+            every { sync } returns mockk(relaxed = true)
+        }
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+            isBluetoothLeEnabled = false,
+            isLanEnabled = false,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+        assertFalse(session.transportBluetoothEnabled.value)
+
+        every { dittoManager.applyTransportConfig(any(), any()) } throws RuntimeException("SDK rejected")
+
+        session.applyTransportSettings(bt = true, lan = true, wifiAware = true)
+        advanceUntilIdle()
+
+        // Sync + observers restart even though the apply threw mid-sequence.
+        coVerify(exactly = 1) { dittoManager.startSync() }
+        coVerify(exactly = 2) { systemRepository.startObserving(ditto) }
+        // Flows show the persisted values, not the rejected request.
+        assertFalse(session.transportBluetoothEnabled.value)
+        assertFalse(session.transportLanEnabled.value)
+        assertFalse(session.isApplyingTransport.value)
+    }
+
+    @Test
     fun `concurrent hydrate calls run DittoManager hydrate exactly once`() = runTest {
         // Two MainStudioViewModel instances (activity-store + entry-store) constructed in
         // the same composition pass both call hydrate() from init. The second must join

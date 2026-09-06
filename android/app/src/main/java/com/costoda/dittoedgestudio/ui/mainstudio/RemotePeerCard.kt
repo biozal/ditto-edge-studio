@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Lan
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.LaptopWindows
 import androidx.compose.material.icons.outlined.PhoneIphone
+import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.HorizontalDivider
@@ -273,10 +274,12 @@ private fun gradientForPeer(peer: SyncStatusInfo): Brush =
     }
 
 private fun List<ConnectionType>.dominantConnectionType(): ConnectionType {
+    // Priority mirrors the VS Code extension: WebSocket > LAN > P2PWiFi > Multicast > Bluetooth.
     return when {
         contains(ConnectionType.WebSocket) -> ConnectionType.WebSocket
         contains(ConnectionType.LAN) -> ConnectionType.LAN
         contains(ConnectionType.P2PWiFi) -> ConnectionType.P2PWiFi
+        contains(ConnectionType.Multicast) -> ConnectionType.Multicast
         contains(ConnectionType.Bluetooth) -> ConnectionType.Bluetooth
         else -> ConnectionType.Unknown
     }
@@ -295,6 +298,11 @@ private fun gradientForConnectionType(type: ConnectionType): Brush = when (type)
     ConnectionType.WebSocket -> Brush.linearGradient(
         colors = listOf(Color(0xFFD97A00), Color(0xFF994D00)),
     )
+    // Golden-yellow, matching the VS Code extension's multicast card gradient
+    // (rgb(255,214,10) → rgb(170,125,0)).
+    ConnectionType.Multicast -> Brush.linearGradient(
+        colors = listOf(Color(0xFFFFD60A), Color(0xFFAA7D00)),
+    )
     ConnectionType.Unknown -> Brush.linearGradient(
         colors = listOf(Color(0xFF595966), Color(0xFF333340)),
     )
@@ -305,6 +313,7 @@ private fun iconForConnectionType(type: ConnectionType): ImageVector = when (typ
     ConnectionType.LAN -> Icons.Outlined.Lan
     ConnectionType.P2PWiFi -> Icons.Outlined.Wifi
     ConnectionType.WebSocket -> Icons.Outlined.Cloud
+    ConnectionType.Multicast -> Icons.Outlined.Podcasts
     ConnectionType.Unknown -> Icons.Outlined.Circle
 }
 
