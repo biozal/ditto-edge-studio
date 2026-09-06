@@ -3,6 +3,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
@@ -44,11 +46,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -381,7 +384,17 @@ private fun FilterControls(
         // Stacked rather than side-by-side (the SwiftUI/VS Code layout): with the
         // rail and inspector taking width, five segments plus an inline field
         // squeeze the segment labels into unreadable slivers.
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        //
+        // No `fillMaxWidth` and a horizontal scroll instead: the row lays itself
+        // out at `IntrinsicSize.Min`, which is the width at which no label is cut
+        // off. Stretched to the pane width it would be measured against the pane
+        // instead, and Row starves the *last* children — "Other" and "Sync" lost
+        // their text on a phone. Scrolling is the escape hatch at large font
+        // scales; with the trimmed content padding below it does not engage at
+        // any normal one.
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
             NamespaceFilter.entries.forEachIndexed { index, ns ->
                 SegmentedButton(
                     selected = filter == ns,
@@ -390,6 +403,13 @@ private fun FilterControls(
                         index = index,
                         count = NamespaceFilter.entries.size,
                     ),
+                    // The default 12dp is on top of the 26dp icon slot every
+                    // segment reserves whether or not it draws a checkmark
+                    // (`SegmentedButtonContentMeasurePolicy` adds
+                    // `IconSize + IconSpacing` unconditionally), so five segments
+                    // spent 250dp before a single glyph. 4dp still leaves ~17dp
+                    // of visual breathing room either side of the label.
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     // Brand yellow in dark mode only — see `dittoToggleButtonColors`.
                     colors = if (isSystemInDarkTheme()) {
                         SegmentedButtonDefaults.colors(
@@ -401,7 +421,12 @@ private fun FilterControls(
                         SegmentedButtonDefaults.colors()
                     },
                 ) {
-                    Text(ns.label, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        ns.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
         }
@@ -432,6 +457,10 @@ private fun FilterControls(
  * current snapshot doesn't report stays as a placeholder rather than vanishing, so
  * it can always be unpinned from here.
  *
+ * Before changing the drag, read `docs/PINNED_REORDER.md` — it documents four
+ * defects that have already shipped in this code, three of which present as
+ * stuttering and none of which are performance problems.
+ *
  * Reordering is gated behind the section's **Reorder** toggle (the Apple Music
  * "Edit" affordance). In that mode the ☰ handle appears and the list scroll is
  * suspended, so a drag on the handle belongs to the row instead of scrolling the
@@ -453,18 +482,19 @@ private fun PinnedSection(
     isReordering: Boolean,
     onToggleReordering: () -> Unit,
 ) {
-    // Order shown while a drag is in flight and until the persisted list catches
-    // up. Committing on every swap would mean a DataStore write per frame, and
-    // clearing this the instant the finger lifts would flash the pre-drag order
-    // for however long the write takes to round-trip.
+    // Order shown until the persisted list catches up: clearing the local copy the
+    // instant the finger lifts would flash the pre-drag order for however long the
+    // DataStore write takes to round-trip.
     var workingPins by remember { mutableStateOf<List<SystemMetricSeriesRef>?>(null) }
-    // Tracked by series id, not index: the dragged row's index changes under it on
-    // every swap, so an index would go stale after the first one.
+    // The row being dragged, and where it sat when the drag began. The list does
+    // not re-order during the drag, so the index stays valid throughout.
     var draggingId by remember { mutableStateOf<String?>(null) }
-    // Offset of the dragged row within its current slot, in pixels.
+    var dragStartIndex by remember { mutableIntStateOf(0) }
+    // Slot the row would drop into right now.
+    var dropIndex by remember { mutableIntStateOf(0) }
+    // Total travel since the drag began, in pixels.
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    // Measured row heights keyed by series id, NOT by index: a swap must not
-    // invalidate the very measurements the next swap decision is made from.
+    // Measured row heights keyed by series id, NOT by index.
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
 
     LaunchedEffect(pins) {
@@ -475,18 +505,18 @@ private fun PinnedSection(
     val displayed = workingPins ?: pins
     val isReorderable = displayed.size > 1
 
-    // Takes the list to swap in rather than closing over `displayed`: several
-    // pointer events can arrive between two recompositions, and the second swap of
-    // a frame must build on the first one's result, not on the pre-drag order.
-    fun swapWithNeighbour(
-        list: List<SystemMetricSeriesRef>,
-        current: Int,
-        neighbour: Int,
-        neighbourHeight: Int,
-    ) {
-        workingPins = SystemMetricsPinOrdering.move(list, current, neighbour)
-        // Carry over only the overshoot, so the row stays under the finger.
-        dragOffset -= if (neighbour > current) neighbourHeight else -neighbourHeight
+    // How far row [index] shifts to open the gap the dragged row will drop into.
+    // The dragged row rides the finger; everything it has passed slides one row
+    // the other way. Nothing is re-ordered until release — see
+    // SystemMetricsPinOrdering.dropIndex for why.
+    fun gapOffset(index: Int): Float {
+        if (draggingId == null) return 0f
+        return SystemMetricsPinOrdering.gapOffset(
+            index = index,
+            startIndex = dragStartIndex,
+            dropIndex = dropIndex,
+            draggedHeight = (rowHeights[displayed.getOrNull(dragStartIndex)?.id] ?: 0).toFloat(),
+        )
     }
 
     Surface(
@@ -572,7 +602,9 @@ private fun PinnedSection(
                                     // The dragged row rides above its neighbours so the
                                     // rows it passes cannot paint over it.
                                     .zIndex(if (isDragging) 1f else 0f)
-                                    .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
+                                    .graphicsLayer {
+                                        translationY = if (isDragging) dragOffset else gapOffset(index)
+                                    }
                                     .alpha(if (isDragging) 0.85f else 1f),
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -617,39 +649,31 @@ private fun PinnedSection(
                                                 .takeIf { index < displayed.lastIndex },
                                             onDragStart = {
                                                 draggingId = ref.id
+                                                dragStartIndex = index
+                                                dropIndex = index
                                                 dragOffset = 0f
-                                                workingPins = displayed
                                             },
                                             onDrag = { deltaY ->
                                                 dragOffset += deltaY
-                                                val list = workingPins ?: return@DragHandle
-                                                // Resolved by id every time: the dragged
-                                                // row's index changes under it on each swap,
-                                                // so a captured index would go stale after
-                                                // the first one.
-                                                val from = list.indexOfFirst { it.id == ref.id }
-                                                if (from < 0) return@DragHandle
-                                                // Cross a neighbour's midpoint and the two trade
-                                                // places, so the list reads as the final order the
-                                                // whole time rather than only after release.
-                                                if (dragOffset > 0 && from < list.lastIndex) {
-                                                    val height = rowHeights[list[from + 1].id] ?: 0
-                                                    if (height > 0 && dragOffset > height / 2f) {
-                                                        swapWithNeighbour(list, from, from + 1, height)
-                                                    }
-                                                } else if (dragOffset < 0 && from > 0) {
-                                                    val height = rowHeights[list[from - 1].id] ?: 0
-                                                    if (height > 0 && -dragOffset > height / 2f) {
-                                                        swapWithNeighbour(list, from, from - 1, height)
-                                                    }
-                                                }
+                                                dropIndex = SystemMetricsPinOrdering.dropIndex(
+                                                    startIndex = dragStartIndex,
+                                                    translation = dragOffset,
+                                                    heights = displayed.map { rowHeights[it.id] ?: 0 },
+                                                    current = dropIndex,
+                                                )
                                             },
                                             onDragEnd = {
+                                                if (dropIndex != dragStartIndex) {
+                                                    val reordered = SystemMetricsPinOrdering.move(
+                                                        displayed, dragStartIndex, dropIndex,
+                                                    )
+                                                    // Survives the release — LaunchedEffect(pins)
+                                                    // drops it once the write lands.
+                                                    workingPins = reordered
+                                                    onReorder(reordered)
+                                                }
                                                 draggingId = null
                                                 dragOffset = 0f
-                                                // `workingPins` deliberately survives the release —
-                                                // LaunchedEffect(pins) drops it once the write lands.
-                                                workingPins?.let(onReorder)
                                             },
                                         )
                                     }

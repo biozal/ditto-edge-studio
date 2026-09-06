@@ -52,7 +52,7 @@ struct DittoSegmentedPicker<Value: Hashable, SegmentLabel: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        EqualWidthSegments {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 segment(option)
             }
@@ -104,6 +104,51 @@ extension DittoSegmentedPicker where SegmentLabel == Text {
     }
 }
 
+/// Lays segments out at equal widths, and never reports an ideal width narrower
+/// than the widest segment needs.
+///
+/// The obvious spelling — an `HStack` of segments each carrying
+/// `.frame(maxWidth: .infinity)` — divides whatever width it is offered evenly,
+/// but its *ideal* width is only the **sum of the segments' natural widths**.
+/// Rendered at that ideal, every segment gets `sum / count`, which is narrower
+/// than the widest label, so the widest label truncates. That is exactly how the
+/// System Metrics namespace filter lost the "Network" segment's text on iPad:
+/// nothing in the layout ever asked for the width the labels actually needed.
+///
+/// Reporting `count × widest` instead makes the control honestly inflexible: a
+/// `ViewThatFits` (or any container that respects a child's minimum) can now see
+/// that the row does not fit and choose a stacked layout, rather than handing
+/// back a width that silently clips text.
+private struct EqualWidthSegments: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let natural = subviews.map { $0.sizeThatFits(.unspecified) }
+        let widest = natural.map(\.width).max() ?? 0
+        let tallest = natural.map(\.height).max() ?? 0
+        let ideal = widest * CGFloat(subviews.count)
+        // Grow into extra offered width (call sites size these with
+        // `.frame(width:)` / `.frame(maxWidth:)` and expect the pill to fill it),
+        // but never shrink below `ideal`, whatever is proposed.
+        let width: CGFloat = if let proposed = proposal.width, proposed.isFinite {
+            max(proposed, ideal)
+        } else {
+            ideal
+        }
+        return CGSize(width: width, height: tallest)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let each = bounds.width / CGFloat(subviews.count)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(
+                at: CGPoint(x: bounds.minX + each * CGFloat(index), y: bounds.minY),
+                proposal: ProposedViewSize(width: each, height: bounds.height)
+            )
+        }
+    }
+}
+
 #Preview {
     struct PreviewHost: View {
         /// Mirrors the Query Workbench inspector's tabs without pulling a view
@@ -122,11 +167,17 @@ extension DittoSegmentedPicker where SegmentLabel == Text {
 
         var body: some View {
             VStack(spacing: 24) {
-                DittoSegmentedPicker(
-                    options: ["All", "Network", "Store", "Sync", "Other"],
-                    selection: $namespace
-                ) { $0 }
-                    .frame(maxWidth: 320)
+                // The System Metrics namespace filter, squeezed. `EqualWidthSegments`
+                // refuses to render narrower than the widest label needs, so each of
+                // these is the same width regardless of the frame asked for — which
+                // is what stops "Network" being cut off in a narrow iPad pane.
+                ForEach([320, 260, 200], id: \.self) { width in
+                    DittoSegmentedPicker(
+                        options: ["All", "Network", "Store", "Sync", "Other"],
+                        selection: $namespace
+                    ) { $0 }
+                        .frame(maxWidth: CGFloat(width))
+                }
 
                 DittoSegmentedPicker(
                     options: [0, 1],

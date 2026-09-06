@@ -66,19 +66,6 @@ struct SystemMetricsDetailView: View {
     /// the enclosing `ScrollView` wins that gesture — you get a scrolled page
     /// instead of a moved row. See `pinnedReorderButton`.
     @State private var isReorderingPins = false
-    /// Series id of the row being dragged, or `nil` when no drag is in flight.
-    @State private var pinDragID: String?
-    /// Row heights by series id. Rows differ (a label line, an expanded detail
-    /// panel), so the swap threshold has to come from a measurement.
-    @State private var pinRowHeights: [String: CGFloat] = [:]
-    /// Vertical distance already absorbed by completed swaps, so the dragged row
-    /// keeps tracking the finger instead of jumping a full row each time.
-    @State private var pinDragConsumed: CGFloat = 0
-    /// Live order during a drag. Committed on release; `pins` is `@State`, so
-    /// unlike Android there is no write round-trip to wait out afterwards.
-    @State private var workingPins: [SystemMetricSeriesRef]?
-
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var snapshot: SystemMetricsService.Snapshot {
         service.snapshot
@@ -138,23 +125,32 @@ struct SystemMetricsDetailView: View {
 
     // MARK: - Filters
 
-    /// Segment control plus search field. Side by side where there is room; the
-    /// search box drops to its own line in a compact column, where an inline
-    /// field would squeeze the five segments into unreadable slivers.
-    @ViewBuilder
+    /// Segment control plus search field. Side by side where both fit at their
+    /// natural widths; otherwise the search box drops to its own line, as it does
+    /// on Android.
+    ///
+    /// The decision is `ViewThatFits`, not the horizontal size class. A size class
+    /// describes the *window*, not the pane: on iPad the Studio detail column is
+    /// `.regular` while being far narrower than the window, so the size-class test
+    /// took the side-by-side branch and then squeezed the five segments until
+    /// "Network" truncated. `ViewThatFits` asks the only question that matters —
+    /// does the row actually fit here — and `DittoSegmentedPicker` now reports a
+    /// width wide enough for its widest label, so "does it fit" means "does it fit
+    /// without cutting text off".
     private var filterRow: some View {
-        if horizontalSizeClass == .compact {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                // Natural width: the picker must never be compressed into the
+                // slack the search field wants.
+                namespacePicker
+                    .fixedSize()
+                Spacer(minLength: 0)
+                searchField
+                    .frame(minWidth: 180, maxWidth: 260)
+            }
             VStack(spacing: 8) {
                 namespacePicker
                 searchField
-            }
-        } else {
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                namespacePicker
-                Spacer(minLength: 0)
-                searchField
-                    .frame(width: 220)
             }
         }
     }
@@ -164,7 +160,6 @@ struct SystemMetricsDetailView: View {
             options: SystemMetricsNamespaceFilter.allCases,
             selection: $namespaceFilter
         ) { $0.rawValue }
-            .frame(maxWidth: 320)
     }
 
     private var searchField: some View {
@@ -232,8 +227,11 @@ struct SystemMetricsDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// `LazyVStack`, not `VStack`: the SDK reports hundreds of series and every
+    /// one of them was being built on every body evaluation — a poll, a keystroke
+    /// in the search field, a pin toggle. Only the rows on screen are built now.
     private var readyBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        LazyVStack(alignment: .leading, spacing: 8) {
             divergenceBanner
 
             let filtered = snapshot.samples.filter {
@@ -315,187 +313,26 @@ struct SystemMetricsDetailView: View {
 
     // MARK: - Pinned accordion
 
-    /// The order to render: the in-flight one while dragging, the committed one
-    /// otherwise.
-    private var displayedPins: [SystemMetricSeriesRef] {
-        workingPins ?? pins
-    }
-
-    @ViewBuilder
+    /// The accordion is its own view because the reorder drag lives inside it.
+    /// A drag updates its offset on every mouse-move; while that state sat on
+    /// this view, each of those frames re-ran this whole `body` — re-filtering
+    /// every sample and rebuilding the entire (non-lazy) metric list behind the
+    /// six pinned rows actually moving. That is what made reordering stutter on
+    /// macOS. Owning the drag state one level down keeps each frame's
+    /// invalidation to the rows being dragged.
     private var pinnedSection: some View {
-        if !pins.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                pinnedHeader
-                if pinnedExpanded {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(displayedPins.enumerated()), id: \.element.id) { index, ref in
-                            ReorderablePinnedRow(
-                                ref: ref,
-                                isReordering: isReorderingPins,
-                                isDragging: pinDragID == ref.id,
-                                dragOffset: pinDragID == ref.id ? pinDragOffset : 0,
-                                canMoveUp: index > 0,
-                                canMoveDown: index < displayedPins.count - 1,
-                                onMove: { delta in
-                                    setPins(
-                                        SystemMetricsPinOrdering.moved(
-                                            displayedPins, from: index, to: index + delta
-                                        )
-                                    )
-                                },
-                                onHeight: { pinRowHeights[ref.id] = $0 },
-                                onDragChanged: { translation in dragPin(ref.id, translation: translation) },
-                                onDragEnded: endPinDrag,
-                                // Labelled rather than trailing: the row already
-                                // takes several other closures, and a trailing one
-                                // among them reads as though it belongs to
-                                // whichever argument happens to be last.
-                                content: {
-                                    if let sample = sample(for: ref) {
-                                        metricRow(sample, idPrefix: "Pinned")
-                                    } else {
-                                        idlePinnedRow(ref)
-                                    }
-                                }
-                            )
-                            if index < displayedPins.count - 1 {
-                                Divider()
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 8)
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isReorderingPins ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.2))
-            )
-            .accessibilityIdentifier("SystemMetricsPinnedSection")
-        }
-    }
-
-    private var pinnedHeader: some View {
-        HStack(spacing: 6) {
-            Button {
-                withAnimation(.snappy(duration: 0.2)) { pinnedExpanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: pinnedExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("Pinned")
-                        .font(.subheadline.weight(.semibold))
-                    Text("(\(pins.count))")
-                        .font(.system(.subheadline, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            // Collapsing mid-reorder would hide the rows being moved.
-            .disabled(isReorderingPins)
-            .accessibilityIdentifier("SystemMetricsPinnedDisclosure")
-
-            pinnedReorderButton
-
-            Button {
-                setPins([])
-            } label: {
-                Label("Clear", systemImage: "xmark.circle")
-                    .font(.caption)
-                    .labelStyle(.titleAndIcon)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Unpin every metric")
-            .disabled(isReorderingPins)
-            .accessibilityIdentifier("SystemMetricsClearPinsButton")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-    }
-
-    /// Reorder / Done toggle — the Apple Music "Edit" affordance. Only offered
-    /// when there is more than one pin, since reordering one is a no-op.
-    @ViewBuilder
-    private var pinnedReorderButton: some View {
-        if pins.count > 1 {
-            Button {
-                withAnimation(.snappy(duration: 0.2)) {
-                    isReorderingPins.toggle()
-                    // Entering reorder mode on a collapsed section would show
-                    // nothing to drag.
-                    if isReorderingPins {
-                        pinnedExpanded = true
-                    }
-                }
-            } label: {
-                Text(isReorderingPins ? "Done" : "Reorder")
-                    .font(.caption.weight(isReorderingPins ? .semibold : .regular))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(isReorderingPins ? Color.accentColor : .secondary)
-            .help(isReorderingPins ? "Finish reordering pinned metrics" : "Reorder pinned metrics by dragging")
-            .accessibilityIdentifier("SystemMetricsReorderPinsButton")
-        }
-    }
-
-    // MARK: - Pin drag
-
-    /// Offset applied to the dragged row: the finger's travel minus whatever
-    /// completed swaps have already absorbed.
-    @State private var pinDragTranslation: CGFloat = 0
-
-    private var pinDragOffset: CGFloat {
-        pinDragTranslation - pinDragConsumed
-    }
-
-    /// Live reorder: once the row has travelled past a neighbour's midpoint the
-    /// two trade places, so the list reads as the final order throughout rather
-    /// than only after release.
-    private func dragPin(_ id: String, translation: CGFloat) {
-        if pinDragID != id {
-            pinDragID = id
-            workingPins = pins
-            pinDragConsumed = 0
-        }
-        pinDragTranslation = translation
-
-        guard var order = workingPins,
-              let index = order.firstIndex(where: { $0.id == id }) else { return }
-
-        let offset = pinDragOffset
-        if offset > 0, index < order.count - 1 {
-            let height = pinRowHeights[order[index + 1].id] ?? 0
-            if height > 0, offset > height / 2 {
-                order = SystemMetricsPinOrdering.moved(order, from: index, to: index + 1)
-                workingPins = order
-                pinDragConsumed += height
-            }
-        } else if offset < 0, index > 0 {
-            let height = pinRowHeights[order[index - 1].id] ?? 0
-            if height > 0, -offset > height / 2 {
-                order = SystemMetricsPinOrdering.moved(order, from: index, to: index - 1)
-                workingPins = order
-                pinDragConsumed -= height
+        PinnedMetricsSection(
+            pins: pins,
+            isExpanded: $pinnedExpanded,
+            isReordering: $isReorderingPins,
+            setPins: setPins
+        ) { ref in
+            if let sample = sample(for: ref) {
+                metricRow(sample, idPrefix: "Pinned")
+            } else {
+                idlePinnedRow(ref)
             }
         }
-    }
-
-    private func endPinDrag() {
-        if let order = workingPins {
-            setPins(order)
-        }
-        workingPins = nil
-        pinDragID = nil
-        pinDragTranslation = 0
-        pinDragConsumed = 0
     }
 
     /// A pinned series the current snapshot doesn't report — not observed yet
@@ -720,16 +557,261 @@ struct SystemMetricsDetailView: View {
     }
 }
 
+/// The Pinned accordion, and the reorder drag that lives in it.
+///
+/// This is a separate view for a performance reason, not a tidiness one. The
+/// drag rewrites its offset on every mouse-move; SwiftUI invalidates the view
+/// that *owns* that state, so while it sat on `SystemMetricsDetailView` every
+/// drag frame re-ran that whole body — re-filtering every sample and rebuilding
+/// the full non-lazy metric list to move six rows. Reordering stuttered badly on
+/// macOS as a result. Here, a drag frame invalidates only the pinned rows.
+///
+/// The list does not re-order while a drag is in flight. The dragged row is drawn
+/// displaced and its neighbours shift to open a gap; the committed order changes
+/// once, on release. Re-ordering the array live moved the dragged row's view to a
+/// different slot in the `ForEach` while its gesture was still active, which
+/// cancelled the drag part way down the list — see
+/// `SystemMetricsPinOrdering.dropIndex`.
+private struct PinnedMetricsSection<RowContent: View>: View {
+    let pins: [SystemMetricSeriesRef]
+    @Binding var isExpanded: Bool
+    @Binding var isReordering: Bool
+    /// Single write path back to the owner — state and storage never diverge.
+    let setPins: ([SystemMetricSeriesRef]) -> Void
+    /// The row's own content (a live metric row, or an idle placeholder). Supplied
+    /// by the owner, which is what knows how to render a sample.
+    @ViewBuilder let rowContent: (SystemMetricSeriesRef) -> RowContent
+
+    /// Series id of the row being dragged, or `nil` when no drag is in flight.
+    @State private var dragID: String?
+    /// Where that row sat when the drag began. The list does not move during the
+    /// drag, so this stays valid for the whole gesture.
+    @State private var dragStartIndex = 0
+    /// Slot the row would drop into right now.
+    @State private var dropIndex = 0
+    /// Row heights by series id. Rows differ (a label line, an expanded detail
+    /// panel), so the crossing points have to come from a measurement.
+    @State private var rowHeights: [String: CGFloat] = [:]
+
+    /// Row heights in committed order, for the drop-slot maths.
+    private var orderedHeights: [CGFloat] {
+        pins.map { rowHeights[$0.id] ?? 0 }
+    }
+
+    /// How far row `index` shifts to open the gap the dragged row will drop into.
+    private func gapOffset(for index: Int) -> CGFloat {
+        guard dragID != nil, pins.indices.contains(dragStartIndex) else { return 0 }
+        return SystemMetricsPinOrdering.gapOffset(
+            index: index,
+            startIndex: dragStartIndex,
+            dropIndex: dropIndex,
+            draggedHeight: rowHeights[pins[dragStartIndex].id] ?? 0
+        )
+    }
+
+    var body: some View {
+        if !pins.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(pins.enumerated()), id: \.element.id) { index, ref in
+                            ReorderablePinnedRow(
+                                ref: ref,
+                                // Reordering one pin is meaningless — offer no
+                                // affordance rather than one that does nothing.
+                                isReorderable: pins.count > 1,
+                                isReordering: isReordering,
+                                isDragging: dragID == ref.id,
+                                dragOffset: dragID == ref.id ? dragTranslation : gapOffset(for: index),
+                                canMoveUp: index > 0,
+                                canMoveDown: index < pins.count - 1,
+                                onMove: { delta in
+                                    setPins(
+                                        SystemMetricsPinOrdering.moved(
+                                            pins, from: index, to: index + delta
+                                        )
+                                    )
+                                },
+                                onHeight: { rowHeights[ref.id] = $0 },
+                                onDragChanged: { translation in dragPin(ref.id, at: index, translation: translation) },
+                                onDragEnded: endPinDrag,
+                                // Labelled rather than trailing: the row already
+                                // takes several other closures, and a trailing one
+                                // among them reads as though it belongs to
+                                // whichever argument happens to be last.
+                                content: { rowContent(ref) }
+                            )
+                            if index < pins.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isReordering ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.2))
+            )
+            .accessibilityIdentifier("SystemMetricsPinnedSection")
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("Pinned")
+                        .font(.subheadline.weight(.semibold))
+                    Text("(\(pins.count))")
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            // Collapsing mid-reorder would hide the rows being moved.
+            .disabled(isReordering)
+            .accessibilityIdentifier("SystemMetricsPinnedDisclosure")
+
+            reorderButton
+
+            Button {
+                setPins([])
+            } label: {
+                Label("Clear", systemImage: "xmark.circle")
+                    .font(.caption)
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Unpin every metric")
+            .disabled(isReordering)
+            .accessibilityIdentifier("SystemMetricsClearPinsButton")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    /// Reorder / Done toggle — the Apple Music "Edit" affordance. Only offered
+    /// when there is more than one pin, since reordering one is a no-op.
+    ///
+    /// Present on macOS as well as iPadOS. macOS can also just drag a row
+    /// directly, but this mode is the discoverable affordance and the one that
+    /// works from the keyboard, so it stays on both.
+    @ViewBuilder
+    private var reorderButton: some View {
+        if pins.count > 1 {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    isReordering.toggle()
+                    // Entering reorder mode on a collapsed section would show
+                    // nothing to drag.
+                    if isReordering {
+                        isExpanded = true
+                    }
+                }
+            } label: {
+                Text(isReordering ? "Done" : "Reorder")
+                    .font(.caption.weight(isReordering ? .semibold : .regular))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isReordering ? Color.accentColor : .secondary)
+            .help(isReordering ? "Finish reordering pinned metrics" : "Reorder pinned metrics by dragging")
+            .accessibilityIdentifier("SystemMetricsReorderPinsButton")
+        }
+    }
+
+    // MARK: - Drag
+
+    /// The dragged row's travel since the gesture began.
+    @State private var dragTranslation: CGFloat = 0
+
+    /// Tracks the drag without disturbing the list: only `dropIndex` moves, and
+    /// the rows respond by opening a gap. Nothing is re-ordered until release,
+    /// which is what keeps the dragged row's view — and the gesture attached to
+    /// it — alive for the whole drag.
+    private func dragPin(_ id: String, at index: Int, translation: CGFloat) {
+        if dragID != id {
+            dragID = id
+            dragStartIndex = index
+            dropIndex = index
+        }
+        dragTranslation = translation
+        dropIndex = SystemMetricsPinOrdering.dropIndex(
+            startIndex: dragStartIndex,
+            translation: translation,
+            heights: orderedHeights,
+            current: dropIndex
+        )
+    }
+
+    private func endPinDrag() {
+        if dragID != nil, dropIndex != dragStartIndex {
+            setPins(SystemMetricsPinOrdering.moved(pins, from: dragStartIndex, to: dropIndex))
+        }
+        dragID = nil
+        dragTranslation = 0
+        dragStartIndex = 0
+        dropIndex = 0
+    }
+}
+
+/// Constants the pinned-row reorder gesture depends on, named so they can be
+/// asserted in a test rather than living as literals inside a gesture builder.
+///
+/// See `docs/PINNED_REORDER.md`.
+enum PinnedRowReorder {
+    /// The coordinate space the drag is measured in.
+    ///
+    /// **This must never be `.local`.** The row is moved by `.offset(y:)` driven
+    /// by the very translation this gesture reports, and `.local` is the moving
+    /// row's own space — so the measurement feeds back on itself and the row
+    /// tracks at half the pointer's speed before stalling. `SystemMetricsPinDragTests`
+    /// guards the value; `docs/PINNED_REORDER.md` derives the arithmetic.
+    /// Computed rather than stored: `CoordinateSpace` is not `Sendable`, so a
+    /// static constant would be flagged as shared mutable state.
+    static var dragCoordinateSpace: CoordinateSpace {
+        .global
+    }
+}
+
 /// One row of the Pinned accordion.
 ///
 /// Reordering is gated behind the section's **Reorder** mode rather than offered
-/// as a bare long-press-drag. On a touch screen the enclosing `ScrollView` wins
+/// as a bare press-and-drag. On a touch screen the enclosing `ScrollView` wins
 /// that gesture — press and drag and you scroll the page, never move the row —
 /// which is why the mode exists: it disables the scroll for the duration, and the
 /// handle's drag then lands where it should. It is the same Edit-then-drag shape
-/// Apple Music uses, and it works with a mouse too.
+/// Apple Music uses, and the same code path runs on macOS, iPadOS and (mirrored)
+/// Android.
+///
+/// Deliberately **not** split by platform. An earlier attempt gave macOS its own
+/// AppKit drag-and-drop path and kept the handle drag for iPadOS; every branch
+/// was somewhere macOS could silently lose behaviour iPadOS kept, and it did —
+/// twice. One path, exercised on every platform, is worth more here than a
+/// per-platform ideal.
+///
+/// **Read `docs/PINNED_REORDER.md` before changing any of this.** Four separate
+/// defects have shipped here, three of which present as "stuttering" and none of
+/// which are performance problems.
 private struct ReorderablePinnedRow<Content: View>: View {
     let ref: SystemMetricSeriesRef
+    /// Whether reordering is possible at all — false for a lone pin, where a
+    /// handle or a drag source would be an affordance that does nothing.
+    let isReorderable: Bool
     let isReordering: Bool
     let isDragging: Bool
     /// Vertical displacement to draw this row at while it is being dragged.
@@ -740,8 +822,8 @@ private struct ReorderablePinnedRow<Content: View>: View {
     /// than an absolute index so the row never has to know where it sits in the
     /// live order, which changes underneath it during a drag.
     let onMove: (Int) -> Void
-    /// Reports the row's measured height, which the parent needs to decide when a
-    /// drag has crossed a neighbour.
+    /// Reports the row's measured height. iPadOS needs it for the swap threshold;
+    /// The crossing points are measured, not assumed.
     let onHeight: (CGFloat) -> Void
     /// Cumulative vertical translation since the drag began.
     let onDragChanged: (CGFloat) -> Void
@@ -749,6 +831,31 @@ private struct ReorderablePinnedRow<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        rowContent
+            .contentShape(Rectangle())
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { onHeight(proxy.size.height) }
+                        .onChange(of: proxy.size.height) { _, newHeight in onHeight(newHeight) }
+                }
+            }
+            .modifier(ReorderDisplacement(offset: dragOffset, isDragging: isDragging))
+            // Keyboard- and VoiceOver-reachable equivalent of dragging: the
+            // pointer precision a drag needs is not available to every user, and
+            // these work whether or not reorder mode is on.
+            .contextMenu {
+                if canMoveUp || canMoveDown {
+                    Button("Move Up") { onMove(-1) }
+                        .disabled(!canMoveUp)
+                    Button("Move Down") { onMove(1) }
+                        .disabled(!canMoveDown)
+                }
+            }
+    }
+
+    /// The row itself, plus the drag handle that Reorder mode reveals.
+    private var rowContent: some View {
         HStack(spacing: 6) {
             content()
                 // While reordering, the row's own pin and info buttons would just
@@ -756,30 +863,6 @@ private struct ReorderablePinnedRow<Content: View>: View {
                 .allowsHitTesting(!isReordering)
             if isReordering {
                 dragHandle
-            }
-        }
-        .contentShape(Rectangle())
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear { onHeight(proxy.size.height) }
-                    .onChange(of: proxy.size.height) { _, newHeight in onHeight(newHeight) }
-            }
-        }
-        .offset(y: dragOffset)
-        // The dragged row rides above its neighbours so the rows it passes cannot
-        // paint over it.
-        .zIndex(isDragging ? 1 : 0)
-        .shadow(color: .black.opacity(isDragging ? 0.25 : 0), radius: 6, y: 2)
-        // Keyboard- and VoiceOver-reachable equivalent of dragging: the pointer
-        // precision a drag needs is not available to every user, and these work
-        // whether or not reorder mode is on.
-        .contextMenu {
-            if canMoveUp || canMoveDown {
-                Button("Move Up") { onMove(-1) }
-                    .disabled(!canMoveUp)
-                Button("Move Down") { onMove(1) }
-                    .disabled(!canMoveDown)
             }
         }
     }
@@ -795,12 +878,42 @@ private struct ReorderablePinnedRow<Content: View>: View {
                 // minimumDistance 0 so the drag begins on touch-down. There is no
                 // long press to wait out — the mode already established intent,
                 // and the scroll that would have competed is disabled.
-                DragGesture(minimumDistance: 0)
+                //
+                // `.global` is load-bearing, not a detail. `DragGesture.translation`
+                // is `location - startLocation` measured in the named space, and
+                // the default `.local` space belongs to *this* view — the one being
+                // moved by `.offset(y: translation)`. Feed a view's own offset back
+                // into the space its gesture is measured in and the reported
+                // translation is `movement - offset`, i.e. `movement - translation`,
+                // which settles at exactly half the pointer's travel: the row
+                // crawls up at half speed, stalls, and judders around the
+                // equilibrium. A space that does not move with the row removes the
+                // feedback entirely.
+                DragGesture(minimumDistance: 0, coordinateSpace: PinnedRowReorder.dragCoordinateSpace)
                     .onChanged { onDragChanged($0.translation.height) }
                     .onEnded { _ in onDragEnded() }
             )
             .accessibilityLabel("Reorder \(ref.key)")
             .accessibilityIdentifier("SystemMetricsPinDragHandle_\(ref.id)")
+    }
+}
+
+/// Draws a row at its drag displacement: the dragged row follows the pointer, and
+/// the rows it has passed shift by one row to open the gap it will drop into.
+///
+/// The dragged row is lifted above its neighbours so they cannot paint over it,
+/// and is the only one that moves un-animated — it has to track the pointer
+/// exactly, while the gap opening around it reads better with a little easing.
+private struct ReorderDisplacement: ViewModifier {
+    let offset: CGFloat
+    let isDragging: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: offset)
+            .zIndex(isDragging ? 1 : 0)
+            .shadow(color: .black.opacity(isDragging ? 0.25 : 0), radius: 6, y: 2)
+            .animation(isDragging ? nil : .snappy(duration: 0.18), value: offset)
     }
 }
 

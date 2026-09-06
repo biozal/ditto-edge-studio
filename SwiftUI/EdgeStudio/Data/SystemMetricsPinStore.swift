@@ -109,6 +109,92 @@ enum SystemMetricsPinOrdering {
         return rest
     }
 
+    /// The slot a drag would drop into, given how far it has travelled.
+    ///
+    /// Anchored to the row centres of the list **as laid out when the drag began**,
+    /// which is what lets the rows stay still for the whole gesture: the dragged
+    /// row is drawn displaced and the rows it has passed shift to open a gap, but
+    /// nothing is re-ordered until release.
+    ///
+    /// That stillness is the point. The previous implementation re-ordered the
+    /// live array on every crossing, which moved the dragged row's *view* to a new
+    /// slot in the `ForEach` while its `DragGesture` was still active. SwiftUI
+    /// tears that view down and rebuilds it at the new position, cancelling the
+    /// gesture mid-drag — so a drag from the bottom of the list would stall part
+    /// way and could not be resumed without releasing and grabbing the row again.
+    /// (This is the same defect the Android side hit for the same reason: see
+    /// `0bda9c3`, where a missing `key()` re-identified rows by slot.)
+    ///
+    /// Advancing needs the dragged centre to pass the *next* row's centre, and
+    /// retreating to fall behind the *previous* one, so between those two anchors
+    /// nothing changes. That gap — roughly two rows wide — is what stops ordinary
+    /// hand tremor flicking the insertion point back and forth.
+    ///
+    /// - Parameters:
+    ///   - startIndex: Where the dragged row sat when the drag began.
+    ///   - translation: Vertical travel since then. Positive is down.
+    ///   - heights: Row heights in committed order. A row not yet measured is 0
+    ///     and simply never gets crossed.
+    ///   - current: The slot resolved on the previous update, which the dead zone
+    ///     is measured from.
+    static func dropIndex(
+        startIndex: Int,
+        translation: CGFloat,
+        heights: [CGFloat],
+        current: Int
+    ) -> Int {
+        guard heights.indices.contains(startIndex), heights.allSatisfy({ $0 > 0 }) else { return current }
+
+        var centers: [CGFloat] = []
+        centers.reserveCapacity(heights.count)
+        var edge: CGFloat = 0
+        for height in heights {
+            centers.append(edge + height / 2)
+            edge += height
+        }
+
+        let draggedCenter = centers[startIndex] + translation
+        var index = min(max(current, 0), heights.count - 1)
+        // A loop, not a single step: a fast drag can cross several rows between
+        // two gesture updates, and it still has to land on the right one.
+        while index + 1 < heights.count, draggedCenter > centers[index + 1] {
+            index += 1
+        }
+        while index > 0, draggedCenter < centers[index - 1] {
+            index -= 1
+        }
+        return index
+    }
+
+    /// How far the row at `index` shifts to open the gap the dragged row will
+    /// drop into.
+    ///
+    /// The dragged row rides the pointer; every row it has passed slides one row
+    /// the other way, which is what makes the gap appear. Purely visual — the
+    /// committed order does not change until the drag ends.
+    ///
+    /// - Parameters:
+    ///   - index: The row being drawn.
+    ///   - startIndex: Where the dragged row sat when the drag began.
+    ///   - dropIndex: Where it would land right now, from `dropIndex(...)`.
+    ///   - draggedHeight: Height of the dragged row — the size of the gap.
+    /// - Returns: A vertical offset, or zero for rows the drag has not reached.
+    static func gapOffset(
+        index: Int,
+        startIndex: Int,
+        dropIndex: Int,
+        draggedHeight: CGFloat
+    ) -> CGFloat {
+        guard dropIndex != startIndex, index != startIndex else { return 0 }
+        if dropIndex > startIndex, index > startIndex, index <= dropIndex {
+            return -draggedHeight
+        }
+        if dropIndex < startIndex, index >= dropIndex, index < startIndex {
+            return draggedHeight
+        }
+        return 0
+    }
+
     /// Moves the entry at `source` to `destination`, clamping both to the list.
     /// Backs the Move Up / Move Down commands, which are the keyboard- and
     /// VoiceOver-reachable equivalent of dragging.

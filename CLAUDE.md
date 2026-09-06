@@ -45,6 +45,28 @@ In short:
   **unverified**. Shipping something unverified is fine; describing it as verified is
   not.
 
+## Drag-to-reorder (Pinned metrics)
+
+Before touching drag-to-reorder in the Pinned accordion on the System Metrics
+screen — SwiftUI or Android — read
+[`docs/PINNED_REORDER.md`](docs/PINNED_REORDER.md) in full.
+
+Four defects have shipped in that code. Three of them present as "stuttering"
+and **none** of them are performance problems (rendering there costs 0.5–0.7
+ms/frame, measured). The doc has a symptom→cause table; check it before
+profiling or optimising anything.
+
+The short version:
+
+- Never measure the drag in the moving row's own coordinate space — `.local`
+  feeds the row's offset back into its own measurement and halves the tracking.
+- Never reorder the list while a drag is in flight; it destroys the view that
+  owns the gesture.
+- Do not split the reorder path by platform.
+- A manual pass with a mouse on macOS — bottom row of a long list, dragged to
+  the top — is required. It exercises every rule at once, and the test suite
+  cannot.
+
 ## Plans
 
 All plans should be stored in the plans folder.  If you are told to create a plan for a new feature or bug fix, you should create a plan in the plans folder and name it with the feature or bug fix.  The plan should be a markdown file and should be named with the feature or bug fix.  Research should also go in this folder but approved research implementations should be in stored in the docs folder.
@@ -784,6 +806,22 @@ DittoSegmentedPicker(
 > `DittoSegmentedPicker` nothing clamped it any more and the icons rendered at
 > literal 48pt, blowing the control out of the inspector pane. `MenuItem.image` now
 > deliberately carries no font at all.
+
+> ⚠️ **The control refuses to be squeezed — give it a layout that can stack.**
+>
+> `DittoSegmentedPicker` lays its segments out with `EqualWidthSegments`, a `Layout`
+> whose reported width is never less than `count × widest segment`. That is
+> deliberate: a plain `HStack` of `.frame(maxWidth: .infinity)` segments reports only
+> the *sum* of the natural widths, so any container that took it at its word rendered
+> the widest label truncated. (System Metrics' "Network" segment lost its text on
+> iPad this way.)
+>
+> The consequence for call sites: a `.frame(maxWidth:)` narrower than the control
+> needs is now ignored rather than obeyed, so a picker in a tight row will push its
+> neighbours instead of shrinking. Pair it with `ViewThatFits` and a stacked
+> fallback — never with a `horizontalSizeClass` test, which describes the *window*
+> and says nothing about how wide the pane actually is. See
+> `SystemMetricsDetailView.filterRow`.
 
 **The sidebar is not a picker.** Studio navigation is a `List` of `Label` rows in
 `Views/StudioView/SidebarViews.swift`, driven by `SidebarDestination`. There is no
