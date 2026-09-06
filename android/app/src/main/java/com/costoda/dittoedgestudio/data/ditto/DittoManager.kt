@@ -21,6 +21,7 @@ class DittoManager(
     private val coroutineScope: CoroutineScope,
     private val logCaptureService: DittoLogCaptureService? = null,
     private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway? = null,
+    private val multicastLockController: MulticastLockController? = null,
 ) {
 
     private var ditto: Ditto? = null
@@ -213,14 +214,39 @@ class DittoManager(
         ditto.updateTransportConfig { builder ->
             builder.peerToPeer {
                 bluetoothLe { enabled = database.isBluetoothLeEnabled }
-                lan { enabled = database.isLanEnabled }
+                lan {
+                    enabled = database.isLanEnabled
+                    // VS Code extension parity: mDNS + multicast peer *discovery*
+                    // ride the single LAN preference.
+                    mdnsEnabled = database.isLanEnabled
+                    multicastEnabled = database.isLanEnabled
+                }
                 wifiAware { enabled = database.isAwdlEnabled }
+                val spec = database.toMulticastBetaSpec()
+                multicastBeta {
+                    enabled = spec.enabled
+                    groupAddress = spec.groupAddress
+                    port = spec.port
+                    interfaceName = spec.interfaceName
+                }
             }
             if (database.isCloudSyncEnabled && database.websocketUrl.isNotBlank()) {
                 builder.connect {
                     websocketUrls = mutableSetOf(database.websocketUrl)
                 }
             }
+        }
+        // The SDK holds its own engine-level multicast lock; this app-level lock
+        // covers the process for the whole enabled period (Zava Retail pattern).
+        // applyTransportConfig is the single chokepoint — it runs at open, at every
+        // sync-start funnel, and at live apply — so the lock always tracks the flag.
+        // NOTE: the SDK defers multicast changes while sync is active; every caller
+        // reaches this function with sync stopped (open sequence / live apply both
+        // stop sync first).
+        if (database.isMulticastEnabled) {
+            multicastLockController?.acquire()
+        } else {
+            multicastLockController?.release()
         }
     }
 
@@ -229,6 +255,8 @@ class DittoManager(
         // Null out first so any concurrent calls to currentInstance() see null immediately
         ditto = null
         activeDatabase = null
+        // Never keep the process-level multicast lock past a database session.
+        multicastLockController?.release()
         withContext(Dispatchers.IO) {
             // close() cancels the Ditto coroutine scope and calls implementation.close(),
             // which releases the persistence-directory lock. Stopping sync alone is not
@@ -268,3 +296,30 @@ class DittoManager(
         )
     }
 }
+
+/**
+ * The SDK `multicastBeta` builder fields derived from a persisted [DittoDatabase].
+ * Pure mapping, extracted from [DittoManager.applyTransportConfig] so the
+ * flag/group/port/interface wiring — including the UShort port coercion — is
+ * unit-testable without a live Ditto instance.
+ */
+internal data class MulticastBetaSpec(
+    val enabled: Boolean,
+    val groupAddress: String,
+    val port: UShort,
+    val interfaceName: String?,
+)
+
+/**
+ * Maps the persisted multicast columns to the SDK boundary. The port is coerced
+ * with [Int.toUShort] exactly as the SDK field requires; out-of-range values
+ * truncate (70000 → 4464) or hit the broken "any port" sentinel (0), which is
+ * why the QR decode boundary and the Transport Settings UI both validate
+ * 1..65535 before a config can reach this mapping.
+ */
+internal fun DittoDatabase.toMulticastBetaSpec(): MulticastBetaSpec = MulticastBetaSpec(
+    enabled = isMulticastEnabled,
+    groupAddress = multicastGroupAddress,
+    port = multicastPort.toUShort(),
+    interfaceName = multicastInterfaceName,
+)

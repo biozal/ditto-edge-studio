@@ -57,6 +57,15 @@ class ConnectionStylesTest {
     }
 
     @Test
+    fun `multicast uses dotted pattern matching the VS Code extension`() {
+        assertArrayEquals(
+            floatArrayOf(2f, 3f),
+            dashIntervalsDp(ConnectionType.Multicast, isCloud = false),
+            0f,
+        )
+    }
+
+    @Test
     fun `cloud uses short-dash pattern regardless of nominal type`() {
         assertArrayEquals(
             floatArrayOf(10f, 5f),
@@ -79,6 +88,7 @@ class ConnectionStylesTest {
             "lan" to dashIntervalsDp(ConnectionType.LAN, false).toList(),
             "p2p" to dashIntervalsDp(ConnectionType.P2PWiFi, false).toList(),
             "ws" to dashIntervalsDp(ConnectionType.WebSocket, false).toList(),
+            "multicast" to dashIntervalsDp(ConnectionType.Multicast, false).toList(),
             "cloud" to dashIntervalsDp(ConnectionType.WebSocket, true).toList(),
         )
         for (i in signatures.indices) {

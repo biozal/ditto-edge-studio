@@ -6,6 +6,7 @@ import androidx.compose.ui.geometry.Offset
 import com.costoda.dittoedgestudio.data.session.PeersUiState
 import com.costoda.dittoedgestudio.domain.model.ConnectionType
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
+import com.costoda.dittoedgestudio.domain.model.PeerOS
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 
 /**
@@ -32,6 +33,44 @@ data class PeerNode(
     val deviceKind: PeerDeviceKind,
     val isLocal: Boolean,
     val isCloud: Boolean,
+    /**
+     * Everything the SDK knows about this peer, for the focus-mode detail card. Null
+     * only for the synthetic cloud node, which has no `DittoPeer` behind it — the local
+     * peer gets a record built from `LocalPeerInfo`.
+     */
+    val detail: PeerDetail? = null,
+)
+
+/**
+ * The full per-peer payload behind a detail card.
+ *
+ * Every field except the last three comes from `DittoPeer` and is therefore populated
+ * for **indirect** peers as well — the presence graph reports the same shape whether or
+ * not we can reach the peer. [os], [dittoSdkVersion] and [isCompatible] are still
+ * nullable because the SDK learns them gradually.
+ *
+ * [syncedUpToLocalCommitId] and [lastUpdateReceivedTime] come from
+ * `system:data_sync_info`, a local table computed from where this device actually
+ * receives data. It has no rows for peers we have no sync session with, so those two are
+ * null for every indirect peer — by design, not by failure. [isDirectlyConnected]
+ * distinguishes "we have a session and nothing has synced yet" from "there is no session
+ * to report on", which is the difference the card has to show.
+ */
+@Immutable
+data class PeerDetail(
+    val peerKey: String,
+    val deviceName: String?,
+    val os: PeerOS,
+    val dittoSdkVersion: String?,
+    val isConnectedToDittoServer: Boolean?,
+    val isCompatible: Boolean?,
+    val peerMetadata: String?,
+    val peerMetadataKeyCount: Int,
+    val identityServiceMetadata: String?,
+    val identityServiceMetadataKeyCount: Int,
+    val isDirectlyConnected: Boolean,
+    val syncedUpToLocalCommitId: Long?,
+    val lastUpdateReceivedTime: Double?,
 )
 
 /**
@@ -65,20 +104,122 @@ data class PeerEdge(
 data class Transform(val offset: Offset, val scale: Float) {
     companion object {
         val Identity: Transform = Transform(Offset.Zero, 1f)
-        const val MIN_SCALE: Float = 0.5f
-        const val MAX_SCALE: Float = 2.5f
+
+        /**
+         * Minimum zoom. The VS Code extension uses 0.25, but it renders into a
+         * desktop panel roughly 1500 dp wide. A 120-node full mesh spans ~2590 dp
+         * including pills, which needs 0.13 to frame on a 344 dp phone screen and
+         * 0.27 on an unfolded Fold — so 0.25 clamps the auto-fit and clips the
+         * outer ring on exactly the large meshes that most need an overview.
+         */
+        const val MIN_SCALE: Float = 0.1f
+
+        /** 2.0 = the VS Code extension's maximum zoom (plan open question #6:
+         *  align, resolved in review). */
+        const val MAX_SCALE: Float = 2.0f
     }
+}
+
+/**
+ * Pure focus-mode decisions for [PresenceGraphView] — the VS Code extension's
+ * `scene.ts` focus view (`neighboursOf`,
+ * `clampZoom(min(max(zoom, FOCUS_ZOOM), fitZoom))`), extracted for JVM unit tests.
+ *
+ * Note the Compose [Transform.scale] IS the magnification (higher = zoomed in),
+ * so the extension's zoom formula applies directly — no camera-scale inversion
+ * like on SpriteKit.
+ */
+internal object PresenceFocusPlanner {
+    /** Default focus magnification (extension `FOCUS_ZOOM`). */
+    const val FOCUS_ZOOM: Float = 1.25f
+
+    /** Focus-view context dimming — the rest of the mesh stays as backdrop. */
+    const val CONTEXT_PEER_ALPHA: Float = 0.08f
+    const val CONTEXT_LINE_ALPHA: Float = 0.04f
+
+    /** Keys directly connected to [key] among [edges] — sorted, no self. */
+    fun neighbourKeys(key: String, edges: List<PeerEdge>): List<String> {
+        val neighbours = sortedSetOf<String>()
+        for (edge in edges) {
+            if (edge.fromPeerId == key && edge.toPeerId != key) neighbours += edge.toPeerId
+            if (edge.toPeerId == key && edge.fromPeerId != key) neighbours += edge.fromPeerId
+        }
+        return neighbours.toList()
+    }
+
+    /** Max magnification that fits the content in the viewport (1f when degenerate). */
+    fun fitZoom(
+        contentWidthPx: Float,
+        contentHeightPx: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+    ): Float {
+        if (contentWidthPx <= 0f || contentHeightPx <= 0f || viewWidthPx <= 0f || viewHeightPx <= 0f) {
+            return 1f
+        }
+        return minOf(viewWidthPx / contentWidthPx, viewHeightPx / contentHeightPx)
+    }
+
+    /**
+     * Zoom at which a whole mesh layout — the outermost ring PLUS the widest peer
+     * pill and a margin — fits inside the viewport.
+     *
+     * Peer names are drawn inside their pill, so fitting the *pill* footprint (not
+     * just the ring radius) is what guarantees every device name stays fully on
+     * screen. That matters most on narrow displays: a folded Galaxy Z Fold cover
+     * screen is 344 dp wide, while one expanded ring already spans ~433 dp plus a
+     * pill, so the default 100% camera clips the left/right pills against the
+     * view's `clipToBounds()`.
+     *
+     * The margin is treated as if it scaled with the content, which errs slightly
+     * conservative (a marginally wider fit than strictly required) — matching the
+     * Direct-mode fit this generalises.
+     *
+     * @param maxRingRadiusDp outermost ring radius in the layout engine's dp space.
+     * @param maxPillWidthPx  widest measured pill at 1x zoom.
+     * @param marginPx        breathing room around the content at 1x zoom.
+     */
+    @Suppress("LongParameterList")
+    fun meshFitZoom(
+        maxRingRadiusDp: Float,
+        maxPillWidthPx: Float,
+        pxPerDp: Float,
+        viewWidthPx: Float,
+        viewHeightPx: Float,
+        marginPx: Float,
+    ): Float {
+        if (maxRingRadiusDp <= 0f || pxPerDp <= 0f) return 1f
+        val contentPx = (maxRingRadiusDp * 2f * pxPerDp) + maxPillWidthPx + marginPx
+        if (contentPx <= 0f) return 1f
+        return fitZoom(contentPx, contentPx, viewWidthPx, viewHeightPx)
+            .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE)
+    }
+
+    /**
+     * Focus zoom target: magnify to at least [FOCUS_ZOOM], never exceed the fit for
+     * the complete neighbourhood, clamped to the view's scale range. The extension's
+     * `clampZoom(min(max(zoom, FOCUS_ZOOM), fitZoom))` verbatim.
+     */
+    fun focusScale(fitZoom: Float, currentZoom: Float): Float =
+        minOf(maxOf(currentZoom, FOCUS_ZOOM), fitZoom)
+            .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE)
 }
 
 /**
  * Projected graph model: nodes + edges + the local peer's id (or null if unavailable).
  * Produced by [toGraphModel]; consumed by the layout engine and the renderer.
+ *
+ * [isExpandedProjection] reports which projection was ACTUALLY built — not which
+ * mode the toggle is in. The full-mesh builder falls back to the direct-only star
+ * when no mesh topology has been published yet, and that fallback must lay out at
+ * the compact (1×) scale, not the expanded one.
  */
 @Immutable
 data class PresenceGraphModel(
     val nodes: List<PeerNode>,
     val edges: List<PeerEdge>,
     val localPeerId: String?,
+    val isExpandedProjection: Boolean = false,
 )
 
 /**
@@ -145,36 +286,23 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
     localId: String,
 ): PresenceGraphModel {
     val nodes = mutableListOf<PeerNode>()
-    nodes.add(
-        PeerNode(
-            peerId = localId,
-            displayName = "Me",
-            deviceKind = detectDeviceKind(local.deviceName),
-            isLocal = true,
-            isCloud = false,
-        ),
-    )
+    nodes.add(localPeerNode(local, localId))
 
     val realRemotePeers = remotePeers.filterNot { it.isDittoServer }
-    for (peer in realRemotePeers) {
-        nodes.add(
-            PeerNode(
-                peerId = peer.peerId,
-                displayName = peer.deviceName?.takeIf { it.isNotBlank() } ?: peer.peerId.take(8),
-                deviceKind = detectDeviceKind(peer.deviceName),
-                isLocal = false,
-                isCloud = false,
-            ),
-        )
-    }
 
+    // Edges first: the Direct node set derives from the surviving edges'
+    // endpoints (extension parity). A peer whose connections were all stripped
+    // by the repository's enabled-transport filter must NOT render as an
+    // edgeless floating node.
     val edges = mutableListOf<PeerEdge>()
     val seenPairTypes = mutableSetOf<String>()
+    val connectedPeerIds = mutableSetOf<String>()
     for (peer in realRemotePeers) {
         for (conn in peer.connections) {
             val pairKey = listOf(localId, peer.peerId).sorted().joinToString(separator = "_")
             val edgeId = "${pairKey}_${conn.type}"
             if (!seenPairTypes.add(edgeId)) continue
+            connectedPeerIds += peer.peerId
             edges.add(
                 PeerEdge(
                     edgeId = edgeId,
@@ -189,8 +317,45 @@ private fun PeersUiState.Active.buildDirectOnlyModel(
         }
     }
 
+    for (peer in realRemotePeers) {
+        if (peer.peerId !in connectedPeerIds) continue
+        nodes.add(
+            PeerNode(
+                peerId = peer.peerId,
+                displayName = peer.deviceName?.takeIf { it.isNotBlank() } ?: peer.peerId.take(8),
+                deviceKind = detectDeviceKind(peer.deviceName),
+                isLocal = false,
+                isCloud = false,
+                // Direct mode only ever shows peers we have a session with, so the sync
+                // fields are always meaningful here. isConnectedToDittoServer and
+                // isCompatible aren't carried on SyncStatusInfo — they're mesh-topology
+                // facts, so they stay null rather than being guessed at.
+                detail = PeerDetail(
+                    peerKey = peer.peerId,
+                    deviceName = peer.deviceName?.takeIf { it.isNotBlank() },
+                    os = peer.osInfo,
+                    dittoSdkVersion = peer.dittoSdkVersion,
+                    isConnectedToDittoServer = null,
+                    isCompatible = null,
+                    peerMetadata = peer.peerMetadata,
+                    peerMetadataKeyCount = peer.peerMetadataKeyCount,
+                    identityServiceMetadata = peer.identityServiceMetadata,
+                    identityServiceMetadataKeyCount = peer.identityServiceMetadataKeyCount,
+                    isDirectlyConnected = true,
+                    syncedUpToLocalCommitId = peer.syncedUpToLocalCommitId,
+                    lastUpdateReceivedTime = peer.lastUpdateReceivedTime,
+                ),
+            ),
+        )
+    }
+
     appendCloudNodeAndEdge(local, localId, nodes, edges)
-    return PresenceGraphModel(nodes = nodes, edges = edges, localPeerId = localId)
+    return PresenceGraphModel(
+        nodes = nodes,
+        edges = edges,
+        localPeerId = localId,
+        isExpandedProjection = false,
+    )
 }
 
 /**
@@ -211,24 +376,21 @@ private fun PeersUiState.Active.buildFullMeshModel(
         return buildDirectOnlyModel(local, localId)
     }
     val nodes = mutableListOf<PeerNode>()
-    nodes.add(
-        PeerNode(
-            peerId = localId,
-            displayName = "Me",
-            deviceKind = detectDeviceKind(local.deviceName),
-            isLocal = true,
-            isCloud = false,
-        ),
-    )
+    nodes.add(localPeerNode(local, localId))
 
     // Carry direct-peer device-name overrides forward so a peer that's both in
     // SyncStatusInfo and the raw graph keeps the same label.
     val directNameById = remotePeers.associate { it.peerId to it.deviceName }
+    // Sync progress is joined in by peer key. `remotePeers` is already filtered to
+    // directly connected peers, so membership here IS the directness test — and the
+    // peers missing from it are exactly the ones system:data_sync_info has no rows for.
+    val directById = remotePeers.associateBy { it.peerId }
     for (peer in mesh.peers) {
         if (peer.peerKey == localId) continue
         val name = directNameById[peer.peerKey]?.takeIf { !it.isNullOrBlank() }
             ?: peer.deviceName?.takeIf { it.isNotBlank() }
             ?: peer.peerKey.take(8)
+        val direct = directById[peer.peerKey]
         nodes.add(
             PeerNode(
                 peerId = peer.peerKey,
@@ -236,6 +398,29 @@ private fun PeersUiState.Active.buildFullMeshModel(
                 deviceKind = detectDeviceKind(name),
                 isLocal = false,
                 isCloud = false,
+                detail = PeerDetail(
+                    peerKey = peer.peerKey,
+                    deviceName = peer.deviceName?.takeIf { it.isNotBlank() }
+                        ?: direct?.deviceName?.takeIf { it.isNotBlank() },
+                    os = if (peer.os != PeerOS.Unknown) peer.os else direct?.osInfo ?: PeerOS.Unknown,
+                    dittoSdkVersion = peer.dittoSdkVersion ?: direct?.dittoSdkVersion,
+                    isConnectedToDittoServer = peer.isConnectedToDittoServer,
+                    isCompatible = peer.isCompatible,
+                    peerMetadata = peer.peerMetadata ?: direct?.peerMetadata,
+                    peerMetadataKeyCount = maxOf(
+                        peer.peerMetadataKeyCount,
+                        direct?.peerMetadataKeyCount ?: 0,
+                    ),
+                    identityServiceMetadata = peer.identityServiceMetadata
+                        ?: direct?.identityServiceMetadata,
+                    identityServiceMetadataKeyCount = maxOf(
+                        peer.identityServiceMetadataKeyCount,
+                        direct?.identityServiceMetadataKeyCount ?: 0,
+                    ),
+                    isDirectlyConnected = direct != null,
+                    syncedUpToLocalCommitId = direct?.syncedUpToLocalCommitId,
+                    lastUpdateReceivedTime = direct?.lastUpdateReceivedTime,
+                ),
             ),
         )
     }
@@ -264,8 +449,49 @@ private fun PeersUiState.Active.buildFullMeshModel(
     }
 
     appendCloudNodeAndEdge(local, localId, nodes, edges)
-    return PresenceGraphModel(nodes = nodes, edges = edges, localPeerId = localId)
+    return PresenceGraphModel(
+        nodes = nodes,
+        edges = edges,
+        localPeerId = localId,
+        isExpandedProjection = true,
+    )
 }
+
+/**
+ * The local device's node, with a real detail record.
+ *
+ * Tapping "Me" opens a card like any other peer, and the local device is the one we know
+ * most about — leaving [PeerNode.detail] null made that card claim the local device was
+ * a synthetic node with no peer record, which is simply false.
+ *
+ * The sync rows are absent by design: `system:data_sync_info` tracks what remote peers
+ * have confirmed of OUR commits, so there is no row for ourselves. [PeerDetail.peerKey]
+ * and [PeerNode.isLocal] let the card say that plainly instead of implying a missing
+ * connection.
+ */
+private fun localPeerNode(local: LocalPeerInfo, localId: String): PeerNode = PeerNode(
+    peerId = localId,
+    displayName = "Me",
+    deviceKind = detectDeviceKind(local.deviceName),
+    isLocal = true,
+    isCloud = false,
+    detail = PeerDetail(
+        peerKey = localId,
+        deviceName = local.deviceName.takeIf { it.isNotBlank() },
+        os = PeerOS.Android,
+        dittoSdkVersion = local.sdkVersion.takeIf { it.isNotBlank() && it != "Unknown" },
+        isConnectedToDittoServer = local.isCloudConnected,
+        // Compatibility is a statement about a REMOTE peer's protocol versus ours.
+        isCompatible = null,
+        peerMetadata = null,
+        peerMetadataKeyCount = 0,
+        identityServiceMetadata = null,
+        identityServiceMetadataKeyCount = 0,
+        isDirectlyConnected = false,
+        syncedUpToLocalCommitId = null,
+        lastUpdateReceivedTime = null,
+    ),
+)
 
 private fun appendCloudNodeAndEdge(
     local: LocalPeerInfo,

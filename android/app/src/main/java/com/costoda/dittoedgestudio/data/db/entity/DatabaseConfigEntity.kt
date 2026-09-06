@@ -20,6 +20,16 @@ data class DatabaseConfigEntity(
     @ColumnInfo(name = "isLanEnabled") val isLanEnabled: Boolean,
     @ColumnInfo(name = "isAwdlEnabled") val isAwdlEnabled: Boolean,
     @ColumnInfo(name = "isCloudSyncEnabled") val isCloudSyncEnabled: Boolean,
+    // Multicast (beta) transport columns, added in schema v7. Defaults keep
+    // pre-v7 rows multicast-disabled with SDK-default group/port.
+    @ColumnInfo(name = "isMulticastEnabled", defaultValue = "0")
+    val isMulticastEnabled: Boolean = false,
+    @ColumnInfo(name = "multicastGroupAddress", defaultValue = "224.1.2.3")
+    val multicastGroupAddress: String = "224.1.2.3",
+    @ColumnInfo(name = "multicastPort", defaultValue = "6003")
+    val multicastPort: Int = 6003,
+    @ColumnInfo(name = "multicastInterfaceName")
+    val multicastInterfaceName: String? = null,
     @ColumnInfo(name = "token") val token: String,
     @ColumnInfo(name = "authUrl") val authUrl: String,
     @ColumnInfo(name = "websocketUrl") val websocketUrl: String,

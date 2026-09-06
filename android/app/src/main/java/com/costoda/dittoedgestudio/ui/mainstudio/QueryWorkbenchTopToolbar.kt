@@ -68,8 +68,6 @@ fun QueryWorkbenchTopToolbar(
     // "editor holds a SELECT" (ADVISE advises SELECTs only).
     onAdvise: (() -> Unit)? = null,
     adviseEnabled: Boolean = false,
-    // Debug Console (SDK 5.1 debug_socket).
-    onOpenDebugConsole: (() -> Unit)? = null,
 ) {
     var targetMenuExpanded by remember { mutableStateOf(false) }
     var optionsExpanded by remember { mutableStateOf(false) }
@@ -241,17 +239,6 @@ fun QueryWorkbenchTopToolbar(
                             onImportJson()
                         },
                         modifier = Modifier.testTag("QueryOptions.ImportJson"),
-                    )
-                }
-                if (onOpenDebugConsole != null) {
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Debug Console…") },
-                        onClick = {
-                            optionsExpanded = false
-                            onOpenDebugConsole()
-                        },
-                        modifier = Modifier.testTag("QueryOptions.DebugConsole"),
                     )
                 }
                 // Per-query capture is gated on Collect Metrics in the VM — a live

@@ -2,7 +2,6 @@ package com.costoda.dittoedgestudio.data.session
 
 import android.util.Log
 import com.costoda.dittoedgestudio.BuildConfig
-import com.costoda.dittoedgestudio.data.ditto.DebugSocketClient
 import com.costoda.dittoedgestudio.data.ditto.DittoManager
 import com.costoda.dittoedgestudio.data.logging.DittoLogCaptureService
 import com.costoda.dittoedgestudio.data.repository.CollectionsRepository
@@ -20,6 +19,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.ObserveEventStore
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
@@ -124,6 +124,9 @@ class StudioSession(
 
     private val _transportCloudSyncEnabled = MutableStateFlow(true)
     val transportCloudSyncEnabled: StateFlow<Boolean> = _transportCloudSyncEnabled.asStateFlow()
+
+    private val _transportMulticastConfig = MutableStateFlow(MulticastConfig())
+    val transportMulticastConfig: StateFlow<MulticastConfig> = _transportMulticastConfig.asStateFlow()
 
     private val _isApplyingTransport = MutableStateFlow(false)
     val isApplyingTransport: StateFlow<Boolean> = _isApplyingTransport.asStateFlow()
@@ -261,52 +264,6 @@ class StudioSession(
     fun stopSystemMetricsPolling() {
         systemMetricsJob?.cancel()
         systemMetricsJob = null
-    }
-
-    // ── Debug Console (SDK 5.1 debug_socket) ─────────────────────────────────
-    // Parity with the extension's Debug Console: runtime `ALTER SYSTEM` spawns an
-    // unauthenticated newline-DQL listener on a unix socket inside app-private
-    // storage; the client is serial-FIFO with a 30 s timeout and a 64 MiB line cap.
-    private val debugSocketClient = DebugSocketClient()
-
-    /** True while the debug socket listener is up (set when the console opened). */
-    private val _debugConsoleActive = MutableStateFlow(false)
-    val debugConsoleActive: StateFlow<Boolean> = _debugConsoleActive.asStateFlow()
-
-    private fun debugSocketPath(): String = java.io.File(context.cacheDir, "ditto-debug.sock").absolutePath
-
-    /**
-     * Enables the debug socket for this session's Ditto and connects the client.
-     * Idempotent. Returns the socket path on success.
-     */
-    suspend fun openDebugConsole(): Result<String> {
-        val ditto = dittoManager.currentInstance()
-            ?: return Result.failure(IllegalStateException("No active Ditto instance"))
-        return runCatching {
-            val path = debugSocketPath()
-            ditto.store.execute("ALTER SYSTEM SET debug_socket = '$path'")
-            debugSocketClient.connect(path)
-            _debugConsoleActive.value = true
-            path
-        }
-    }
-
-    /** Runs one DQL statement over the debug socket. Opens the console on demand. */
-    suspend fun executeDebugStatement(statement: String): Result<String> {
-        if (!_debugConsoleActive.value) {
-            openDebugConsole().onFailure { return Result.failure(it) }
-        }
-        return runCatching { debugSocketClient.execute(statement) }
-    }
-
-    /** Closes the client and tears the listener down (listener dies with Ditto anyway). */
-    suspend fun closeDebugConsole() {
-        _debugConsoleActive.value = false
-        debugSocketClient.closeAndWait()
-        runCatching {
-            dittoManager.currentInstance()
-                ?.store?.execute("ALTER SYSTEM SET debug_socket = ''")
-        }
     }
 
     /**
@@ -465,6 +422,7 @@ class StudioSession(
                     _transportLanEnabled.value = database.isLanEnabled
                     _transportWifiAwareEnabled.value = database.isAwdlEnabled
                     _transportCloudSyncEnabled.value = database.isCloudSyncEnabled
+                    _transportMulticastConfig.value = database.multicastConfig
 
                     val ditto = dittoManager.hydrate(database)
                     systemRepository.startObserving(ditto)
@@ -729,13 +687,20 @@ class StudioSession(
             }
         }
 
-    fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
+    fun applyTransportSettings(
+        bt: Boolean,
+        lan: Boolean,
+        wifiAware: Boolean,
+        multicast: MulticastConfig = _transportMulticastConfig.value,
+    ) {
         val ditto = dittoManager.currentInstance() ?: return
         val db = currentDatabase ?: return
         sessionScope.launch {
             _isApplyingTransport.value = true
-            runCatching {
-                // 1. Stop sync and observers
+            val applied = try {
+                // 1. Stop sync and observers. This also satisfies the SDK's
+                //    multicast constraint: multicastBeta changes are deferred while
+                //    sync is active, so every apply happens with sync stopped.
                 ditto.sync.stop()
                 systemRepository.stopObserving()
 
@@ -744,6 +709,10 @@ class StudioSession(
                     isBluetoothLeEnabled = bt,
                     isLanEnabled = lan,
                     isAwdlEnabled = wifiAware,
+                    isMulticastEnabled = multicast.enabled,
+                    multicastGroupAddress = multicast.groupAddress,
+                    multicastPort = multicast.port,
+                    multicastInterfaceName = multicast.interfaceName,
                 )
                 dittoManager.applyTransportConfig(ditto, updatedDb)
 
@@ -753,20 +722,35 @@ class StudioSession(
                 databaseRepository.save(updatedDb)
                 currentDatabase = updatedDb
                 dittoManager.refreshActiveConfigIfMatching(updatedDb)
-
-                // 4. Restart sync through the DittoManager funnel — every sync start
-                // re-applies and re-verifies the advanced configuration — then
-                // re-register observers.
-                dittoManager.startSync()
-                systemRepository.startObserving(ditto)
-            }.onFailure { e ->
+                true
+            } catch (e: Exception) {
                 if (BuildConfig.DEBUG) {
                     Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
                 }
+                false
+            } finally {
+                // 4. Restart sync through the DittoManager funnel — every sync start
+                // re-applies and re-verifies the advanced configuration — then
+                // re-register observers. Under finally so a throw above can never
+                // leave sync stopped on a live database.
+                runCatching { dittoManager.startSync() }
+                runCatching { systemRepository.startObserving(ditto) }
             }
-            _transportBluetoothEnabled.value = bt
-            _transportLanEnabled.value = lan
-            _transportWifiAwareEnabled.value = wifiAware
+            // Publish the requested values only when they were actually applied. On
+            // failure re-publish the persisted config so the UI shows the live
+            // state, not a requested state the SDK never took.
+            if (applied) {
+                _transportBluetoothEnabled.value = bt
+                _transportLanEnabled.value = lan
+                _transportWifiAwareEnabled.value = wifiAware
+                _transportMulticastConfig.value = multicast
+            } else {
+                val persisted = currentDatabase ?: db
+                _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
+                _transportLanEnabled.value = persisted.isLanEnabled
+                _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
+                _transportMulticastConfig.value = persisted.multicastConfig
+            }
             _isApplyingTransport.value = false
         }
     }
@@ -793,8 +777,6 @@ class StudioSession(
         runCatching { loggingCaptureService.stopTransportConditionObservation() }
         runCatching { loggingCaptureService.stopConnectionRequestHandler() }
         stopSystemMetricsPolling()
-        runCatching { debugSocketClient.close() }
-        _debugConsoleActive.value = false
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }

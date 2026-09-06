@@ -72,6 +72,14 @@ class DatabaseEditorViewModel(
     private var preResetSyncScopes: List<CollectionSyncScope> = emptyList()
     private var preResetStartupSettings: List<StartupSetting> = emptyList()
 
+    /**
+     * The row as last loaded from Room. [save] copies from it so fields the editor
+     * does not own — the transport flags (BLE/LAN/AWDL/cloud), the four multicast
+     * columns, and websocketUrl — carry forward instead of reverting to data-class
+     * defaults and wiping the user's transport configuration.
+     */
+    private var loadedConfig: DittoDatabase? = null
+
     private val basicsValid = combine(name, databaseId, token) { n, d, t ->
         n.isNotBlank() && d.isNotBlank() && t.isNotBlank()
     }
@@ -125,6 +133,7 @@ class DatabaseEditorViewModel(
     }
 
     fun loadForEdit(database: DittoDatabase) {
+        loadedConfig = database
         name.value = database.name
         databaseId.value = database.databaseId
         token.value = database.token
@@ -364,7 +373,11 @@ class DatabaseEditorViewModel(
      */
     suspend fun save(): Boolean {
         saveWarning.value = null
-        val database = DittoDatabase(
+        // Copy from the loaded row so non-editor fields (transport flags,
+        // multicast columns, websocketUrl) survive the save untouched. A fresh
+        // DittoDatabase(...) would reset them all to data-class defaults, and
+        // dao.update() would then overwrite the row with the wiped values.
+        val database = (loadedConfig ?: DittoDatabase()).copy(
             id = if (isNewItem) 0L else editId,
             name = name.value.trim(),
             databaseId = databaseId.value.trim(),
@@ -379,6 +392,10 @@ class DatabaseEditorViewModel(
             isStrictModeEnabled = isStrictModeEnabled.value,
             collectionSyncScopes = normalizedSyncScopes(),
             startupSettings = normalizedStartupSettings(),
+            // Derived at decode time from the stored scope JSON, never persisted.
+            // This save writes freshly-built scope JSON, so the row is by
+            // definition not corrupt — never carry a stale true forward.
+            hasCorruptSyncScopes = false,
         )
         val savedId = repository.save(database)
         val saved = database.copy(id = if (isNewItem) savedId else database.id)

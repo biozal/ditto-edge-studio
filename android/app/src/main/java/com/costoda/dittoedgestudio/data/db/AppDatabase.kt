@@ -29,7 +29,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         ObservableEntity::class,
         QueryMetricsEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -152,6 +152,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Multicast (beta) transport settings (Ditto SDK 5.1.0
+                // `peerToPeer.multicastBeta`). Existing rows default to disabled
+                // with the SDK-default group/port so upgrading never silently
+                // changes a database's transport behavior.
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN isMulticastEnabled INTEGER NOT NULL DEFAULT 0"
+                )
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN multicastGroupAddress TEXT NOT NULL DEFAULT '224.1.2.3'"
+                )
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN multicastPort INTEGER NOT NULL DEFAULT 6003"
+                )
+                database.execSQL(
+                    "ALTER TABLE databaseConfigs ADD COLUMN multicastInterfaceName TEXT"
+                )
+            }
+        }
+
         // Migration policy (see plans/android/config-loss-investigation.md item B1):
         // - Every schema version bump REQUIRES a hand-written Migration AND a committed
         //   schema JSON under app/schemas/.../<version>.json (validated by MigrationTest).
@@ -164,6 +185,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .openHelperFactory(SupportOpenHelperFactory(key))
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                    MIGRATION_6_7,
                 )
                 .build()
     }

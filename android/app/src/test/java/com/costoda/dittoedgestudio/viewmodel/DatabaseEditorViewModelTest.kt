@@ -134,6 +134,75 @@ class DatabaseEditorViewModelTest {
     }
 
     @Test
+    fun `save preserves transport and multicast fields the editor does not own`() = runTest {
+        // Regression: save() used to build a fresh DittoDatabase from editor fields
+        // only, so every non-editor column (transports, multicast, websocketUrl)
+        // reverted to data-class defaults on each edit-save.
+        val existingDb = DittoDatabase(
+            id = 5L,
+            name = "Existing",
+            databaseId = "ex-id",
+            token = "ex-token",
+            websocketUrl = "wss://custom.example.com",
+            isBluetoothLeEnabled = false,
+            isLanEnabled = false,
+            isAwdlEnabled = true,
+            isCloudSyncEnabled = false,
+            isMulticastEnabled = true,
+            multicastGroupAddress = "239.1.2.3",
+            multicastPort = 7000,
+            multicastInterfaceName = "en0",
+        )
+        val vm = editItemViewModel(5L, existingDb)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val captured = slot<DittoDatabase>()
+        coEvery { repository.save(capture(captured)) } returns 5L
+
+        vm.name.value = "Renamed"
+        assertTrue(vm.save())
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val saved = captured.captured
+        assertEquals("Renamed", saved.name)
+        assertEquals("wss://custom.example.com", saved.websocketUrl)
+        assertFalse(saved.isBluetoothLeEnabled)
+        assertFalse(saved.isLanEnabled)
+        assertTrue(saved.isAwdlEnabled)
+        assertFalse(saved.isCloudSyncEnabled)
+        assertTrue(saved.isMulticastEnabled)
+        assertEquals("239.1.2.3", saved.multicastGroupAddress)
+        assertEquals(7000, saved.multicastPort)
+        assertEquals("en0", saved.multicastInterfaceName)
+    }
+
+    @Test
+    fun `save after re-entering corrupt scopes clears the corrupt flag`() = runTest {
+        // hasCorruptSyncScopes is derived from the stored JSON at decode time; a
+        // save writes freshly-built scope JSON, so the flag must not carry forward
+        // (a stale true would keep the database unopenable after the user fixed it).
+        val existing = DittoDatabase(
+            id = 5L,
+            name = "Existing",
+            databaseId = "ex-id",
+            token = "ex-token",
+            hasCorruptSyncScopes = true,
+        )
+        val vm = editItemViewModel(5L, existing)
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.discardCorruptSyncScopes.value = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val captured = slot<DittoDatabase>()
+        coEvery { repository.save(capture(captured)) } returns 5L
+
+        assertTrue(vm.save())
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(captured.captured.hasCorruptSyncScopes)
+    }
+
+    @Test
     fun `loadForEdit populates all fields correctly`() = runTest {
         val db = DittoDatabase(
             id = 3L,

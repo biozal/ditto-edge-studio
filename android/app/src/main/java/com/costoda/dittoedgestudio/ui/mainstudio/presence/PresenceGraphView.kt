@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.presence
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -10,8 +11,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
@@ -25,12 +28,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CenterFocusStrong
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +49,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -49,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -109,6 +119,9 @@ private const val EXIT_ANIM_MS = 300
 private const val LAYOUT_ANIM_MS = 500
 private const val HIGHLIGHT_ANIM_MS = 150
 
+/** Breathing room kept around the mesh when auto-fitting the camera, in dp. */
+private const val FIT_MARGIN_DP = 40f
+
 private val RemoteGreenLight = Color(0xFF0D8540)
 private val RemoteGreenDark = Color(0xFF1FA858)
 
@@ -123,7 +136,14 @@ fun PresenceGraphView(
     peersUiState: PeersUiState,
     showDirectConnectedOnly: Boolean,
     onToggleDirectConnectedOnly: () -> Unit,
+    // Focus-mode peer id, hoisted to MainStudioViewModel so it survives the
+    // Peers ↔ Viewer tab switch (the tab `when` disposes this subtree, which
+    // would otherwise kill an active focus session on every hop).
+    focusedPeerId: String?,
+    onFocusedPeerChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    controlsVisible: Boolean = true,
+    onToggleControlsVisible: () -> Unit = {},
 ) {
     val density = LocalDensity.current
     val viewConfig = LocalViewConfiguration.current
@@ -138,25 +158,96 @@ fun PresenceGraphView(
         }
     }
 
+    val peerStates: SnapshotStateMap<String, PeerAnimState> = remember { mutableStateMapOf() }
+    val transform = remember { mutableStateOf(Transform.Identity) }
+    val selectedPeerId = remember { mutableStateOf<String?>(null) }
+    // Focus mode (Expanded/full-mesh only) — VS Code extension parity: tapping a
+    // remote peer with Direct OFF re-lays-out that peer at the centre with its
+    // direct neighbours on one orbit; the rest of the mesh stays as dimmed context.
+    // The focused id itself is the hoisted parameter; preFocusTransform stays
+    // view-local and is re-saved on re-entry (a stale pre-focus camera restored
+    // across a tab switch would be worse than snapping back to Identity).
+    val preFocusTransform = remember { mutableStateOf<Transform?>(null) }
+    val draggingPeerId = remember { mutableStateOf<String?>(null) }
+    val deferredLayout = remember { mutableStateOf<LayoutResult?>(null) }
+    val sceneSizePx = remember { mutableStateOf(IntOffset.Zero) }
+    // Entering Direct mode fits the (smaller) compact layout to the viewport on the
+    // next applied layout — zoom-out only, never past the user's chosen zoom-in.
+    // (VS Code extension `fitZoomToLayout` parity; not fired on initial composition.)
+    val fitDirectLayout = remember { mutableStateOf(false) }
+    // True once the user has taken manual control of the camera (pinch, or the
+    // +/- buttons). While set, the auto-fit below stands down: on a debugging
+    // screen a mesh update must never yank a deliberate zoom-in back out from
+    // under the person reading a peer name. "Reset view" hands control back.
+    val userAdjustedZoom = remember { mutableStateOf(false) }
+    // The one peer whose detail card is open, or null. Accordion semantics: opening one
+    // closes the other, because two screen-space overlays would occlude each other with
+    // no layout keeping them apart. Deliberately view-local — a card anchored to a node
+    // must not outlive the subtree that positions it, so a tab switch closes it.
+    val expandedPeerId = remember { mutableStateOf<String?>(null) }
+    // Measured card size. The card is positioned from its own size, which isn't known
+    // until it has been laid out, so it stays invisible for that one frame rather than
+    // flashing at the wrong place.
+    val cardSizePx = remember { mutableStateOf(IntOffset.Zero) }
+    val cardMarginPx = with(density) { 16.dp.toPx() }
+    // The mode that produced the last APPLIED layout. Owned by the layout-apply
+    // effect below — a flip means "discard focus + selection, and fit-zoom when
+    // entering Direct", honouring the extension's one-layout-per-toggle invariant.
+    val appliedDirectMode = remember { mutableStateOf(showDirectConnectedOnly) }
+
+    // ── Label measurement (cached per label string) ─────────────────────────
+    val measurer = rememberTextMeasurer()
+    val labelStyle = remember {
+        TextStyle(
+            color = Color.White,
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 9.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+    val pillHeightPx = with(density) { 22.5.dp.toPx() }
+    val pillHorizPaddingPx = with(density) { 22.5.dp.toPx() }
+    // Pill-width cache keyed by label (the VS Code extension's pill width cache):
+    // text measurement is expensive, labels are stable per peer, and renames are
+    // rare — so a topology change re-measures nothing.
+    val pillMeasureCache = remember { mutableMapOf<String, PillMeasurement>() }
+    val pillMeasurements: Map<String, PillMeasurement> = remember(graphModel.nodes) {
+        graphModel.nodes.associate { node ->
+            node.peerId to pillMeasureCache.getOrPut(node.displayName) {
+                measurePeerPill(
+                    measurer = measurer,
+                    label = node.displayName,
+                    style = labelStyle,
+                    horizontalPaddingPx = pillHorizPaddingPx,
+                    fixedHeightPx = pillHeightPx,
+                )
+            }
+        }
+    }
+
     // Key on the @Immutable graphModel directly. Its data-class equality is cached
     // and stable across recompositions for unchanged states, so we avoid allocating
-    // a temporary List<String> per recompose for the remember key.
-    val layoutResult = remember(graphModel) {
+    // a temporary List<String> per recompose for the remember key. Layout runs AFTER
+    // pill measurement: measured label widths (converted to the engine's dp space)
+    // feed expanded-mode ring packing so long pills aren't packed too tightly.
+    val layoutResult = remember(graphModel, pillMeasurements) {
         val localId = graphModel.localPeerId
             ?: return@remember LayoutResult(emptyMap(), emptyMap(), emptyMap())
         calculateRadialLayout(
             localPeerId = localId,
             peerIds = graphModel.nodes.map { it.peerId },
             edges = graphModel.edges.map { LayoutEdgeInput(it.fromPeerId, it.toPeerId) },
+            // Full-mesh (Direct OFF) mode spreads rings wider and packs crowded BFS
+            // layers into multiple visual rings (VS Code extension parity). Keyed on
+            // the projection actually built, not the toggle: when the mesh hasn't
+            // been published yet the model falls back to the direct star, and that
+            // fallback must render at the compact 1× scale.
+            radiusScale = if (graphModel.isExpandedProjection) EXPANDED_RADIUS_SCALE else 1f,
+            peerFootprints = pillMeasurements.mapValues { it.value.width / density.density },
         )
     }
 
-    val peerStates: SnapshotStateMap<String, PeerAnimState> = remember { mutableStateMapOf() }
-    val transform = remember { mutableStateOf(Transform.Identity) }
-    val selectedPeerId = remember { mutableStateOf<String?>(null) }
-    val draggingPeerId = remember { mutableStateOf<String?>(null) }
-    val deferredLayout = remember { mutableStateOf<LayoutResult?>(null) }
-    val sceneSizePx = remember { mutableStateOf(IntOffset.Zero) }
     // Pulse on incident edges when a peer is selected. Hosted via a conditional
     // composable helper: while inactive it's a stable State<Float>=1f, while active
     // it's an InfiniteTransition-driven State. Either way the parent never reads
@@ -182,7 +273,192 @@ fun PresenceGraphView(
     }
 
     val pxPerDp = density.density
-    LaunchedEffect(graphModel.nodes, layoutResult.positions, pxPerDp) {
+
+    // Gesture/click callbacks outlive one composition (pointerInput(Unit) captures
+    // the FIRST composition's instances and never restarts), so anything they —
+    // or the drag-end layout apply — read must come through these refs. A plain
+    // read of a `remember(keys) { derivedStateOf {} }` delegate (e.g. graphModel)
+    // would be stuck at the first unequal emission's instance: remember re-creates
+    // the delegate when its keys change while the captured lambda keeps the old one.
+    val currentLayout by rememberUpdatedState(layoutResult)
+    val currentPills by rememberUpdatedState(pillMeasurements)
+    val currentPxPerDp by rememberUpdatedState(pxPerDp)
+    val currentGraphModel by rememberUpdatedState(graphModel)
+    val currentShowDirectOnly by rememberUpdatedState(showDirectConnectedOnly)
+    val currentFocusedPeerId by rememberUpdatedState(focusedPeerId)
+
+    // The focused peer plus its direct neighbours — the full-alpha set during
+    // focus. Declared before the focus functions + layout-apply effect that use it.
+    val focusNeighbourhood: Set<String> by remember(graphModel.edges, focusedPeerId) {
+        derivedStateOf {
+            val focused = focusedPeerId ?: return@derivedStateOf emptySet()
+            PresenceFocusPlanner.neighbourKeys(focused, graphModel.edges).toSet() + focused
+        }
+    }
+    val currentFocusNeighbourhood by rememberUpdatedState(focusNeighbourhood)
+
+    // ── Focus mode (Expanded/full-mesh only) ────────────────────────────────
+    // VS Code extension parity: tapping a remote peer with Direct OFF re-lays-out
+    // that peer at the centre with its direct neighbours on one orbit; the rest of
+    // the mesh stays in place as dimmed context. Exit via the banner ✕, re-tapping
+    // the focused peer, or tapping empty canvas. A mode toggle always discards it.
+    /**
+     * @param recenterCamera false when this is a *refresh* of an existing focus session
+     *   (a layout pass while already focused) rather than the user entering focus. A
+     *   refresh must leave the camera alone: presence emissions arrive constantly, and
+     *   re-centring on each one would throw away the pan and zoom the user set while
+     *   reading a peer — the same "camera must not fight the user" rule the auto-fit
+     *   follows.
+     */
+    fun enterFocusMode(peerId: String, recenterCamera: Boolean = true) {
+        if (currentShowDirectOnly) return
+        if (peerId == currentGraphModel.localPeerId) return // the local peer is never focusable
+        if (peerStates[peerId] == null) return
+        selectedPeerId.value = null // focus replaces selection
+        // Save the pre-focus camera on entry — also on RE-entry after a tab
+        // switch, where the hoisted id is already non-null but the view-local
+        // preFocusTransform was disposed with the previous subtree.
+        if (currentFocusedPeerId == null || preFocusTransform.value == null) {
+            preFocusTransform.value = transform.value
+        }
+        onFocusedPeerChange(peerId)
+
+        val layout = currentLayout
+        val pills = currentPills
+        val neighbours = PresenceFocusPlanner.neighbourKeys(peerId, currentGraphModel.edges)
+        val focusLayout = calculateRadialLayout(
+            localPeerId = peerId,
+            peerIds = listOf(peerId) + neighbours,
+            edges = currentGraphModel.edges
+                .filter { it.fromPeerId == peerId || it.toPeerId == peerId }
+                .map { LayoutEdgeInput(it.fromPeerId, it.toPeerId) },
+            radiusScale = 1f,
+            // The engine's crowding floor + measured footprints make the orbit
+            // label-aware (supersedes the extension's expandFocusedRingForLabels).
+            peerFootprints = pills.mapValues { it.value.width / currentPxPerDp },
+        )
+
+        // Animate the neighbourhood onto the focus orbit; context stays in place.
+        for ((id, point) in focusLayout.positions) {
+            val state = peerStates[id] ?: continue
+            val target = Offset(point.x * currentPxPerDp, point.y * currentPxPerDp)
+            state.target = target
+            state.positionJob?.cancel()
+            state.positionJob = scope.launch {
+                state.position.animateTo(target, tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing))
+            }
+        }
+
+        // Focus camera: magnify to at least 1.25×, never past the fit for the
+        // complete neighbourhood. The focused peer sits at the layout origin, so
+        // centre the viewport on the mesh centre.
+        val maxRadiusDp = focusLayout.ringRadii.values.maxOrNull() ?: 0f
+        val maxPillPx = pills.values.maxOfOrNull { it.width } ?: 0f
+        val sizePx = sceneSizePx.value
+        val contentW = (maxRadiusDp * 2f * currentPxPerDp) + maxPillPx + (128f * currentPxPerDp)
+        val contentH = (maxRadiusDp * 2f * currentPxPerDp) + maxPillPx + (176f * currentPxPerDp)
+        if (recenterCamera) {
+            val fit = PresenceFocusPlanner.fitZoom(contentW, contentH, sizePx.x.toFloat(), sizePx.y.toFloat())
+            val targetScale = PresenceFocusPlanner.focusScale(fitZoom = fit, currentZoom = transform.value.scale)
+            transform.value = Transform(offset = Offset.Zero, scale = targetScale)
+        }
+    }
+
+    fun exitFocusMode(restorePositions: Boolean = true) {
+        if (currentFocusedPeerId == null) return
+        onFocusedPeerChange(null)
+        // Restore the pre-focus camera; the mesh positions come back through the
+        // layout diff. Callers that know a layout pass is running right now (mode
+        // toggle, topology change) skip the redundant restore.
+        preFocusTransform.value?.let { transform.value = it }
+        preFocusTransform.value = null
+        if (restorePositions) {
+            applyLayoutDiff(scope, peerStates, currentGraphModel, currentLayout, currentPxPerDp)
+        }
+    }
+
+    /**
+     * Zoom out (never in) until every peer pill of [layout] — and therefore every
+     * device name — is inside the viewport.
+     *
+     * Peer names are the payload of this view when debugging a mesh, so a name
+     * clipped by the container is a functional bug, not a cosmetic one. The
+     * default 100% camera only fits on a wide display: one expanded ring spans
+     * ~433 dp plus a pill, against 344 dp of usable width on a folded Galaxy Z
+     * Fold cover screen.
+     *
+     * Zoom-out only, so this can never fight a user who has zoomed in.
+     */
+    fun fitCameraToLayout(layout: LayoutResult) {
+        val maxRadiusDp = layout.ringRadii.values.maxOrNull() ?: return
+        val sizePx = sceneSizePx.value
+        if (maxRadiusDp <= 0f || sizePx == IntOffset.Zero) return
+        val target = PresenceFocusPlanner.meshFitZoom(
+            maxRingRadiusDp = maxRadiusDp,
+            maxPillWidthPx = currentPills.values.maxOfOrNull { it.width } ?: 0f,
+            pxPerDp = currentPxPerDp,
+            viewWidthPx = sizePx.x.toFloat(),
+            viewHeightPx = sizePx.y.toFloat(),
+            marginPx = FIT_MARGIN_DP * currentPxPerDp,
+        )
+        if (target < transform.value.scale) {
+            transform.value = transform.value.copy(scale = target)
+        }
+    }
+
+    // One layout pass = the position diff PLUS the mode/focus bookkeeping that
+    // must travel with it (extension invariant: a mode toggle discards focus +
+    // selection and arms the Direct fit-zoom). Shared by the layout-apply effect
+    // below AND the gesture handler's drag-end path, so a layout deferred by an
+    // in-progress peer drag lands with identical invariants when applied at drag
+    // end. Reads go through the rememberUpdatedState refs because the drag-end
+    // call site is captured once by pointerInput(Unit).
+    fun applyLayoutWithBookkeeping(layout: LayoutResult) {
+        // A mode toggle always discards focus + selection (extension invariant), so
+        // the mesh pass below restores every position (nothing skipped). While
+        // focused (no mode change), the neighbourhood keeps its focus orbit — the
+        // pass only moves the (dimmed) context nodes, then the orbit refreshes.
+        val modeChanged = appliedDirectMode.value != currentShowDirectOnly
+        appliedDirectMode.value = currentShowDirectOnly
+        val model = currentGraphModel
+        val focused = currentFocusedPeerId
+        val focusAlive = !modeChanged && focused != null && model.nodes.any { it.peerId == focused }
+        val skip = if (focusAlive) currentFocusNeighbourhood else emptySet()
+
+        applyLayoutDiff(scope, peerStates, model, layout, currentPxPerDp, skipRepositioning = skip)
+        deferredLayout.value = null
+
+        when {
+            modeChanged -> {
+                selectedPeerId.value = null
+                if (currentShowDirectOnly) fitDirectLayout.value = true
+                if (focused != null) exitFocusMode(restorePositions = false)
+            }
+            focused != null && !focusAlive -> exitFocusMode(restorePositions = false)
+            // Refresh the orbit. Skip while the viewport is unmeasured (first
+            // composition of a tab-switch re-entry): the focus camera would be
+            // computed against a zero size and the re-entry effect below re-fires
+            // once onSizeChanged reports the real viewport.
+            focused != null && sceneSizePx.value != IntOffset.Zero ->
+                enterFocusMode(focused, recenterCamera = false)
+            else -> Unit
+        }
+
+        if (fitDirectLayout.value) {
+            fitDirectLayout.value = false
+            // A mode toggle is an explicit re-frame, so it re-fits even if the user
+            // had zoomed manually — matching the extension's fitZoomToLayout.
+            fitCameraToLayout(layout)
+        }
+    }
+
+    // showDirectConnectedOnly is a key even though the body reads it through a
+    // ref: when both projections are structurally equal (all-direct mesh with
+    // matching order), graphModel/layoutResult don't change on a toggle — without
+    // this key the effect wouldn't fire and the mode-toggle bookkeeping inside
+    // applyLayoutWithBookkeeping (discard selection/focus, arm fitDirectLayout)
+    // would never run.
+    LaunchedEffect(graphModel.nodes, layoutResult.positions, pxPerDp, showDirectConnectedOnly) {
         if (draggingPeerId.value != null) {
             if (BuildConfig.DEBUG) {
                 Log.d(
@@ -200,33 +476,62 @@ fun PresenceGraphView(
                 "Applying layout: nodes=${graphModel.nodes.size} edges=${graphModel.edges.size}",
             )
         }
-        applyLayoutDiff(scope, peerStates, graphModel, layoutResult, pxPerDp)
-        deferredLayout.value = null
+        applyLayoutWithBookkeeping(layoutResult)
     }
 
-    // ── Label measurement (cached per label string) ─────────────────────────
-    val measurer = rememberTextMeasurer()
-    val labelStyle = remember {
-        TextStyle(
-            color = Color.White,
-            fontFamily = FontFamily.SansSerif,
-            fontWeight = FontWeight.Bold,
-            fontSize = 9.sp,
-            textAlign = TextAlign.Center,
-        )
+    // Auto-fit the camera so the entire mesh — every peer pill, and therefore every
+    // device name — stays inside the viewport. This is what makes the viewer usable
+    // on a narrow screen: the layout engine works in absolute dp (a single expanded
+    // ring is ~433 dp across before pills), so at the default 100% zoom the outer
+    // pills fall outside a 344 dp-wide folded Fold cover screen and get clipped by
+    // the container's clipToBounds(), cutting device names in half.
+    //
+    // Re-fires whenever the geometry that decides "does it fit" changes: the ring
+    // radii (topology / mode), the pill widths (a peer renamed, or joined with a
+    // longer name), or the viewport (rotation, fold/unfold, split-screen resize).
+    // Skipped while focused — the focus camera owns the zoom then — and once the
+    // user has driven the camera themselves.
+    LaunchedEffect(layoutResult.ringRadii, pillMeasurements, sceneSizePx.value, pxPerDp) {
+        if (userAdjustedZoom.value || focusedPeerId != null) return@LaunchedEffect
+        fitCameraToLayout(layoutResult)
     }
-    val pillHeightPx = with(density) { 22.5.dp.toPx() }
-    val pillHorizPaddingPx = with(density) { 22.5.dp.toPx() }
-    val pillMeasurements: Map<String, PillMeasurement> = remember(graphModel.nodes) {
-        graphModel.nodes.associate { node ->
-            node.peerId to measurePeerPill(
-                measurer = measurer,
-                label = node.displayName,
-                style = labelStyle,
-                horizontalPaddingPx = pillHorizPaddingPx,
-                fixedHeightPx = pillHeightPx,
-            )
+
+    // Focus re-entry after a Peers ↔ Viewer tab switch: the hoisted id survives
+    // the dispose of this subtree; the in-view orbit + pre-focus camera do not.
+    // Re-enter once the viewport is measured and the first layout pass has
+    // placed the peer. If the peer left the mesh meanwhile (or the mode is
+    // Direct, where focus doesn't exist), clear the hoisted id instead.
+    LaunchedEffect(focusedPeerId, showDirectConnectedOnly, sceneSizePx.value) {
+        val focused = focusedPeerId ?: return@LaunchedEffect
+        if (showDirectConnectedOnly || graphModel.nodes.none { it.peerId == focused }) {
+            onFocusedPeerChange(null)
+            // Mirror exitFocusMode's camera restore. The layout-apply path skips
+            // exitFocusMode once the hoisted id is cleared (e.g. a Direct toggle
+            // mid-drag, where the layout lands only at drag end) — without this the
+            // camera stays stuck at the focus zoom/centre.
+            preFocusTransform.value?.let { transform.value = it }
+            preFocusTransform.value = null
+            return@LaunchedEffect
         }
+        if (preFocusTransform.value != null) return@LaunchedEffect // already entered here
+        if (sceneSizePx.value == IntOffset.Zero) return@LaunchedEffect // wait for the viewport
+        if (peerStates[focused] == null) return@LaunchedEffect // layout hasn't placed it yet
+        enterFocusMode(focused)
+    }
+
+    // Close the open card whenever the thing it is anchored to stops existing: details
+    // switched off, focus left, or the peer dropped out of the mesh. A card floating
+    // over a node that is gone is worse than no card.
+    LaunchedEffect(focusedPeerId, graphModel.nodes) {
+        val open = expandedPeerId.value ?: return@LaunchedEffect
+        if (focusedPeerId == null || graphModel.nodes.none { it.peerId == open }) {
+            expandedPeerId.value = null
+        }
+    }
+
+    // Android back dismisses the card before anything else consumes it.
+    BackHandler(enabled = expandedPeerId.value != null) {
+        expandedPeerId.value = null
     }
 
     val pathPool = remember { mutableMapOf<String, Path>() }
@@ -235,6 +540,9 @@ fun PresenceGraphView(
     // measures at a time inside drawBehind's sequential loop.
     val cloudPathMeasure = remember { androidx.compose.ui.graphics.PathMeasure() }
     val dashEffects = rememberDashEffects()
+    // Design-space (1x zoom) edge constants. drawPresenceEdge applies the camera zoom
+    // to each of them, so that a zoomed-out graph keeps its proportions instead of
+    // drawing 1x-sized thicknesses over a shrunken mesh.
     val cloudCircleSpacingPx = with(density) { 40.dp.toPx() }
     val baseStrokePx = with(density) { 2.dp.toPx() }
     val highlightStrokePx = with(density) { 3.dp.toPx() }
@@ -266,6 +574,8 @@ fun PresenceGraphView(
                 .toSet() + sel
         }
     }
+
+
 
     val parallelOffsetByEdgeId: Map<String, Float> = remember(graphModel.edges, parallelBaseOffsetPx) {
         buildMap {
@@ -340,18 +650,28 @@ fun PresenceGraphView(
             .clipToBounds()
             .onSizeChanged { size -> sceneSizePx.value = IntOffset(size.width, size.height) }
             // Key on Unit so mesh churn (peers joining/leaving while the user is
-            // mid-gesture) does NOT cancel the gesture coroutine. The handler reads
-            // `graphModel.nodes` lazily through the snapshot delegate so it always
-            // sees current state without needing a re-keyed restart.
+            // mid-gesture) does NOT cancel the gesture coroutine. The trade-off:
+            // this lambda keeps the FIRST composition's captured instances, so
+            // everything it reads must come through the rememberUpdatedState refs
+            // (currentGraphModel, currentPills, currentPxPerDp, ...) — a plain
+            // delegate read would go stale on the first unequal emission (peers
+            // joining after first composition couldn't even be hit-tested).
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val firstDown = awaitFirstDown(requireUnconsumed = false)
                     val downPosition = firstDown.position
+                    // Belt and braces with the card's own pointer consumption: if the
+                    // press landed inside the open card, this gesture is not ours. Read
+                    // from MutableState (never captured values) — this lambda is
+                    // pointerInput(Unit) and keeps the first composition's scope.
+                    if (isPointOnOpenCard(downPosition, expandedPeerId.value, cardSizePx.value, sceneSizePx.value, cardMarginPx)) {
+                        return@awaitEachGesture
+                    }
                     val hitPeerId = hitTestPeer(
                         point = downPosition,
-                        nodes = graphModel.nodes,
+                        nodes = currentGraphModel.nodes,
                         peerStates = peerStates,
-                        pillMeasurements = pillMeasurements,
+                        pillMeasurements = currentPills,
                         transform = transform.value,
                         sceneCenterPx = sceneCenterPx,
                     )
@@ -382,15 +702,27 @@ fun PresenceGraphView(
                             // child just toggled selection — never overwrite that.
                             val anyConsumed = event.changes.any { it.isConsumed }
                             if (!dragStarted && hitPeerId == null && !anyConsumed) {
-                                selectedPeerId.value = null
+                                if (expandedPeerId.value != null) {
+                                    // Dismiss the open card WITHOUT leaving focus — the
+                                    // user is closing an inspector, not backing out of
+                                    // the peer they are investigating.
+                                    expandedPeerId.value = null
+                                } else {
+                                    selectedPeerId.value = null
+                                    // Empty-canvas tap also exits focus mode (extension parity).
+                                    exitFocusMode()
+                                }
                             }
                             if (isPeerDrag) {
                                 if (BuildConfig.DEBUG) Log.d(TAG, "Drag end peer=${draggingPeerId.value}")
                                 draggingPeerId.value = null
                                 val deferred = deferredLayout.value
                                 if (deferred != null) {
-                                    applyLayoutDiff(scope, peerStates, graphModel, deferred, pxPerDp)
-                                    deferredLayout.value = null
+                                    // A layout that landed mid-drag is applied here
+                                    // with the SAME mode/focus bookkeeping as the
+                                    // layout-apply effect — including discarding a
+                                    // focus session a mode toggle already killed.
+                                    applyLayoutWithBookkeeping(deferred)
                                 }
                             }
                             lastPressedCount = 0
@@ -399,6 +731,7 @@ fun PresenceGraphView(
                         if (pressed.size >= 2) {
                             val zoom = event.calculateZoom()
                             if (zoom != 1f) {
+                                userAdjustedZoom.value = true
                                 transform.value = transform.value.copy(
                                     scale = (transform.value.scale * zoom)
                                         .coerceIn(Transform.MIN_SCALE, Transform.MAX_SCALE),
@@ -476,18 +809,27 @@ fun PresenceGraphView(
                         transform = transform.value,
                     )
                     val selected = selectedPeerId.value
+                    val focused = focusedPeerId
                     val isIncident = selected != null && edge.edgeId in incidentEdgeIds
                     val color = edgeColorByEdgeId[edge.edgeId] ?: Color.Gray
                     val dashKey = DashKey(edge.type, edge.isCloud)
                     val dashEffect = dashEffects[dashKey] ?: continue
                     val strokePx = if (isIncident) highlightStrokePx else baseStrokePx
-                    // Three states per edge:
-                    //   no selection           → full alpha, no pulse
+                    // States per edge (focus wins over selection):
+                    //   focused + touches focus → full alpha (the orbit's spokes)
+                    //   focused + other        → context backdrop (0.04)
                     //   selected + incident    → pulse (0.8..1.0) — reads State<Float>
                     //                            inside drawBehind so only the draw
                     //                            layer invalidates, never composition
                     //   selected + non-incident → dim to 0.2
+                    //   otherwise              → full alpha
                     val edgeAlpha = when {
+                        focused != null ->
+                            if (edge.fromPeerId == focused || edge.toPeerId == focused) {
+                                1f
+                            } else {
+                                PresenceFocusPlanner.CONTEXT_LINE_ALPHA
+                            }
                         selected == null -> 1f
                         isIncident -> pulseAlphaState.value
                         else -> 0.2f
@@ -505,6 +847,7 @@ fun PresenceGraphView(
                         arcOutward = edge.arcOutward,
                         parallelOffsetPx = parallelOffsetByEdgeId[edge.edgeId] ?: 0f,
                         cloudCircleSpacingPx = cloudCircleSpacingPx,
+                        zoom = transform.value.scale,
                         path = path,
                         pathMeasure = cloudPathMeasure,
                     )
@@ -527,13 +870,25 @@ fun PresenceGraphView(
                     val fill = nodeFillByPeerId[node.peerId] ?: Color.Gray
                     val textColor = nodeTextColorByPeerId[node.peerId] ?: Color.White
                     val selected = selectedPeerId.value
-                    val isSelectedPeer = selected != null && node.peerId == selected
-                    val isInNeighbourhood = selected == null || node.peerId in highlightedPeerIds
+                    val focused = focusedPeerId
+                    val isSelectedPeer = focused == null && selected != null && node.peerId == selected
+                    // The peer whose card is open reads as "selected" so it is obvious
+                    // which pill the floating card belongs to.
+                    val isExpandedPeer = node.peerId == expandedPeerId.value
+                    // Neighbourhood membership: focus mode uses the focus orbit;
+                    // selection mode uses the selected peer's incident edges.
+                    val isInNeighbourhood = when {
+                        focused != null -> node.peerId in focusNeighbourhood
+                        selected == null -> true
+                        else -> node.peerId in highlightedPeerIds
+                    }
                     // Selection visual: selected peer scales to 1.1×, peers in its
-                    // neighbourhood stay full alpha, everyone else dims to 0.35 so the
-                    // structure of "X's connections" pops out of the graph.
-                    val pillScale = state.scale.value * if (isSelectedPeer) 1.1f else 1f
-                    val pillAlpha = state.alpha.value * if (isInNeighbourhood) 1f else 0.35f
+                    // neighbourhood stay full alpha, everyone else dims (0.35
+                    // selection / 0.08 focus context) so the structure pops.
+                    val dimAlpha = if (focused != null) PresenceFocusPlanner.CONTEXT_PEER_ALPHA else 0.35f
+                    val pillScale = state.scale.value * if (isSelectedPeer || isExpandedPeer) 1.1f else 1f
+                    val pillAlpha = state.alpha.value *
+                        if (isInNeighbourhood || isExpandedPeer) 1f else dimAlpha
                     drawPresencePeerPill(
                         center = canvasPos,
                         widthPx = measurement.width * transform.value.scale,
@@ -543,15 +898,25 @@ fun PresenceGraphView(
                         textColor = textColor,
                         textLayout = measurement.text,
                         scale = pillScale,
+                        zoom = transform.value.scale,
                         alpha = pillAlpha,
                     )
                 }
             },
     ) {
-        // Parallel semantics layer (a11y + keyboard) — every peer is tap-to-isolate
-        // selectable, including local "Me". Selecting Me highlights its
-        // neighbourhood = exactly the peers directly connected to Me, which is the
-        // most useful "what am I talking to right now?" view in Direct=OFF mode.
+        // Parallel semantics layer (a11y + keyboard). Tap routing mirrors the
+        // extension's nodeAt/selectPeer pair:
+        //  - Direct mode: a tap toggles selection (dim/highlight) for any peer,
+        //    including local "Me" — a documented intentional deviation from the
+        //    extension, which rejects the local key everywhere.
+        //  - Expanded, unfocused: tapping a remote peer enters focus on it;
+        //    tapping Me is an invalid selection (no-op — Me is never focusable).
+        //  - Expanded, FOCUSED: a tap means "show me this peer" — it opens (or
+        //    closes) that peer's detail card, for every peer including Me and the
+        //    focused peer itself. The meanings this displaced are still reachable:
+        //    exit focus via the banner ✕ or an empty-canvas tap, and refocus via
+        //    the card's "Focus this peer" action. Me ON the
+        //    orbit is an invalid selection (no-op, focus stays).
         //
         // Me is intentionally excluded from `hitTestPeer` in the parent gesture
         // handler instead: that keeps drag-from-Me out of the peer-drag path
@@ -582,23 +947,175 @@ fun PresenceGraphView(
                         role = Role.Button
                     }
                     .clickable {
-                        val newValue = if (selectedPeerId.value == node.peerId) null else node.peerId
-                        if (BuildConfig.DEBUG) {
-                            Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                        val focused = focusedPeerId
+                        when {
+                            // In focus mode a tap ALWAYS opens (or closes) that peer's
+                            // detail card. Tap used to mean three different things here
+                            // — re-tap exits focus, orbit peer refocuses, dimmed peer
+                            // exits — which is unlearnable; the card is what people
+                            // actually come to focus mode for. The displaced meanings
+                            // are still reachable: exit focus via the banner ✕ or an
+                            // empty-canvas tap, and refocus via the card's own action,
+                            // where it is labelled instead of hidden in a gesture.
+                            // Direct mode: tap only dims (selection) — extension parity,
+                            // except that local "Me" stays selectable here
+                            // (documented intentional deviation). Tested BEFORE focus so
+                            // that in the single frame after a Direct toggle lands, but
+                            // before the effect clears the hoisted focus id, a tap can't
+                            // be routed to the card instead of to selection.
+                            showDirectConnectedOnly -> {
+                                val newValue = if (selectedPeerId.value == node.peerId) null else node.peerId
+                                if (BuildConfig.DEBUG) {
+                                    Log.d(TAG, "Selection ${selectedPeerId.value} → $newValue (tap on ${node.peerId})")
+                                }
+                                selectedPeerId.value = newValue
+                            }
+                            focused != null -> {
+                                expandedPeerId.value =
+                                    if (expandedPeerId.value == node.peerId) null else node.peerId
+                            }
+                            // Expanded, unfocused: Me is never focusable (invalid
+                            // selection → no-op); any other tap enters focus.
+                            node.peerId == graphModel.localPeerId -> Unit
+                            else -> enterFocusMode(node.peerId)
                         }
-                        selectedPeerId.value = newValue
                     },
             )
         }
 
-        // Connection legend (bottom-left) — port of iOS PresenceViewerSK.connectionLegend.
-        ConnectionLegendCard(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp),
-        )
+        // Expanded detail card. Screen-space and CENTRED: fixed dp, not multiplied by
+        // the camera zoom, and not anchored to its peer. Anchoring put the card wherever
+        // the peer happened to be, including hard against an edge where the parent's
+        // clipToBounds() cut off the sync rows — the rows the card exists for. It
+        // deliberately never reaches `peerFootprints`; the orbit must not move when a
+        // card opens.
+        val openPeerId = expandedPeerId.value
+        if (openPeerId != null) {
+            val openNode = graphModel.nodes.firstOrNull { it.peerId == openPeerId }
+            if (openNode != null) {
+                val cardMargin = with(density) { 16.dp.toPx() }
+                Box(
+                    modifier = Modifier
+                        .onSizeChanged { cardSizePx.value = IntOffset(it.width, it.height) }
+                        .offset {
+                            // Read inside the lambda: cardSizePx is written during
+                            // layout, so a composition-phase read would place a
+                            // newly-swapped card using the previous card's height.
+                            val measuredNow = cardSizePx.value
+                            val placement = centreDetailCard(
+                                cardWidthPx = measuredNow.x.toFloat(),
+                                cardHeightPx = measuredNow.y.toFloat(),
+                                viewportWidthPx = sceneSizePx.value.x.toFloat(),
+                                viewportHeightPx = sceneSizePx.value.y.toFloat(),
+                                marginPx = cardMargin,
+                            )
+                            IntOffset(placement.x.roundToInt(), placement.y.roundToInt())
+                        }
+                        // Tap the card to close it.
+                        //
+                        // detectTapGestures rather than `clickable` on purpose: clickable
+                        // sets shouldMergeDescendantSemantics, which collapses the whole
+                        // card into one semantics node and makes every row unreachable to
+                        // a screen reader. This keeps the rows individually focusable.
+                        //
+                        // Children (the Focus action, the scroll) are hit first and
+                        // consume their own gestures, so they still work — an earlier
+                        // attempt to swallow every event here instead consumed in the
+                        // Main pass and cancelled every tap INSIDE the card. Non-tap
+                        // gestures, and any press the card doesn't claim, are handled by
+                        // the isPointOnOpenCard guard in the graph's gesture handler.
+                        .pointerInput(Unit) {
+                            detectTapGestures { expandedPeerId.value = null }
+                        }
+                        // Placement depends on the card's own measured size, so hide it
+                        // for the single frame before that is known.
+                        .alpha(if (cardSizePx.value == IntOffset.Zero) 0f else 1f),
+                ) {
+                    PeerDetailCard(
+                        node = openNode,
+                        maxHeightPx = sceneSizePx.value.y - (cardMargin * 2f),
+                        // Tap no longer refocuses, so the traversal it used to provide
+                        // lives here instead — labelled rather than hidden in a gesture.
+                        onFocusPeer = if (
+                            openNode.peerId != focusedPeerId &&
+                            openNode.peerId != graphModel.localPeerId &&
+                            !openNode.isCloud
+                        ) {
+                            {
+                                expandedPeerId.value = null
+                                enterFocusMode(openNode.peerId)
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
+        }
 
-        // Bottom-right control stack: reset / Direct toggle / zoom controls.
+        // Focus banner (top-center) — mirrors the VS Code extension's
+        // "Focused on <label>" pill with an exit button.
+        focusedPeerId?.let { focusedId ->
+            val focusedName = graphModel.nodes.firstOrNull { it.peerId == focusedId }?.displayName ?: focusedId
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(percent = 50),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    // Horizontal padding bounds the banner to the viewport so a long
+                    // device name wraps onto a second line instead of growing the
+                    // pill past both screen edges and losing its own ends.
+                    .padding(top = 12.dp, start = 12.dp, end = 12.dp)
+                    .semantics { contentDescription = "Focused on $focusedName" },
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                ) {
+                    Text(
+                        text = "Focused on ",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = focusedName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        // Wrap rather than ellipsise: the name is the reason the
+                        // banner exists, so it is never allowed to be truncated.
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    IconButton(
+                        onClick = { exitFocusMode() },
+                        modifier = Modifier
+                            .size(28.dp)
+                            .semantics { contentDescription = "Exit focus" },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Connection legend (bottom-left) — port of iOS PresenceViewerSK.connectionLegend.
+        // Hidden by the controls-visibility (eye) toggle.
+        if (controlsVisible) {
+            ConnectionLegendCard(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp),
+            )
+        }
+
+        // Bottom-right control stack, matching the VS Code extension's layout
+        // (presence-graph-element.ts `.controls`): Direct toggle row, zoom row,
+        // then the always-visible action row (reset + eye, side by side) on the
+        // LAST row below the zoom controls.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -606,87 +1123,49 @@ fun PresenceGraphView(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Reset view — restores 100% zoom, recenters the camera, and animates any
-            // dragged peers back to their layout-assigned positions. Without this, a
-            // user who pans far off-canvas has no way to find their graph again.
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                FilledIconButton(
-                    onClick = {
-                        transform.value = Transform.Identity
-                        selectedPeerId.value = null
-                        for ((_, state) in peerStates) {
-                            scope.launch {
-                                state.position.animateTo(
-                                    state.target,
-                                    tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing),
-                                )
-                            }
-                            if (state.scale.value != 1f) {
-                                scope.launch {
-                                    state.scale.animateTo(
-                                        1f,
-                                        tween(HIGHLIGHT_ANIM_MS, easing = FastOutSlowInEasing),
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                        .semantics { contentDescription = "Reset view" },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Direct toggle — hidden by the controls-visibility (eye) toggle.
+            if (controlsVisible) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CenterFocusStrong,
-                        contentDescription = null,
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Direct",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Switch(
+                            checked = showDirectConnectedOnly,
+                            onCheckedChange = { onToggleDirectConnectedOnly() },
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .semantics { contentDescription = "Direct Connected Only" },
+                        )
+                    }
                 }
             }
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            // Zoom cluster — hidden by the controls-visibility (eye) toggle.
+            if (controlsVisible) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    Text(
-                        text = "Direct",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Switch(
-                        checked = showDirectConnectedOnly,
-                        onCheckedChange = { onToggleDirectConnectedOnly() },
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .semantics { contentDescription = "Direct Connected Only" },
-                    )
-                }
-            }
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                ),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                     FilledIconButton(
                         onClick = {
+                            userAdjustedZoom.value = true
                             transform.value = transform.value.copy(
                                 scale = (transform.value.scale - 0.1f)
                                     .coerceAtLeast(Transform.MIN_SCALE),
@@ -706,6 +1185,7 @@ fun PresenceGraphView(
                     )
                     FilledIconButton(
                         onClick = {
+                            userAdjustedZoom.value = true
                             transform.value = transform.value.copy(
                                 scale = (transform.value.scale + 0.1f)
                                     .coerceAtMost(Transform.MAX_SCALE),
@@ -717,6 +1197,86 @@ fun PresenceGraphView(
                         ),
                     ) {
                         Text("+", style = MaterialTheme.typography.titleMedium)
+                    }
+                    }
+                }
+            }
+            // Action row — ALWAYS visible (extension parity: `.action-row` is the
+            // only control left on screen when the eye hides the rest): reset
+            // view + controls-visibility (eye) toggle, side by side below the
+            // zoom controls. (The extension also has a background-effects button
+            // here; the Android viewer has no background particles by design.)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Reset view — restores 100% zoom, recenters the camera, and
+                // animates any dragged peers back to their layout-assigned
+                // positions. Without this, a user who pans far off-canvas has no
+                // way to find their graph again.
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    FilledIconButton(
+                        onClick = {
+                            // Hand the camera back to auto-fit: 100% first, then fit
+                            // the mesh so every device name lands back inside the
+                            // viewport even on a narrow screen.
+                            transform.value = Transform.Identity
+                            userAdjustedZoom.value = false
+                            fitCameraToLayout(layoutResult)
+                            selectedPeerId.value = null
+                            for ((_, state) in peerStates) {
+                                scope.launch {
+                                    state.position.animateTo(
+                                        state.target,
+                                        tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing),
+                                    )
+                                }
+                                if (state.scale.value != 1f) {
+                                    scope.launch {
+                                        state.scale.animateTo(
+                                            1f,
+                                            tween(HIGHLIGHT_ANIM_MS, easing = FastOutSlowInEasing),
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .semantics { contentDescription = "Reset view" },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CenterFocusStrong,
+                            contentDescription = null,
+                        )
+                    }
+                }
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    FilledIconButton(
+                        onClick = { onToggleControlsVisible() },
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .semantics { contentDescription = "Toggle controls visibility" },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = if (controlsVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                            contentDescription = null,
+                        )
                     }
                 }
             }
@@ -763,6 +1323,38 @@ private fun rememberPulseAlphaState(active: Boolean): State<Float> {
 }
 
 /** Convert a y-up math-coord position to canvas pixels (post transform, post y-flip). */
+/**
+ * True when a press landed on the open detail card, which is centred in the viewport.
+ *
+ * The graph's gesture handler must ignore those presses: the card is an overlay the
+ * canvas knows nothing about, so without this a tap on the card reads as an
+ * empty-canvas tap (dismissing it) and a drag on the card can grab whichever peer
+ * happens to sit underneath.
+ */
+private fun isPointOnOpenCard(
+    point: Offset,
+    openPeerId: String?,
+    cardSizePx: IntOffset,
+    viewportPx: IntOffset,
+    marginPx: Float,
+): Boolean {
+    if (openPeerId == null || cardSizePx == IntOffset.Zero) return false
+    val placement = centreDetailCard(
+        cardWidthPx = cardSizePx.x.toFloat(),
+        cardHeightPx = cardSizePx.y.toFloat(),
+        viewportWidthPx = viewportPx.x.toFloat(),
+        viewportHeightPx = viewportPx.y.toFloat(),
+        marginPx = marginPx,
+    )
+    return cardContains(
+        pointX = point.x,
+        pointY = point.y,
+        placement = placement,
+        cardWidthPx = cardSizePx.x.toFloat(),
+        cardHeightPx = cardSizePx.y.toFloat(),
+    )
+}
+
 private fun mathToCanvas(pos: Offset, sceneCenter: Offset, transform: Transform): Offset {
     val scaled = Offset(pos.x * transform.scale, -pos.y * transform.scale)
     return Offset(
@@ -781,11 +1373,13 @@ private fun hitTestPeer(
 ): String? {
     for (node in nodes.asReversed()) {
         // Local is excluded from PARENT-gesture hit-testing only — taps on Me
-        // still flow through the semantics-overlay clickable and select Me as
-        // expected. Excluding here means a drag starting on Me falls through to
-        // the panning branch (camera pan) instead of `isPeerDrag = true`, which
-        // would otherwise yank Me away from the scene origin and visually break
-        // the BFS layout anchor.
+        // still reach the semantics-overlay clickable, whose Expanded/Direct
+        // routing decides what a Me tap means (Direct: selection toggle;
+        // Expanded: invalid selection — no-op, or canvas-click focus exit while
+        // focused and off the orbit). Excluding here means a drag starting on Me
+        // falls through to the panning branch (camera pan) instead of
+        // `isPeerDrag = true`, which would otherwise yank Me away from the scene
+        // origin and visually break the BFS layout anchor.
         if (node.isLocal) continue
         val state = peerStates[node.peerId] ?: continue
         val measurement = pillMeasurements[node.peerId] ?: continue
@@ -819,6 +1413,9 @@ private fun hitTestPeer(
  * Diff the desired model+layout against the per-peer animation map: add new peers with
  * an enter animation, animate existing peers to their new layout positions, and start
  * exit animations for peers no longer in the model. Exit-complete peers are removed.
+ *
+ * [skipRepositioning]: peers whose positions belong to the focus orbit (focus mode)
+ * — the mesh pass leaves them in place while a focus refresh re-animates them.
  */
 private fun applyLayoutDiff(
     scope: CoroutineScope,
@@ -826,6 +1423,7 @@ private fun applyLayoutDiff(
     model: PresenceGraphModel,
     layout: LayoutResult,
     pxPerDp: Float,
+    skipRepositioning: Set<String> = emptySet(),
 ) {
     val desiredIds = model.nodes.map { it.peerId }.toSet()
 
@@ -854,16 +1452,25 @@ private fun applyLayoutDiff(
             }
         } else {
             existing.exiting = false
-            existing.target = target
-            // Cancel any in-flight animation coroutines on each Animatable before
-            // launching a replacement. Animatable.animateTo internally cancels its
-            // own current animation, but the outer coroutine's onComplete callbacks
-            // (e.g. peerStates.remove in the exit branch below) would otherwise run
-            // to completion against stale state when the user races a presence
-            // update against a drag-release.
-            existing.positionJob?.cancel()
-            existing.positionJob = scope.launch {
-                existing.position.animateTo(target, tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing))
+            // Already parked exactly where this layout wants it: nothing to animate.
+            // Worth the check because a layout pass now runs on every presence emission
+            // (peer detail carries sync progress, which ticks constantly), and without
+            // it every node's position coroutine would be cancelled and relaunched
+            // several times a second on a busy mesh. Compares the live position too, so
+            // a peer the user dragged away still animates home.
+            val settled = existing.target == target && existing.position.value == target
+            if (node.peerId !in skipRepositioning && !settled) {
+                existing.target = target
+                // Cancel any in-flight animation coroutines on each Animatable before
+                // launching a replacement. Animatable.animateTo internally cancels its
+                // own current animation, but the outer coroutine's onComplete callbacks
+                // (e.g. peerStates.remove in the exit branch below) would otherwise run
+                // to completion against stale state when the user races a presence
+                // update against a drag-release.
+                existing.positionJob?.cancel()
+                existing.positionJob = scope.launch {
+                    existing.position.animateTo(target, tween(LAYOUT_ANIM_MS, easing = FastOutSlowInEasing))
+                }
             }
             if (existing.scale.value != 1f) {
                 existing.scaleJob?.cancel()
@@ -933,6 +1540,7 @@ private fun ConnectionLegendCard(modifier: Modifier = Modifier) {
             LegendRow(type = ConnectionType.LAN, isCloud = false, label = "LAN")
             LegendRow(type = ConnectionType.P2PWiFi, isCloud = false, label = "P2P WiFi")
             LegendRow(type = ConnectionType.WebSocket, isCloud = false, label = "WebSocket")
+            LegendRow(type = ConnectionType.Multicast, isCloud = false, label = "Multicast")
             LegendRow(type = ConnectionType.WebSocket, isCloud = true, label = "Cloud")
         }
     }

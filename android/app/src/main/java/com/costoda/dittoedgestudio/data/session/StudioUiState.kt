@@ -51,9 +51,6 @@ class StudioUiState {
     /** Import-subscriptions-from-server sheet (set by list pane, hosted by Presence content). */
     var showImportSubscriptionsFromServer by mutableStateOf(false)
 
-    /** Debug-console sheet (set by the query toolbar, hosted by the Query content pane). */
-    var showDebugConsole by mutableStateOf(false)
-
     /**
      * Inspector visibility. Null until the scaffold initializes it from the window size class
      * default on first composition.
