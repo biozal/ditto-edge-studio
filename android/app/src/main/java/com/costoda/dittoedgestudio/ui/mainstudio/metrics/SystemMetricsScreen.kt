@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -457,7 +458,9 @@ private fun PinnedSection(
     // clearing this the instant the finger lifts would flash the pre-drag order
     // for however long the write takes to round-trip.
     var workingPins by remember { mutableStateOf<List<SystemMetricSeriesRef>?>(null) }
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    // Tracked by series id, not index: the dragged row's index changes under it on
+    // every swap, so an index would go stale after the first one.
+    var draggingId by remember { mutableStateOf<String?>(null) }
     // Offset of the dragged row within its current slot, in pixels.
     var dragOffset by remember { mutableFloatStateOf(0f) }
     // Measured row heights keyed by series id, NOT by index: a swap must not
@@ -466,7 +469,7 @@ private fun PinnedSection(
 
     LaunchedEffect(pins) {
         // The write landed (or the list changed from elsewhere) — drop the local copy.
-        if (draggingIndex == null) workingPins = null
+        if (draggingId == null) workingPins = null
     }
 
     val displayed = workingPins ?: pins
@@ -482,7 +485,6 @@ private fun PinnedSection(
         neighbourHeight: Int,
     ) {
         workingPins = SystemMetricsPinOrdering.move(list, current, neighbour)
-        draggingIndex = neighbour
         // Carry over only the overshoot, so the row stays under the finger.
         dragOffset -= if (neighbour > current) neighbourHeight else -neighbourHeight
     }
@@ -550,92 +552,112 @@ private fun PinnedSection(
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                     displayed.forEachIndexed { index, ref ->
-                        val isDragging = draggingIndex == index
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .onGloballyPositioned { rowHeights[ref.id] = it.size.height }
-                                // The dragged row rides above its neighbours so the
-                                // rows it passes cannot paint over it.
-                                .zIndex(if (isDragging) 1f else 0f)
-                                .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
-                                .alpha(if (isDragging) 0.85f else 1f),
-                        ) {
-                            Box(
+                        // `key` is load-bearing, not decoration. Without it Compose
+                        // identifies these rows by slot position, so the moment a swap
+                        // reorders the list the composable in slot N is handed a
+                        // different series — DragHandle's `pointerInput` key changes,
+                        // the gesture detector is torn down mid-drag, and the drag dies
+                        // with onDragCancel while the finger is still down. Keying on
+                        // the series id makes the composable (and its live gesture)
+                        // move with the row instead.
+                        key(ref.id) {
+                            val isDragging = draggingId == ref.id
+                            Column(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    // While reordering, the row's own pin and info
-                                    // buttons would just be mis-taps waiting to happen.
-                                    .then(
-                                        if (isReordering) {
-                                            Modifier.pointerInput(Unit) {
-                                                awaitPointerEventScope {
-                                                    while (true) {
-                                                        awaitPointerEvent().changes.forEach { it.consume() }
+                                    // Measured with the divider included: the swap
+                                    // threshold wants the row *pitch*, and excluding the
+                                    // divider leaves a per-swap shortfall that accumulates
+                                    // into visible drift.
+                                    .onGloballyPositioned { rowHeights[ref.id] = it.size.height }
+                                    // The dragged row rides above its neighbours so the
+                                    // rows it passes cannot paint over it.
+                                    .zIndex(if (isDragging) 1f else 0f)
+                                    .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
+                                    .alpha(if (isDragging) 0.85f else 1f),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            // While reordering, the row's own pin and info
+                                            // buttons would just be mis-taps waiting to happen.
+                                            .then(
+                                                if (isReordering) {
+                                                    Modifier.pointerInput(Unit) {
+                                                        awaitPointerEventScope {
+                                                            while (true) {
+                                                                awaitPointerEvent().changes.forEach { it.consume() }
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    Modifier
+                                                },
+                                            ),
+                                    ) {
+                                        val sample = samplesById[ref.id]
+                                        if (sample != null) {
+                                            MetricRow(
+                                                sample = sample,
+                                                isPinned = true,
+                                                isExpanded = ref.id in expandedIds,
+                                                onToggleDetails = { onToggleDetails(ref.id) },
+                                                onTogglePin = { onTogglePin(ref) },
+                                            )
+                                        } else {
+                                            IdlePinnedRow(ref = ref, onUnpin = { onTogglePin(ref) })
+                                        }
+                                    }
+                                    if (isReordering) {
+                                        DragHandle(
+                                            ref = ref,
+                                            onMoveUp = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index - 1)) }
+                                                .takeIf { index > 0 },
+                                            onMoveDown = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index + 1)) }
+                                                .takeIf { index < displayed.lastIndex },
+                                            onDragStart = {
+                                                draggingId = ref.id
+                                                dragOffset = 0f
+                                                workingPins = displayed
+                                            },
+                                            onDrag = { deltaY ->
+                                                dragOffset += deltaY
+                                                val list = workingPins ?: return@DragHandle
+                                                // Resolved by id every time: the dragged
+                                                // row's index changes under it on each swap,
+                                                // so a captured index would go stale after
+                                                // the first one.
+                                                val from = list.indexOfFirst { it.id == ref.id }
+                                                if (from < 0) return@DragHandle
+                                                // Cross a neighbour's midpoint and the two trade
+                                                // places, so the list reads as the final order the
+                                                // whole time rather than only after release.
+                                                if (dragOffset > 0 && from < list.lastIndex) {
+                                                    val height = rowHeights[list[from + 1].id] ?: 0
+                                                    if (height > 0 && dragOffset > height / 2f) {
+                                                        swapWithNeighbour(list, from, from + 1, height)
+                                                    }
+                                                } else if (dragOffset < 0 && from > 0) {
+                                                    val height = rowHeights[list[from - 1].id] ?: 0
+                                                    if (height > 0 && -dragOffset > height / 2f) {
+                                                        swapWithNeighbour(list, from, from - 1, height)
                                                     }
                                                 }
-                                            }
-                                        } else {
-                                            Modifier
-                                        },
-                                    ),
-                            ) {
-                                val sample = samplesById[ref.id]
-                                if (sample != null) {
-                                    MetricRow(
-                                        sample = sample,
-                                        isPinned = true,
-                                        isExpanded = ref.id in expandedIds,
-                                        onToggleDetails = { onToggleDetails(ref.id) },
-                                        onTogglePin = { onTogglePin(ref) },
-                                    )
-                                } else {
-                                    IdlePinnedRow(ref = ref, onUnpin = { onTogglePin(ref) })
+                                            },
+                                            onDragEnd = {
+                                                draggingId = null
+                                                dragOffset = 0f
+                                                // `workingPins` deliberately survives the release —
+                                                // LaunchedEffect(pins) drops it once the write lands.
+                                                workingPins?.let(onReorder)
+                                            },
+                                        )
+                                    }
+                                }
+                                if (index < displayed.lastIndex) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 }
                             }
-                            if (isReordering) {
-                                DragHandle(
-                                    metricKey = ref.key,
-                                    onMoveUp = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index - 1)) }
-                                        .takeIf { index > 0 },
-                                    onMoveDown = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index + 1)) }
-                                        .takeIf { index < displayed.lastIndex },
-                                    onDragStart = {
-                                        draggingIndex = index
-                                        dragOffset = 0f
-                                        workingPins = displayed
-                                    },
-                                    onDrag = { deltaY ->
-                                        val from = draggingIndex ?: return@DragHandle
-                                        dragOffset += deltaY
-                                        val list = workingPins ?: return@DragHandle
-                                        // Cross a neighbour's midpoint and the two trade
-                                        // places, so the list reads as the final order the
-                                        // whole time rather than only after release.
-                                        if (dragOffset > 0 && from < list.lastIndex) {
-                                            val height = rowHeights[list[from + 1].id] ?: 0
-                                            if (height > 0 && dragOffset > height / 2f) {
-                                                swapWithNeighbour(list, from, from + 1, height)
-                                            }
-                                        } else if (dragOffset < 0 && from > 0) {
-                                            val height = rowHeights[list[from - 1].id] ?: 0
-                                            if (height > 0 && -dragOffset > height / 2f) {
-                                                swapWithNeighbour(list, from, from - 1, height)
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        draggingIndex = null
-                                        dragOffset = 0f
-                                        // `workingPins` deliberately survives the release —
-                                        // LaunchedEffect(pins) drops it once the write lands.
-                                        workingPins?.let(onReorder)
-                                    },
-                                )
-                            }
-                        }
-                        if (index < displayed.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
@@ -659,27 +681,34 @@ private fun PinnedSection(
  */
 @Composable
 private fun DragHandle(
-    metricKey: String,
+    ref: SystemMetricSeriesRef,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // The metric key alone does not identify a row: the same key is reported once
+    // per label set, so a pinned list can hold three `backend.sqlite3.fsync_duration_secs`
+    // rows that differ only by `db=`. Naming the labels too keeps each handle
+    // distinguishable to a screen reader — and to a test querying by description.
+    val name = if (ref.labels.isEmpty()) ref.key else "${ref.key} ${ref.labelLine}"
     val moveActions = buildList {
-        onMoveUp?.let { add(CustomAccessibilityAction("Move $metricKey up") { it(); true }) }
-        onMoveDown?.let { add(CustomAccessibilityAction("Move $metricKey down") { it(); true }) }
+        onMoveUp?.let { add(CustomAccessibilityAction("Move $name up") { it(); true }) }
+        onMoveDown?.let { add(CustomAccessibilityAction("Move $name down") { it(); true }) }
     }
     Icon(
         imageVector = Icons.Outlined.DragHandle,
-        contentDescription = "Reorder $metricKey",
+        contentDescription = "Reorder $name",
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             // A drag target wants a finger-sized area, not a 20dp glyph.
             .padding(horizontal = 10.dp, vertical = 8.dp)
             .size(24.dp)
             .semantics { customActions = moveActions }
-            .pointerInput(metricKey) {
+            // Keyed on the series id so the detector survives reordering; see the
+            // `key(ref.id)` note at the call site.
+            .pointerInput(ref.id) {
                 detectDragGestures(
                     onDragStart = { onDragStart() },
                     onDragEnd = { onDragEnd() },

@@ -1,6 +1,7 @@
 package com.costoda.dittoedgestudio.domain.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -196,5 +197,50 @@ class SystemMetricsPinOrderingTest {
             pins, draggedId = ref("gone").id, targetId = ref("b").id, insertBefore = true,
         )
         assertEquals(keys(pins), keys(moved))
+    }
+
+    // ── Duplicate metric keys ────────────────────────────────────────────────
+    // A pinned list routinely holds several rows sharing one metric key and
+    // differing only by labels (`backend.sqlite3.fsync_duration_secs` is reported
+    // once per `db=`). Reordering must key off the full series identity; keying
+    // off the metric name alone silently moves the wrong row.
+
+    @Test
+    fun `series sharing a metric key are distinct rows`() {
+        val main = SystemMetricSeriesRef("backend.sqlite3.fsync", mapOf("db" to "main"))
+        val attachment = SystemMetricSeriesRef("backend.sqlite3.fsync", mapOf("db" to "attachment"))
+
+        assertNotEquals(main.id, attachment.id)
+    }
+
+    @Test
+    fun `moving one of several same-key rows leaves its twins in place`() {
+        val main = SystemMetricSeriesRef("backend.sqlite3.fsync", mapOf("db" to "main"))
+        val attachment = SystemMetricSeriesRef("backend.sqlite3.fsync", mapOf("db" to "attachment"))
+        val meta = SystemMetricSeriesRef("backend.sqlite3.fsync", mapOf("db" to "replication_metadata"))
+        val pinned = listOf(main, attachment, meta)
+
+        val moved = SystemMetricsPinOrdering.move(pinned, 0, 2)
+
+        assertEquals(listOf(attachment, meta, main), moved)
+    }
+
+    @Test
+    fun `a dragged row keeps its identity across a chain of swaps`() {
+        // The Android drag resolves the dragged row by id after every swap. Walking
+        // a row from the bottom to the top one swap at a time must land it at the
+        // top with everything else order-preserved — the sequence that broke on
+        // device, where the row stuck partway.
+        val refs = (0..4).map { SystemMetricSeriesRef("m$it", emptyMap()) }
+        val draggedId = refs[4].id
+        var order = refs
+
+        repeat(4) {
+            val from = order.indexOfFirst { r -> r.id == draggedId }
+            order = SystemMetricsPinOrdering.move(order, from, from - 1)
+        }
+
+        assertEquals(0, order.indexOfFirst { r -> r.id == draggedId })
+        assertEquals(listOf(refs[4], refs[0], refs[1], refs[2], refs[3]), order)
     }
 }
