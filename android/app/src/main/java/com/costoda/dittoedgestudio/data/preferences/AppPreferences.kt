@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef
@@ -35,16 +34,6 @@ class AppPreferences(private val store: DataStore<Preferences>) : AppPreferences
 
     override suspend fun setPresenceSplitView(enabled: Boolean) {
         store.edit { it[KEY_PRESENCE_SPLIT_VIEW] = enabled }
-    }
-
-    override val lastOpenDatabaseId: Flow<Long?> =
-        store.data.map { it[KEY_LAST_OPEN_DATABASE_ID] }
-
-    override suspend fun setLastOpenDatabaseId(id: Long?) {
-        store.edit {
-            if (id == null) it.remove(KEY_LAST_OPEN_DATABASE_ID)
-            else it[KEY_LAST_OPEN_DATABASE_ID] = id
-        }
     }
 
     override val showWelcomeOnNewDatabase: Flow<Boolean> =
@@ -107,7 +96,6 @@ class AppPreferences(private val store: DataStore<Preferences>) : AppPreferences
         private const val DEFAULT_COLLECT_SYSTEM_METRICS = true
         private val KEY_METRICS_ENABLED = booleanPreferencesKey("metrics_enabled")
         private val KEY_PRESENCE_SPLIT_VIEW = booleanPreferencesKey("presence_split_view")
-        private val KEY_LAST_OPEN_DATABASE_ID = longPreferencesKey("last_open_database_id")
         private val KEY_SHOW_WELCOME = booleanPreferencesKey("show_welcome_on_new_database")
         private val KEY_COLLECT_SYSTEM_METRICS = booleanPreferencesKey("collect_system_metrics")
 
