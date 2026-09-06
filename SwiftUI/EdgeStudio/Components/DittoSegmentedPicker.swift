@@ -106,8 +106,19 @@ extension DittoSegmentedPicker where SegmentLabel == Text {
 
 #Preview {
     struct PreviewHost: View {
+        /// Mirrors the Query Workbench inspector's tabs without pulling a view
+        /// model into a reusable component's preview.
+        static let inspectorItems = [
+            MenuItem(id: 0, name: "History", systemIcon: "clock"),
+            MenuItem(id: 1, name: "Favorites", systemIcon: "bookmark"),
+            MenuItem(id: 2, name: "JSON", systemIcon: "text.document.fill"),
+            MenuItem(id: 3, name: "Metrics", systemIcon: "text.magnifyingglass"),
+            MenuItem(id: 4, name: "Help", systemIcon: "questionmark")
+        ]
+
         @State private var namespace = "All"
         @State private var tab = 0
+        @State private var inspectorItem = PreviewHost.inspectorItems[0]
 
         var body: some View {
             VStack(spacing: 24) {
@@ -124,6 +135,18 @@ extension DittoSegmentedPicker where SegmentLabel == Text {
                     verticalPadding: 8
                 )
                 .frame(maxWidth: 200)
+
+                // The Query Workbench inspector's exact configuration. Kept as a
+                // preview because this is the case that regressed: `MenuItem.image`
+                // used to bake in a 48pt font, which the native segmented picker
+                // clamped and this control does not.
+                DittoSegmentedPicker(
+                    options: Self.inspectorItems,
+                    selection: $inspectorItem,
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
+                )
+                .frame(width: 300)
             }
             .padding()
         }
