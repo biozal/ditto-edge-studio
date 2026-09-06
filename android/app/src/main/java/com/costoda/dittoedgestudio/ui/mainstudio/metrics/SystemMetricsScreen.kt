@@ -2,7 +2,7 @@ package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -238,6 +238,10 @@ fun SystemMetricsPane(
     var filter by rememberSaveable { mutableStateOf(NamespaceFilter.ALL) }
     var query by rememberSaveable { mutableStateOf("") }
     var pinnedExpanded by rememberSaveable { mutableStateOf(true) }
+    // Apple Music-style reorder mode. Reordering is an explicit mode rather than a
+    // bare long-press-drag because the enclosing LazyColumn wins that gesture on a
+    // touch screen — press and drag and you scroll the list, never move the row.
+    var isReordering by rememberSaveable { mutableStateOf(false) }
     // Series with details open, by seriesId. Session-local, like the panel's.
     val expanded = remember { mutableStateOf(emptySet<String>()) }
 
@@ -252,6 +256,10 @@ fun SystemMetricsPane(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
+        // Locked while reordering: this is exactly the contention that made
+        // drag-to-reorder impossible by touch, and giving up the scroll for the
+        // duration is what hands the gesture to the row.
+        userScrollEnabled = !isReordering,
     ) {
         if (pins.isNotEmpty()) {
             item(key = "pinned") {
@@ -265,6 +273,13 @@ fun SystemMetricsPane(
                     onToggleDetails = { id -> expanded.value = expanded.value.toggle(id) },
                     onTogglePin = ::togglePin,
                     onReorder = onPinsChange,
+                    isReordering = isReordering,
+                    onToggleReordering = {
+                        isReordering = !isReordering
+                        // Entering reorder mode on a collapsed section would show
+                        // nothing to drag.
+                        if (isReordering) pinnedExpanded = true
+                    },
                 )
             }
         }
@@ -416,9 +431,12 @@ private fun FilterControls(
  * current snapshot doesn't report stays as a placeholder rather than vanishing, so
  * it can always be unpinned from here.
  *
- * Rows reorder by long-pressing the ☰ handle and dragging: the list re-sorts live
- * under the finger (rows swap as the drag crosses a neighbour's midpoint) and the
- * new order is persisted once, on release, rather than on every swap.
+ * Reordering is gated behind the section's **Reorder** toggle (the Apple Music
+ * "Edit" affordance). In that mode the ☰ handle appears and the list scroll is
+ * suspended, so a drag on the handle belongs to the row instead of scrolling the
+ * page. The list re-sorts live under the finger — rows swap as the drag crosses a
+ * neighbour's midpoint — and the new order is persisted once, on release, rather
+ * than on every swap.
  */
 @Composable
 private fun PinnedSection(
@@ -431,6 +449,8 @@ private fun PinnedSection(
     onToggleDetails: (String) -> Unit,
     onTogglePin: (SystemMetricSeriesRef) -> Unit,
     onReorder: (List<SystemMetricSeriesRef>) -> Unit,
+    isReordering: Boolean,
+    onToggleReordering: () -> Unit,
 ) {
     // Order shown while a drag is in flight and until the persisted list catches
     // up. Committing on every swap would mean a DataStore write per frame, and
@@ -481,7 +501,12 @@ private fun PinnedSection(
                     .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onToggleExpanded, modifier = Modifier.size(32.dp)) {
+                IconButton(
+                    onClick = onToggleExpanded,
+                    // Collapsing mid-reorder would hide the rows being moved.
+                    enabled = !isReordering,
+                    modifier = Modifier.size(32.dp),
+                ) {
                     Icon(
                         if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (isExpanded) "Collapse pinned metrics" else "Expand pinned metrics",
@@ -502,7 +527,23 @@ private fun PinnedSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onClear) {
+                // Reorder / Done — the Apple Music "Edit" affordance. Only offered
+                // when there is more than one pin, since reordering one is a no-op.
+                if (isReorderable) {
+                    TextButton(onClick = onToggleReordering) {
+                        Text(
+                            text = if (isReordering) "Done" else "Reorder",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isReordering) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isReordering) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+                TextButton(onClick = onClear, enabled = !isReordering) {
                     Text("Clear", style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -520,7 +561,25 @@ private fun PinnedSection(
                                 .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
                                 .alpha(if (isDragging) 0.85f else 1f),
                         ) {
-                            Box(modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    // While reordering, the row's own pin and info
+                                    // buttons would just be mis-taps waiting to happen.
+                                    .then(
+                                        if (isReordering) {
+                                            Modifier.pointerInput(Unit) {
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        awaitPointerEvent().changes.forEach { it.consume() }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                            ) {
                                 val sample = samplesById[ref.id]
                                 if (sample != null) {
                                     MetricRow(
@@ -534,7 +593,7 @@ private fun PinnedSection(
                                     IdlePinnedRow(ref = ref, onUnpin = { onTogglePin(ref) })
                                 }
                             }
-                            if (isReorderable) {
+                            if (isReordering) {
                                 DragHandle(
                                     metricKey = ref.key,
                                     onMoveUp = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index - 1)) }
@@ -586,9 +645,14 @@ private fun PinnedSection(
 }
 
 /**
- * The ☰ grab handle on a pinned row. Long-press then drag reorders; the long-press
- * requirement is what stops the enclosing LazyColumn from claiming the gesture as a
- * scroll.
+ * The ☰ grab handle on a pinned row. Shown only in the section's reorder mode, and
+ * dragging starts immediately on touch-down — there is no long press to wait out,
+ * because the mode already established the intent and the LazyColumn scroll that
+ * would have competed for the gesture is suspended for its duration.
+ *
+ * A long-press-then-drag was the original design and it did not work: the enclosing
+ * LazyColumn claimed the gesture as a scroll before the press completed, so the
+ * page moved and the row never did.
  *
  * The same two moves are exposed as accessibility actions, because a drag needs
  * pointer precision that a screen-reader user does not have.
@@ -611,11 +675,12 @@ private fun DragHandle(
         contentDescription = "Reorder $metricKey",
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
-            .padding(horizontal = 6.dp)
-            .size(20.dp)
+            // A drag target wants a finger-sized area, not a 20dp glyph.
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .size(24.dp)
             .semantics { customActions = moveActions }
             .pointerInput(metricKey) {
-                detectDragGesturesAfterLongPress(
+                detectDragGestures(
                     onDragStart = { onDragStart() },
                     onDragEnd = { onDragEnd() },
                     onDragCancel = { onDragEnd() },

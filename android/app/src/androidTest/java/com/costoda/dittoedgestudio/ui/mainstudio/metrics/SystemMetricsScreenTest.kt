@@ -316,46 +316,62 @@ class SystemMetricsScreenTest {
 
     // ── Reordering ───────────────────────────────────────────────────────────
 
+    private val first = "ditto.sync.sessions_started"
+    private val second = "ditto.network.dsoq.connection.opened"
+
+    private fun setTwoPins(onChange: (List<SystemMetricSeriesRef>) -> Unit = {}) {
+        setPaneWithPins(
+            snapshot = snap(listOf(sample(first, 3.0), sample(second, 12.0))),
+            initialPins = listOf(
+                SystemMetricSeriesRef(first, emptyMap()),
+                SystemMetricSeriesRef(second, emptyMap()),
+            ),
+            onChange = onChange,
+        )
+    }
+
     @Test
-    fun aSinglePinOffersNoReorderHandle() {
+    fun aSinglePinOffersNoReorderToggle() {
         val key = "ditto.sync.sessions_started"
         setPaneWithPins(
             snapshot = snap(listOf(sample(key, 3.0))),
             initialPins = listOf(SystemMetricSeriesRef(key, emptyMap())),
         )
         // Reordering one row is a no-op — the affordance must not be offered.
-        composeTestRule.onNodeWithContentDescription("Reorder $key").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Reorder").assertDoesNotExist()
     }
 
     @Test
-    fun severalPinsEachOfferAReorderHandle() {
-        val first = "ditto.sync.sessions_started"
-        val second = "ditto.network.dsoq.connection.opened"
-        setPaneWithPins(
-            snapshot = snap(listOf(sample(first, 3.0), sample(second, 12.0))),
-            initialPins = listOf(
-                SystemMetricSeriesRef(first, emptyMap()),
-                SystemMetricSeriesRef(second, emptyMap()),
-            ),
-        )
+    fun handlesAppearOnlyInReorderMode() {
+        setTwoPins()
+        // The handle is what a drag grabs; outside reorder mode a drag belongs to
+        // the list's scroll, so offering a handle there would be a lie.
+        composeTestRule.onNodeWithContentDescription("Reorder $first").assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("Reorder").performClick()
+
         composeTestRule.onNodeWithContentDescription("Reorder $first").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Reorder $second").assertIsDisplayed()
     }
 
     @Test
-    fun theMoveDownAccessibilityActionReordersAndPersists() {
-        val first = "ditto.sync.sessions_started"
-        val second = "ditto.network.dsoq.connection.opened"
-        var latest: List<SystemMetricSeriesRef>? = null
-        setPaneWithPins(
-            snapshot = snap(listOf(sample(first, 3.0), sample(second, 12.0))),
-            initialPins = listOf(
-                SystemMetricSeriesRef(first, emptyMap()),
-                SystemMetricSeriesRef(second, emptyMap()),
-            ),
-            onChange = { latest = it },
-        )
+    fun theReorderToggleFlipsToDoneAndBack() {
+        setTwoPins()
 
+        composeTestRule.onNodeWithText("Reorder").performClick()
+        composeTestRule.onNodeWithText("Done").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Done").performClick()
+        composeTestRule.onNodeWithText("Reorder").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Reorder $first").assertDoesNotExist()
+    }
+
+    @Test
+    fun theMoveDownAccessibilityActionReordersAndPersists() {
+        var latest: List<SystemMetricSeriesRef>? = null
+        setTwoPins(onChange = { latest = it })
+
+        composeTestRule.onNodeWithText("Reorder").performClick()
         composeTestRule.onNodeWithContentDescription("Reorder $first")
             .performCustomAccessibilityActionWithLabel("Move $first down")
 
@@ -367,19 +383,13 @@ class SystemMetricsScreenTest {
 
     @Test
     fun theFirstPinHasNoMoveUpActionAndTheLastNoMoveDown() {
-        val first = "ditto.sync.sessions_started"
-        val last = "ditto.network.dsoq.connection.opened"
-        setPaneWithPins(
-            snapshot = snap(listOf(sample(first, 3.0), sample(last, 12.0))),
-            initialPins = listOf(
-                SystemMetricSeriesRef(first, emptyMap()),
-                SystemMetricSeriesRef(last, emptyMap()),
-            ),
-        )
+        setTwoPins()
+        composeTestRule.onNodeWithText("Reorder").performClick()
+
         // Only the moves that can actually happen are offered.
         composeTestRule.onNodeWithContentDescription("Reorder $first")
             .performCustomAccessibilityActionWithLabel("Move $first down")
-        composeTestRule.onNodeWithContentDescription("Reorder $last")
-            .performCustomAccessibilityActionWithLabel("Move $last up")
+        composeTestRule.onNodeWithContentDescription("Reorder $second")
+            .performCustomAccessibilityActionWithLabel("Move $second up")
     }
 }
