@@ -182,6 +182,17 @@ class StudioSession(
     private var systemMetricsJob: Job? = null
 
     /**
+     * Manual-refresh signal for the poll loop. Extra buffer capacity with
+     * DROP_OLDEST so a tap while a poll is in flight is never lost and repeated
+     * taps collapse into one pending wake-up.
+     */
+    private val systemMetricsRefreshRequests =
+        kotlinx.coroutines.flow.MutableSharedFlow<Unit>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+        )
+
+    /**
      * Starts 5-second polling of `SELECT * FROM system:metrics`. Idempotent; call from
      * the dashboard's on-visible and [stopSystemMetricsPolling] on-hidden. When the
      * "Collect system metrics" setting is off, reports SETTING_DISABLED and stays idle
@@ -208,7 +219,7 @@ class StudioSession(
                         samples = emptyList(),
                         status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.NO_CONNECTION,
                     )
-                    delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+                    awaitNextSystemMetricsPoll()
                     continue
                 }
                 if (!zeroed) {
@@ -256,9 +267,27 @@ class StudioSession(
                         errorMessage = e.message,
                     )
                 }
-                delay(SYSTEM_METRICS_POLL_INTERVAL_MS)
+                awaitNextSystemMetricsPoll()
             }
         }
+    }
+
+    /** Sleeps until the cadence elapses OR a manual refresh arrives, whichever
+     *  comes first — the poll loop's only wait. */
+    private suspend fun awaitNextSystemMetricsPoll() {
+        withTimeoutOrNull(SYSTEM_METRICS_POLL_INTERVAL_MS) {
+            systemMetricsRefreshRequests.first()
+        }
+    }
+
+    /**
+     * Wakes the poll loop for one immediate read ahead of the cadence. Safe while
+     * a poll is in flight: reads flush Ditto's registry, so an extra read only
+     * moves activity from the next poll's delta into this one — the accumulated
+     * totals stay correct. A no-op when nothing is polling.
+     */
+    fun refreshSystemMetricsNow() {
+        systemMetricsRefreshRequests.tryEmit(Unit)
     }
 
     fun stopSystemMetricsPolling() {
@@ -266,6 +295,21 @@ class StudioSession(
         systemMetricsJob = null
     }
 
+    /**
+     * Pinned system-metrics series for THIS database, in pin order. Session-scoped
+     * so the list survives rail-section switches; the underlying DataStore write
+     * makes it survive process death too.
+     */
+    val systemMetricPins: StateFlow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>> =
+        appPreferences.systemMetricPins(databaseId)
+            .stateIn(sessionScope, SharingStarted.Eagerly, emptyList())
+
+    /** Wholesale replacement of the pinned list — the screen owns edits. */
+    fun setSystemMetricPins(
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) {
+        sessionScope.launch { appPreferences.setSystemMetricPins(databaseId, pins) }
+    }
     /**
      * Bounded capture buffer (SwiftUI `ObservableEventStore` parity): events are
      * in-memory only and hard-capped at [ObserveEventStore.DEFAULT_CAPACITY] with
@@ -894,10 +938,33 @@ internal object DittoTeardownRegistry {
         return job
     }
 
-    /** Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise. */
+    /**
+     * Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise.
+     *
+     * Bounded by [AWAIT_CLOSE_TIMEOUT_MS]. An unbounded join here is a single point of failure
+     * for the whole studio: `Ditto.close()` blocks while any read transaction is still open, so
+     * one leaked transaction would hang this join forever and every later `hydrate()` for the
+     * database with it — no collections, no subscriptions, a permanent spinner on the Query
+     * Workbench, surviving back-out-and-re-enter. Proceeding after the timeout is strictly
+     * better: if the native handle really does still hold the persistence-directory lock, the
+     * open fails with a real error that lands in `hydrateError` and the user can retry.
+     */
     suspend fun awaitCloseFor(databaseId: Long) {
-        inFlight[databaseId]?.join()
+        val job = inFlight[databaseId] ?: return
+        val completed = withTimeoutOrNull(AWAIT_CLOSE_TIMEOUT_MS) { job.join() }
+        if (completed == null && BuildConfig.DEBUG) {
+            Log.w(
+                TAG,
+                "Previous Ditto close for databaseId=$databaseId still running after " +
+                    "${AWAIT_CLOSE_TIMEOUT_MS}ms; opening anyway rather than hanging hydrate.",
+            )
+        }
     }
+
+    /** Upper bound on how long a fresh hydrate waits for a previous session's close. */
+    internal const val AWAIT_CLOSE_TIMEOUT_MS: Long = 10_000L
+
+    private const val TAG = "DittoTeardownRegistry"
 
     /** Visible for tests — exposes the in-flight job for direct assertions. */
     internal fun inFlightJob(databaseId: Long): Job? = inFlight[databaseId]

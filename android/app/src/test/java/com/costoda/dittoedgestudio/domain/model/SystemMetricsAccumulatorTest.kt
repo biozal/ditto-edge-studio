@@ -107,3 +107,94 @@ class SystemMetricsAccumulatorTest {
         assertEquals(0.0, samples.values.single().sinceConnect, 0.0)
     }
 }
+
+class SystemMetricsPinOrderingTest {
+
+    private fun ref(key: String) = SystemMetricSeriesRef(key, emptyMap())
+
+    private val pins = listOf(ref("a"), ref("b"), ref("c"), ref("d"))
+
+    private fun keys(pins: List<SystemMetricSeriesRef>) = pins.map { it.key }
+
+    // ── move(from, to): the live swap-as-you-drag path ───────────────────────
+
+    @Test
+    fun `move swaps with the next row`() {
+        assertEquals(listOf("a", "c", "b", "d"), keys(SystemMetricsPinOrdering.move(pins, 1, 2)))
+    }
+
+    @Test
+    fun `move swaps with the previous row`() {
+        assertEquals(listOf("a", "c", "b", "d"), keys(SystemMetricsPinOrdering.move(pins, 2, 1)))
+    }
+
+    @Test
+    fun `move across several slots keeps the rest in order`() {
+        assertEquals(listOf("b", "c", "d", "a"), keys(SystemMetricsPinOrdering.move(pins, 0, 3)))
+    }
+
+    @Test
+    fun `move out of range or onto itself changes nothing`() {
+        listOf(0 to -1, 3 to 4, 1 to 1, -1 to 0, 9 to 0).forEach { (from, to) ->
+            assertEquals("move($from, $to)", keys(pins), keys(SystemMetricsPinOrdering.move(pins, from, to)))
+        }
+    }
+
+    @Test
+    fun `move preserves the set - no duplicates, nothing dropped`() {
+        val moved = SystemMetricsPinOrdering.move(pins, 0, 3)
+        assertEquals(pins.size, moved.size)
+        assertEquals(pins.map { it.id }.toSet(), moved.map { it.id }.toSet())
+    }
+
+    // ── moved(dragged, target, before): parity with SwiftUI / the extension ───
+
+    @Test
+    fun `dragging down past a row's midpoint lands after it`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("a").id, targetId = ref("c").id, insertBefore = false,
+        )
+        // Lands where the pointer was, not one slot short of it.
+        assertEquals(listOf("b", "c", "a", "d"), keys(moved))
+    }
+
+    @Test
+    fun `dragging down onto a row's upper half lands before it`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("a").id, targetId = ref("c").id, insertBefore = true,
+        )
+        assertEquals(listOf("b", "a", "c", "d"), keys(moved))
+    }
+
+    @Test
+    fun `dragging up onto a row's upper half lands before it`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("d").id, targetId = ref("b").id, insertBefore = true,
+        )
+        assertEquals(listOf("a", "d", "b", "c"), keys(moved))
+    }
+
+    @Test
+    fun `dropping a row on itself changes nothing`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("b").id, targetId = ref("b").id, insertBefore = true,
+        )
+        assertEquals(keys(pins), keys(moved))
+    }
+
+    @Test
+    fun `a target unpinned mid-drag leaves the order untouched`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("a").id, targetId = ref("gone").id, insertBefore = true,
+        )
+        assertEquals(keys(pins), keys(moved))
+    }
+
+    @Test
+    fun `an unknown dragged series leaves the order untouched`() {
+        val moved = SystemMetricsPinOrdering.moved(
+            pins, draggedId = ref("gone").id, targetId = ref("b").id, insertBefore = true,
+        )
+        assertEquals(keys(pins), keys(moved))
+    }
+}

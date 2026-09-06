@@ -37,10 +37,63 @@ struct PresenceViewerSK: View {
             // .padding(.bottom, 12) the overlay anchor applies. 100pt leaves a
             // comfortable ~24pt visual gap between the legend's bottom edge and
             // the toolbar's top edge.
-            connectionLegend
-                .padding(.leading, 16)
-                .padding(.bottom, 100)
+            if viewModel.controlsVisible {
+                connectionLegend
+                    .padding(.leading, 16)
+                    .padding(.bottom, 100)
+                    .transition(.opacity)
+            }
+
+            // Focus banner (top-center) — mirrors the VS Code extension's
+            // "Focused on <label>" pill with an exit button. Focus mode is only
+            // reachable in the full-mesh (Direct OFF) view.
+            if let focusedName = viewModel.focusedPeerName {
+                VStack {
+                    HStack(spacing: 8) {
+                        Text("Focused on **\(focusedName)**")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                        Button {
+                            viewModel.exitFocusMode()
+                        } label: {
+                            FontAwesomeText(icon: ActionIcon.circleXmark, size: 13, color: .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Exit focus")
+                        .accessibilityIdentifier("FocusModeExitButton")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // Detail card — centred in the viewport, above the SpriteKit scene rather
+            // than inside it, so it is never scaled by the camera and never reaches the
+            // layout engine's peerFootprints. Anchoring it to its peer would put it
+            // wherever that peer happened to be, including hard against an edge where
+            // the bottom rows — the sync rows the card exists for — are clipped.
+            if let detail = viewModel.openPeerDetail {
+                PeerDetailCardView(
+                    detail: detail,
+                    onFocusPeer: viewModel.canFocusOpenPeer ? { viewModel.focusOpenPeer() } : nil
+                )
+                // Tap-to-close is attached BEFORE the centring frame, so the gesture
+                // covers the card's own bounds only. Attaching it after would make the
+                // full-size frame swallow taps beside the card, which must still reach
+                // the scene as canvas taps (dismiss, or exit focus when no card is open).
+                .onTapGesture { viewModel.dismissDetail() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
         .onAppear {
             createScene()
         }
@@ -74,7 +127,7 @@ struct PresenceViewerSK: View {
             LegendRow(color: ConnectionType.accessPoint.cardColor, pattern: "████ ████", label: "LAN")
             LegendRow(color: ConnectionType.p2pWiFi.cardColor, pattern: "██ ██ ██", label: "P2P WiFi")
             LegendRow(color: ConnectionType.webSocket.cardColor, pattern: "███·███·", label: "WebSocket")
-            LegendRow(color: ConnectionType.multicast.cardColor, pattern: "██ ██ ██", label: "Multicast")
+            LegendRow(color: ConnectionType.multicast.cardColor, pattern: "· · · · · ·", label: "Multicast")
             LegendRow(color: SyncStatusInfo.cloudCardColor, pattern: "████ ○ ████", label: "Cloud")
         }
         .padding(12)
@@ -95,10 +148,39 @@ struct PresenceViewerSK: View {
         // Configure initial zoom level
         newScene.initialZoomLevel = viewModel.zoomLevel
 
+        // Apply persisted VM-level display preferences to the fresh scene
+        newScene.backgroundEffectsEnabled = viewModel.backgroundEffectsEnabled
+
         // Set up zoom change callback
         newScene.onZoomChanged = { [weak viewModel] newZoom in
             viewModel?.updateZoomLevel(newZoom)
         }
+
+        // Focus-mode banner state (fires on the main actor from the scene's
+        // @MainActor tap/refresh paths). Both hoisted fields update together so
+        // the banner and the post-rebuild focus restore never disagree.
+        newScene.onFocusChanged = { [weak viewModel] key, name in
+            viewModel?.focusedPeerKey = key
+            viewModel?.focusedPeerName = name
+            // Focus ending takes any open card with it — the card belongs to a focus
+            // session, and a card anchored to one that has ended is stale.
+            if key == nil {
+                viewModel?.dismissDetail()
+            }
+        }
+
+        // In focus mode a tap means "show me this peer".
+        newScene.onPeerDetailRequested = { [weak viewModel] key in
+            viewModel?.toggleDetail(for: key)
+        }
+
+        // Empty-canvas tap while a card is open dismisses the card and keeps focus.
+        newScene.onDetailDismissRequested = { [weak viewModel] in
+            viewModel?.dismissDetail()
+        }
+
+        // A rebuilt scene starts with no card; keep its flag in step with the VM.
+        newScene.hasOpenDetailCard = viewModel.detailPeerKey != nil
 
         scene = newScene
         viewModel.scene = newScene
@@ -269,6 +351,70 @@ extension PresenceViewerSK {
         /// Current zoom level (0.5 = 50%, 1.0 = 100%, 2.0 = 200%)
         var zoomLevel: CGFloat = 1.0
 
+        /// Display name of the focused peer (focus mode, full-mesh view only).
+        /// Drives the top banner; nil when no peer is focused.
+        var focusedPeerName: String?
+
+        /// Key of the focused peer, hoisted so an active focus session survives
+        /// the Peers ↔ Viewer tab switch (the scene is recreated on return; this
+        /// VM is not — MainStudioView holds it as @State). Mirrors Android's
+        /// `MainStudioViewModel.presenceFocusedPeerId`. Always updated together
+        /// with `focusedPeerName` via the scene's `onFocusChanged`.
+        var focusedPeerKey: String?
+
+        /// The peer whose detail card is open, or nil. Accordion semantics: opening one
+        /// closes the other, because two centred overlays would occlude each other.
+        /// Hoisted like `focusedPeerKey` so a card survives a scene rebuild.
+        var detailPeerKey: String?
+
+        /// Sync rows for the open card, keyed by peer key. Refreshed alongside each
+        /// presence push. Only directly connected peers ever appear:
+        /// `system:data_sync_info` is a local table computed from where this device
+        /// actually receives data, so it has no row for an indirect peer or for
+        /// ourselves — which is exactly what the card's three-way sync section reports.
+        private(set) var syncStatusByPeerKey: [String: SyncStatusInfo] = [:]
+
+        /// Detail for the open card, or nil when no card is open (or its peer has left
+        /// the mesh — a card anchored to a peer that is gone must not survive).
+        var openPeerDetail: PresencePeerDetail? {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return nil }
+            let isLocal = key == localPeer.peerKeyString
+            guard let peer = isLocal ? localPeer : rawRemotePeers.first(where: { $0.peerKeyString == key }) else {
+                return nil
+            }
+            let directKeys = PresenceEdgeAggregator.directVisiblePeerKeys(
+                localPeer: localPeer,
+                remotePeers: rawRemotePeers
+            )
+            return PresencePeerDetail(
+                peer: peer,
+                isLocal: isLocal,
+                isDirectlyConnected: directKeys.contains(key),
+                syncStatus: syncStatusByPeerKey[key]
+            )
+        }
+
+        /// Whether the open card's peer can be focused from here — not already focused,
+        /// and not the local device (which is never a valid focus target).
+        var canFocusOpenPeer: Bool {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return false }
+            return key != focusedPeerKey && key != localPeer.peerKeyString
+        }
+
+        /// Whether the graph controls (legend, Direct toggle, zoom cluster) are
+        /// visible. The eye button and reset control always remain — the VS Code
+        /// extension's controls-visibility toggle. Lives on the VM so it survives
+        /// tab switches (the VM is hoisted to MainStudioView).
+        var controlsVisible = true
+
+        /// Whether the floating-squares background renders + animates. SwiftUI-only
+        /// (the Android viewer has no background particles by design).
+        var backgroundEffectsEnabled = true {
+            didSet {
+                scene?.backgroundEffectsEnabled = backgroundEffectsEnabled
+            }
+        }
+
         // MARK: - Scene Reference
 
         /// Reference to the SpriteKit scene for updates
@@ -278,6 +424,13 @@ extension PresenceViewerSK {
 
         /// Presence observer for real-time updates
         private var presenceObserver: DittoObserver?
+
+        /// Pending throttled scene update. Presence pushes are throttled to one
+        /// scene update per 250 ms fixed window (the VS Code extension's
+        /// presence coalesce) so connect/disconnect flapping can't thrash
+        /// layout animations. The Direct toggle path
+        /// (`updateSceneWithCurrentFilter` from `didSet`) stays immediate.
+        private var presencePushTask: Task<Void, Never>?
 
         /// Raw local peer from the presence graph
         private var rawLocalPeer: PeerProtocol?
@@ -312,7 +465,26 @@ extension PresenceViewerSK {
                     guard let self else { return }
                     rawLocalPeer = localPeer
                     rawRemotePeers = remotePeers
-                    updateSceneWithCurrentFilter()
+                    // Fixed-window throttle (the extension's presence coalesce,
+                    // DittoManager.ts): the first push in a window arms a 250 ms
+                    // flush; later pushes only replace the stored graph above;
+                    // the flush applies the latest at window end. A
+                    // cancel-and-re-sleep debounce would starve the graph under
+                    // sustained <250 ms churn. The scene's own topology
+                    // snapshots still gate rebuilds on actual changes.
+                    if presencePushTask == nil {
+                        presencePushTask = Task { @MainActor [weak self] in
+                            try? await Task.sleep(for: .milliseconds(250))
+                            guard let self else { return }
+                            presencePushTask = nil
+                            guard !Task.isCancelled else { return }
+                            updateSceneWithCurrentFilter()
+                            // Sync rows ride the same 250 ms window as the graph push,
+                            // so an open card's commit id stays current without adding a
+                            // second cadence. Only ever populated for direct peers.
+                            await refreshSyncStatus()
+                        }
+                    }
                 }
             }
         }
@@ -321,38 +493,48 @@ extension PresenceViewerSK {
         func stopProductionMode() {
             presenceObserver?.stop()
             presenceObserver = nil
+            presencePushTask?.cancel()
+            presencePushTask = nil
         }
 
         // MARK: - Filtering
-
-        /// Returns only peers directly connected to the local peer
-        private func directlyConnectedPeers(
-            from peers: [PeerProtocol],
-            localPeerKey: String
-        ) -> [PeerProtocol] {
-            peers.filter { peer in
-                peer.connectionProtocols.contains {
-                    $0.peerKeyString1 == localPeerKey || $0.peerKeyString2 == localPeerKey
-                }
-            }
-        }
 
         /// Push the current filtered graph state to the scene
         func updateSceneWithCurrentFilter() {
             guard let localPeer = rawLocalPeer, let scene else { return }
 
-            let peersToShow: [PeerProtocol] = if showDirectConnectedOnly {
-                directlyConnectedPeers(
-                    from: rawRemotePeers,
-                    localPeerKey: localPeer.peerKeyString
+            // Both modes derive the visible set from the aggregated edges, which
+            // include the local peer's own advertised connections — never from
+            // each remote peer's connection list alone, which would hide a peer
+            // whose edge only the local side advertises (the multicast
+            // asymmetry). Expanded mode additionally drops orphan peers (those
+            // in no edge at all) so the sync stop→start window doesn't render
+            // floating pills (extension peer-info.ts pass 2). The local peer is
+            // always shown.
+            let visibleKeys: Set<String> = if showDirectConnectedOnly {
+                PresenceEdgeAggregator.directVisiblePeerKeys(
+                    localPeer: localPeer,
+                    remotePeers: rawRemotePeers
                 )
             } else {
-                rawRemotePeers
+                PresenceEdgeAggregator.meshVisiblePeerKeys(
+                    localPeer: localPeer,
+                    remotePeers: rawRemotePeers
+                )
             }
+            let peersToShow = rawRemotePeers.filter { visibleKeys.contains($0.peerKeyString) }
 
             // Sync the filter flag to the scene so it can suppress remote-to-remote edges
             scene.showDirectConnectedOnly = showDirectConnectedOnly
             scene.updatePresenceGraph(localPeer: localPeer, remotePeers: peersToShow)
+
+            // Focus survives the Peers ↔ Viewer tab switch: the scene was torn
+            // down and recreated, so re-enter the hoisted focus once the fresh
+            // scene has graph state — or clear the hoist (via onFocusChanged)
+            // when the peer is gone / Direct mode is on (Android A4 parity).
+            if let focusedKey = focusedPeerKey, scene.focusedPeerKey == nil {
+                scene.restoreFocusAfterRebuild(for: focusedKey)
+            }
         }
 
         // MARK: - Zoom Control
@@ -365,7 +547,9 @@ extension PresenceViewerSK {
 
         /// Zoom out (increase scale value)
         func zoomOut() {
-            let newZoom = min(2.0, zoomLevel + 0.1)
+            // 4.0 camera scale = the VS Code extension's 0.25 minimum magnification —
+            // the deep zoom-out a large full-mesh layout needs.
+            let newZoom = min(4.0, zoomLevel + 0.1)
             updateZoomLevel(newZoom)
         }
 
@@ -383,6 +567,52 @@ extension PresenceViewerSK {
             // Local zoom mirror — the scene also fires onZoomChanged(1.0), but updating
             // here makes the % readout flip instantly even if the SK animation lags.
             zoomLevel = 1.0
+        }
+
+        /// Exit focus mode (the banner's ✕ button). Any open card goes with it — it is
+        /// anchored to a focus session that no longer exists.
+        func exitFocusMode() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+            scene?.exitFocusMode()
+        }
+
+        /// Toggle the detail card for `key` (accordion: same peer closes, another swaps).
+        func toggleDetail(for key: String) {
+            detailPeerKey = (detailPeerKey == key) ? nil : key
+            scene?.hasOpenDetailCard = detailPeerKey != nil
+        }
+
+        /// Dismiss the open card without leaving focus.
+        func dismissDetail() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+        }
+
+        /// Focus the peer whose card is open (the card's labelled action), replacing the
+        /// traversal that tapping an orbit peer used to provide.
+        func focusOpenPeer() {
+            guard let key = detailPeerKey else { return }
+            dismissDetail()
+            scene?.restoreFocusAfterRebuild(for: key)
+        }
+
+        /// Refresh the sync rows. Degrades to an empty lookup rather than failing the
+        /// card: the presence-graph half is still worth showing when sync is stopped.
+        func refreshSyncStatus() async {
+            guard let ditto = await DittoManager.shared.dittoSelectedApp else { return }
+            var lookup: [String: SyncStatusInfo] = [:]
+            do {
+                let results = try await ditto.store.execute(query: "SELECT * FROM system:data_sync_info")
+                for item in results.items {
+                    let dict = item.value.compactMapValues { $0 }
+                    guard let peerKey = dict["_id"] as? String else { continue }
+                    lookup[peerKey] = SyncStatusInfo(from: dict)
+                }
+            } catch {
+                Log.debug("Presence detail card: system:data_sync_info unavailable — \(error.localizedDescription)")
+            }
+            syncStatusByPeerKey = lookup
         }
 
         // MARK: - Cleanup
@@ -411,17 +641,19 @@ struct PresenceViewerToolbarControls: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Direct toggle — same short label as Android.
-            Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
-                .toggleStyle(.switch)
-                .font(.caption)
-                .fixedSize()
-                .help("Show only peers directly connected to this device")
+            if viewModel.controlsVisible {
+                // Direct toggle — same short label as Android.
+                Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+                    .fixedSize()
+                    .help("Show only peers directly connected to this device")
 
-            Divider()
-                .frame(height: 18)
+                Divider()
+                    .frame(height: 18)
+            }
 
-            // Reset (recenter + 100% zoom).
+            // Reset (recenter + 100% zoom) — always visible (extension parity).
             Button(action: { viewModel.recenterView() }, label: {
                 Image(systemName: "scope")
                     .font(.system(size: 14))
@@ -432,35 +664,64 @@ struct PresenceViewerToolbarControls: View {
             .accessibilityLabel("Reset view")
             .help("Reset view — recenter and zoom to 100%")
 
-            // Zoom out.
-            Button(action: { viewModel.zoomOut() }, label: {
-                Image(systemName: "minus")
+            if viewModel.controlsVisible {
+                // Zoom out.
+                Button(action: { viewModel.zoomOut() }, label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 14))
+                        .frame(minWidth: 32, minHeight: 32)
+                        .contentShape(Rectangle())
+                })
+                .buttonStyle(.plain)
+                .disabled(viewModel.zoomLevel >= 4.0)
+                .accessibilityLabel("Zoom out")
+                .help("Zoom out (or use scroll wheel)")
+
+                // Zoom level readout.
+                Text("\(Int(viewModel.zoomLevel * 100))%")
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(width: 40, alignment: .center)
+                    .accessibilityLabel("Zoom level \(Int(viewModel.zoomLevel * 100)) percent")
+
+                // Zoom in.
+                Button(action: { viewModel.zoomIn() }, label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14))
+                        .frame(minWidth: 32, minHeight: 32)
+                        .contentShape(Rectangle())
+                })
+                .buttonStyle(.plain)
+                .disabled(viewModel.zoomLevel <= 0.5)
+                .accessibilityLabel("Zoom in")
+                .help("Zoom in (or use scroll wheel)")
+            }
+
+            Divider()
+                .frame(height: 18)
+
+            // Background effects toggle (SwiftUI-only — the Android viewer has no
+            // particles by design).
+            Button(action: { viewModel.backgroundEffectsEnabled.toggle() }, label: {
+                Image(systemName: viewModel.backgroundEffectsEnabled ? "sparkles" : "sparkle")
                     .font(.system(size: 14))
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             })
             .buttonStyle(.plain)
-            .disabled(viewModel.zoomLevel >= 2.0)
-            .accessibilityLabel("Zoom out")
-            .help("Zoom out (or use scroll wheel)")
+            .accessibilityLabel("Toggle background effects")
+            .help(viewModel.backgroundEffectsEnabled ? "Hide background effects" : "Show background effects")
 
-            // Zoom level readout.
-            Text("\(Int(viewModel.zoomLevel * 100))%")
-                .font(.system(size: 12, design: .monospaced))
-                .frame(width: 40, alignment: .center)
-                .accessibilityLabel("Zoom level \(Int(viewModel.zoomLevel * 100)) percent")
-
-            // Zoom in.
-            Button(action: { viewModel.zoomIn() }, label: {
-                Image(systemName: "plus")
+            // Controls-visibility (eye) toggle — always visible (extension parity):
+            // hides/shows the legend + Direct toggle + zoom cluster.
+            Button(action: { viewModel.controlsVisible.toggle() }, label: {
+                Image(systemName: viewModel.controlsVisible ? "eye" : "eye.slash")
                     .font(.system(size: 14))
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             })
             .buttonStyle(.plain)
-            .disabled(viewModel.zoomLevel <= 0.5)
-            .accessibilityLabel("Zoom in")
-            .help("Zoom in (or use scroll wheel)")
+            .accessibilityLabel("Toggle controls visibility")
+            .help(viewModel.controlsVisible ? "Hide graph controls" : "Show graph controls")
         }
     }
 }

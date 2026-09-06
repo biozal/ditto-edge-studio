@@ -57,3 +57,9 @@ docs/superpowers
 *.sqlite
 *.sqlite3
 *.ab
+
+# .NET build output — MSBuild writes intermediates to obj/ and binaries to
+# bin/ beside every .csproj. Scoped to dotnet/ rather than a bare `bin/` so
+# an unrelated directory of that name elsewhere in the tree isn't caught.
+dotnet/**/bin/
+dotnet/**/obj/

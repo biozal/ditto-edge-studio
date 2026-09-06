@@ -11,8 +11,6 @@ struct AppMetricsDetailView: View {
     @State private var queryLatencySamples: [MetricSample] = []
     @State private var storageSnapshot: StorageSnapshot?
     @State private var lastUpdated = Date.now
-    @State private var systemMetrics = SystemMetricsService()
-    @State private var systemMetricsNamespace = SystemMetricsNamespaceFilter.all
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +23,6 @@ struct AppMetricsDetailView: View {
                     #endif
                     queriesSection
                     storageSection
-                    systemMetricsSection
                 }
                 .padding()
             }
@@ -33,8 +30,6 @@ struct AppMetricsDetailView: View {
         .task {
             await runRefreshLoop()
         }
-        .task { systemMetrics.start() }
-        .onDisappear { systemMetrics.stop() }
     }
 
     // MARK: - Header
@@ -233,15 +228,6 @@ struct AppMetricsDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-    }
-
-    // MARK: - System Metrics (SDK 5.1 system:metrics)
-
-    private var systemMetricsSection: some View {
-        SystemMetricsSectionView(
-            snapshot: systemMetrics.snapshot,
-            namespaceFilter: $systemMetricsNamespace
-        )
     }
 
     // MARK: - Refresh

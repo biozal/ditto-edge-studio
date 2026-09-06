@@ -39,9 +39,6 @@ extension MainStudioView {
         var attachmentVM: AttachmentViewModel
         var subObsVM: SubscriptionObserverViewModel
 
-        /// Debug Console service (SDK 5.1 debug_socket). One per studio session.
-        var debugConsoleService = DebugConsoleService()
-
         // MARK: - Direct Dependencies (parent-only orchestration)
 
         @ObservationIgnored
@@ -287,6 +284,11 @@ extension MainStudioView {
                     selectedSidebarDestination = .subscriptions
                 }
 
+                // macOS only: the Welcome window is a `WindowGroup` declared
+                // inside the app's `#if os(macOS)` scene block, and iPadOS has
+                // no separate-window presentation for it. Posting regardless
+                // asked SwiftUI to open a scene that does not exist there.
+                #if os(macOS)
                 let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
                 // Never auto-open the welcome window under UI tests — it spawns a
                 // second window that steals focus and blocks element queries.
@@ -303,6 +305,7 @@ extension MainStudioView {
                         )
                     }
                 }
+                #endif
             }
         }
 
@@ -323,7 +326,6 @@ extension MainStudioView {
             Log.info("[Close] Session invalidated (\(String(format: "%.3f", invalidateElapsed))s)")
 
             // 2. Clean up UI state immediately on main actor across all sub-VMs.
-            await debugConsoleService.close()
             subObsVM.reset()
             collections = []
             queryVM.reset()

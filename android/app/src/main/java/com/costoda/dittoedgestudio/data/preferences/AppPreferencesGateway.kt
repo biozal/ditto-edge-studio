@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.data.preferences
 
+import com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -35,4 +36,17 @@ interface AppPreferencesGateway {
      */
     val collectSystemMetrics: Flow<Boolean>
     suspend fun setCollectSystemMetrics(enabled: Boolean)
+
+    /**
+     * Pinned `system:metrics` series for one database, in pin order — the
+     * troubleshooting set the System Metrics screen keeps above its namespace
+     * filter. Per database (parity with the SwiftUI `SystemMetricsPinStore` and
+     * the extension's per-connection `globalState` pins), so pins survive
+     * leaving the screen, closing the database, and process death.
+     *
+     * The screen owns edits and hands back the complete replacement list, so
+     * [setSystemMetricPins] is a wholesale write — there is no merge to get wrong.
+     */
+    fun systemMetricPins(databaseId: Long): Flow<List<SystemMetricSeriesRef>>
+    suspend fun setSystemMetricPins(databaseId: Long, pins: List<SystemMetricSeriesRef>)
 }

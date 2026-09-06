@@ -4,6 +4,7 @@ import com.costoda.dittoedgestudio.data.logging.LogFileParser
 import com.costoda.dittoedgestudio.domain.model.LogComponent
 import com.costoda.dittoedgestudio.domain.model.LogEntrySource
 import com.ditto.kotlin.DittoLogLevel
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -23,6 +24,68 @@ class LogFileParserTest {
         assertEquals("Sync started", entry.message)
         assertEquals(LogComponent.SYNC, entry.component)
         assertNotNull(entry.timestamp)
+    }
+
+    @Test
+    fun `parseJSONL reads 6-digit fractional seconds as microseconds not milliseconds`() {
+        // Arrange — every `ditto_logs` record carries 6 fractional digits. Under
+        // the old SimpleDateFormat pattern `…ss.SSSSSS'Z'`, `S` means
+        // *milliseconds*, so `.784135` was added as 784 135 ms and this instant
+        // came back as 20:56:55 — 13m04s late. That corrupted the analytics time
+        // range, both histograms, the connection durations and the date filter.
+        val json = """{"timestamp":"2026-09-05T20:43:51.784135Z","level":"INFO","message":"starting Ditto..."}"""
+
+        // Act
+        val entry = LogFileParser.parseJSONL(json, LogEntrySource.DittoSDK).single()
+
+        // Assert — truncated to Date's millisecond resolution.
+        assertEquals(Instant.parse("2026-09-05T20:43:51.784Z").toEpochMilli(), entry.timestamp.time)
+    }
+
+    @Test
+    fun `parseJSONL parses every fractional precision the SDK can emit`() {
+        // Arrange — 0, 3, 6 and 9 fractional digits all denote the same second.
+        val texts = listOf(
+            "2026-09-05T20:43:51Z" to "2026-09-05T20:43:51Z",
+            "2026-09-05T20:43:51.784Z" to "2026-09-05T20:43:51.784Z",
+            "2026-09-05T20:43:51.784135Z" to "2026-09-05T20:43:51.784Z",
+            "2026-09-05T20:43:51.784135926Z" to "2026-09-05T20:43:51.784Z",
+        )
+
+        for ((input, expected) in texts) {
+            // Act
+            val json = """{"timestamp":"$input","level":"INFO","message":"m"}"""
+            val entry = LogFileParser.parseJSONL(json, LogEntrySource.DittoSDK).single()
+
+            // Assert
+            assertEquals(input, Instant.parse(expected).toEpochMilli(), entry.timestamp.time)
+        }
+    }
+
+    @Test
+    fun `parseJSONL parses explicit numeric offsets in both extended and basic form`() {
+        // Arrange — `+01:00` and `+0100` denote 19:43:51Z.
+        for (input in listOf("2026-09-05T20:43:51.784135+01:00", "2026-09-05T20:43:51.784135+0100")) {
+            // Act
+            val json = """{"timestamp":"$input","level":"INFO","message":"m"}"""
+            val entry = LogFileParser.parseJSONL(json, LogEntrySource.DittoSDK).single()
+
+            // Assert
+            assertEquals(input, Instant.parse("2026-09-05T19:43:51.784Z").toEpochMilli(), entry.timestamp.time)
+        }
+    }
+
+    @Test
+    fun `parseJSONL reads a timestamp with no zone designator as UTC`() {
+        // Arrange — the shape the old isoBasic/isoWithMillis parsers covered via
+        // their explicit UTC timeZone.
+        val json = """{"timestamp":"2026-09-05T20:43:51.784135","level":"INFO","message":"m"}"""
+
+        // Act
+        val entry = LogFileParser.parseJSONL(json, LogEntrySource.DittoSDK).single()
+
+        // Assert
+        assertEquals(Instant.parse("2026-09-05T20:43:51.784Z").toEpochMilli(), entry.timestamp.time)
     }
 
     @Test
@@ -109,11 +172,21 @@ class LogFileParserTest {
     // ── Component heuristic ───────────────────────────────────────────────────
 
     @Test
-    fun `component heuristic detects transport prefix over query substring`() {
-        // "transport" prefix should win even if "query" appears in the message
-        val message = "[transport::bluetooth] Discovered query endpoint"
-        val component = LogComponent.heuristic(message)
-        assertEquals(LogComponent.TRANSPORT, component)
+    fun `component heuristic prefers transport operation names over a query substring`() {
+        // SwiftUI's `heuristic(from:)` puts four named SDK transport operations —
+        // and the bare `tcp`/`awdl` tokens — ahead of `query`, precisely so a
+        // long flattened line that happens to mention "query" is not stolen from
+        // Transport. Only those probes win; see LogComponentTest for the
+        // complementary case where a generic "[transport::…]" tag does NOT beat
+        // `query`, on either platform.
+        assertEquals(
+            LogComponent.TRANSPORT,
+            LogComponent.heuristic("add_ble_transport: query_config=default"),
+        )
+        assertEquals(
+            LogComponent.TRANSPORT,
+            LogComponent.heuristic("tcp connection dropped while query pending"),
+        )
     }
 
     @Test
@@ -121,6 +194,7 @@ class LogFileParserTest {
         assertEquals(LogComponent.SYNC, LogComponent.from("ditto::sync"))
         assertEquals(LogComponent.STORE, LogComponent.from("ditto::store::writes"))
         assertEquals(LogComponent.QUERY, LogComponent.from("ditto::query::parser"))
+        assertEquals(LogComponent.TRANSPORT, LogComponent.from("ditto_discovery_mdns"))
         assertEquals(LogComponent.OTHER, LogComponent.from("ditto::unknown"))
     }
 

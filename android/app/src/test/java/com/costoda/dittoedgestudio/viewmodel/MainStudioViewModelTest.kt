@@ -262,6 +262,9 @@ class MainStudioViewModelTest {
         historyRepository = mockk(relaxed = true),
         appPreferences = mockk<com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway>().also {
             io.mockk.every { it.collectSystemMetrics } returns kotlinx.coroutines.flow.MutableStateFlow(true)
+            // StudioSession collects the pins eagerly at construction.
+            io.mockk.every { it.systemMetricPins(any()) } returns
+                kotlinx.coroutines.flow.MutableStateFlow(emptyList())
         },
         context = mockk(relaxed = true),
         ioDispatcher = testDispatcher,

@@ -44,6 +44,7 @@ fun ObserverDetailScreen(
     onSelectEvent: (DittoObserveEvent) -> Unit,
     onFilterChange: (EventFilterMode) -> Unit,
     modifier: Modifier = Modifier,
+    isActive: Boolean = false,
     pageSize: Int = 25,
     currentPage: Int = 0,
     onPageSizeChange: (Int) -> Unit = {},
@@ -83,7 +84,14 @@ fun ObserverDetailScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "No events captured yet. Activate the observer to start.",
+                    // Telling someone to activate an observer they just activated reads as
+                    // a failure. Split the two states.
+                    text = if (isActive) {
+                        "Active — waiting for the first change to \"" +
+                            "${selectedObserver.query}\"."
+                    } else {
+                        "No events captured yet. Activate the observer to start."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),

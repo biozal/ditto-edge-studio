@@ -4,6 +4,15 @@ import Network
 /// Client for the Ditto SDK 5.1 `debug_socket` listener (parity with the VS Code
 /// extension's `DebugSocketClient`).
 ///
+/// **Currently unused by the app — retained deliberately.** The in-app Debug
+/// Console it used to drive was removed: it opened a socket back to our *own*
+/// process to run DQL the query editor's Local mode already runs directly on
+/// the same `dittoSelectedApp` instance, with no syntax restriction either way.
+/// `debug_socket` only earns its keep for an *external* process (which is why
+/// the VS Code extension needs it), so this client stays for a future
+/// attach-to-another-Ditto feature rather than being rewritten from scratch.
+/// Expect it in Periphery reports until then.
+///
 /// Protocol: one DQL statement per line → one reply line (JSON array of items,
 /// or `ERROR: <message>`). The actor serialises exchanges (the wire has no
 /// request IDs, so FIFO pairing is the only safe alignment). A 30 s timeout

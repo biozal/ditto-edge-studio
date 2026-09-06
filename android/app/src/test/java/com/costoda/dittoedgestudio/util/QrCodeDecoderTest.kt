@@ -410,6 +410,77 @@ class QrCodeDecoderTest {
         assertEquals(false, result!!.database.isStrictModeEnabled)
     }
 
+
+    /** Wraps arbitrary payload JSON as an `EDS2:` v2 code, as the apps do. */
+    private fun encodeV2(json: String): String {
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false)
+        deflater.setInput(bytes)
+        deflater.finish()
+        val output = ByteArray(bytes.size * 2 + 100)
+        val length = deflater.deflate(output)
+        deflater.end()
+        return "EDS2:" + java.util.Base64.getEncoder().encodeToString(output.copyOf(length))
+    }
+
+    // ── SDK-5 field-name compatibility ──────────────────────────────────────
+    //
+    // The SwiftUI app renamed `token` -> `developmentToken` and
+    // `authUrl` -> `url` for SDK 5, and stopped emitting `websocketUrl` at all.
+    // This decoder required all three, so every QR the Mac app produced failed
+    // with "not a valid database config" — the JSON below is the exact key set
+    // `DittoConfigForDatabase.encode(to:)` writes.
+
+    private fun swiftSdk5ConfigJson() = """
+        {"version":2,"config":{
+          "_id":"abc123","name":"retail demo","databaseId":"db-9125a21f",
+          "developmentToken":"tok-abc","url":"https://auth.example.com",
+          "httpApiUrl":"https://api.example.com","httpApiKey":"key-xyz",
+          "mode":"online","allowUntrustedCerts":false,"secretKey":"",
+          "isBluetoothLeEnabled":true,"isLanEnabled":true,"isAwdlEnabled":true,
+          "isCloudSyncEnabled":true,"isMulticastEnabled":false,
+          "multicastGroupAddress":"","multicastPort":0,"multicastInterfaceName":"",
+          "logLevel":"info","isStrictModeEnabled":false,
+          "collectionSyncScopes":{},"startupSettings":{}
+        },"favorites":[{"q":"SELECT * FROM orders"}]}
+    """.trimIndent()
+
+    @Test
+    fun `decodes a payload using the SDK-5 field names the SwiftUI app emits`() {
+        val result = QrCodeDecoder.decode(encodeV2(swiftSdk5ConfigJson()))
+
+        assertNotNull("SDK-5 payload must decode", result)
+        assertEquals("retail demo", result!!.database.name)
+        assertEquals("db-9125a21f", result.database.databaseId)
+        assertEquals("tok-abc", result.database.token)
+        assertEquals("https://auth.example.com", result.database.authUrl)
+        // Dropped in SDK 5 — must default rather than fail the whole decode.
+        assertEquals("", result.database.websocketUrl)
+        assertEquals(listOf("SELECT * FROM orders"), result.favorites)
+    }
+
+    @Test
+    fun `still decodes a payload using the pre-5 field names`() {
+        val legacy = """
+            {"version":2,"config":{
+              "name":"legacy db","databaseId":"db-legacy",
+              "token":"tok-old","authUrl":"https://old.example.com",
+              "websocketUrl":"wss://old.example.com",
+              "httpApiUrl":"https://api.old","httpApiKey":"k",
+              "mode":"online","allowUntrustedCerts":false,"secretKey":"",
+              "isBluetoothLeEnabled":true,"isLanEnabled":true,"isAwdlEnabled":true,
+              "isCloudSyncEnabled":true,"logLevel":"info"
+            },"favorites":[]}
+        """.trimIndent()
+
+        val result = QrCodeDecoder.decode(encodeV2(legacy))
+
+        assertNotNull("pre-5 payload must still decode", result)
+        assertEquals("tok-old", result!!.database.token)
+        assertEquals("https://old.example.com", result.database.authUrl)
+        assertEquals("wss://old.example.com", result.database.websocketUrl)
+    }
+
     // ─── Multicast decode-boundary validation ─────────────────────────────────
     // The SDK coerces the port with toUShort() (0 → broken "any port" sentinel,
     // 70000 → 4464) and only class-D (224-239) group addresses are valid, so an

@@ -34,6 +34,10 @@ final class SystemMetricsService {
     private(set) var snapshot = Snapshot()
     private var samples: [String: SystemMetricSample] = [:]
     private var pollTask: Task<Void, Never>?
+    /// Set by this instance's very first `pollOnce`. An instance property, not a
+    /// per-round local: a manual Refresh that lands before the loop's own first
+    /// poll — or a return visit to the screen — must not re-zero the totals.
+    private var hasZeroed = false
 
     static let pollInterval: Duration = .seconds(5)
     static let query = "SELECT * FROM system:metrics"
@@ -48,10 +52,9 @@ final class SystemMetricsService {
         }
 
         pollTask = Task { [weak self] in
-            var zeroed = false
             while !Task.isCancelled {
                 guard let self else { return }
-                await pollOnce(&zeroed)
+                await pollOnce()
                 try? await Task.sleep(for: Self.pollInterval)
             }
         }
@@ -62,16 +65,28 @@ final class SystemMetricsService {
         pollTask = nil
     }
 
-    private func pollOnce(_ zeroed: inout Bool) async {
+    /// One immediate read ahead of the cadence, for the dashboard's Refresh
+    /// button. Safe to call while the loop is running: reads flush Ditto's
+    /// registry, so an extra read only moves activity from the next poll's
+    /// delta into this one — the accumulated totals stay correct.
+    func refreshNow() async {
+        await pollOnce()
+    }
+
+    private func pollOnce() async {
         guard let ditto = await DittoManager.shared.dittoSelectedApp else {
             snapshot = Snapshot(status: .noConnection)
             return
         }
-        if !zeroed {
-            // First poll of a session: clear samples possibly kept from a previous
-            // visibility round so "since connect" matches this open.
+        if !hasZeroed {
+            // Very first poll this service instance ever makes: drop anything a
+            // previous owner left behind so "since" marks this database open.
+            // Deliberately NOT re-run per visibility round — leaving and
+            // returning to the screen continues the same running totals (the
+            // missed activity folds into the next poll's delta), which is what
+            // makes a pinned series' since-connect number mean something.
             samples.removeAll()
-            zeroed = true
+            hasZeroed = true
         }
         do {
             let results = try await ditto.store.execute(query: Self.query)

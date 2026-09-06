@@ -39,7 +39,9 @@ import com.costoda.dittoedgestudio.ui.database.DatabaseEditorScreen
 import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.AppMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.DiskUsageSection
+import com.costoda.dittoedgestudio.ui.mainstudio.SystemMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
+import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEditorHost
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
@@ -68,6 +70,13 @@ import org.koin.compose.getKoin
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
+import androidx.compose.material3.adaptive.currentWindowSize
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.VerticalDragHandle
+import androidx.compose.material3.adaptive.layout.PaneExpansionAnchor
+import androidx.compose.material3.adaptive.layout.rememberPaneExpansionState
 
 /**
  * Root navigation graph (Navigation 3).
@@ -191,6 +200,20 @@ fun AppNavGraph() {
     // with a 0dp spacer). We then override the partition count for the Presence-split-off
     // case and cap the list-pane width at Medium/Large.
     val baseDirective = calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth(windowAdaptiveInfo)
+    // The list pane takes at most 30% of the window, bounded by the same
+    // limits the SwiftUI sidebar uses (`navigationSplitViewColumnWidth(min: 200,
+    // ideal: 260, max: 320)`).
+    //
+    // A fixed dp does not work across foldables. Window size class is decided by
+    // the *window*, not the device, and unfolded inner displays straddle the
+    // 840dp Medium/Expanded boundary: a Galaxy Z Fold 5 unfolds to ~690dp
+    // (1812px @ 420dpi, measured), while a Pixel 9 Pro Fold or OnePlus Open land
+    // near ~850dp. The old flat 300dp was 43% of the Fold 5's window — the list
+    // pane crowding the results out — while being merely generous on a tablet.
+    // A proportion is correct for every one of them, and the 320dp ceiling keeps
+    // it from sprawling on a desktop-sized window.
+    val windowWidthDp = with(LocalDensity.current) { currentWindowSize().width.toDp() }
+    val listPaneWidth = (windowWidthDp * LIST_PANE_WIDTH_FRACTION).coerceIn(200.dp, 320.dp)
     val listDetailDirective = baseDirective.copy(
         maxHorizontalPartitions = allowedHorizontalPartitions(
             showsListDetail = windowSizeClass.showsListDetail,
@@ -198,12 +221,41 @@ fun AppNavGraph() {
             presenceSplitView = presenceSplitView,
         ),
         defaultPanePreferredWidth = when {
-            windowSizeClass.inspectorDefaultVisible -> 320.dp // Large/XL: room for inspector
-            windowSizeClass.showsListDetail -> 300.dp         // Medium: two panes, no rail
+            windowSizeClass.showsListDetail -> listPaneWidth
             else -> baseDirective.defaultPanePreferredWidth
         },
     )
-    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = listDetailDirective)
+    // User-draggable divider. `listPaneWidth` is only the *starting* split; from
+    // here the user sets it. The anchors give the drag something to snap to —
+    // a narrow list, the computed default, and an even split — while still
+    // allowing any position in between.
+    val paneExpansionState = rememberPaneExpansionState(
+        anchors = listOf(
+            PaneExpansionAnchor.Offset.fromStart(200.dp),
+            PaneExpansionAnchor.Offset.fromStart(listPaneWidth),
+            PaneExpansionAnchor.Proportion(0.5f),
+        ),
+        initialAnchoredIndex = 1,
+    )
+    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(
+        directive = listDetailDirective,
+        paneExpansionState = paneExpansionState,
+        paneExpansionDragHandle = { state ->
+            val interactionSource = remember { MutableInteractionSource() }
+            VerticalDragHandle(
+                // `paneExpansionDraggable` is a member of PaneScaffoldScope,
+                // which this drag-handle lambda receives as its receiver — the
+                // top-level function of the same name is internal to the
+                // library, so it must NOT be imported or it shadows this one.
+                modifier = Modifier.paneExpansionDraggable(
+                    state,
+                    LocalMinimumInteractiveComponentSize.current,
+                    interactionSource,
+                ),
+                interactionSource = interactionSource,
+            )
+        },
+    )
 
     // Drive the Koin scope lifecycle from the current back stack contents. Must be inside
     // the composition so the underlying derivedStateOf reads tracked snapshot state.
@@ -308,6 +360,12 @@ fun AppNavGraph() {
                                 // Drawer-mode: events content is the default view.
                                 ObserverEventsSection(viewModel = viewModel)
                             }
+
+                            // The editor sheet is hosted here rather than in either pane:
+                            // this entry is the only composable present at every width and
+                            // in every selection state, so the "+" FAB always has a live
+                            // renderer. See ObserverEditorHost.
+                            ObserverEditorHost(viewModel = viewModel)
                         }
                     }
 
@@ -340,6 +398,13 @@ fun AppNavGraph() {
                     entry<DiskUsageKey> { key ->
                         StudioSectionContainer(key.databaseId, StudioNavItem.DISK_USAGE) { viewModel ->
                             DiskUsageSection(mainViewModel = viewModel)
+                        }
+                    }
+
+                    // ── Scene-driven section: System Metrics ─────────────────────────────
+                    entry<SystemMetricsKey> { key ->
+                        StudioSectionContainer(key.databaseId, StudioNavItem.SYSTEM_METRICS) { viewModel ->
+                            SystemMetricsSection(mainViewModel = viewModel)
                         }
                     }
 
@@ -724,3 +789,15 @@ private fun QueryMetricsDetailPlaceholder() {
         )
     }
 }
+
+/**
+ * Share of the window the collections/list pane takes by default.
+ *
+ * 30%, bounded to 200-320dp (the SwiftUI sidebar's own min/max). A flat dp does
+ * not survive the foldable range — window size class follows the *window*, and
+ * unfolded inner displays straddle the 840dp Medium/Expanded boundary, so a
+ * Galaxy Z Fold 5 (~690dp) and a Pixel 9 Pro Fold (~852dp) would get wildly
+ * different proportions from the same constant. This is only the starting
+ * split; the drag handle lets the user set it from there.
+ */
+private const val LIST_PANE_WIDTH_FRACTION = 0.30f

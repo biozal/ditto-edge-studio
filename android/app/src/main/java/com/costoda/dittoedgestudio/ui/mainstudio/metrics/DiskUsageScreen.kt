@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,40 +53,25 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+// The `system:metrics` dashboard used to be a third section here; it is its own
+// rail item now (SystemMetricsScreen), so this screen is storage-only again.
 private enum class Section(val label: String) {
     Files("Files"),
     Collections("Collections"),
-    System("System"),
 }
 
 @Composable
 fun DiskUsageScreen(
     viewModel: DiskUsageViewModel,
     modifier: Modifier = Modifier,
-    // Session-scoped system-metrics feed (SDK 5.1 system:metrics). Null when the
-    // caller has no studio session (previews, non-studio tests).
+    // Retained so the call site in AppNavGraph keeps its shape; the screen no
+    // longer reads anything from the studio session.
+    @Suppress("UNUSED_PARAMETER")
     mainViewModel: com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel? = null,
 ) {
     val metrics by viewModel.metrics.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsStateWithLifecycle()
-    val systemMetrics: com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot =
-        if (mainViewModel != null) {
-            mainViewModel.systemMetrics.collectAsStateWithLifecycle().value
-        } else {
-            com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
-                samples = emptyList(),
-                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
-            )
-        }
-
-    // Visibility-gated polling: the dashboard only polls while this section shows.
-    if (mainViewModel != null) {
-        androidx.compose.runtime.DisposableEffect(mainViewModel) {
-            mainViewModel.startSystemMetricsPolling()
-            onDispose { mainViewModel.stopSystemMetricsPolling() }
-        }
-    }
 
     // Persist the selected section across rotations and process death. Enum default-saver
     // serialises by name; safe so long as Section is kept as-is in the same package.
@@ -107,7 +93,6 @@ fun DiskUsageScreen(
                 snap = metrics!!,
                 selected = selectedSection,
                 onSelect = { selectedSection = it },
-                systemMetrics = systemMetrics,
             )
         }
     }
@@ -168,14 +153,12 @@ private fun MetricsBody(
     snap: DatabaseMetrics,
     selected: Section,
     onSelect: (Section) -> Unit,
-    systemMetrics: com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SectionSelector(selected = selected, onSelect = onSelect)
         when (selected) {
             Section.Files -> FilesPane(snap)
             Section.Collections -> CollectionsPane(snap)
-            Section.System -> SystemMetricsPane(snapshot = systemMetrics)
         }
     }
 }
@@ -200,11 +183,17 @@ private fun SectionSelector(
                         index = index,
                         count = Section.entries.size,
                     ),
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SulfurYellow,
-                        activeContentColor = Color.Black,
-                        activeBorderColor = SulfurYellow,
-                    ),
+                    // Brand yellow in dark mode only; light mode keeps the
+                    // Material defaults. See `dittoToggleButtonColors`.
+                    colors = if (isSystemInDarkTheme()) {
+                        SegmentedButtonDefaults.colors(
+                            activeContainerColor = SulfurYellow,
+                            activeContentColor = Color.Black,
+                            activeBorderColor = SulfurYellow,
+                        )
+                    } else {
+                        SegmentedButtonDefaults.colors()
+                    },
                 ) {
                     Text(section.label)
                 }

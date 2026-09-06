@@ -218,6 +218,7 @@ actor DittoManager {
                     "bluetoothLE=\(databaseConfig.isBluetoothLeEnabled) " +
                     "lan=\(databaseConfig.isLanEnabled) " +
                     "awdl=\(databaseConfig.isAwdlEnabled) " +
+                    "multicast=\(databaseConfig.isMulticastEnabled) " +
                     "cloudSync=\(databaseConfig.isCloudSyncEnabled)"
             )
 
@@ -234,6 +235,7 @@ actor DittoManager {
             let bluetoothEnabled = transports.bluetoothLE
             let lanEnabled = transports.lan
             let awdlEnabled = transports.awdl
+            let multicastEnabled = transports.multicast
 
             // The whole ordered sequence — user settings, transports, app-managed
             // parameters, sync scopes, then sync — lives in `OpenSequence` so the
@@ -245,7 +247,15 @@ actor DittoManager {
                     ditto.updateTransportConfig { config in
                         config.peerToPeer.bluetoothLE.isEnabled = bluetoothEnabled
                         config.peerToPeer.lan.isEnabled = lanEnabled
+                        // VS Code extension parity: mDNS + multicast peer *discovery*
+                        // ride the single LAN preference.
+                        config.peerToPeer.lan.isMDNSEnabled = lanEnabled
+                        config.peerToPeer.lan.isMulticastEnabled = lanEnabled
                         config.peerToPeer.awdl.isEnabled = awdlEnabled
+                        config.peerToPeer.multicastBeta.isEnabled = multicastEnabled
+                        config.peerToPeer.multicastBeta.groupAddress = databaseConfig.multicastGroupAddress
+                        config.peerToPeer.multicastBeta.port = UInt16(clamping: databaseConfig.multicastPort)
+                        config.peerToPeer.multicastBeta.interfaceName = databaseConfig.multicastInterfaceName
 
                         // Cloud sync (Big Peer / WebSocket) is established automatically
                         // by the SDK from the server URL passed at Ditto.open() — no
@@ -375,11 +385,17 @@ actor DittoManager {
                     ditto.updateTransportConfig { transportConfig in
                         transportConfig.peerToPeer.bluetoothLE.isEnabled = transports.bluetoothLE
                         transportConfig.peerToPeer.lan.isEnabled = transports.lan
+                        transportConfig.peerToPeer.lan.isMDNSEnabled = transports.lan
+                        transportConfig.peerToPeer.lan.isMulticastEnabled = transports.lan
                         transportConfig.peerToPeer.awdl.isEnabled = transports.awdl
+                        transportConfig.peerToPeer.multicastBeta.isEnabled = transports.multicast
+                        transportConfig.peerToPeer.multicastBeta.groupAddress = config.multicastGroupAddress
+                        transportConfig.peerToPeer.multicastBeta.port = UInt16(clamping: config.multicastPort)
+                        transportConfig.peerToPeer.multicastBeta.interfaceName = config.multicastInterfaceName
                     }
                     Log.info(
                         "[Transport] Re-applied after RESET ALL: bluetoothLE=\(transports.bluetoothLE) " +
-                            "lan=\(transports.lan) awdl=\(transports.awdl)"
+                            "lan=\(transports.lan) awdl=\(transports.awdl) multicast=\(transports.multicast)"
                     )
                 },
                 isStrictModeEnabled: config.isStrictModeEnabled,
@@ -534,17 +550,20 @@ actor DittoManager {
         return TransportFlags(
             bluetoothLE: config.isBluetoothLeEnabled && p2pEnabled,
             lan: config.isLanEnabled && p2pEnabled,
-            awdl: config.isAwdlEnabled && p2pEnabled
+            awdl: config.isAwdlEnabled && p2pEnabled,
+            multicast: config.isMulticastEnabled && p2pEnabled
         )
     }
 
-    /// The three peer-to-peer transport switches, as a named type rather than a tuple:
-    /// three same-typed `Bool`s positionally is exactly the shape a caller can transpose
+    /// The peer-to-peer transport switches, as a named type rather than a tuple:
+    /// same-typed `Bool`s positionally is exactly the shape a caller can transpose
     /// silently, and `large_tuple` flags it for that reason.
     struct TransportFlags: Sendable, Equatable {
         let bluetoothLE: Bool
         let lan: Bool
         let awdl: Bool
+        /// Reliable UDP multicast transport (beta, SDK 5.1.0 `peerToPeer.multicastBeta`).
+        let multicast: Bool
     }
 
     /// The macOS-only mesh client cap, nil elsewhere. Shared by every path that
@@ -672,6 +691,8 @@ extension DittoManager {
     ///   - isBluetoothLeEnabled: Enable/disable Bluetooth LE transport
     ///   - isLanEnabled: Enable/disable LAN transport
     ///   - isAwdlEnabled: Enable/disable AWDL transport
+    ///   - multicast: Reliable UDP multicast (beta) settings; `MulticastConfig()`
+    ///     leaves the transport disabled with SDK-default group/port
     ///
     /// Cloud sync (Big Peer) is governed by the connect mode passed at
     /// `Ditto.open()` in v5 and is not toggled here.
@@ -680,7 +701,8 @@ extension DittoManager {
     func applyTransportConfig(
         isBluetoothLeEnabled: Bool,
         isLanEnabled: Bool,
-        isAwdlEnabled: Bool
+        isAwdlEnabled: Bool,
+        multicast: MulticastConfig
     ) async throws {
         guard let ditto = dittoSelectedApp else {
             throw AppError.error(message: "No Ditto app is currently selected")
@@ -688,7 +710,7 @@ extension DittoManager {
 
         Log
             .info(
-                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
+                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) multicast=\(multicast.isEnabled)"
             )
 
         // Apply transport configuration changes
@@ -696,11 +718,19 @@ extension DittoManager {
             // Configure peer-to-peer transports
             config.peerToPeer.bluetoothLE.isEnabled = isBluetoothLeEnabled
             config.peerToPeer.lan.isEnabled = isLanEnabled
+            // VS Code extension parity: mDNS + multicast peer *discovery* ride the
+            // single LAN preference.
+            config.peerToPeer.lan.isMDNSEnabled = isLanEnabled
+            config.peerToPeer.lan.isMulticastEnabled = isLanEnabled
             config.peerToPeer.awdl.isEnabled = isAwdlEnabled
+            config.peerToPeer.multicastBeta.isEnabled = multicast.isEnabled
+            config.peerToPeer.multicastBeta.groupAddress = multicast.groupAddress
+            config.peerToPeer.multicastBeta.port = multicast.sdkPort
+            config.peerToPeer.multicastBeta.interfaceName = multicast.interfaceName
         }
         Log
             .info(
-                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
+                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) multicast=\(multicast.isEnabled)"
             )
         logTransportReadback(from: ditto, context: "applyTransportConfig")
     }
@@ -724,7 +754,10 @@ extension DittoManager {
             "[Transport] Readback (\(context)): " +
                 "bluetoothLE=\(tc.peerToPeer.bluetoothLE.isEnabled) " +
                 "lan=\(tc.peerToPeer.lan.isEnabled) " +
+                "lanMdns=\(tc.peerToPeer.lan.isMDNSEnabled) " +
+                "lanMulticast=\(tc.peerToPeer.lan.isMulticastEnabled) " +
                 "awdl=\(tc.peerToPeer.awdl.isEnabled) " +
+                "multicast=\(tc.peerToPeer.multicastBeta.isEnabled) " +
                 "webSocketURLs=[\(wsDescription)]"
         )
     }

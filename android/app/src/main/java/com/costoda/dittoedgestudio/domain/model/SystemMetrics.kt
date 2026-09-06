@@ -137,3 +137,75 @@ object SystemMetricsAccumulator {
         else -> null
     }
 }
+
+/**
+ * A pinned `system:metrics` series — the metric key plus the label map that,
+ * together, identify one series. Deliberately NOT the whole sample: values change
+ * every poll, pins do not.
+ *
+ * [id] is the same scheme as [SystemMetricsAccumulator.seriesSignature], the
+ * SwiftUI `SystemMetricSeriesRef.id`, and the VS Code extension's `seriesId`, so
+ * all four agree on what "the same series" means.
+ */
+data class SystemMetricSeriesRef(
+    val key: String,
+    val labels: Map<String, String>,
+) {
+    val id: String get() = "$key|$labelLine"
+
+    /** The `key=value,key=value` line rendered under a row's metric name. */
+    val labelLine: String
+        get() = labels.toSortedMap().entries.joinToString(",") { "${it.key}=${it.value}" }
+}
+
+fun SystemMetricSample.toSeriesRef(): SystemMetricSeriesRef = SystemMetricSeriesRef(key, labels)
+
+/** Stable per-series identity shared with [SystemMetricSeriesRef.id]. */
+val SystemMetricSample.seriesId: String get() = toSeriesRef().id
+
+/**
+ * Reordering rules for the pinned list, kept out of the UI so the index arithmetic —
+ * the part that is easy to get subtly wrong — can be tested directly.
+ *
+ * The rules match the SwiftUI `SystemMetricsPinOrdering` and the VS Code extension's
+ * drag handler, so reordering pins on one platform gives the same result on another.
+ */
+object SystemMetricsPinOrdering {
+
+    /**
+     * Moves the entry at [from] to [to], clamping both to the list. Backs the
+     * live swap-as-you-drag on Android and the Move Up / Move Down commands
+     * elsewhere; an out-of-range or same-slot move is a no-op.
+     */
+    fun move(
+        pins: List<SystemMetricSeriesRef>,
+        from: Int,
+        to: Int,
+    ): List<SystemMetricSeriesRef> {
+        if (from !in pins.indices || to !in pins.indices || from == to) return pins
+        return pins.toMutableList().apply { add(to, removeAt(from)) }
+    }
+
+    /**
+     * Moves [draggedId] to sit immediately before (or after) [targetId].
+     *
+     * The dragged entry is removed *first* and the insertion point resolved against
+     * what remains — the reason a downward drag lands where the pointer is rather
+     * than one slot short of it. A drop on the dragged row itself, or on a target
+     * no longer in the list (unpinned mid-drag), is a no-op.
+     */
+    fun moved(
+        pins: List<SystemMetricSeriesRef>,
+        draggedId: String,
+        targetId: String,
+        insertBefore: Boolean,
+    ): List<SystemMetricSeriesRef> {
+        if (draggedId == targetId) return pins
+        val dragged = pins.firstOrNull { it.id == draggedId } ?: return pins
+        val rest = pins.filterNot { it.id == draggedId }.toMutableList()
+        val targetIndex = rest.indexOfFirst { it.id == targetId }
+        if (targetIndex == -1) return pins
+        rest.add(if (insertBefore) targetIndex else targetIndex + 1, dragged)
+        return rest
+    }
+}

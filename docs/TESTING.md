@@ -776,7 +776,7 @@ func testInitialization() async throws {
         try await service.initialize()  // Test the initialization itself
 
         let version = try await service.getSchemaVersion()
-        #expect(version == 5)  // current schema version
+        #expect(version == 6)  // current schema version
     }
 }
 ```

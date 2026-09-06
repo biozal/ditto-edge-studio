@@ -57,11 +57,10 @@ struct ImportDataView: View {
                         Text("Target Collection")
                             .font(.headline)
 
-                        Picker("", selection: $useExistingCollection) {
-                            Text("Existing Collection").tag(true)
-                            Text("New Collection").tag(false)
-                        }
-                        .pickerStyle(.segmented)
+                        DittoSegmentedPicker(
+                            options: [true, false],
+                            selection: $useExistingCollection
+                        ) { $0 ? "Existing Collection" : "New Collection" }
 
                         if useExistingCollection {
                             if existingCollections.isEmpty {

@@ -26,7 +26,6 @@ struct MainStudioView: View {
     @State var observerCurrentPage = 1
     @State var observerPageSize = 25
     @State var queryIsExporting = false
-    @State var showDebugConsole = false
     @State var queryCopiedDQLNotification: String?
     /// Sidebar disclosure state. Private — sidebar code in
     /// `SidebarViews.swift` toggles via `expandedBinding(for:)` /
@@ -315,6 +314,11 @@ struct MainStudioView: View {
                         observeDetailView()
                     case .appMetrics:
                         AppMetricsDetailView()
+                        #if os(iOS)
+                            .toolbar { passiveDetailToolbar() }
+                        #endif
+                    case .systemMetrics:
+                        SystemMetricsDetailView(databaseId: viewModel.selectedApp._id)
                         #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
                         #endif
@@ -640,6 +644,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
     case observers
     case appMetrics
     case queryMetrics
+    case systemMetrics
     case logging
 
     var id: String {
@@ -655,6 +660,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
         case .observers: "Observation"
         case .appMetrics: "App Metrics"
         case .queryMetrics: "Query Metrics"
+        case .systemMetrics: "System Metrics"
         case .logging: "Log Analyzer"
         }
     }
@@ -667,12 +673,13 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
         case .observers: "eye"
         case .appMetrics: "cpu"
         case .queryMetrics: "text.magnifyingglass"
+        case .systemMetrics: "waveform.path.ecg"
         case .logging: "doc.plaintext.fill"
         }
     }
 
     /// True when this destination should only appear when telemetry is enabled.
     var isMetricsDestination: Bool {
-        self == .appMetrics || self == .queryMetrics
+        self == .appMetrics || self == .queryMetrics || self == .systemMetrics
     }
 }

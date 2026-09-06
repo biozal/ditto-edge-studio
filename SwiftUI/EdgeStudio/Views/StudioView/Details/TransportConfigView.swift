@@ -108,6 +108,52 @@ struct TransportConfigView: View {
                         }
                     }
                 }
+
+                // Multicast (beta)
+                Toggle(isOn: $viewModel.isMulticastEnabled) {
+                    HStack(spacing: 8) {
+                        FontAwesomeText(
+                            icon: ConnectivityIcon.broadcast,
+                            size: 14,
+                            color: viewModel.isMulticastEnabled ? Color(red: 0.667, green: 0.49, blue: 0.0) : .secondary
+                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Multicast (beta)")
+                                .font(.body)
+                            Text("Reliable UDP multicast — all peers on the same Wi-Fi segment")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                // Advanced multicast settings (only meaningful when enabled)
+                if viewModel.isMulticastEnabled {
+                    TextField("Group Address", text: $viewModel.multicastGroupAddress)
+                        .textFieldStyle(.roundedBorder)
+                    if !viewModel.isMulticastGroupValid {
+                        Text("Must be a class-D IPv4 address (224.0.0.0–239.255.255.255)")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
+
+                    TextField("Port", text: $viewModel.multicastPortText)
+                        .textFieldStyle(.roundedBorder)
+                    #if os(macOS)
+                        .frame(maxWidth: 120)
+                    #endif
+                    if !viewModel.isMulticastPortValid {
+                        Text("UDP port 1–65535 (all peers must match)")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
+
+                    TextField("Interface Name (optional)", text: $viewModel.multicastInterfaceName)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Blank lets the OS pick the interface")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // Apply Button Section
@@ -128,7 +174,7 @@ struct TransportConfigView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges)
+                .disabled(viewModel.currentStep.isInProgress || !viewModel.hasChanges || !viewModel.isMulticastInputValid)
                 .buttonStyle(.glassProminent)
                 .tint(.dittoYellow)
                 .foregroundStyle(.black)
@@ -173,11 +219,45 @@ extension TransportConfigView {
         var isBluetoothLeEnabled = true
         var isLanEnabled = true
         var isAwdlEnabled = true
+        var isMulticastEnabled = false
+        var multicastGroupAddress = MulticastConfig.defaultGroupAddress
+        var multicastPortText = String(MulticastConfig.defaultPort)
+        var multicastInterfaceName = ""
 
         // Original settings (for change detection)
         private var originalBluetoothLeEnabled = true
         private var originalLanEnabled = true
         private var originalAwdlEnabled = true
+        private var originalMulticastEnabled = false
+        private var originalMulticastGroupAddress = MulticastConfig.defaultGroupAddress
+        private var originalMulticastPortText = String(MulticastConfig.defaultPort)
+        private var originalMulticastInterfaceName = ""
+
+        /// Multicast field validation — Apply stays disabled while an enabled
+        /// multicast config is invalid (port 0 is rejected: the SDK reads it as
+        /// "any port" and group rendezvous silently breaks).
+        var isMulticastGroupValid: Bool {
+            MulticastConfig.isValidGroupAddress(multicastGroupAddress)
+        }
+
+        var isMulticastPortValid: Bool {
+            MulticastConfig.parsePort(multicastPortText) != nil
+        }
+
+        var isMulticastInputValid: Bool {
+            !isMulticastEnabled || (isMulticastGroupValid && isMulticastPortValid)
+        }
+
+        /// The current UI state as a validated multicast config.
+        var multicastConfig: MulticastConfig {
+            let interface = multicastInterfaceName.trimmingCharacters(in: .whitespaces)
+            return MulticastConfig(
+                isEnabled: isMulticastEnabled,
+                groupAddress: multicastGroupAddress.trimmingCharacters(in: .whitespaces),
+                port: MulticastConfig.parsePort(multicastPortText) ?? MulticastConfig.defaultPort,
+                interfaceName: interface.isEmpty ? nil : interface
+            )
+        }
 
         /// Progress tracking
         enum OperationStep: Equatable {
@@ -231,7 +311,11 @@ extension TransportConfigView {
         var hasChanges: Bool {
             isBluetoothLeEnabled != originalBluetoothLeEnabled ||
                 isLanEnabled != originalLanEnabled ||
-                isAwdlEnabled != originalAwdlEnabled
+                isAwdlEnabled != originalAwdlEnabled ||
+                isMulticastEnabled != originalMulticastEnabled ||
+                multicastGroupAddress != originalMulticastGroupAddress ||
+                multicastPortText != originalMulticastPortText ||
+                multicastInterfaceName != originalMulticastInterfaceName
         }
 
         init() {}
@@ -247,6 +331,14 @@ extension TransportConfigView {
             isBluetoothLeEnabled = ble; originalBluetoothLeEnabled = ble
             isLanEnabled = lan; originalLanEnabled = lan
             isAwdlEnabled = awdl; originalAwdlEnabled = awdl
+            let mc = appConfig.isMulticastEnabled
+            let mcGroup = appConfig.multicastGroupAddress
+            let mcPort = String(appConfig.multicastPort)
+            let mcInterface = appConfig.multicastInterfaceName ?? ""
+            isMulticastEnabled = mc; originalMulticastEnabled = mc
+            multicastGroupAddress = mcGroup; originalMulticastGroupAddress = mcGroup
+            multicastPortText = mcPort; originalMulticastPortText = mcPort
+            multicastInterfaceName = mcInterface; originalMulticastInterfaceName = mcInterface
         }
 
         /// Applies transport configuration changes with proper sync and observer lifecycle
@@ -268,21 +360,35 @@ extension TransportConfigView {
                 try await DittoManager.shared.applyTransportConfig(
                     isBluetoothLeEnabled: isBluetoothLeEnabled,
                     isLanEnabled: isLanEnabled,
-                    isAwdlEnabled: isAwdlEnabled
+                    isAwdlEnabled: isAwdlEnabled,
+                    multicast: multicastConfig
                 )
 
                 // Update stored app config in database for persistence. Revert the
                 // in-memory mutation if the persist fails, so the live config never
                 // diverges from disk on the error path.
                 if let appConfig = await dittoManager.dittoSelectedAppConfig {
-                    let previous = (appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled)
+                    let multicast = multicastConfig
+                    let previous = (
+                        appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled,
+                        appConfig.isMulticastEnabled, appConfig.multicastGroupAddress,
+                        appConfig.multicastPort, appConfig.multicastInterfaceName
+                    )
                     appConfig.isBluetoothLeEnabled = isBluetoothLeEnabled
                     appConfig.isLanEnabled = isLanEnabled
                     appConfig.isAwdlEnabled = isAwdlEnabled
+                    appConfig.isMulticastEnabled = multicast.isEnabled
+                    appConfig.multicastGroupAddress = multicast.groupAddress
+                    appConfig.multicastPort = multicast.port
+                    appConfig.multicastInterfaceName = multicast.interfaceName
                     do {
                         try await DatabaseRepository.shared.updateDittoAppConfig(appConfig)
                     } catch {
-                        (appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled) = previous
+                        (
+                            appConfig.isBluetoothLeEnabled, appConfig.isLanEnabled, appConfig.isAwdlEnabled,
+                            appConfig.isMulticastEnabled, appConfig.multicastGroupAddress,
+                            appConfig.multicastPort, appConfig.multicastInterfaceName
+                        ) = previous
                         throw error
                     }
                 }
@@ -320,6 +426,10 @@ extension TransportConfigView {
                 originalBluetoothLeEnabled = isBluetoothLeEnabled
                 originalLanEnabled = isLanEnabled
                 originalAwdlEnabled = isAwdlEnabled
+                originalMulticastEnabled = isMulticastEnabled
+                originalMulticastGroupAddress = multicastGroupAddress
+                originalMulticastPortText = multicastPortText
+                originalMulticastInterfaceName = multicastInterfaceName
             } catch {
                 currentStep = .error(error.localizedDescription)
                 appState.setError(error)

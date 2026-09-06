@@ -35,11 +35,33 @@ struct ConnectedPeersView: View {
                             spacing: 16
                         ) {
                             ForEach(viewModel.syncVM.syncStatusItems) { statusInfo in
-                                syncStatusCard(for: statusInfo)
-                                    .transition(.asymmetric(
-                                        insertion: .scale(scale: 0.88).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
+                                // `.equatable()` gives SwiftUI a comparison point
+                                // it did not previously have: `syncStatusCard` was
+                                // a *function*, so there was no child-view boundary
+                                // and every visible card rebuilt its whole tree —
+                                // ~9 `Font.custom` resolutions, a gradient, a drawn
+                                // shadow, two DisclosureGroups — on every presence
+                                // tick. Now a card whose `SyncStatusInfo` is
+                                // unchanged skips its body.
+                                PeerCard(
+                                    status: statusInfo,
+                                    copiedText: copiedText,
+                                    // The card's copy affordances are macOS-only
+                                    // (double-click to copy), so the handler is
+                                    // too — `copyToClipboard` does not exist on
+                                    // iOS. The closure keeps `PeerCard` itself
+                                    // platform-agnostic.
+                                    onCopy: { text in
+                                        #if os(macOS)
+                                        copyToClipboard(text)
+                                        #endif
+                                    }
+                                )
+                                .equatable()
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.88).combined(with: .opacity),
+                                    removal: .opacity
+                                ))
                             }
 
                             // Local Peer Info Card (included in same grid)
@@ -56,7 +78,17 @@ struct ConnectedPeersView: View {
                                 )
                             }
                         }
-                        .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.syncVM.syncStatusItems)
+                        // Keyed to *membership*, not to the whole array. Keyed to
+                        // the array it re-armed on every sync tick, because
+                        // `syncedUpToLocalCommitId` advances constantly and is part
+                        // of `==` — so a 0.5s spring was being written into the
+                        // transaction for this subtree many times a second. The
+                        // animation exists to soften peers joining and leaving,
+                        // which is exactly what the id list expresses.
+                        .animation(
+                            .spring(duration: 0.5, bounce: 0.2),
+                            value: viewModel.syncVM.syncStatusItems.map(\.id)
+                        )
                         .padding()
 
                         // Network interface cards — shown below peer cards with a divider
@@ -109,7 +141,56 @@ struct ConnectedPeersView: View {
 
     // MARK: - Helper Views
 
-    private func syncStatusCard(for status: SyncStatusInfo) -> some View {
+    #if os(macOS)
+    /// Copies `text` to the system clipboard and briefly flashes the text green as confirmation.
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copiedText = text
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await MainActor.run {
+                if copiedText == text {
+                    copiedText = nil
+                }
+            }
+        }
+    }
+    #endif
+
+    private func loadNetworkDiagnostics() async {
+        await NetworkDiagnosticsService.shared.requestLocationPermissionIfNeeded()
+        let interfaces = await NetworkDiagnosticsService.shared.fetchAllInterfaces()
+        withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
+            networkInterfaces = interfaces
+        }
+    }
+}
+
+/// One peer card.
+///
+/// This is a `View` **struct** rather than a method on `ConnectedPeersView`, and
+/// that distinction is the point. As a method there was no child-view boundary,
+/// so SwiftUI had nowhere to compare and every visible card rebuilt its entire
+/// tree — roughly nine `Font.custom` resolutions, a gradient, a drawn shadow and
+/// two `DisclosureGroup`s — on every presence tick, of which there are many per
+/// second while a mesh is syncing. With `Equatable` + `.equatable()` at the call
+/// site, a card whose peer did not change now skips its body outright.
+///
+/// `copiedText` is passed by value rather than as a `Binding` so it can take part
+/// in equality; the copy action arrives as a closure, which `==` ignores.
+private struct PeerCard: View, Equatable {
+    let status: SyncStatusInfo
+    let copiedText: String?
+    let onCopy: (String) -> Void
+
+    /// `nonisolated` because SwiftUI compares views off the main actor. The
+    /// compared properties are plain value types, so this is safe.
+    nonisolated static func == (lhs: PeerCard, rhs: PeerCard) -> Bool {
+        lhs.status == rhs.status && lhs.copiedText == rhs.copiedText
+    }
+
+    var body: some View {
         let (startColor, endColor) = connectionGradient(for: status)
         return VStack(alignment: .leading, spacing: 12) {
             // Header with peer type and connection status
@@ -136,7 +217,7 @@ struct ConnectedPeersView: View {
                         .foregroundStyle(copiedText == status.id ? .green : .white.opacity(0.80))
                     #if os(macOS)
                         .help("Double-click to copy ID")
-                        .onTapGesture(count: 2) { copyToClipboard(status.id) }
+                        .onTapGesture(count: 2) { onCopy(status.id) }
                     #endif
                 }
 
@@ -177,7 +258,7 @@ struct ConnectedPeersView: View {
                             .foregroundStyle(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
                         #if os(macOS)
                             .help("Double-click to copy address")
-                            .onTapGesture(count: 2) { copyToClipboard(addressInfo.displayText) }
+                            .onTapGesture(count: 2) { onCopy(addressInfo.displayText) }
                         #endif
                     }
                 }
@@ -364,31 +445,6 @@ struct ConnectedPeersView: View {
             return ConnectivityIcon.ethernet
         } else {
             return ConnectivityIcon.broadcastTower
-        }
-    }
-
-    #if os(macOS)
-    /// Copies `text` to the system clipboard and briefly flashes the text green as confirmation.
-    private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        copiedText = text
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            await MainActor.run {
-                if copiedText == text {
-                    copiedText = nil
-                }
-            }
-        }
-    }
-    #endif
-
-    private func loadNetworkDiagnostics() async {
-        await NetworkDiagnosticsService.shared.requestLocationPermissionIfNeeded()
-        let interfaces = await NetworkDiagnosticsService.shared.fetchAllInterfaces()
-        withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
-            networkInterfaces = interfaces
         }
     }
 }

@@ -5,9 +5,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Persistent user preferences for the Studio app, backed by Jetpack DataStore (Preferences).
@@ -46,6 +50,45 @@ class AppPreferences(private val store: DataStore<Preferences>) : AppPreferences
         store.edit { it[KEY_COLLECT_SYSTEM_METRICS] = enabled }
     }
 
+    override fun systemMetricPins(databaseId: Long): Flow<List<SystemMetricSeriesRef>> =
+        store.data.map { prefs -> decodePins(prefs[pinsKey(databaseId)]) }
+
+    override suspend fun setSystemMetricPins(databaseId: Long, pins: List<SystemMetricSeriesRef>) {
+        val unique = dedupePins(pins)
+        store.edit { prefs ->
+            // An empty list removes the key entirely, so "Clear" leaves no residue.
+            if (unique.isEmpty()) {
+                prefs.remove(pinsKey(databaseId))
+            } else {
+                prefs[pinsKey(databaseId)] = json.encodeToString(unique.map(::StoredPin))
+            }
+        }
+    }
+
+    /** DataStore is user-editable and older builds may have written a different
+     *  shape under the same versioned key family — a value that no longer parses
+     *  reads as "no pins" rather than failing the screen. */
+    private fun decodePins(raw: String?): List<SystemMetricSeriesRef> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val stored = runCatching { json.decodeFromString<List<StoredPin>>(raw) }.getOrNull()
+            ?: return emptyList()
+        return dedupePins(stored.mapNotNull { it.toRef() })
+    }
+
+    /** First-occurrence-wins. Pins are a SET presented in pin order: the same
+     *  series may never appear twice, whichever writer produced the input. Both
+     *  the read and the write path funnel through here. */
+    private fun dedupePins(pins: List<SystemMetricSeriesRef>): List<SystemMetricSeriesRef> =
+        pins.distinctBy { it.id }
+
+    @Serializable
+    private data class StoredPin(val key: String, val labels: Map<String, String>) {
+        constructor(ref: SystemMetricSeriesRef) : this(ref.key, ref.labels)
+
+        fun toRef(): SystemMetricSeriesRef? =
+            if (key.isEmpty()) null else SystemMetricSeriesRef(key, labels)
+    }
+
     companion object {
         private const val DEFAULT_METRICS_ENABLED = true
         private const val DEFAULT_PRESENCE_SPLIT_VIEW = false
@@ -55,6 +98,13 @@ class AppPreferences(private val store: DataStore<Preferences>) : AppPreferences
         private val KEY_PRESENCE_SPLIT_VIEW = booleanPreferencesKey("presence_split_view")
         private val KEY_SHOW_WELCOME = booleanPreferencesKey("show_welcome_on_new_database")
         private val KEY_COLLECT_SYSTEM_METRICS = booleanPreferencesKey("collect_system_metrics")
+
+        private val json = Json { ignoreUnknownKeys = true }
+
+        /** Versioned per-database key, mirroring the SwiftUI defaults key
+         *  `dittoSystemMetricsPins.v1.<databaseId>`. */
+        private fun pinsKey(databaseId: Long) =
+            stringPreferencesKey("system_metrics_pins_v1_$databaseId")
     }
 }
 

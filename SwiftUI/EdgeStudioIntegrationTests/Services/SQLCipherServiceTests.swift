@@ -67,12 +67,12 @@ struct SQLCipherServiceTests {
     @Suite("Schema Management")
     struct SchemaTests {
         @Test(.tags(.database))
-        func `Fresh database creates schema version 5`() async throws {
+        func `Fresh database creates schema version 6`() async throws {
             try await TestHelpers.withFreshDatabase {
                 let service = SQLCipherContext.current
 
                 let version = try await service.getSchemaVersion()
-                #expect(version == 5) // Current schema version
+                #expect(version == 6) // Current schema version
             }
         }
 

@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import com.costoda.dittoedgestudio.data.logging.sdkLogLevelFromConfigValue
 
 class DittoManager(
     private val coroutineScope: CoroutineScope,
@@ -70,9 +71,15 @@ class DittoManager(
 
         closeCurrentInstance()
 
-        // Set Ditto SDK log level to Info by default (can be changed in the Logging UI)
+        // Apply the log level this database was configured with, rather than
+        // forcing Info. Hardcoding Info here meant the level chosen in the Logs
+        // toolbar (or the Database Editor) was persisted but then overwritten on
+        // every open, so everything logged between opening a database and first
+        // visiting the Logs screen was filtered at Info regardless. Falls back to
+        // Info when the stored value is absent or unrecognised.
         if (logCaptureService != null) {
-            runCatching { DittoLogger.minimumLogLevel = DittoLogLevel.Info }
+            val level = sdkLogLevelFromConfigValue(database.logLevel) ?: DittoLogLevel.Info
+            runCatching { DittoLogger.minimumLogLevel = level }
         }
 
         // Startup-gated SDK 5.1 knob: `metrics_exporter_virtual_collection_enabled` is

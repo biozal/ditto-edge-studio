@@ -162,6 +162,27 @@ struct MCPToolManifestTests {
         #expect(!required.contains("collection"))
     }
 
+    // MARK: - Specific Tool: configure_transport
+
+    @Test(.tags(.mcp, .fast))
+    func `configure_transport offers the multicast (beta) arguments`() {
+        // ARRANGE
+        guard let tool = MCPToolHandlers.allTools.first(where: { $0.name == "configure_transport" }) else {
+            Issue.record("configure_transport tool not found")
+            return
+        }
+        let properties = tool.inputSchema["properties"] as? [String: Any]
+        let required = tool.inputSchema["required"] as? [String] ?? []
+
+        // ASSERT — multicast is offered alongside the other transports, and every
+        // parameter stays optional (omitted parameters retain current values).
+        #expect(properties?["multicast"] != nil)
+        #expect(properties?["multicast_group_address"] != nil)
+        #expect(properties?["multicast_port"] != nil)
+        #expect(properties?["multicast_interface"] != nil)
+        #expect(required.isEmpty)
+    }
+
     // MARK: - Known Tool Names
 
     @Test(.tags(.mcp, .fast))

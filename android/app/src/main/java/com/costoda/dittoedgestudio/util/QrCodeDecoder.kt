@@ -15,6 +15,7 @@ import java.io.InputStream
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 import java.util.zip.ZipException
+import kotlinx.serialization.ExperimentalSerializationApi
 
 private const val TAG = "QrCodeDecoder"
 
@@ -30,9 +31,14 @@ internal class QrPayloadTooLargeException(message: String) : Exception(message)
 
 object QrCodeDecoder {
 
+    @OptIn(ExperimentalSerializationApi::class)
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
+        // Required for the `@JsonNames` aliases on `QrConfigPayload` that let
+        // SDK-5 (`developmentToken` / `url`) and pre-5 (`token` / `authUrl`)
+        // payloads both decode.
+        useAlternativeNames = true
     }
 
     /**

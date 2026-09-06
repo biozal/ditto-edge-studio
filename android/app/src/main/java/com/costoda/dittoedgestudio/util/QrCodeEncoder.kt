@@ -47,8 +47,11 @@ object QrCodeEncoder {
                 id = "",
                 name = database.name,
                 databaseId = database.databaseId,
-                token = database.token,
-                authUrl = database.authUrl,
+                // Emit the SDK-5 spellings. SwiftUI's decoder accepts both
+                // these and the pre-5 names, and this decoder now does too, so
+                // codes stay readable in both directions.
+                developmentToken = database.token,
+                url = database.authUrl,
                 websocketUrl = database.websocketUrl,
                 httpApiUrl = database.httpApiUrl,
                 httpApiKey = database.httpApiKey,
