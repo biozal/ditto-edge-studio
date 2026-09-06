@@ -912,10 +912,33 @@ internal object DittoTeardownRegistry {
         return job
     }
 
-    /** Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise. */
+    /**
+     * Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise.
+     *
+     * Bounded by [AWAIT_CLOSE_TIMEOUT_MS]. An unbounded join here is a single point of failure
+     * for the whole studio: `Ditto.close()` blocks while any read transaction is still open, so
+     * one leaked transaction would hang this join forever and every later `hydrate()` for the
+     * database with it — no collections, no subscriptions, a permanent spinner on the Query
+     * Workbench, surviving back-out-and-re-enter. Proceeding after the timeout is strictly
+     * better: if the native handle really does still hold the persistence-directory lock, the
+     * open fails with a real error that lands in `hydrateError` and the user can retry.
+     */
     suspend fun awaitCloseFor(databaseId: Long) {
-        inFlight[databaseId]?.join()
+        val job = inFlight[databaseId] ?: return
+        val completed = withTimeoutOrNull(AWAIT_CLOSE_TIMEOUT_MS) { job.join() }
+        if (completed == null && BuildConfig.DEBUG) {
+            Log.w(
+                TAG,
+                "Previous Ditto close for databaseId=$databaseId still running after " +
+                    "${AWAIT_CLOSE_TIMEOUT_MS}ms; opening anyway rather than hanging hydrate.",
+            )
+        }
     }
+
+    /** Upper bound on how long a fresh hydrate waits for a previous session's close. */
+    internal const val AWAIT_CLOSE_TIMEOUT_MS: Long = 10_000L
+
+    private const val TAG = "DittoTeardownRegistry"
 
     /** Visible for tests — exposes the in-flight job for direct assertions. */
     internal fun inFlightJob(databaseId: Long): Job? = inFlight[databaseId]

@@ -62,6 +62,7 @@ fun SubscriptionQrScannerScreen(
     var scanResetKey by remember { mutableIntStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
+    var importError by remember { mutableStateOf<ImportError?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -105,12 +106,29 @@ fun SubscriptionQrScannerScreen(
                         importing = true
                         scope.launch {
                             var imported = 0
+                            var firstFailure: String? = null
                             for (item in items) {
-                                if (viewModel.addSubscription(item.name, item.query).isSuccess) {
+                                val result = viewModel.addSubscription(item.name, item.query)
+                                if (result.isSuccess) {
                                     imported++
+                                } else if (firstFailure == null) {
+                                    firstFailure = result.exceptionOrNull()?.message
                                 }
                             }
-                            onClose(imported)
+                            if (imported == items.size) {
+                                onClose(imported)
+                            } else {
+                                // Never close on a partial or total failure. Saves can fail for
+                                // reasons the user can act on (session not hydrated yet, invalid
+                                // DQL), and silently dismissing the scanner made a zero-import
+                                // scan look identical to a successful one.
+                                importing = false
+                                importError = ImportError(
+                                    imported = imported,
+                                    total = items.size,
+                                    reason = firstFailure,
+                                )
+                            }
                         }
                     },
                 )
@@ -139,6 +157,49 @@ fun SubscriptionQrScannerScreen(
                     },
                 )
             }
+
+            importError?.let { failure ->
+                AlertDialog(
+                    onDismissRequest = { importError = null },
+                    title = {
+                        Text(
+                            if (failure.imported == 0) "Import failed" else "Partially imported",
+                        )
+                    },
+                    text = {
+                        Text(
+                            buildString {
+                                append("Saved ${failure.imported} of ${failure.total} subscriptions.")
+                                failure.reason?.let { append("\n\n$it") }
+                            },
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            importError = null
+                            scanResetKey++
+                        }) {
+                            Text("Retry")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            val saved = failure.imported
+                            importError = null
+                            onClose(saved)
+                        }) {
+                            Text("Close")
+                        }
+                    },
+                )
+            }
         }
     }
 }
+
+/** Outcome of a QR import that did not save every subscription on the code. */
+private data class ImportError(
+    val imported: Int,
+    val total: Int,
+    val reason: String?,
+)

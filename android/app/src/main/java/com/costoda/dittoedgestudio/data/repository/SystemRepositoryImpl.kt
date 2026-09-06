@@ -18,11 +18,16 @@ import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 class SystemRepositoryImpl(
@@ -43,6 +48,14 @@ class SystemRepositoryImpl(
         private const val FIELD_SYNCED_UP_TO_LOCAL_COMMIT_ID = "synced_up_to_local_commit_id"
         private const val FIELD_LAST_UPDATE_RECEIVED_TIME = "last_update_received_time"
         private const val SYNC_STATUS_NOT_CONNECTED = "Not Connected"
+
+        /**
+         * How long a presence update will wait on the `system:data_sync_info` enrichment
+         * query before publishing without it. See [fetchSyncMetricsBestEffort].
+         */
+        private const val SYNC_METRICS_TIMEOUT_MS = 2_000L
+
+        private const val SYNC_METRICS_QUERY = "SELECT * FROM system:data_sync_info"
     }
 
     private val _peers = MutableStateFlow<List<SyncStatusInfo>>(emptyList())
@@ -58,6 +71,29 @@ class SystemRepositoryImpl(
 
     // Job collecting the presence Flow — cancelled on stopObserving()
     private var observeJob: Job? = null
+
+    /**
+     * Scope for the `system:data_sync_info` enrichment query.
+     *
+     * Deliberately NOT tied to [observeJob] or to the session scope. `DittoStore.execute` is
+     * built on `suspendCoroutine`, so it is **not cancellable**: cancelling the coroutine that
+     * is waiting on it does not abort the native query, it only guarantees the delivered
+     * `DittoQueryResult` is dropped instead of closed. The underlying read transaction then
+     * stays open forever, which blocks `Ditto.close()` and — via
+     * `DittoTeardownRegistry.awaitCloseFor` — bricks every subsequent session for that
+     * database. Letting these queries always run to completion is what keeps that from
+     * happening; the presence pipeline protects itself with a timeout instead (see
+     * [fetchSyncMetricsBestEffort]).
+     */
+    private val metricsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** In-flight enrichment query, reused so a slow one can't stack up per presence tick. */
+    @Volatile
+    private var metricsJob: Deferred<Map<String, JSONObject>>? = null
+
+    /** Last successful enrichment result, used while a query is slow or failing. */
+    @Volatile
+    private var lastSyncMetrics: Map<String, JSONObject> = emptyMap()
 
     override fun startObserving(ditto: Ditto) {
         observeJob?.cancel()
@@ -77,11 +113,44 @@ class SystemRepositoryImpl(
         _meshTopology.value = MeshTopology.Empty
     }
 
-    private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
-        // 1. Query sync metrics — graceful degradation on failure
+    /**
+     * Fetches the `system:data_sync_info` enrichment (commit IDs, cloud-server peers) without
+     * ever letting it stall the presence pipeline.
+     *
+     * The query runs on [metricsScope] — detached, so it always completes and closes its read
+     * transaction — and is awaited with a timeout. `await()` *is* cancellable even though
+     * `execute` is not, so a wedged query costs one orphaned coroutine rather than a dead
+     * Presence screen. This matters because `presence.observe()` is collected sequentially: one
+     * unbounded suspend here stops every future topology update from ever being processed.
+     *
+     * On timeout or failure we fall back to the last good result, so peer cards keep their
+     * commit IDs instead of flickering to blank.
+     */
+    private suspend fun fetchSyncMetricsBestEffort(ditto: Ditto): Map<String, JSONObject> {
+        val inFlight = metricsJob?.takeIf { it.isActive }
+        val job = inFlight ?: metricsScope.async { querySyncMetrics(ditto) }.also { metricsJob = it }
+
+        val fresh = withTimeoutOrNull(SYNC_METRICS_TIMEOUT_MS) {
+            runCatching { job.await() }.getOrNull()
+        }
+        if (fresh != null) {
+            lastSyncMetrics = fresh
+            return fresh
+        }
+        if (BuildConfig.DEBUG) {
+            Log.w(
+                TAG,
+                "system:data_sync_info did not return within ${SYNC_METRICS_TIMEOUT_MS}ms — " +
+                    "publishing presence with the previous sync metrics",
+            )
+        }
+        return lastSyncMetrics
+    }
+
+    private suspend fun querySyncMetrics(ditto: Ditto): Map<String, JSONObject> {
         val syncMetrics = mutableMapOf<String, JSONObject>()
         runCatching {
-            ditto.store.execute("SELECT * FROM system:data_sync_info") { result ->
+            ditto.store.execute(SYNC_METRICS_QUERY) { result ->
                 for (item in result.items) {
                     val json = runCatching { JSONObject(item.jsonString()) }.getOrNull() ?: continue
                     val peerId = json.optString("_id").takeIf { it.isNotBlank() } ?: continue
@@ -93,6 +162,12 @@ class SystemRepositoryImpl(
                 Log.w(TAG, "system:data_sync_info query failed — commit IDs unavailable", e)
             }
         }
+        return syncMetrics
+    }
+
+    private suspend fun updatePresence(graph: DittoPresenceGraph, ditto: Ditto) {
+        // 1. Query sync metrics — best effort, never blocks the presence pipeline.
+        val syncMetrics = fetchSyncMetricsBestEffort(ditto)
 
         val localPeerKey = graph.localPeer.peerKey
 
