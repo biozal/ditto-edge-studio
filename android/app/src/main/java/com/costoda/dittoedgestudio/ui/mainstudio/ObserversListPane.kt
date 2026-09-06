@@ -97,7 +97,13 @@ fun ObserversListPane(
                         },
                         onActivate = { viewModel.activateObserver(observer) },
                         onDeactivate = { viewModel.deactivateObserver(observer) },
-                        onEdit = { viewModel.editingObserver = observer },
+                        onEdit = {
+                            viewModel.editingObserver = observer
+                            // Same dismissal the add path needs: below 600dp this pane lives
+                            // in the Nav Drawer, which would otherwise sit on top of the
+                            // editor sheet. Matches SubscriptionsListPane's edit handler.
+                            onAfterAddTriggered?.invoke()
+                        },
                         onDelete = { viewModel.removeObserver(observer) },
                     )
                 }

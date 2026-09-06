@@ -40,6 +40,7 @@ import com.costoda.dittoedgestudio.ui.database.DatabaseListScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.AppMetricsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.DiskUsageSection
 import com.costoda.dittoedgestudio.ui.mainstudio.LoggingSection
+import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEditorHost
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserverEventsSection
 import com.costoda.dittoedgestudio.ui.mainstudio.ObserversListSection
 import com.costoda.dittoedgestudio.ui.mainstudio.PresenceContentSection
@@ -379,6 +380,12 @@ fun AppNavGraph() {
                                 // Drawer-mode: events content is the default view.
                                 ObserverEventsSection(viewModel = viewModel)
                             }
+
+                            // The editor sheet is hosted here rather than in either pane:
+                            // this entry is the only composable present at every width and
+                            // in every selection state, so the "+" FAB always has a live
+                            // renderer. See ObserverEditorHost.
+                            ObserverEditorHost(viewModel = viewModel)
                         }
                     }
 
