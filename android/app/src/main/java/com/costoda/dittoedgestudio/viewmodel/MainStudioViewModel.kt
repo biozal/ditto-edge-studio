@@ -208,6 +208,31 @@ class MainStudioViewModel(
         _presenceFocusedPeerId.value = peerId
     }
 
+    // Presence-viewer peer search: the query typed into the box in the Presence tab
+    // bar. Hoisted for the same reason as the focus id — the Peers ↔ Viewer tab
+    // switch disposes the graph subtree, and the query (and its dimming) must
+    // survive the round trip.
+    private val _presenceSearchQuery = MutableStateFlow("")
+    val presenceSearchQuery: StateFlow<String> = _presenceSearchQuery.asStateFlow()
+    fun setPresenceSearchQuery(query: String) {
+        _presenceSearchQuery.value = query
+    }
+
+    /**
+     * A focus requested from a search result.
+     *
+     * Picking a result while **Direct** is on cannot focus immediately: the peer is
+     * not in the (direct-only) scene yet, which is the whole reason the user searched
+     * for it. The pick therefore flips Direct off and parks the id here;
+     * `PresenceGraphView` consumes it once the rebuilt full-mesh layout has placed
+     * the peer. (The VS Code extension's `pendingFocusKey`.)
+     */
+    private val _presencePendingFocusPeerId = MutableStateFlow<String?>(null)
+    val presencePendingFocusPeerId: StateFlow<String?> = _presencePendingFocusPeerId.asStateFlow()
+    fun requestPresenceFocus(peerId: String?) {
+        _presencePendingFocusPeerId.value = peerId
+    }
+
     // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`
     // inside the transport-config sheet, and for non-Compose readers (tests).
     val syncEnabled: Boolean get() = session.syncEnabled.value

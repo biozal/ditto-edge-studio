@@ -1,6 +1,8 @@
 package com.costoda.dittoedgestudio.ui.mainstudio
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -21,6 +25,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +43,9 @@ import com.costoda.dittoedgestudio.ui.adaptive.studioMultiPane
 import com.costoda.dittoedgestudio.ui.adaptive.studioWindowSizeClass
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresenceGraphView
+import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresencePeerSearch
+import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresencePeerSearchBar
+import com.costoda.dittoedgestudio.ui.mainstudio.presence.PresencePeerSearchResults
 import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import org.koin.compose.koinInject
 
@@ -119,6 +127,50 @@ fun PresenceContentSection(
     val networkInterfaces by viewModel.networkInterfaces.collectAsStateWithLifecycle()
     val p2pTransports by viewModel.p2pTransports.collectAsStateWithLifecycle()
 
+    // ── Presence Viewer peer search ──────────────────────────────────────────
+    // Hoisted to the view model so query, dimming and focus all survive the
+    // Peers ↔ Viewer tab switch (the `when` below disposes the graph subtree).
+    val showDirectOnly by viewModel.showDirectConnectedOnly.collectAsStateWithLifecycle()
+    val focusedPeerId by viewModel.presenceFocusedPeerId.collectAsStateWithLifecycle()
+    val pendingFocusPeerId by viewModel.presencePendingFocusPeerId.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.presenceSearchQuery.collectAsStateWithLifecycle()
+    // Candidates come from the FULL mesh and are rebuilt per presence push, not per
+    // keystroke: a multi-hop peer has to be findable while Direct is on, because
+    // picking it is exactly how the user jumps the graph over to it.
+    val searchCandidates by remember(peersUiState) {
+        derivedStateOf { PresencePeerSearch.candidates(peersUiState) }
+    }
+    val searchMatches by remember(searchCandidates, searchQuery) {
+        derivedStateOf { PresencePeerSearch.matches(searchCandidates, searchQuery) }
+    }
+    // derivedStateOf so an unchanged match set does not re-invalidate the graph on
+    // every keystroke. `null` = box empty; EMPTY set = active query, no hits.
+    val searchMatchIds by remember(searchCandidates, searchQuery) {
+        derivedStateOf { PresencePeerSearch.matchIds(searchCandidates, searchQuery) }
+    }
+    val searchIsActive = PresencePeerSearch.isActive(searchQuery)
+    // Narrow layouts collapse the box to an icon that takes over the row — it still
+    // costs the canvas no height either way.
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // Picking a result focuses that peer exactly as clicking its pill in the full
+    // mesh would. With Direct on the peer is not in the scene yet, so this flips
+    // Direct off and parks the request; PresenceGraphView consumes it once the
+    // rebuilt layout has placed the peer (and owns the re-pick-to-toggle-off rule,
+    // because only it can restore the pre-focus camera). The query is deliberately
+    // kept so the user can hop between results.
+    val onPickSearchResult: (String) -> Unit = { peerId ->
+        viewModel.requestPresenceFocus(peerId)
+        if (showDirectOnly) viewModel.toggleDirectConnectedOnly()
+    }
+
+    // Back clears the query. The graph's own BackHandler for the detail card is
+    // nested deeper and therefore consumes back FIRST — which is exactly the
+    // card-then-query unwind order, and why this one is not conditional on the card.
+    BackHandler(enabled = selectedTabIndex == 1 && searchIsActive) {
+        viewModel.setPresenceSearchQuery("")
+    }
+
     // "Split Presence view" setting (Settings screen). When OFF at rail-mode widths
     // (≥840dp) there is no drawer to host the subscriptions list, so the header offers
     // a Subscriptions dialog instead. Below 840dp (drawer mode) the drawer already hosts
@@ -130,37 +182,105 @@ fun PresenceContentSection(
     var subscriptionsDialogVisible by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Connected button group (view switcher) + transport-config gear
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            // Short labels: M3 Expressive connected groups morph the selected segment
-            // wider on tap, which squeezed the gear icon to the right when the label was
-            // "Presence Viewer". "Peers" / "Viewer" keep both segments visually balanced.
-            DittoConnectedButtonGroup(
-                options = listOf("Peers", "Viewer"),
-                selectedIndex = selectedTabIndex,
-                onSelect = { selectedTabIndex = it },
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            if (showSubscriptionsButton) {
-                IconButton(onClick = { subscriptionsDialogVisible = true }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ViewList,
-                        contentDescription = "Subscriptions",
-                        tint = MaterialTheme.colorScheme.onSurface,
+        // Connected button group (view switcher) + peer search + transport-config gear.
+        //
+        // The peer search rides in THIS row rather than one of its own: the canvas
+        // must keep its full height, which is the whole point of the feature.
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // The button group refuses to shrink (IntrinsicSize.Max, and M3
+            // Expressive morphs the selected segment wider on tap), and the icon
+            // buttons are fixed — so below this width there is no room to put a
+            // usable field beside them and the search collapses to an icon that
+            // takes over the row instead. Measured from the pane, not the window:
+            // this content can sit in a detail pane far narrower than the display.
+            val inlineSearch = maxWidth >= 600.dp
+            val showSearch = selectedTabIndex == 1
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                // An active query always keeps a visible field — see
+                // PresencePeerSearch.showsExpandedNarrowSearch for why the naive
+                // `searchExpanded` test stranded the user on a fold/rotate.
+                if (PresencePeerSearch.showsExpandedNarrowSearch(
+                        onSearchTab = showSearch,
+                        inlineSearch = inlineSearch,
+                        searchExpanded = searchExpanded,
+                        searchIsActive = searchIsActive,
                     )
+                ) {
+                    // Narrow: the field owns the row until dismissed.
+                    PresencePeerSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { viewModel.setPresenceSearchQuery(it) },
+                        onSubmit = {
+                            searchMatches.firstOrNull { !it.isLocal }
+                                ?.let { onPickSearchResult(it.key) }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = {
+                        searchExpanded = false
+                        viewModel.setPresenceSearchQuery("")
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close peer search",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                } else {
+                    // Short labels: M3 Expressive connected groups morph the selected segment
+                    // wider on tap, which squeezed the gear icon to the right when the label was
+                    // "Presence Viewer". "Peers" / "Viewer" keep both segments visually balanced.
+                    DittoConnectedButtonGroup(
+                        options = listOf("Peers", "Viewer"),
+                        selectedIndex = selectedTabIndex,
+                        onSelect = { selectedTabIndex = it },
+                    )
+                    if (showSearch && inlineSearch) {
+                        PresencePeerSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { viewModel.setPresenceSearchQuery(it) },
+                            onSubmit = {
+                                searchMatches.firstOrNull { !it.isLocal }
+                                    ?.let { onPickSearchResult(it.key) }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    if (showSearch && !inlineSearch) {
+                        IconButton(onClick = { searchExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search peers",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    if (showSubscriptionsButton) {
+                        IconButton(onClick = { subscriptionsDialogVisible = true }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ViewList,
+                                contentDescription = "Subscriptions",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { viewModel.transportConfigVisible = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Transport config",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
-            }
-            IconButton(onClick = { viewModel.transportConfigVisible = true }) {
-                Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Transport config",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
             }
         }
 
@@ -176,14 +296,11 @@ fun PresenceContentSection(
                     )
                 }
                 else -> {
-                    val showDirectOnly by viewModel.showDirectConnectedOnly
-                        .collectAsStateWithLifecycle()
                     val controlsVisible by viewModel.presenceControlsVisible
                         .collectAsStateWithLifecycle()
-                    // Hoisted so an active focus session survives the Peers ↔
-                    // Viewer tab switch (the tab `when` disposes the subtree).
-                    val focusedPeerId by viewModel.presenceFocusedPeerId
-                        .collectAsStateWithLifecycle()
+                    // showDirectOnly / focusedPeerId are collected at section level:
+                    // the search results card, which lives outside this branch, has
+                    // to route picks against the same state.
                     PresenceGraphView(
                         peersUiState = peersUiState,
                         showDirectConnectedOnly = showDirectOnly,
@@ -192,9 +309,25 @@ fun PresenceContentSection(
                         onFocusedPeerChange = { viewModel.setPresenceFocusedPeer(it) },
                         controlsVisible = controlsVisible,
                         onToggleControlsVisible = { viewModel.togglePresenceControlsVisible() },
+                        searchMatchIds = searchMatchIds,
+                        pendingFocusPeerId = pendingFocusPeerId,
+                        onPendingFocusConsumed = { viewModel.requestPresenceFocus(null) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
+
+            // The results card floats over the canvas instead of sitting in the
+            // layout flow, so typing never reflows the graph underneath it.
+            if (selectedTabIndex == 1 && searchIsActive) {
+                PresencePeerSearchResults(
+                    query = searchQuery,
+                    matches = searchMatches,
+                    onPick = onPickSearchResult,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
             }
         }
     }
