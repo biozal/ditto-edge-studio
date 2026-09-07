@@ -51,15 +51,17 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                // Icon-only navigation picker. `verticalPadding` is the
-                // equivalent of the `.controlSize(.extraLarge)` this used to
-                // carry; the SF Symbol inherits the selected foreground style
-                // the same way a text segment would.
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
                 DittoSegmentedPicker(
                     options: viewModel.queryVM.queryInspectorMenuItems,
                     selection: $viewModel.queryVM.selectedQueryInspectorMenuItem,
-                    label: { $0.image.font(.system(size: 20)) },
-                    verticalPadding: 8
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
                 )
                 .accessibilityIdentifier("InspectorSegmentedPicker")
                 Spacer()
@@ -101,15 +103,17 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                // Icon-only navigation picker. `verticalPadding` is the
-                // equivalent of the `.controlSize(.extraLarge)` this used to
-                // carry; the SF Symbol inherits the selected foreground style
-                // the same way a text segment would.
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
                 DittoSegmentedPicker(
                     options: viewModel.subObsVM.observeInspectorMenuItems,
                     selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem,
-                    label: { $0.image.font(.system(size: 20)) },
-                    verticalPadding: 8
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
                 )
                 .accessibilityIdentifier("ObserveInspectorSegmentedPicker")
                 Spacer()
@@ -145,15 +149,17 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                // Icon-only navigation picker. `verticalPadding` is the
-                // equivalent of the `.controlSize(.extraLarge)` this used to
-                // carry; the SF Symbol inherits the selected foreground style
-                // the same way a text segment would.
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
                 DittoSegmentedPicker(
                     options: viewModel.metricsInspectorMenuItems,
                     selection: $viewModel.selectedMetricsInspectorMenuItem,
-                    label: { $0.image.font(.system(size: 20)) },
-                    verticalPadding: 8
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
                 )
                 .accessibilityIdentifier("MetricsInspectorSegmentedPicker")
                 Spacer()

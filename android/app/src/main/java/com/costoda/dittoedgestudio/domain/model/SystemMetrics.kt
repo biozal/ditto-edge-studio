@@ -187,6 +187,79 @@ object SystemMetricsPinOrdering {
     }
 
     /**
+     * The slot a drag would drop into, given how far it has travelled.
+     *
+     * Anchored to the row centres of the list **as laid out when the drag began**,
+     * which is what lets the rows stay still for the whole gesture: the dragged row
+     * is drawn displaced and the rows it has passed shift to open a gap, but
+     * nothing is re-ordered until release.
+     *
+     * That stillness is the point. Re-ordering the live list on every crossing
+     * moves the dragged row's composable to a different slot while its
+     * `pointerInput` is still running — the same shape of defect as the missing
+     * `key()` fixed in `0bda9c3`, and it stalls a long drag part way.
+     *
+     * Advancing needs the dragged centre to pass the *next* row's centre, and
+     * retreating to fall behind the *previous* one, so between those two anchors
+     * nothing changes. That gap stops hand tremor flicking the insertion point
+     * back and forth.
+     *
+     * Kept identical to the SwiftUI `SystemMetricsPinOrdering.dropIndex`.
+     *
+     * @param startIndex where the dragged row sat when the drag began
+     * @param translation vertical travel since then; positive is down
+     * @param heights row heights in committed order; an unmeasured row is 0
+     * @param current the slot resolved on the previous update
+     */
+    fun dropIndex(
+        startIndex: Int,
+        translation: Float,
+        heights: List<Int>,
+        current: Int,
+    ): Int {
+        if (startIndex !in heights.indices || heights.any { it <= 0 }) return current
+
+        val centers = mutableListOf<Float>()
+        var edge = 0f
+        for (height in heights) {
+            centers += edge + height / 2f
+            edge += height
+        }
+
+        val draggedCenter = centers[startIndex] + translation
+        var index = current.coerceIn(0, heights.lastIndex)
+        // A loop, not a single step: a fast drag can cross several rows between
+        // two pointer events, and it still has to land on the right one.
+        while (index + 1 <= heights.lastIndex && draggedCenter > centers[index + 1]) index++
+        while (index > 0 && draggedCenter < centers[index - 1]) index--
+        return index
+    }
+
+    /**
+     * How far the row at [index] shifts to open the gap the dragged row will drop
+     * into.
+     *
+     * The dragged row rides the finger; every row it has passed slides one row the
+     * other way, which is what makes the gap appear. Purely visual — the committed
+     * order does not change until the drag ends.
+     *
+     * Kept identical to the SwiftUI `SystemMetricsPinOrdering.gapOffset`.
+     */
+    fun gapOffset(
+        index: Int,
+        startIndex: Int,
+        dropIndex: Int,
+        draggedHeight: Float,
+    ): Float {
+        if (dropIndex == startIndex || index == startIndex) return 0f
+        return when {
+            dropIndex > startIndex && index > startIndex && index <= dropIndex -> -draggedHeight
+            dropIndex < startIndex && index >= dropIndex && index < startIndex -> draggedHeight
+            else -> 0f
+        }
+    }
+
+    /**
      * Moves [draggedId] to sit immediately before (or after) [targetId].
      *
      * The dragged entry is removed *first* and the insertion point resolved against

@@ -2,7 +2,8 @@ package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
@@ -43,11 +45,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -238,6 +242,10 @@ fun SystemMetricsPane(
     var filter by rememberSaveable { mutableStateOf(NamespaceFilter.ALL) }
     var query by rememberSaveable { mutableStateOf("") }
     var pinnedExpanded by rememberSaveable { mutableStateOf(true) }
+    // Apple Music-style reorder mode. Reordering is an explicit mode rather than a
+    // bare long-press-drag because the enclosing LazyColumn wins that gesture on a
+    // touch screen — press and drag and you scroll the list, never move the row.
+    var isReordering by rememberSaveable { mutableStateOf(false) }
     // Series with details open, by seriesId. Session-local, like the panel's.
     val expanded = remember { mutableStateOf(emptySet<String>()) }
 
@@ -252,6 +260,10 @@ fun SystemMetricsPane(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
+        // Locked while reordering: this is exactly the contention that made
+        // drag-to-reorder impossible by touch, and giving up the scroll for the
+        // duration is what hands the gesture to the row.
+        userScrollEnabled = !isReordering,
     ) {
         if (pins.isNotEmpty()) {
             item(key = "pinned") {
@@ -265,6 +277,13 @@ fun SystemMetricsPane(
                     onToggleDetails = { id -> expanded.value = expanded.value.toggle(id) },
                     onTogglePin = ::togglePin,
                     onReorder = onPinsChange,
+                    isReordering = isReordering,
+                    onToggleReordering = {
+                        isReordering = !isReordering
+                        // Entering reorder mode on a collapsed section would show
+                        // nothing to drag.
+                        if (isReordering) pinnedExpanded = true
+                    },
                 )
             }
         }
@@ -365,7 +384,17 @@ private fun FilterControls(
         // Stacked rather than side-by-side (the SwiftUI/VS Code layout): with the
         // rail and inspector taking width, five segments plus an inline field
         // squeeze the segment labels into unreadable slivers.
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        //
+        // No `fillMaxWidth` and a horizontal scroll instead: the row lays itself
+        // out at `IntrinsicSize.Min`, which is the width at which no label is cut
+        // off. Stretched to the pane width it would be measured against the pane
+        // instead, and Row starves the *last* children — "Other" and "Sync" lost
+        // their text on a phone. Scrolling is the escape hatch at large font
+        // scales; with the trimmed content padding below it does not engage at
+        // any normal one.
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
             NamespaceFilter.entries.forEachIndexed { index, ns ->
                 SegmentedButton(
                     selected = filter == ns,
@@ -374,6 +403,13 @@ private fun FilterControls(
                         index = index,
                         count = NamespaceFilter.entries.size,
                     ),
+                    // The default 12dp is on top of the 26dp icon slot every
+                    // segment reserves whether or not it draws a checkmark
+                    // (`SegmentedButtonContentMeasurePolicy` adds
+                    // `IconSize + IconSpacing` unconditionally), so five segments
+                    // spent 250dp before a single glyph. 4dp still leaves ~17dp
+                    // of visual breathing room either side of the label.
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     // Brand yellow in dark mode only — see `dittoToggleButtonColors`.
                     colors = if (isSystemInDarkTheme()) {
                         SegmentedButtonDefaults.colors(
@@ -385,7 +421,12 @@ private fun FilterControls(
                         SegmentedButtonDefaults.colors()
                     },
                 ) {
-                    Text(ns.label, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        ns.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
         }
@@ -416,9 +457,16 @@ private fun FilterControls(
  * current snapshot doesn't report stays as a placeholder rather than vanishing, so
  * it can always be unpinned from here.
  *
- * Rows reorder by long-pressing the ☰ handle and dragging: the list re-sorts live
- * under the finger (rows swap as the drag crosses a neighbour's midpoint) and the
- * new order is persisted once, on release, rather than on every swap.
+ * Before changing the drag, read `docs/PINNED_REORDER.md` — it documents four
+ * defects that have already shipped in this code, three of which present as
+ * stuttering and none of which are performance problems.
+ *
+ * Reordering is gated behind the section's **Reorder** toggle (the Apple Music
+ * "Edit" affordance). In that mode the ☰ handle appears and the list scroll is
+ * suspended, so a drag on the handle belongs to the row instead of scrolling the
+ * page. The list re-sorts live under the finger — rows swap as the drag crosses a
+ * neighbour's midpoint — and the new order is persisted once, on release, rather
+ * than on every swap.
  */
 @Composable
 private fun PinnedSection(
@@ -431,40 +479,44 @@ private fun PinnedSection(
     onToggleDetails: (String) -> Unit,
     onTogglePin: (SystemMetricSeriesRef) -> Unit,
     onReorder: (List<SystemMetricSeriesRef>) -> Unit,
+    isReordering: Boolean,
+    onToggleReordering: () -> Unit,
 ) {
-    // Order shown while a drag is in flight and until the persisted list catches
-    // up. Committing on every swap would mean a DataStore write per frame, and
-    // clearing this the instant the finger lifts would flash the pre-drag order
-    // for however long the write takes to round-trip.
+    // Order shown until the persisted list catches up: clearing the local copy the
+    // instant the finger lifts would flash the pre-drag order for however long the
+    // DataStore write takes to round-trip.
     var workingPins by remember { mutableStateOf<List<SystemMetricSeriesRef>?>(null) }
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    // Offset of the dragged row within its current slot, in pixels.
+    // The row being dragged, and where it sat when the drag began. The list does
+    // not re-order during the drag, so the index stays valid throughout.
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragStartIndex by remember { mutableIntStateOf(0) }
+    // Slot the row would drop into right now.
+    var dropIndex by remember { mutableIntStateOf(0) }
+    // Total travel since the drag began, in pixels.
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    // Measured row heights keyed by series id, NOT by index: a swap must not
-    // invalidate the very measurements the next swap decision is made from.
+    // Measured row heights keyed by series id, NOT by index.
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
 
     LaunchedEffect(pins) {
         // The write landed (or the list changed from elsewhere) — drop the local copy.
-        if (draggingIndex == null) workingPins = null
+        if (draggingId == null) workingPins = null
     }
 
     val displayed = workingPins ?: pins
     val isReorderable = displayed.size > 1
 
-    // Takes the list to swap in rather than closing over `displayed`: several
-    // pointer events can arrive between two recompositions, and the second swap of
-    // a frame must build on the first one's result, not on the pre-drag order.
-    fun swapWithNeighbour(
-        list: List<SystemMetricSeriesRef>,
-        current: Int,
-        neighbour: Int,
-        neighbourHeight: Int,
-    ) {
-        workingPins = SystemMetricsPinOrdering.move(list, current, neighbour)
-        draggingIndex = neighbour
-        // Carry over only the overshoot, so the row stays under the finger.
-        dragOffset -= if (neighbour > current) neighbourHeight else -neighbourHeight
+    // How far row [index] shifts to open the gap the dragged row will drop into.
+    // The dragged row rides the finger; everything it has passed slides one row
+    // the other way. Nothing is re-ordered until release — see
+    // SystemMetricsPinOrdering.dropIndex for why.
+    fun gapOffset(index: Int): Float {
+        if (draggingId == null) return 0f
+        return SystemMetricsPinOrdering.gapOffset(
+            index = index,
+            startIndex = dragStartIndex,
+            dropIndex = dropIndex,
+            draggedHeight = (rowHeights[displayed.getOrNull(dragStartIndex)?.id] ?: 0).toFloat(),
+        )
     }
 
     Surface(
@@ -481,7 +533,12 @@ private fun PinnedSection(
                     .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onToggleExpanded, modifier = Modifier.size(32.dp)) {
+                IconButton(
+                    onClick = onToggleExpanded,
+                    // Collapsing mid-reorder would hide the rows being moved.
+                    enabled = !isReordering,
+                    modifier = Modifier.size(32.dp),
+                ) {
                     Icon(
                         if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (isExpanded) "Collapse pinned metrics" else "Expand pinned metrics",
@@ -502,81 +559,129 @@ private fun PinnedSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onClear) {
+                // Reorder / Done — the Apple Music "Edit" affordance. Only offered
+                // when there is more than one pin, since reordering one is a no-op.
+                if (isReorderable) {
+                    TextButton(onClick = onToggleReordering) {
+                        Text(
+                            text = if (isReordering) "Done" else "Reorder",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isReordering) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isReordering) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+                TextButton(onClick = onClear, enabled = !isReordering) {
                     Text("Clear", style = MaterialTheme.typography.labelMedium)
                 }
             }
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                     displayed.forEachIndexed { index, ref ->
-                        val isDragging = draggingIndex == index
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .onGloballyPositioned { rowHeights[ref.id] = it.size.height }
-                                // The dragged row rides above its neighbours so the
-                                // rows it passes cannot paint over it.
-                                .zIndex(if (isDragging) 1f else 0f)
-                                .graphicsLayer { translationY = if (isDragging) dragOffset else 0f }
-                                .alpha(if (isDragging) 0.85f else 1f),
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                val sample = samplesById[ref.id]
-                                if (sample != null) {
-                                    MetricRow(
-                                        sample = sample,
-                                        isPinned = true,
-                                        isExpanded = ref.id in expandedIds,
-                                        onToggleDetails = { onToggleDetails(ref.id) },
-                                        onTogglePin = { onTogglePin(ref) },
-                                    )
-                                } else {
-                                    IdlePinnedRow(ref = ref, onUnpin = { onTogglePin(ref) })
+                        // `key` is load-bearing, not decoration. Without it Compose
+                        // identifies these rows by slot position, so the moment a swap
+                        // reorders the list the composable in slot N is handed a
+                        // different series — DragHandle's `pointerInput` key changes,
+                        // the gesture detector is torn down mid-drag, and the drag dies
+                        // with onDragCancel while the finger is still down. Keying on
+                        // the series id makes the composable (and its live gesture)
+                        // move with the row instead.
+                        key(ref.id) {
+                            val isDragging = draggingId == ref.id
+                            Column(
+                                modifier = Modifier
+                                    // Measured with the divider included: the swap
+                                    // threshold wants the row *pitch*, and excluding the
+                                    // divider leaves a per-swap shortfall that accumulates
+                                    // into visible drift.
+                                    .onGloballyPositioned { rowHeights[ref.id] = it.size.height }
+                                    // The dragged row rides above its neighbours so the
+                                    // rows it passes cannot paint over it.
+                                    .zIndex(if (isDragging) 1f else 0f)
+                                    .graphicsLayer {
+                                        translationY = if (isDragging) dragOffset else gapOffset(index)
+                                    }
+                                    .alpha(if (isDragging) 0.85f else 1f),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            // While reordering, the row's own pin and info
+                                            // buttons would just be mis-taps waiting to happen.
+                                            .then(
+                                                if (isReordering) {
+                                                    Modifier.pointerInput(Unit) {
+                                                        awaitPointerEventScope {
+                                                            while (true) {
+                                                                awaitPointerEvent().changes.forEach { it.consume() }
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    Modifier
+                                                },
+                                            ),
+                                    ) {
+                                        val sample = samplesById[ref.id]
+                                        if (sample != null) {
+                                            MetricRow(
+                                                sample = sample,
+                                                isPinned = true,
+                                                isExpanded = ref.id in expandedIds,
+                                                onToggleDetails = { onToggleDetails(ref.id) },
+                                                onTogglePin = { onTogglePin(ref) },
+                                            )
+                                        } else {
+                                            IdlePinnedRow(ref = ref, onUnpin = { onTogglePin(ref) })
+                                        }
+                                    }
+                                    if (isReordering) {
+                                        DragHandle(
+                                            ref = ref,
+                                            onMoveUp = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index - 1)) }
+                                                .takeIf { index > 0 },
+                                            onMoveDown = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index + 1)) }
+                                                .takeIf { index < displayed.lastIndex },
+                                            onDragStart = {
+                                                draggingId = ref.id
+                                                dragStartIndex = index
+                                                dropIndex = index
+                                                dragOffset = 0f
+                                            },
+                                            onDrag = { deltaY ->
+                                                dragOffset += deltaY
+                                                dropIndex = SystemMetricsPinOrdering.dropIndex(
+                                                    startIndex = dragStartIndex,
+                                                    translation = dragOffset,
+                                                    heights = displayed.map { rowHeights[it.id] ?: 0 },
+                                                    current = dropIndex,
+                                                )
+                                            },
+                                            onDragEnd = {
+                                                if (dropIndex != dragStartIndex) {
+                                                    val reordered = SystemMetricsPinOrdering.move(
+                                                        displayed, dragStartIndex, dropIndex,
+                                                    )
+                                                    // Survives the release — LaunchedEffect(pins)
+                                                    // drops it once the write lands.
+                                                    workingPins = reordered
+                                                    onReorder(reordered)
+                                                }
+                                                draggingId = null
+                                                dragOffset = 0f
+                                            },
+                                        )
+                                    }
+                                }
+                                if (index < displayed.lastIndex) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 }
                             }
-                            if (isReorderable) {
-                                DragHandle(
-                                    metricKey = ref.key,
-                                    onMoveUp = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index - 1)) }
-                                        .takeIf { index > 0 },
-                                    onMoveDown = { onReorder(SystemMetricsPinOrdering.move(displayed, index, index + 1)) }
-                                        .takeIf { index < displayed.lastIndex },
-                                    onDragStart = {
-                                        draggingIndex = index
-                                        dragOffset = 0f
-                                        workingPins = displayed
-                                    },
-                                    onDrag = { deltaY ->
-                                        val from = draggingIndex ?: return@DragHandle
-                                        dragOffset += deltaY
-                                        val list = workingPins ?: return@DragHandle
-                                        // Cross a neighbour's midpoint and the two trade
-                                        // places, so the list reads as the final order the
-                                        // whole time rather than only after release.
-                                        if (dragOffset > 0 && from < list.lastIndex) {
-                                            val height = rowHeights[list[from + 1].id] ?: 0
-                                            if (height > 0 && dragOffset > height / 2f) {
-                                                swapWithNeighbour(list, from, from + 1, height)
-                                            }
-                                        } else if (dragOffset < 0 && from > 0) {
-                                            val height = rowHeights[list[from - 1].id] ?: 0
-                                            if (height > 0 && -dragOffset > height / 2f) {
-                                                swapWithNeighbour(list, from, from - 1, height)
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        draggingIndex = null
-                                        dragOffset = 0f
-                                        // `workingPins` deliberately survives the release —
-                                        // LaunchedEffect(pins) drops it once the write lands.
-                                        workingPins?.let(onReorder)
-                                    },
-                                )
-                            }
-                        }
-                        if (index < displayed.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
@@ -586,36 +691,49 @@ private fun PinnedSection(
 }
 
 /**
- * The ☰ grab handle on a pinned row. Long-press then drag reorders; the long-press
- * requirement is what stops the enclosing LazyColumn from claiming the gesture as a
- * scroll.
+ * The ☰ grab handle on a pinned row. Shown only in the section's reorder mode, and
+ * dragging starts immediately on touch-down — there is no long press to wait out,
+ * because the mode already established the intent and the LazyColumn scroll that
+ * would have competed for the gesture is suspended for its duration.
+ *
+ * A long-press-then-drag was the original design and it did not work: the enclosing
+ * LazyColumn claimed the gesture as a scroll before the press completed, so the
+ * page moved and the row never did.
  *
  * The same two moves are exposed as accessibility actions, because a drag needs
  * pointer precision that a screen-reader user does not have.
  */
 @Composable
 private fun DragHandle(
-    metricKey: String,
+    ref: SystemMetricSeriesRef,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
 ) {
+    // The metric key alone does not identify a row: the same key is reported once
+    // per label set, so a pinned list can hold three `backend.sqlite3.fsync_duration_secs`
+    // rows that differ only by `db=`. Naming the labels too keeps each handle
+    // distinguishable to a screen reader — and to a test querying by description.
+    val name = if (ref.labels.isEmpty()) ref.key else "${ref.key} ${ref.labelLine}"
     val moveActions = buildList {
-        onMoveUp?.let { add(CustomAccessibilityAction("Move $metricKey up") { it(); true }) }
-        onMoveDown?.let { add(CustomAccessibilityAction("Move $metricKey down") { it(); true }) }
+        onMoveUp?.let { add(CustomAccessibilityAction("Move $name up") { it(); true }) }
+        onMoveDown?.let { add(CustomAccessibilityAction("Move $name down") { it(); true }) }
     }
     Icon(
         imageVector = Icons.Outlined.DragHandle,
-        contentDescription = "Reorder $metricKey",
+        contentDescription = "Reorder $name",
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
-            .padding(horizontal = 6.dp)
-            .size(20.dp)
+            // A drag target wants a finger-sized area, not a 20dp glyph.
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .size(24.dp)
             .semantics { customActions = moveActions }
-            .pointerInput(metricKey) {
-                detectDragGesturesAfterLongPress(
+            // Keyed on the series id so the detector survives reordering; see the
+            // `key(ref.id)` note at the call site.
+            .pointerInput(ref.id) {
+                detectDragGestures(
                     onDragStart = { onDragStart() },
                     onDragEnd = { onDragEnd() },
                     onDragCancel = { onDragEnd() },

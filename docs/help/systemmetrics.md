@@ -39,10 +39,17 @@ When you're troubleshooting, pin the handful of series you care about with the *
 - A pinned series with no data yet this connection stays visible with a `—` placeholder, so you can always unpin it — either there or from its row in the main list.
 - **Clear** empties the whole pinned set.
 
-**Reordering.** Pinned series start in the order you pinned them, and you can drag them into the order you want:
+**Reordering.** Pinned series start in the order you pinned them. To change that order, tap **Reorder** in the Pinned header — the same Edit-then-drag pattern Apple Music uses:
 
-- **macOS / iPadOS** — drag a pinned row (grab it anywhere; the ☰ handle at the row's right edge marks it as draggable). An insertion line shows where it will land: drop above a row's middle to insert before it, below to insert after. Right-click a row for **Move Up** / **Move Down** if you would rather not drag.
-- **Android** — long-press the ☰ handle and drag. Rows swap as you pass them, so the list reads as the final order the whole time. The handle also exposes **Move up** / **Move down** accessibility actions.
+1. **Reorder** reveals a ☰ handle on every pinned row and suspends the screen's scrolling.
+2. Drag a row by its handle. Rows swap as you pass them, so the list reads as the final order the whole time.
+3. **Done** puts the screen back to normal.
+
+The mode exists because a bare press-and-drag does not work on a touch screen: the scrolling container claims that gesture first, so the page moves and the row never does. Suspending the scroll for the duration is what hands the drag to the row. It works with a mouse too.
+
+While reordering, the pin and ⓘ buttons on each row are inactive so a mis-tap cannot unpin something mid-drag.
+
+If you would rather not drag, each handle also offers **Move up** / **Move down** — as a right-click / long-press menu on macOS and iPadOS, and as accessibility actions on Android.
 
 The order you set is the order they are remembered in.
 

@@ -45,6 +45,28 @@ In short:
   **unverified**. Shipping something unverified is fine; describing it as verified is
   not.
 
+## Drag-to-reorder (Pinned metrics)
+
+Before touching drag-to-reorder in the Pinned accordion on the System Metrics
+screen — SwiftUI or Android — read
+[`docs/PINNED_REORDER.md`](docs/PINNED_REORDER.md) in full.
+
+Four defects have shipped in that code. Three of them present as "stuttering"
+and **none** of them are performance problems (rendering there costs 0.5–0.7
+ms/frame, measured). The doc has a symptom→cause table; check it before
+profiling or optimising anything.
+
+The short version:
+
+- Never measure the drag in the moving row's own coordinate space — `.local`
+  feeds the row's offset back into its own measurement and halves the tracking.
+- Never reorder the list while a drag is in flight; it destroys the view that
+  owns the gesture.
+- Do not split the reorder path by platform.
+- A manual pass with a mouse on macOS — bottom row of a long list, dragged to
+  the top — is required. It exercises every rule at once, and the test suite
+  cannot.
+
 ## Plans
 
 All plans should be stored in the plans folder.  If you are told to create a plan for a new feature or bug fix, you should create a plan in the plans folder and name it with the feature or bug fix.  The plan should be a markdown file and should be named with the feature or bug fix.  Research should also go in this folder but approved research implementations should be in stored in the docs folder.
@@ -744,55 +766,80 @@ Requires `dittoConfig.plist` in `SwiftUI/Edge Debug Helper/` with:
 
 ## UI Patterns
 
-### Picker Navigation Consistency
+### Segmented Pickers
 
-**CRITICAL: Sidebar and Inspector navigation MUST use identical Picker implementation.**
-
-Both use this exact pattern:
+All segmented controls in the app are **`DittoSegmentedPicker`**
+(`Components/DittoSegmentedPicker.swift`), not `Picker(...).pickerStyle(.segmented)`.
+It exists because the stock style paints its selection with the system accent and
+offers no supported hook to change it on both platforms — see the type's own doc
+comment for the full rationale. It is a plain `HStack` of `Button`s.
 
 ```swift
-HStack {
-    Spacer()
-    Picker("", selection: $selectedItem) {
-        ForEach(items) { item in
-            item.image  // 48pt SF Symbol
-                .tag(item)
-        }
-    }
-    .pickerStyle(.segmented)
-    .labelsHidden()
-    .liquidGlassToolbar()
-    .accessibilityIdentifier("NavigationSegmentedPicker") // or "InspectorSegmentedPicker"
-    Spacer()
-}
-.padding(.horizontal, 12)
-.padding(.vertical, 6)
+DittoSegmentedPicker(
+    options: viewModel.queryVM.queryInspectorMenuItems,
+    selection: $viewModel.queryVM.selectedQueryInspectorMenuItem,
+    label: { $0.image.font(.system(size: 14)) },
+    verticalPadding: 5
+)
+.accessibilityIdentifier("InspectorSegmentedPicker")
 ```
 
 **Standards:**
-- Navigation icons: **48pt** SF Symbols only (not Font Awesome)
-- Picker height: **Auto-sized** (no fixed height constraint - allows picker to grow with icon size)
-- Picker alignment: **Centered** using HStack with Spacers
-- Both use MenuItem struct with `systemIcon: String`
-- Both use `.accessibilityIdentifier()` for UI tests
-- If styling changes in one, MUST change in the other
+- Icon segments: **14pt** SF Symbols with `verticalPadding: 5` — sized to read like
+  Xcode's own inspector segmented control.
+- Text segments: the default `verticalPadding` (5); the initialiser applies
+  `.font(.caption.weight(.medium))`.
+- Alignment: centered with an `HStack` + `Spacer()` pair, `.padding(.horizontal, 12)`
+  / `.padding(.vertical, 6)`.
+- Every picker carries an `.accessibilityIdentifier()` for XCUITest.
 
-**Menu Items:**
-- Sidebar: Subscriptions (arrow.trianglehead.2.clockwise.rotate.90), Collections (macpro.gen2), Observer (eye)
-- Inspector: History (clock), Favorites (bookmark)
+> ⚠️ **Set the icon size at the call site, never inside `MenuItem.image`.**
+>
+> `.font` is an environment modifier: the value **closest to the leaf wins**. A font
+> set inside `MenuItem.image` therefore makes `image.font(…)` at the call site
+> silently inert.
+>
+> This has bitten once already. `MenuItem.image` used to hardcode
+> `.font(.system(size: 48))`. That was invisible while the inspector pickers were
+> native `.segmented` ones — `NSSegmentedControl` rasterises its image to the
+> segment's own metrics and ignored the oversized font — but when they migrated to
+> `DittoSegmentedPicker` nothing clamped it any more and the icons rendered at
+> literal 48pt, blowing the control out of the inspector pane. `MenuItem.image` now
+> deliberately carries no font at all.
 
-**MenuItem Structure:**
+> ⚠️ **The control refuses to be squeezed — give it a layout that can stack.**
+>
+> `DittoSegmentedPicker` lays its segments out with `EqualWidthSegments`, a `Layout`
+> whose reported width is never less than `count × widest segment`. That is
+> deliberate: a plain `HStack` of `.frame(maxWidth: .infinity)` segments reports only
+> the *sum* of the natural widths, so any container that took it at its word rendered
+> the widest label truncated. (System Metrics' "Network" segment lost its text on
+> iPad this way.)
+>
+> The consequence for call sites: a `.frame(maxWidth:)` narrower than the control
+> needs is now ignored rather than obeyed, so a picker in a tight row will push its
+> neighbours instead of shrinking. Pair it with `ViewThatFits` and a stacked
+> fallback — never with a `horizontalSizeClass` test, which describes the *window*
+> and says nothing about how wide the pane actually is. See
+> `SystemMetricsDetailView.filterRow`.
+
+**The sidebar is not a picker.** Studio navigation is a `List` of `Label` rows in
+`Views/StudioView/SidebarViews.swift`, driven by `SidebarDestination`. There is no
+`NavigationSegmentedPicker`; if you find that name in a doc or comment, the doc is
+out of date.
+
+**MenuItem** (`Models/MenuItem.swift`) stays Foundation-pure; its SwiftUI rendering
+helper lives in `Views/StudioView/ViewModels/MenuItem+Image.swift`:
+
 ```swift
 struct MenuItem: Identifiable, Equatable, Hashable {
     var id: Int
     var name: String
     var systemIcon: String  // SF Symbol name
+}
 
-    @ViewBuilder
-    var image: some View {
-        Image(systemName: systemIcon)
-            .font(.system(size: 48))
-    }
+extension MenuItem {
+    var image: some View { Image(systemName: systemIcon) }  // no font — see above
 }
 ```
 
@@ -951,8 +998,9 @@ ContentView (root view)
        │  └─ Inspector toggle (ID: "Toggle Inspector")
        │
        ├─ Sidebar (left panel, 200-300px)
-       │  ├─ NavigationSegmentedPicker (ID: "NavigationSegmentedPicker")
-       │  └─ Menu Items: Subscriptions | Collections | Observer
+       │  ├─ List of SidebarDestination rows (ID: "NavItem_{rawValue}")
+       │  └─ Presence | Query Workbench | Observation | App Metrics
+       │     | Query Metrics | System Metrics | Log Analyzer
        │
        ├─ Detail Area (center panel)
        │  ├─ Collections: QueryEditor (50%) + QueryResults (50%)
@@ -961,7 +1009,7 @@ ContentView (root view)
        │
        ├─ Inspector (right panel, 250-500px, optional)
        │  ├─ InspectorSegmentedPicker (ID: "InspectorSegmentedPicker")
-       │  └─ Tabs: History | Favorites
+       │  └─ Tabs: History | Favorites | JSON | Metrics | Help
        │
        └─ Status Bar (bottom)
           └─ ConnectionStatusBar (sync status, peer count)
@@ -974,7 +1022,7 @@ ContentView (root view)
 | **Add Database Button** | `"AddDatabaseButton"` | Both | **ContentView indicator** - CRITICAL for test verification |
 | Database List Container | `"DatabaseList"` | macOS only | Root container for database cards |
 | Individual Database Card | `"AppCard_{name}"` | macOS only | Each selectable database (legacy "App" naming) |
-| Sidebar Navigation Picker | `"NavigationSegmentedPicker"` | Both | Sidebar menu switcher |
+| Sidebar Destination Row | `"NavItem_{rawValue}"` | Both | One row per `SidebarDestination` (e.g. `NavItem_query`) |
 | Inspector Toggle Button | `"Toggle Inspector"` | Both | Show/hide inspector |
 | Inspector Navigation Picker | `"InspectorSegmentedPicker"` | Both | Inspector menu |
 
