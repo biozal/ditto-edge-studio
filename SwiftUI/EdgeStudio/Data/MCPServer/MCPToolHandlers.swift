@@ -196,7 +196,7 @@ enum MCPToolHandlers {
         ),
         MCPTool(
             name: "get_peers",
-            description: "Get a one-time snapshot of all currently connected remote peers and their full details — device name, OS, SDK version, connection types, distances, and metadata. Returns an empty peers array if no peers are connected.",
+            description: "Get a one-time snapshot of all currently connected remote peers and their full details — device name, OS, SDK version, connection types, and metadata. Returns an empty peers array if no peers are connected.",
             inputSchema: [
                 "type": "object",
                 "properties": [String: Any]()
@@ -578,13 +578,26 @@ enum MCPToolHandlers {
             throw MCPError.noActiveDatabase
         }
 
-        let peerCount = await Task.detached(priority: .utility) {
-            ditto.presence.graph.remotePeers.count
+        // `remotePeers` is the FULL MESH, including peers this device has never
+        // communicated with (docs/PRESENCE_GRAPH.md). Reporting that count as
+        // "connectedPeers" inflated it and made this tool disagree with the app's own
+        // peers screen, which has always filtered correctly.
+        let (directPeerCount, meshPeerCount) = await Task.detached(priority: .utility) {
+            let graph = ditto.presence.graph
+            let localKey = graph.localPeer.peerKeyString
+            let direct = graph.remotePeers.count { peer in
+                peer.connections.contains { $0.peer1 == localKey || $0.peer2 == localKey }
+            }
+            return (direct, graph.remotePeers.count)
         }.value
 
         let status: [String: Any] = [
             "database": config.name,
-            "connectedPeers": peerCount,
+            // Peers with a link to THIS device. Both counts are reported: an agent
+            // debugging a mesh wants to know the difference between "nobody is talking
+            // to me" and "I can see a mesh but reach none of it through my own links".
+            "connectedPeers": directPeerCount,
+            "meshPeers": meshPeerCount,
             "transport": [
                 "bluetoothLE": config.isBluetoothLeEnabled,
                 "lan": config.isLanEnabled,
@@ -797,9 +810,23 @@ enum MCPToolHandlers {
             throw MCPError.noActiveDatabase
         }
 
+        // `parseDittoLogs`, NOT `parseDirectory`. The SDK writes to
+        // `<persistenceDir>/ditto_logs/`, and `parseDirectory` is non-recursive — so
+        // handing it the persistence root made this tool return `[]` on every build,
+        // silently, for as long as it has shipped. The app's own log viewer already
+        // probed for the subdirectory (`LoggingDetailView.exportDittoSDKLogs`); this
+        // handler was the one reader that never got the same treatment.
         let entries = await Task.detached(priority: .utility) {
-            LogFileParser.parseDirectory(persistenceDir)
+            LogFileParser.parseDittoLogs(persistenceDirectory: persistenceDir)
         }.value
+
+        // An absent log directory is a real state (a database opened moments ago), and
+        // is worth saying out loud rather than returning an empty array that reads
+        // exactly like "this database logged nothing".
+        if entries.isEmpty, LogFileParser.sdkLogDirectory(in: persistenceDir) == nil {
+            return "No SDK log directory found under \(persistenceDir.path) — "
+                + "expected one of \(LogFileParser.sdkLogDirectoryNames.joined(separator: ", "))."
+        }
 
         // Level ordering (higher = more severe): error=4, warning=3, info=2, debug=1, verbose=0
         let levelOrder: [String: Int] = ["verbose": 0, "debug": 1, "info": 2, "warning": 3, "error": 4]
