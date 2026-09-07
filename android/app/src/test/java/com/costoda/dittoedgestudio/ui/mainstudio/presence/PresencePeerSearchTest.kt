@@ -175,18 +175,50 @@ class PresencePeerSearchTest {
 
     // ── Matching ─────────────────────────────────────────────────────────────
 
+    /**
+     * Peer keys and device names that share NO substring, so a name match can never
+     * stand in for a key match or vice versa. The previous fixture used key "A" with
+     * name "Alpha", which made the key assertion vacuous — it passed on the name.
+     */
+    private fun disjointState(): PeersUiState.Active = PeersUiState.Active(
+        localPeer = makeLocal(name = "My Fold"),
+        remotePeers = emptyList(),
+        meshTopology = MeshTopology(
+            localPeerKey = "local",
+            peers = listOf(
+                makeMeshPeer("7fc39d21e0b4", "Kitchen Tablet"),
+                makeMeshPeer("22ee88bb00cc", "Register Two"),
+            ),
+            edges = emptyList(),
+        ),
+    )
+
     @Test
-    fun `matching is case-insensitive over both device name and peer key`() {
+    fun `matching is case-insensitive over the device name`() {
         // ARRANGE
-        val candidates = PresencePeerSearch.candidates(multiHopState())
+        val candidates = PresencePeerSearch.candidates(disjointState())
 
         // ACT / ASSERT
-        assertEquals(listOf("B"), PresencePeerSearch.matches(candidates, "bravo").map { it.key })
-        assertEquals(listOf("B"), PresencePeerSearch.matches(candidates, "BRAVO").map { it.key })
-        // key match
-        assertEquals(listOf("A"), PresencePeerSearch.matches(candidates, "a").map { it.key }.filter { it == "A" })
+        assertEquals(listOf("7fc39d21e0b4"), PresencePeerSearch.matches(candidates, "kitchen").map { it.key })
+        assertEquals(listOf("7fc39d21e0b4"), PresencePeerSearch.matches(candidates, "KITCHEN").map { it.key })
         // substring, not prefix
-        assertEquals(listOf("B"), PresencePeerSearch.matches(candidates, "rav").map { it.key })
+        assertEquals(listOf("22ee88bb00cc"), PresencePeerSearch.matches(candidates, "gister").map { it.key })
+    }
+
+    @Test
+    fun `matching is case-insensitive over the peer key`() {
+        // ARRANGE: pasting a peer key is the primary way to find a peer whose device
+        // name is blank or duplicated, so this half of the rule needs its own test
+        // with a needle that appears in NO device name.
+        val candidates = PresencePeerSearch.candidates(disjointState())
+
+        // ACT / ASSERT
+        assertEquals(listOf("7fc39d21e0b4"), PresencePeerSearch.matches(candidates, "7fc39d").map { it.key })
+        assertEquals(listOf("7fc39d21e0b4"), PresencePeerSearch.matches(candidates, "7FC39D").map { it.key })
+        // a key substring from the middle, so this cannot pass on a prefix rule
+        assertEquals(listOf("22ee88bb00cc"), PresencePeerSearch.matches(candidates, "88bb").map { it.key })
+        // and the needle really is absent from every device name
+        assertTrue(PresencePeerSearch.candidates(disjointState()).none { it.name.contains("7fc39d", true) })
     }
 
     @Test
@@ -255,6 +287,56 @@ class PresencePeerSearchTest {
 
         // ACT / ASSERT
         assertEquals(setOf("B"), PresencePeerSearch.matchIds(candidates, "bravo"))
+    }
+
+    // ── Narrow-width layout ──────────────────────────────────────────────────
+
+    @Test
+    fun `an active query keeps its field when the pane narrows past the threshold`() {
+        // ARRANGE: the Fold scenario. The user typed into the INLINE field at 690dp,
+        // so searchExpanded was never set (only the magnifier sets it, and the
+        // magnifier only renders below the threshold). Then they fold to 344dp.
+        val expandedAtWideWidth = PresencePeerSearch.showsExpandedNarrowSearch(
+            onSearchTab = true, inlineSearch = true, searchExpanded = false, searchIsActive = true,
+        )
+        assertFalse("the inline field owns the row at wide widths", expandedAtWideWidth)
+
+        // ACT: fold — inlineSearch flips false, searchExpanded is still false
+        val afterFold = PresencePeerSearch.showsExpandedNarrowSearch(
+            onSearchTab = true, inlineSearch = false, searchExpanded = false, searchIsActive = true,
+        )
+
+        // ASSERT: the field must follow the query. Testing searchExpanded alone left
+        // the graph dimmed and the results card floating with no field and no clear
+        // button, and configChanges means no activity recreation rescues it.
+        assertTrue("an active query must keep a visible field", afterFold)
+    }
+
+    @Test
+    fun `with no query the narrow layout stays collapsed behind the magnifier`() {
+        // ARRANGE / ACT / ASSERT
+        assertFalse(
+            PresencePeerSearch.showsExpandedNarrowSearch(
+                onSearchTab = true, inlineSearch = false, searchExpanded = false, searchIsActive = false,
+            ),
+        )
+        // ...until the magnifier expands it
+        assertTrue(
+            PresencePeerSearch.showsExpandedNarrowSearch(
+                onSearchTab = true, inlineSearch = false, searchExpanded = true, searchIsActive = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `the Peers tab never shows the search field, however the flags fall`() {
+        // ARRANGE / ACT / ASSERT: a query left over from the Viewer tab must not
+        // put a search field in the Peers tab's row.
+        assertFalse(
+            PresencePeerSearch.showsExpandedNarrowSearch(
+                onSearchTab = false, inlineSearch = false, searchExpanded = true, searchIsActive = true,
+            ),
+        )
     }
 
     // ── Display helpers ──────────────────────────────────────────────────────

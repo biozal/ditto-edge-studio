@@ -201,7 +201,16 @@ fun PresenceContentSection(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                if (showSearch && searchExpanded && !inlineSearch) {
+                // An active query always keeps a visible field — see
+                // PresencePeerSearch.showsExpandedNarrowSearch for why the naive
+                // `searchExpanded` test stranded the user on a fold/rotate.
+                if (PresencePeerSearch.showsExpandedNarrowSearch(
+                        onSearchTab = showSearch,
+                        inlineSearch = inlineSearch,
+                        searchExpanded = searchExpanded,
+                        searchIsActive = searchIsActive,
+                    )
+                ) {
                     // Narrow: the field owns the row until dismissed.
                     PresencePeerSearchBar(
                         query = searchQuery,

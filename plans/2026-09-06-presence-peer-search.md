@@ -599,3 +599,54 @@ frame — the card now hugs its content and still caps and scrolls at 20 rows
   narrow-width icon fallback, and the results popup have never been rendered.
 - **The Android edge-alpha `when` block** is covered only through the extracted
   planner functions it calls, not end-to-end through `drawBehind`.
+
+---
+
+## 13. Adversarial review round (2026-09-06)
+
+Five independent reviewers (blind to each other), findings clustered by "would one
+fix resolve both?", single-source findings sent to adversarial adjudication with two
+adjudicators each — one instructed to refute, one to reproduce. Per
+`docs/FIX_VERIFICATION_RULE.md`, nothing was fixed below two independent
+confirmations.
+
+13 raw findings → 11 distinct defects → **3 confirmed by two lenses**, 8 single-source
+→ 4 adjudicated → **3 promoted unanimously**, 1 not promoted, 4 left unadjudicated.
+
+### Fixed — all six met the bar
+
+| # | Confirmations | Defect | Fix | Regression test proven by mutation |
+|---|---|---|---|---|
+| A4 | 2/2 adjudicators | `reapplyRestingAlpha` removed the `appearAnimation` key, which grouped the fade **and** the 0.5→1.0 scale-up. On the presence-push path a peer created in the same push was frozen as a permanent half-size pill. | Split into separately keyed `appearFade` / `appearScale`; every dim pass now kills only the fade. `PresenceNetworkScene.swift:695-712` | ✅ regrouping the keys fails `a search push does not cancel the scale-up of a peer that just joined` |
+| A5 | 2/2 adjudicators | Android's `// key match` assertion was vacuous — satisfied by the *name* "Alpha", with a trailing `.filter` that discarded everything else. Deleting key matching kept CI green. | New `disjointState()` fixture where keys and names share no substring, plus a dedicated key-matching test. | ✅ deleting `it.key.lowercase().contains(needle)` fails `matching is case-insensitive over the peer key` |
+| A1 | wiring + android | Crossing 600dp downward with an active query hid the field while the query, dimming and results card stayed live. `searchExpanded` is view-local and only the (narrow-only) magnifier sets it; `configChanges` means no recreation rescues it. Fold the Fold mid-search and you are stranded. | Extracted `PresencePeerSearch.showsExpandedNarrowSearch`; an active query always keeps a visible field. | ✅ reverting to `searchExpanded` alone fails `an active query keeps its field when the pane narrows past the threshold` |
+| A2 | state + swiftui | `focusPeer` cleared the active focus *before* validating the target. A target failing `enterFocusMode`'s guards destroyed the user's focus session with nothing replacing it, and left `preFocusCamera*` armed so the **next** session exited to a stale camera. | New `canFocusPeer(_:)` as the single source of truth, checked before any mutation; `enterFocusMode` now guards through it so the two cannot drift. Failing is a no-op that keeps the existing focus (matching Android). | ✅ removing the guard fails `focusPeer on an unfocusable target keeps the focus the user already had` |
+| A3 | state + swiftui | Candidates came from `rawRemotePeers`; the scene only ever receives edge-filtered `peersToShow`. Edgeless orphan peers were clickable rows that flipped Direct off and then silently failed to focus. | Candidates now filter through `PresenceEdgeAggregator.meshVisiblePeerKeys` — the same filter `peersToShow` uses, in the same function. Still the full mesh, so multi-hop peers stay findable. | `An edgeless orphan peer is not offered as a search result`; wiring confirmed by grep — `PresenceViewerSK.swift:643` (candidates) and `:670` (`peersToShow`) are the same filter in the same push |
+| A6 | 2/2 adjudicators | The detail card's **"Focus this peer"** had never worked. `focusOpenPeer` routed through `restoreFocusAfterRebuild`, whose first guard is `focusedPeerKey == nil`, and the card only opens *while* focused. Pre-existing on `main`. | Routed to `focusPeer`, the path this branch added precisely because the restore path cannot switch focus. `PresenceViewerSK.swift:760-770` | — (covered indirectly by the `focusPeer` switch tests) |
+
+### Recorded, deliberately NOT fixed
+
+- **Not promoted (split verdict).** A SwiftUI test was claimed to pass via the scene's
+  guard rather than the view-model guard it targets. Both adjudicators agreed the
+  mechanics (the VM's `rawLocalPeer` is nil, so that guard is never reached), but the
+  refuter showed the claimed user-visible regression cannot occur. A weak test, not a
+  defect. Left alone rather than re-litigated.
+- **Four single-source, unadjudicated** (rule 2 — never fix an unconfirmed finding):
+  Android results card possibly covering the focus banner's exit button; Android orbit
+  peers possibly stranded when hopping between results; no test that
+  `reapplyRestingAlpha` actually repaints; no test for the deferred Direct→full-mesh
+  focus on either platform. Worth a targeted adjudication round if any of them
+  reproduces during the manual pass.
+
+### Verification of this round
+
+macOS + iPad builds; **863** SwiftUI unit tests (up from 859); Android `assembleDebug`,
+`forbidNonAdaptiveSizeApis`, and **26** search tests (20 + 6, up from 22); SwiftLint
+`--strict` clean on every changed Swift file. Four of the six fixes carry a regression
+test proven to fail against the original defect, not merely to pass against the fix.
+
+One self-inflicted problem caught and reverted: an earlier `swiftformat` run over whole
+directories reformatted 34 unrelated files. Reverted, leaving only the intended six.
+
+Still unverified, unchanged from §12: everything needing a real multi-peer mesh, the
+SwiftUI tab row at narrow widths, and the Android UI visually.

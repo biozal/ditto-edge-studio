@@ -62,6 +62,36 @@ struct PresencePeerSearchTests {
     }
 
     @Test(.tags(.fast))
+    func `An edgeless orphan peer is not offered as a search result`() {
+        // ARRANGE: C participates in no connection at all — the sync stop→start
+        // window, or a peer discovered before a session exists. The scene filters
+        // it out (`meshVisiblePeerKeys`), so it never becomes a node and can never
+        // be focused; offering it as a clickable row flips Direct off and then
+        // silently does nothing.
+        let local = MockPeer(peerKey: "local", deviceName: "Local", connections: [
+            MockConnection(type: .p2pWiFi, id: "l-A", peerKeyString1: "local", peerKeyString2: "A")
+        ])
+        let remotes: [any PeerProtocol] = [
+            MockPeer(peerKey: "A", deviceName: "Alpha", connections: [
+                MockConnection(type: .p2pWiFi, id: "l-A", peerKeyString1: "local", peerKeyString2: "A")
+            ]),
+            MockPeer(peerKey: "C", deviceName: "Orphan", connections: [])
+        ]
+
+        // ACT: the candidate set the view model builds — mesh-visible peers only
+        let visible = PresenceEdgeAggregator.meshVisiblePeerKeys(localPeer: local, remotePeers: remotes)
+        let candidates = PresencePeerSearch.candidates(
+            localPeer: local,
+            remotePeers: remotes.filter { visible.contains($0.peerKeyString) }
+        )
+
+        // ASSERT
+        #expect(candidates.map(\.key).contains("A"))
+        #expect(candidates.map(\.key).contains("C") == false)
+        #expect(PresencePeerSearch.matches(in: candidates, query: "orphan").isEmpty)
+    }
+
+    @Test(.tags(.fast))
     func `Duplicate and empty keys are dropped`() {
         // ARRANGE: the same peer reported twice, plus a keyless entry
         let local = peer("local", "My Mac")
@@ -333,6 +363,29 @@ final class PresenceSearchDimmingTests {
     }
 
     @Test(.tags(.fast))
+    func `a search push does not cancel the scale-up of a peer that just joined`() throws {
+        // ARRANGE: the production order — the presence push creates the node (and
+        // starts its 0.4 s appear animation), and the SAME push then hands the
+        // scene the recomputed match set.
+        let scene = makeScene()
+        pushMesh(scene)
+        let node = try #require(scene.childNode(withName: "//PeerNode_B") as? PeerNode)
+        #expect(node.action(forKey: "appearScale") != nil)
+
+        // ACT
+        scene.setSearchMatches(["B"])
+
+        // ASSERT: the dim pass owns the alpha and replaces it...
+        #expect(node.action(forKey: "appearFade") == nil)
+        #expect(node.action(forKey: "focusFade") != nil)
+        // ...but must NOT take the scale-up with it. Grouped under one action key,
+        // removing the fade also killed the scale and left the node frozen at
+        // `setScale(0.5)` — a permanent half-size pill, for the very peer the user
+        // was searching for.
+        #expect(node.action(forKey: "appearScale") != nil)
+    }
+
+    @Test(.tags(.fast))
     func `focusPeer re-picking the focused peer toggles focus off`() {
         // ARRANGE
         let scene = makeScene()
@@ -360,6 +413,44 @@ final class PresenceSearchDimmingTests {
 
         // ASSERT
         #expect(scene.focusedPeerKey == "B")
+    }
+
+    @Test(.tags(.fast))
+    func `focusPeer on an unfocusable target keeps the focus the user already had`() {
+        // ARRANGE: focused on A
+        let scene = makeScene()
+        pushMesh(scene)
+        scene.focusPeer("A")
+        #expect(scene.focusedPeerKey == "A")
+
+        // ACT: pick a peer that is not in the scene (it left the mesh between the
+        // presence push and the click, so its results row was stale)
+        scene.focusPeer("ghost-peer")
+
+        // ASSERT: a failed switch must not destroy the session the user had.
+        // Optimistically clearing first left focus gone with nothing replacing it.
+        #expect(scene.focusedPeerKey == "A")
+        #expect(scene.canFocusPeer("ghost-peer") == false)
+    }
+
+    @Test(.tags(.fast))
+    func `a failed focus switch does not strand the pre-focus camera`() {
+        // ARRANGE: the follow-on damage — `focusPeer` re-armed preFocusCamera* before
+        // a failed enterFocusMode, and enterFocusMode only captures when it is nil,
+        // so the NEXT session exited to a stale camera.
+        let scene = makeScene()
+        pushMesh(scene)
+        scene.focusPeer("A")
+        scene.focusPeer("ghost-peer") // fails
+        scene.exitFocusMode()
+
+        // ACT: a fresh, unrelated focus session
+        scene.focusPeer("B")
+
+        // ASSERT: it is a real session, entered from a clean state
+        #expect(scene.focusedPeerKey == "B")
+        scene.exitFocusMode()
+        #expect(scene.focusedPeerKey == nil)
     }
 
     @Test(.tags(.fast))

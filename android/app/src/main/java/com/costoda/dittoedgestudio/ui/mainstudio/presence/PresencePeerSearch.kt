@@ -114,4 +114,23 @@ object PresencePeerSearch {
     /** Compact peer-key column for the results card. */
     fun truncatedKey(key: String): String =
         if (key.length > KEY_DISPLAY_LIMIT) "${key.take(KEY_DISPLAY_LIMIT)}…" else key
+
+    /**
+     * Whether the tab row should give the whole row to the search field.
+     *
+     * Below the inline threshold the field is normally collapsed behind a magnifier,
+     * but an ACTIVE QUERY must always keep a visible field and clear button. The
+     * query lives on the retained view model while [searchExpanded] is view-local
+     * and can only be set by that magnifier — which never renders at inline widths.
+     * So typing inline leaves [searchExpanded] false, and a width change crossing
+     * the threshold downward (folding a foldable, rotating a tablet, resizing a
+     * pane) would otherwise strand the user: graph dimmed, results card up, no field
+     * and no way to clear it.
+     */
+    fun showsExpandedNarrowSearch(
+        onSearchTab: Boolean,
+        inlineSearch: Boolean,
+        searchExpanded: Boolean,
+        searchIsActive: Boolean,
+    ): Boolean = onSearchTab && !inlineSearch && (searchExpanded || searchIsActive)
 }

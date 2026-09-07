@@ -693,13 +693,23 @@ class PresenceNetworkScene: SKScene {
         // this 0.4 s fade would otherwise outlive the 0.2–0.3 s dim fades and
         // win), normal size, at final position.
         let fadeIn = SKAction.fadeAlpha(to: restingAlpha(forPeerKey: node.peerKey), duration: 0.4)
+        fadeIn.timingMode = .easeOut
         let scaleUp = SKAction.scale(to: 1.0, duration: 0.4)
+        scaleUp.timingMode = .easeOut
 
+        // Run as TWO separately keyed actions, not one group.
+        //
+        // Every dim pass (`applyFocus`, `enterFocusMode`, `reapplyRestingAlpha`)
+        // has to kill this animation's fade, or the 0.4 s fade-in outlives the
+        // 0.2–0.3 s dim and the node ends up at the wrong alpha. Grouped under a
+        // single key, `removeAction` killed the SCALE along with the fade — and
+        // nothing re-runs the scale, so the node stayed frozen at `setScale(0.5)`
+        // as a permanent half-size pill. Separate keys let the dim passes replace
+        // the alpha and leave the scale-up to finish.
+        //
         // Note: Position will be set by layout algorithm
-        let group = SKAction.group([fadeIn, scaleUp])
-        group.timingMode = .easeOut
-
-        node.run(group, withKey: "appearAnimation")
+        node.run(fadeIn, withKey: "appearFade")
+        node.run(scaleUp, withKey: "appearScale")
     }
 
     private func animatePeerDisappearance(node: SKNode, completion: @escaping () -> Void) {
@@ -1060,7 +1070,7 @@ class PresenceNetworkScene: SKScene {
         // Dim non-neighbourhood peers (same creation-fade race closed here).
         for (key, peerNode) in peerNodes {
             let target: CGFloat = neighbourhood.contains(key) ? 1.0 : focusDimPeerAlpha
-            peerNode.removeAction(forKey: "appearAnimation")
+            peerNode.removeAction(forKey: "appearFade")
             peerNode.run(
                 SKAction.fadeAlpha(to: target, duration: focusFadeDuration),
                 withKey: "focusFade"
@@ -1094,7 +1104,7 @@ class PresenceNetworkScene: SKScene {
             )
         }
         for (key, peerNode) in peerNodes {
-            peerNode.removeAction(forKey: "appearAnimation")
+            peerNode.removeAction(forKey: "appearFade")
             peerNode.run(
                 SKAction.fadeAlpha(to: restingAlpha(forPeerKey: key), duration: focusFadeDuration),
                 withKey: "focusFade"
@@ -1214,14 +1224,22 @@ class PresenceNetworkScene: SKScene {
     /// The focus layout reuses the shared engine with the focused peer as centre —
     /// its crowding floor plus the measured pill footprints make the orbit
     /// label-aware (superseding the extension's `expandFocusedRingForLabels`).
+    /// Whether `key` can actually be focused right now.
+    ///
+    /// Single source of truth, so callers that must decide *before* mutating
+    /// anything (`focusPeer`) cannot drift from the guard `enterFocusMode` applies.
+    /// Liveness comes from the model snapshot, not `peerNodes`: a departed peer's
+    /// node lingers for its fade-out and must not be (re-)focusable — that would be
+    /// a ghost focus.
+    func canFocusPeer(_ key: String) -> Bool {
+        !showDirectConnectedOnly
+            && peerNodes[key] != nil
+            && key != localPeerKey
+            && currentModelPeerKeys.contains(key)
+    }
+
     private func enterFocusMode(for key: String) {
-        guard !showDirectConnectedOnly,
-              let focusedNode = peerNodes[key],
-              key != localPeerKey,
-              // Liveness comes from the model snapshot, not `peerNodes`: a
-              // departed peer's node lingers for its fade-out and must not be
-              // (re-)focusable — that would be a ghost focus.
-              currentModelPeerKeys.contains(key) else { return }
+        guard canFocusPeer(key), let focusedNode = peerNodes[key] else { return }
 
         // Focus replaces any selection highlight; refocusing starts from full alpha.
         if highlightedNode != nil {
@@ -1279,7 +1297,7 @@ class PresenceNetworkScene: SKScene {
             let target: CGFloat = focusNeighbourhood.contains(peerKey)
                 ? 1.0
                 : PresenceFocusPlanner.contextPeerAlpha
-            node.removeAction(forKey: "appearAnimation")
+            node.removeAction(forKey: "appearFade")
             node.run(
                 SKAction.fadeAlpha(to: target, duration: focusTransitionDuration),
                 withKey: "focusFade"
@@ -1401,6 +1419,17 @@ class PresenceNetworkScene: SKScene {
             clearFocusMode()
             return
         }
+        // Validate BEFORE tearing anything down. `enterFocusMode` guards and then
+        // silently returns, so switching focus optimistically meant a target that
+        // failed those guards (peer left the mesh between the presence push and the
+        // click) destroyed the focus session the user had and put nothing in its
+        // place — and left `preFocusCamera*` armed, so the NEXT focus session
+        // recorded no pre-focus camera and exited to a stale one.
+        //
+        // Failing here is a no-op: the existing focus is kept, which is the
+        // conservative outcome and matches Android, where a pending focus for a
+        // departed peer is dropped without touching the live focus.
+        guard canFocusPeer(key) else { return }
         if focusedPeerKey != nil {
             // Switching focus: exit first so the previous orbit's peers animate
             // back to their mesh positions (nothing else restores them — there is

@@ -622,13 +622,34 @@ extension PresenceViewerSK {
 
         /// Push the current filtered graph state to the scene
         func updateSceneWithCurrentFilter() {
-            // Rebuilt from the UNFILTERED graph, and before the guard below, so
-            // the search still finds multi-hop peers while Direct is on — and so
-            // a query typed before the scene exists still has candidates.
-            searchCandidates = PresencePeerSearch.candidates(
-                localPeer: rawLocalPeer,
-                remotePeers: rawRemotePeers
-            )
+            // Rebuilt before the guard below, so a query typed before the scene
+            // exists still has candidates.
+            //
+            // The set is the FULL MESH, never the Direct-mode projection: a
+            // multi-hop peer has to be findable while Direct is on, because picking
+            // it is exactly how the user jumps the graph over to it.
+            //
+            // But it is the full mesh *as the scene will actually render it* —
+            // `meshVisiblePeerKeys`, the same filter `peersToShow` uses below — not
+            // the raw peer list. `PresenceEdgeAggregator` drops edgeless "orphan"
+            // peers (a peer discovered over BLE/mDNS before a session exists, or
+            // caught in the sync stop→start window), and they never become nodes.
+            // Listing them made rows that flip Direct off and then silently fail to
+            // focus, because the peer is not in the scene at all.
+            searchCandidates = if let localPeer = rawLocalPeer {
+                PresencePeerSearch.candidates(
+                    localPeer: localPeer,
+                    remotePeers: {
+                        let visible = PresenceEdgeAggregator.meshVisiblePeerKeys(
+                            localPeer: localPeer,
+                            remotePeers: rawRemotePeers
+                        )
+                        return rawRemotePeers.filter { visible.contains($0.peerKeyString) }
+                    }()
+                )
+            } else {
+                []
+            }
 
             guard let localPeer = rawLocalPeer, let scene else { return }
 
@@ -739,7 +760,13 @@ extension PresenceViewerSK {
         func focusOpenPeer() {
             guard let key = detailPeerKey else { return }
             dismissDetail()
-            scene?.restoreFocusAfterRebuild(for: key)
+            // `focusPeer`, NOT `restoreFocusAfterRebuild`. The latter's first guard is
+            // `focusedPeerKey == nil`, and this card can only be open while a focus is
+            // active (`handlePeerTap` raises it only inside `if focusedPeerKey != nil`)
+            // — so that guard could never pass and this labelled action closed the card
+            // without ever focusing anything. `focusPeer` is the path that can replace
+            // an active focus.
+            scene?.focusPeer(key)
         }
 
         /// Refresh the sync rows. Degrades to an empty lookup rather than failing the
