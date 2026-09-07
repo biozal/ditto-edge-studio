@@ -637,9 +637,11 @@ actor SystemRepository {
             return []
         }
 
-        // Read presence peers on a utility queue (synchronous property access)
-        let remotePeers = await Task.detached(priority: .utility) {
-            ditto.presence.graph.remotePeers
+        // Read presence peers on a utility queue (synchronous property access).
+        // The LOCAL peer key comes along: it is what separates a peer we actually
+        // have a link to from one that is merely visible somewhere in the mesh.
+        let (remotePeers, localPeerKey) = await Task.detached(priority: .utility) {
+            (ditto.presence.graph.remotePeers, ditto.presence.graph.localPeer.peerKeyString)
         }.value
 
         guard !remotePeers.isEmpty else { return [] }
@@ -665,7 +667,22 @@ actor SystemRepository {
         // Enrich each peer using the same private enrichment logic as the observer
         var peerDicts: [[String: Any]] = []
         for peer in remotePeers {
-            let enrichment = extractPeerEnrichment(from: peer, filteredBy: appConfig)
+            // Passing localPeerKeyString is what confines `connections` to links that
+            // touch THIS device. Omitting it (the default nil) short-circuits that
+            // filter, so an indirect peer's links to third parties were reported as if
+            // they were links to us.
+            let enrichment = extractPeerEnrichment(
+                from: peer,
+                localPeerKeyString: localPeerKey,
+                filteredBy: appConfig
+            )
+            // docs/PRESENCE_GRAPH.md: a peer is directly connected when the local peer
+            // key is an endpoint of at least one of its connections. Indirect peers are
+            // deliberately still reported — an agent debugging a mesh wants to see them
+            // — but they are now labelled instead of being passed off as connected.
+            let isDirect = peer.connections.contains { conn in
+                conn.peer1 == localPeerKey || conn.peer2 == localPeerKey
+            }
             let peerId = peer.peerKeyString
             let syncMetrics = syncMetricsLookup[peerId]
 
@@ -704,7 +721,8 @@ actor SystemRepository {
                 "deviceName": enrichment.deviceName ?? "Unknown",
                 "osType": osType,
                 "sdkVersion": enrichment.dittoSDKVersion ?? "",
-                "connectionStatus": "Connected",
+                "connectionStatus": isDirect ? "Connected" : "Indirect",
+                "isDirectlyConnected": isDirect,
                 "addressInfo": enrichment.addressInfo?.description ?? "",
                 "connections": connectionsList,
                 "identityMetadata": enrichment.identityMetadata ?? "",
