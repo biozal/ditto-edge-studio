@@ -144,6 +144,15 @@ fun PresenceGraphView(
     modifier: Modifier = Modifier,
     controlsVisible: Boolean = true,
     onToggleControlsVisible: () -> Unit = {},
+    // Peer keys matching the tab bar's search box. `null` = the box is empty (no
+    // search dimming); an EMPTY set = an active query with no hits, which
+    // deliberately dims the whole graph. Those two are different states.
+    searchMatchIds: Set<String>? = null,
+    // A focus requested from a search result, parked in the view model while the
+    // Direct→full-mesh flip rebuilds the graph. Consumed here once the layout has
+    // placed the peer; `onPendingFocusConsumed` clears it.
+    pendingFocusPeerId: String? = null,
+    onPendingFocusConsumed: () -> Unit = {},
 ) {
     val density = LocalDensity.current
     val viewConfig = LocalViewConfiguration.current
@@ -519,6 +528,44 @@ fun PresenceGraphView(
         enterFocusMode(focused)
     }
 
+    // A focus picked from the search results card.
+    //
+    // Deliberately NOT folded into the re-entry effect above: that one bails out on
+    // `preFocusTransform != null` ("already entered here"), so routing search picks
+    // through it would set the id but never move the orbit once a focus session was
+    // already live — i.e. hopping between search results would silently do nothing.
+    // `enterFocusMode` already handles replacing an active focus.
+    LaunchedEffect(pendingFocusPeerId, showDirectConnectedOnly, graphModel.nodes, sceneSizePx.value) {
+        val pending = pendingFocusPeerId ?: return@LaunchedEffect
+        // Focus only exists in the full mesh. The pick flips Direct off itself, so
+        // this is just waiting for the rebuilt projection to arrive.
+        if (showDirectConnectedOnly) return@LaunchedEffect
+        if (graphModel.nodes.none { it.peerId == pending }) {
+            // The peer left the mesh between the pick and the rebuild — drop the
+            // request rather than leaving it armed for some later unrelated push.
+            onPendingFocusConsumed()
+            return@LaunchedEffect
+        }
+        if (pending == focusedPeerId) {
+            // Re-picking the focused peer toggles focus off, exactly as re-tapping
+            // its pill does. Routed through here (not by nulling the hoisted id from
+            // the caller) because only `exitFocusMode` restores the pre-focus camera
+            // and the mesh positions — clearing the id alone leaves the graph stuck
+            // on the orbit at the focus zoom.
+            onPendingFocusConsumed()
+            expandedPeerId.value = null
+            exitFocusMode()
+            return@LaunchedEffect
+        }
+        if (sceneSizePx.value == IntOffset.Zero) return@LaunchedEffect // wait for the viewport
+        if (peerStates[pending] == null) return@LaunchedEffect // layout hasn't placed it yet
+        onPendingFocusConsumed()
+        // A card belongs to the focus session it was raised in; changing focus takes
+        // it along, exactly as exitFocusMode does.
+        expandedPeerId.value = null
+        enterFocusMode(pending)
+    }
+
     // Close the open card whenever the thing it is anchored to stops existing: details
     // switched off, focus left, or the peer dropped out of the mesh. A card floating
     // over a node that is gone is worse than no card.
@@ -815,24 +862,28 @@ fun PresenceGraphView(
                     val dashKey = DashKey(edge.type, edge.isCloud)
                     val dashEffect = dashEffects[dashKey] ?: continue
                     val strokePx = if (isIncident) highlightStrokePx else baseStrokePx
-                    // States per edge (focus wins over selection):
-                    //   focused + touches focus → full alpha (the orbit's spokes)
-                    //   focused + other        → context backdrop (0.04)
-                    //   selected + incident    → pulse (0.8..1.0) — reads State<Float>
-                    //                            inside drawBehind so only the draw
-                    //                            layer invalidates, never composition
-                    //   selected + non-incident → dim to 0.2
-                    //   otherwise              → full alpha
+                    // States per edge (focus > selection > search — search is the
+                    // weakest source, extension `scene.ts` parity):
+                    //   focused + touches focus  → full alpha (the orbit's spokes)
+                    //   focused + other          → context backdrop (0.04)
+                    //   selected + incident      → pulse (0.8..1.0) — reads
+                    //                              State<Float> inside drawBehind so
+                    //                              only the draw layer invalidates,
+                    //                              never composition
+                    //   selected + non-incident  → dim to 0.2
+                    //   search + touches a match → full alpha
+                    //   search + touches none    → dim to 0.2
+                    //   otherwise                → full alpha
+                    val edgeAnchors = PresenceFocusPlanner.litEdgeAnchors(
+                        focusedPeerId = focused,
+                        selectedPeerId = selected,
+                        searchMatchIds = searchMatchIds,
+                    )
                     val edgeAlpha = when {
-                        focused != null ->
-                            if (edge.fromPeerId == focused || edge.toPeerId == focused) {
-                                1f
-                            } else {
-                                PresenceFocusPlanner.CONTEXT_LINE_ALPHA
-                            }
-                        selected == null -> 1f
-                        isIncident -> pulseAlphaState.value
-                        else -> 0.2f
+                        edgeAnchors == null -> 1f
+                        edge.fromPeerId in edgeAnchors || edge.toPeerId in edgeAnchors ->
+                            if (focused == null && selected != null) pulseAlphaState.value else 1f
+                        else -> PresenceFocusPlanner.dimmedEdgeAlpha(focused)
                     }
                     val path = pathPool.getOrPut(edge.edgeId) { Path() }
                     drawPresenceEdge(
@@ -877,15 +928,20 @@ fun PresenceGraphView(
                     val isExpandedPeer = node.peerId == expandedPeerId.value
                     // Neighbourhood membership: focus mode uses the focus orbit;
                     // selection mode uses the selected peer's incident edges.
-                    val isInNeighbourhood = when {
-                        focused != null -> node.peerId in focusNeighbourhood
-                        selected == null -> true
-                        else -> node.peerId in highlightedPeerIds
-                    }
+                    // Lit set: focus orbit > selection neighbourhood > search matches
+                    // (search is the weakest source); null = nothing is dimming.
+                    val litPeers = PresenceFocusPlanner.litPeerIds(
+                        focusedPeerId = focused,
+                        focusNeighbourhood = focusNeighbourhood,
+                        selectedPeerId = selected,
+                        selectionNeighbourhood = highlightedPeerIds,
+                        searchMatchIds = searchMatchIds,
+                    )
+                    val isInNeighbourhood = litPeers == null || node.peerId in litPeers
                     // Selection visual: selected peer scales to 1.1×, peers in its
                     // neighbourhood stay full alpha, everyone else dims (0.35
-                    // selection / 0.08 focus context) so the structure pops.
-                    val dimAlpha = if (focused != null) PresenceFocusPlanner.CONTEXT_PEER_ALPHA else 0.35f
+                    // selection/search / 0.08 focus context) so the structure pops.
+                    val dimAlpha = PresenceFocusPlanner.dimmedPeerAlpha(focused)
                     val pillScale = state.scale.value * if (isSelectedPeer || isExpandedPeer) 1.1f else 1f
                     val pillAlpha = state.alpha.value *
                         if (isInNeighbourhood || isExpandedPeer) 1f else dimAlpha

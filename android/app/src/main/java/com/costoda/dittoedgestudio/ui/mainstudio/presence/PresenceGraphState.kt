@@ -137,6 +137,60 @@ internal object PresenceFocusPlanner {
     const val CONTEXT_PEER_ALPHA: Float = 0.08f
     const val CONTEXT_LINE_ALPHA: Float = 0.04f
 
+    /** Selection dimming — the tap-to-isolate treatment, also used by the search. */
+    const val SELECTION_PEER_ALPHA: Float = 0.35f
+    const val SELECTION_LINE_ALPHA: Float = 0.2f
+
+    /**
+     * The peers that stay at full opacity, or `null` when nothing is dimming and
+     * every peer is lit.
+     *
+     * Precedence, weakest last (extension `scene.ts` `focusForPeer`): an explicit
+     * focus wins over a tap-to-isolate selection, which wins over an active search.
+     *
+     * [searchMatchIds] is `null` when the search box is empty and an **empty set**
+     * when the query has no hits — the latter deliberately dims the whole graph, so
+     * the two must not be conflated.
+     */
+    fun litPeerIds(
+        focusedPeerId: String?,
+        focusNeighbourhood: Set<String>,
+        selectedPeerId: String?,
+        selectionNeighbourhood: Set<String>,
+        searchMatchIds: Set<String>?,
+    ): Set<String>? = when {
+        focusedPeerId != null -> focusNeighbourhood
+        selectedPeerId != null -> selectionNeighbourhood
+        searchMatchIds != null -> searchMatchIds
+        else -> null
+    }
+
+    /**
+     * The set an edge must touch at either endpoint to stay lit, or `null` when
+     * nothing is dimming. Same precedence as [litPeerIds].
+     */
+    fun litEdgeAnchors(
+        focusedPeerId: String?,
+        selectedPeerId: String?,
+        searchMatchIds: Set<String>?,
+    ): Set<String>? = when {
+        focusedPeerId != null -> setOf(focusedPeerId)
+        selectedPeerId != null -> setOf(selectedPeerId)
+        else -> searchMatchIds
+    }
+
+    /**
+     * Alpha for an edge that touches nothing lit. Focus keeps the rest of the mesh
+     * as a much fainter backdrop than a selection or a search does, because focus
+     * re-lays-out the graph and the context is genuinely secondary.
+     */
+    fun dimmedEdgeAlpha(focusedPeerId: String?): Float =
+        if (focusedPeerId != null) CONTEXT_LINE_ALPHA else SELECTION_LINE_ALPHA
+
+    /** Alpha for a peer that is not lit — same reasoning as [dimmedEdgeAlpha]. */
+    fun dimmedPeerAlpha(focusedPeerId: String?): Float =
+        if (focusedPeerId != null) CONTEXT_PEER_ALPHA else SELECTION_PEER_ALPHA
+
     /** Keys directly connected to [key] among [edges] — sorted, no self. */
     fun neighbourKeys(key: String, edges: List<PeerEdge>): List<String> {
         val neighbours = sortedSetOf<String>()

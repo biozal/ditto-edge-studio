@@ -94,24 +94,31 @@ struct PresenceViewerSK: View {
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
         .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
-        .onAppear {
-            createScene()
-        }
-        .task {
-            // Start presence observation tied to the view's lifetime via
-            // structured concurrency, rather than an untracked Task in the
-            // ViewModel's init that can race view teardown on rapid tab switches.
-            await viewModel.startProductionMode()
-        }
-        .onDisappear {
-            // Stop the presence observer here rather than relying on
-            // ViewModel ARC dealloc. The VM holds a DittoObserver that
-            // (via ditto.presence) retains the Ditto instance — leaving
-            // it alive after database close blocks the SDK's own deinit
-            // shutdown and prevents SQLite WAL from being flushed.
-            viewModel.stopProductionMode()
-            cleanupScene()
-        }
+        #if os(macOS)
+            // Escape with focus on the canvas (a mouse pick moves focus onto a
+            // results row, and an open detail card never had an Escape route at all).
+            // The search box carries its own `.onKeyPress(.escape)` for the
+            // still-typing case; both land on the same unwind order.
+            .onExitCommand { viewModel.handleEscape() }
+        #endif
+            .onAppear {
+                createScene()
+            }
+            .task {
+                // Start presence observation tied to the view's lifetime via
+                // structured concurrency, rather than an untracked Task in the
+                // ViewModel's init that can race view teardown on rapid tab switches.
+                await viewModel.startProductionMode()
+            }
+            .onDisappear {
+                // Stop the presence observer here rather than relying on
+                // ViewModel ARC dealloc. The VM holds a DittoObserver that
+                // (via ditto.presence) retains the Ditto instance — leaving
+                // it alive after database close blocks the SDK's own deinit
+                // shutdown and prevents SQLite WAL from being flushed.
+                viewModel.stopProductionMode()
+                cleanupScene()
+            }
     }
 
     // MARK: - Connection Legend
@@ -184,6 +191,12 @@ struct PresenceViewerSK: View {
 
         scene = newScene
         viewModel.scene = newScene
+
+        // A rebuilt scene starts with no search dim, while the view model keeps the
+        // query across the Peers ↔ Viewer switch. Re-apply it now rather than
+        // waiting on the next presence push — that is up to 250 ms of undimmed
+        // graph on every tab hop.
+        viewModel.reapplySearchMatchesToScene()
 
         // Note: Camera zoom will be applied after scene is presented (in didMove(to:))
     }
@@ -401,6 +414,114 @@ extension PresenceViewerSK {
             return key != focusedPeerKey && key != localPeer.peerKeyString
         }
 
+        // MARK: - Peer Search
+
+        /// Query typed into the search box in the Presence tab bar.
+        ///
+        /// Owned here rather than in the view so it survives the Peers ↔ Viewer
+        /// tab switch — that switch tears the scene down and builds a fresh one,
+        /// and the query has to be re-applied to it (extension parity: the box is
+        /// parent-owned for exactly this reason).
+        var searchQuery = "" {
+            didSet {
+                guard searchQuery != oldValue else { return }
+                pushSearchMatchesToScene()
+            }
+        }
+
+        /// Whether the box holds a real query (whitespace alone does not count).
+        var searchIsActive: Bool {
+            PresencePeerSearch.isActive(query: searchQuery)
+        }
+
+        /// Rows for the results card. Empty while `searchIsActive` is true means
+        /// "no peers match" — a distinct state from "not searching".
+        var searchMatches: [PresencePeerSearchMatch] {
+            PresencePeerSearch.matches(in: searchCandidates, query: searchQuery)
+        }
+
+        /// Rebuilt on each (throttled) presence push rather than per keystroke:
+        /// at 100+ peers this is the only part of matching worth not repeating.
+        private var searchCandidates: [PresencePeerSearchMatch] = []
+
+        /// Armed by a search pick made while Direct is ON — the peer is not in the
+        /// scene yet, so the focus has to wait for the rebuilt full-mesh push
+        /// (extension `pendingFocusKey`).
+        private var pendingFocusPeerKey: String?
+
+        /// Focus a search hit exactly as clicking its pill in the full mesh would.
+        ///
+        /// With Direct ON the peer may not be in the scene at all (that is the
+        /// whole point of searching for it), so this flips Direct off and defers
+        /// the focus to the rebuilt graph.
+        func focusSearchResult(_ key: String) {
+            // The local peer is listed in the card but never focusable.
+            guard key != rawLocalPeer?.peerKeyString else { return }
+            if showDirectConnectedOnly {
+                pendingFocusPeerKey = key
+                showDirectConnectedOnly = false // didSet → updateSceneWithCurrentFilter()
+                return
+            }
+            // A card belongs to the focus session that was open when it was
+            // raised; changing (or leaving) focus takes it along. `focusPeer`
+            // toggles focus OFF when the pick is the already-focused peer, so
+            // this cleanup has to run on both branches.
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+            scene?.focusPeer(key)
+        }
+
+        /// Enter/Return in the box focuses the first focusable hit — the
+        /// "find a peer without touching the mouse" path.
+        func focusFirstSearchResult() {
+            guard let first = searchMatches.first(where: { !$0.isLocal }) else { return }
+            focusSearchResult(first.key)
+        }
+
+        /// Clear the query and restore full opacity. The focus view (if any) is
+        /// deliberately left alone.
+        func clearSearch() {
+            searchQuery = ""
+        }
+
+        /// Escape unwinds the **innermost** context first: an open detail card,
+        /// then the search query. The focus view survives both — backing out of a
+        /// card is not backing out of the peer you are investigating.
+        ///
+        /// Returns whether anything was consumed, so a key handler can report
+        /// `.ignored` and let Escape do its normal job when there is nothing to
+        /// unwind.
+        @discardableResult
+        func handleEscape() -> Bool {
+            if detailPeerKey != nil {
+                dismissDetail()
+                return true
+            }
+            if searchIsActive {
+                clearSearch()
+                return true
+            }
+            return false
+        }
+
+        /// Push the current match set to the scene.
+        ///
+        /// `nil` when the box is empty; an **empty set** when the query has no
+        /// hits, which dims the whole graph. Those two are different states and
+        /// conflating them is the defect this method exists to avoid.
+        /// Re-apply the live query to a freshly built scene. Same push, exposed for
+        /// the view's `createScene()` — the scene dies on every tab switch, the
+        /// query does not.
+        func reapplySearchMatchesToScene() {
+            pushSearchMatchesToScene()
+        }
+
+        private func pushSearchMatchesToScene() {
+            scene?.setSearchMatches(
+                searchIsActive ? Set(searchMatches.map(\.key)) : nil
+            )
+        }
+
         /// Whether the graph controls (legend, Direct toggle, zoom cluster) are
         /// visible. The eye button and reset control always remain — the VS Code
         /// extension's controls-visibility toggle. Lives on the VM so it survives
@@ -501,6 +622,14 @@ extension PresenceViewerSK {
 
         /// Push the current filtered graph state to the scene
         func updateSceneWithCurrentFilter() {
+            // Rebuilt from the UNFILTERED graph, and before the guard below, so
+            // the search still finds multi-hop peers while Direct is on — and so
+            // a query typed before the scene exists still has candidates.
+            searchCandidates = PresencePeerSearch.candidates(
+                localPeer: rawLocalPeer,
+                remotePeers: rawRemotePeers
+            )
+
             guard let localPeer = rawLocalPeer, let scene else { return }
 
             // Both modes derive the visible set from the aggregated edges, which
@@ -535,6 +664,22 @@ extension PresenceViewerSK {
             if let focusedKey = focusedPeerKey, scene.focusedPeerKey == nil {
                 scene.restoreFocusAfterRebuild(for: focusedKey)
             }
+
+            // A search pick that had to flip Direct off lands here, once the
+            // rebuilt full-mesh push guarantees the peer is in the scene. Cleared
+            // unconditionally: a peer that left the mesh in the meantime must not
+            // leave the request armed for the next unrelated push.
+            if let pending = pendingFocusPeerKey {
+                pendingFocusPeerKey = nil
+                detailPeerKey = nil
+                scene.hasOpenDetailCard = false
+                scene.focusPeer(pending)
+            }
+
+            // The scene is rebuilt on every Peers ↔ Viewer switch while this view
+            // model is not — re-apply the live query to the fresh scene, or its
+            // dimming would silently disappear on the round trip.
+            pushSearchMatchesToScene()
         }
 
         // MARK: - Zoom Control

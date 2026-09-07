@@ -146,6 +146,17 @@ class PresenceNetworkScene: SKScene {
     /// SwiftUI banner overlay.
     var onFocusChanged: ((String?, String?) -> Void)?
     private var focusNeighbourhood: Set<String> = []
+
+    /// Peer keys matching the search box in the Presence tab bar.
+    ///
+    /// `nil` means the box is empty — no search dimming at all. An **empty set**
+    /// means an active query with no hits, which deliberately dims the whole
+    /// graph ("nothing here" is useful feedback). Conflating the two is the
+    /// defect this distinction exists to prevent.
+    ///
+    /// The weakest focus source: `focusedPeerKey` and `highlightedNode` both win
+    /// over it (see `restingAlpha`).
+    private(set) var searchMatchKeys: Set<String>?
     private var preFocusCameraScale: CGFloat?
     private var preFocusCameraPosition: CGPoint?
     private let focusTransitionDuration: TimeInterval = 0.3
@@ -721,10 +732,13 @@ class PresenceNetworkScene: SKScene {
         line.run(fadeIn, withKey: "lineDrawAnimation")
     }
 
-    /// The resting alpha for a line under the current focus/selection state.
+    /// The resting alpha for a line under the current focus/selection/search state.
     /// The dim state is authoritative: freshly created lines fade in to THIS
     /// value, never blindly to 1.0 (see `animateLineDrawing`).
-    private func restingAlpha(for line: ConnectionLine) -> CGFloat {
+    ///
+    /// Internal (not private) so the scene unit tests can assert the precedence
+    /// table without reaching into the SpriteKit node tree.
+    func restingAlpha(for line: ConnectionLine) -> CGFloat {
         if let focusedKey = focusedPeerKey {
             let touchesFocus = line.fromPeerKey == focusedKey || line.toPeerKey == focusedKey
             return touchesFocus ? 1.0 : PresenceFocusPlanner.contextLineAlpha
@@ -734,12 +748,18 @@ class PresenceNetworkScene: SKScene {
                 || line.toPeerKey == highlighted.peerKey
             return isIncident ? 1.0 : focusDimEdgeAlpha
         }
+        // Search is the WEAKEST focus source (extension `scene.ts` parity): both
+        // branches above win over it. A line touching any match stays lit.
+        if let matches = searchMatchKeys {
+            let touchesMatch = matches.contains(line.fromPeerKey) || matches.contains(line.toPeerKey)
+            return touchesMatch ? 1.0 : focusDimEdgeAlpha
+        }
         return 1.0
     }
 
     /// The resting alpha for a peer pill — same authority as
     /// `restingAlpha(for:)`, applied by the peer-appear fade.
-    private func restingAlpha(forPeerKey peerKey: String) -> CGFloat {
+    func restingAlpha(forPeerKey peerKey: String) -> CGFloat {
         if focusedPeerKey != nil {
             return focusNeighbourhood.contains(peerKey) ? 1.0 : PresenceFocusPlanner.contextPeerAlpha
         }
@@ -747,6 +767,9 @@ class PresenceNetworkScene: SKScene {
             return highlightNeighbourhood(of: highlighted.peerKey).contains(peerKey)
                 ? 1.0
                 : focusDimPeerAlpha
+        }
+        if let matches = searchMatchKeys {
+            return matches.contains(peerKey) ? 1.0 : focusDimPeerAlpha
         }
         return 1.0
     }
@@ -1045,24 +1068,56 @@ class PresenceNetworkScene: SKScene {
         }
     }
 
-    /// Restore every node and edge to full alpha. Called by [clearHighlight].
+    /// Restore every node and edge to its **resting** alpha. Called by
+    /// [clearHighlight] and by [enterFocusMode] before it re-dims.
+    ///
+    /// Deliberately not a hard fade to 1.0: an active search query is a dim
+    /// source in its own right, so clearing a selection while the search box has
+    /// a query must fall back to the search dim, not to full opacity. (Hard-coded
+    /// 1.0 here was the "search dim vanishes the moment you clear a selection"
+    /// defect.)
     private func restoreAllAlpha() {
-        // Kill any still-running creation fades first: they would outlive this
-        // 0.2 s restore and re-dim (or re-hide) a node the user just released.
+        reapplyRestingAlpha()
+    }
+
+    /// Fade every node and edge to whatever `restingAlpha` says it should be
+    /// under the current focus/selection/search state.
+    ///
+    /// Kills any still-running creation fades first: their 0.4 s would outlive
+    /// this 0.2 s pass and re-dim (or re-hide) a node the user just released.
+    private func reapplyRestingAlpha() {
         for (_, line) in connectionLines {
             line.removeAction(forKey: "lineDrawAnimation")
             line.run(
-                SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
+                SKAction.fadeAlpha(to: restingAlpha(for: line), duration: focusFadeDuration),
                 withKey: "focusFade"
             )
         }
-        for (_, peerNode) in peerNodes {
+        for (key, peerNode) in peerNodes {
             peerNode.removeAction(forKey: "appearAnimation")
             peerNode.run(
-                SKAction.fadeAlpha(to: 1.0, duration: focusFadeDuration),
+                SKAction.fadeAlpha(to: restingAlpha(forPeerKey: key), duration: focusFadeDuration),
                 withKey: "focusFade"
             )
         }
+    }
+
+    /// Feed the panel's search matches into the scene.
+    ///
+    /// `nil` clears the search dim entirely; an **empty set** is an active query
+    /// with no hits and dims everything. See `searchMatchKeys`.
+    ///
+    /// A no-op when the set is unchanged — this is called on every presence push
+    /// (so a rebuilt scene inherits the live query), and re-running the fades on
+    /// each 250 ms push would restart the animation continuously.
+    func setSearchMatches(_ keys: Set<String>?) {
+        guard keys != searchMatchKeys else { return }
+        searchMatchKeys = keys
+        // Focus mode and the tap-to-isolate selection both outrank search, so
+        // there is nothing to repaint while either is active — `restingAlpha`
+        // would return the same values it already applied.
+        guard focusedPeerKey == nil, highlightedNode == nil else { return }
+        reapplyRestingAlpha()
     }
 
     /// Re-evaluate focus after a topology change: if the highlighted peer is still in
@@ -1326,6 +1381,38 @@ class PresenceNetworkScene: SKScene {
             // drop the hoist.
             onFocusChanged?(nil, nil)
             return
+        }
+        enterFocusMode(for: key)
+    }
+
+    /// Focus `key` exactly as clicking its pill in the full mesh would — the entry
+    /// point for the tab bar's peer search (extension `focusPeer` parity).
+    ///
+    /// Unlike `restoreFocusAfterRebuild`, this **replaces** an active focus, so the
+    /// user can hop between search results without exiting first. Re-picking the
+    /// currently focused peer toggles focus off, matching a re-tap on its pill.
+    ///
+    /// Only valid in the full-mesh view; a caller holding Direct ON must flip it
+    /// off and defer until the rebuilt graph contains the peer (the view model's
+    /// `pendingFocusPeerKey`).
+    func focusPeer(_ key: String) {
+        guard isReady else { return }
+        if focusedPeerKey == key {
+            clearFocusMode()
+            return
+        }
+        if focusedPeerKey != nil {
+            // Switching focus: exit first so the previous orbit's peers animate
+            // back to their mesh positions (nothing else restores them — there is
+            // no layout push on this path). The pre-focus camera is carried across
+            // by hand: `clearFocusMode` drops it and `enterFocusMode` would then
+            // recapture the *focus* camera as the thing to restore on exit, so a
+            // later exit would never return the user to where they started.
+            let savedScale = preFocusCameraScale
+            let savedPosition = preFocusCameraPosition
+            clearFocusMode()
+            preFocusCameraScale = savedScale
+            preFocusCameraPosition = savedPosition
         }
         enterFocusMode(for: key)
     }

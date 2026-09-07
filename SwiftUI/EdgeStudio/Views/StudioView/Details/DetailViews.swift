@@ -46,10 +46,26 @@ extension MainStudioView {
                     }
                 }
 
+                // Peer search rides in the tab bar so the canvas keeps its full
+                // height (extension parity). Deliberately OUTSIDE the ViewThatFits
+                // above: the box is dynamic, and ViewThatFits measures every
+                // alternative on each change — the documented feedback loop the
+                // note at the top of this method exists to prevent.
+                //
+                // The child view owns every read of the query. Reading it here
+                // would make it a dependency of MainStudioView.body.
+                if selectedSyncTab == 1 {
+                    PresencePeerSearchField(viewModel: presenceViewerVM)
+                        .padding(.trailing, 8)
+                }
+
                 // Single TransportSettingsButton — stable identity regardless of ViewThatFits layout
                 TransportSettingsButton()
                     .padding(.trailing, 5)
             }
+            // The search results card is an overlay on the box above; without
+            // this the tab content below paints over it.
+            .zIndex(1)
 
             // Read inside a child view, never here. `syncTabsDetailView()` is a
             // *method* on MainStudioView, so anything it touches becomes a
