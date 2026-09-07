@@ -242,6 +242,19 @@ The app uses a custom RAL color palette defined in `ui/theme/Color.kt`:
 
 Always use these named tokens — never hardcode hex values in UI code.
 
+## Drag-to-reorder (Pinned metrics)
+
+Before touching drag-to-reorder in the Pinned accordion on the System Metrics
+screen, read [`../docs/PINNED_REORDER.md`](../docs/PINNED_REORDER.md) in full.
+The algorithm is shared with SwiftUI, function for function
+(`SystemMetricsPinOrdering.dropIndex` / `.gapOffset`), and the two must stay in
+step.
+
+Key rule: **never reorder the list while a drag is in flight.** It moves the
+dragged row's composable to a new slot and tears down the `pointerInput` that
+owns the gesture — the defect fixed in `0bda9c3`. The list stays still; only the
+offsets change, and the order is committed once on release.
+
 ## Testing
 
 - **Unit tests:** `app/src/test/` — JUnit4, run with `./gradlew test`

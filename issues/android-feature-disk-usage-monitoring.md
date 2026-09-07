@@ -19,11 +19,11 @@ Android already has a `DiskUsageScreen.kt` with storage breakdown by category an
 - Last updated timestamp with relative formatting
 - Loading indicator
 
-## Gaps Compared to SwiftUI/.NET
+## Gaps Compared to SwiftUI
 
 ### 1. Auto-Refresh (Minor)
 
-**SwiftUI and .NET:** Auto-refresh every 15 seconds via a background loop.  
+**SwiftUI:** Auto-refresh every 15 seconds via a background loop.  
 **Android:** Only refreshes on initial load and manual button press.
 
 **Fix:** Add a `LaunchedEffect` with 15-second interval:
@@ -43,7 +43,7 @@ LaunchedEffect(Unit) {
 
 ### 3. Empty Collection State
 
-**SwiftUI/.NET:** Shows "No collections in this database" message.  
+**SwiftUI:** Shows "No collections in this database" message.  
 **Android:** Verify this empty state exists. If missing, add a centered message when collection list is empty.
 
 ## Key Reference Files

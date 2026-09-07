@@ -29,12 +29,10 @@ import Testing
 
 @Suite("PlanNodeBox Tests")
 struct PlanNodeBoxTests {
-
     // MARK: - timeLabel(execNs:planTotalExecNs:)
 
     @Suite("timeLabel helper")
     struct TimeLabelTests {
-
         @Test(.tags(.utility, .fast))
         func `Returns formatted time with share-of-plan percentage suffix`() {
             // 300 µs exec when the plan total is 1000 µs → 30%.
@@ -238,7 +236,6 @@ struct PlanNodeBoxTests {
 
     @Suite("Sum-to-100% invariant")
     struct InvariantTests {
-
         /// Allowed slack on the final-decimal rounding. Each badge
         /// is rendered as `%.1f%%`, so a 3-node plan can drift by up
         /// to ~0.15 percentage points purely from rounding. We

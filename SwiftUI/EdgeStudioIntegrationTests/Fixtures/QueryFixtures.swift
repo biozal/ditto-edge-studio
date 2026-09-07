@@ -3,7 +3,6 @@ import Foundation
 /// Test fixtures for DQL queries
 /// Provides sample queries for testing query execution and parsing
 struct QueryFixtures {
-    
     // MARK: - Basic SELECT Queries
     
     static let simpleSelect = "SELECT * FROM users"
@@ -121,7 +120,7 @@ struct QueryFixtures {
     /// Generate random SELECT query for testing
     static func randomSelectQuery() -> String {
         let collectionName = "collection_\(UUID().uuidString.prefix(8))"
-        let fieldName = ["name", "age", "status", "email"].randomElement()!
+        let fieldName = ["name", "age", "status", "email"].randomElement() ?? "name"
         return "SELECT * FROM \(collectionName) WHERE \(fieldName) = '\(UUID().uuidString)'"
     }
     

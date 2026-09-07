@@ -200,7 +200,7 @@ fun QrScannerScreen(
 
 @androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
 @Composable
-private fun CameraPreview(
+internal fun CameraPreview(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner,
     resetKey: Int = 0,
@@ -343,7 +343,7 @@ private fun CameraPreview(
 }
 
 @Composable
-private fun ScanOverlay(
+internal fun ScanOverlay(
     modifier: Modifier = Modifier,
     zoomRatio: Float = INITIAL_ZOOM,
 ) {

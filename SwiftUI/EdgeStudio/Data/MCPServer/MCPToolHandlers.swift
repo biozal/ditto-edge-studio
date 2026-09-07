@@ -153,6 +153,22 @@ enum MCPToolHandlers {
                     "awdl": [
                         "type": "boolean",
                         "description": "Enable or disable AWDL (Apple Wireless Direct Link) transport"
+                    ],
+                    "multicast": [
+                        "type": "boolean",
+                        "description": "Enable or disable the reliable UDP multicast transport (beta, Ditto SDK 5.1.0)"
+                    ],
+                    "multicast_group_address": [
+                        "type": "string",
+                        "description": "Multicast group address — class-D IPv4 (224.0.0.0–239.255.255.255); all peers must match"
+                    ],
+                    "multicast_port": [
+                        "type": "number",
+                        "description": "Multicast UDP port (1–65535; 0 is invalid — the SDK reads it as 'any port'); all peers must match"
+                    ],
+                    "multicast_interface": [
+                        "type": "string",
+                        "description": "Network interface name to bind multicast to; empty string resets to OS default"
                     ]
                 ]
             ]
@@ -368,7 +384,8 @@ enum MCPToolHandlers {
                 "bluetoothLE": config.isBluetoothLeEnabled,
                 "lan": config.isLanEnabled,
                 "awdl": config.isAwdlEnabled,
-                "cloudSync": config.isCloudSyncEnabled
+                "cloudSync": config.isCloudSyncEnabled,
+                "multicast": config.isMulticastEnabled
             ]
         ]
 
@@ -603,6 +620,14 @@ enum MCPToolHandlers {
 
     // MARK: configure_transport
 
+    /// True when an NSNumber is actually a boolean. `arguments[...] as? NSNumber`
+    /// also matches JSON `true`/`false` (JSONSerialization bridges both), and
+    /// `true.stringValue == "1"` would silently pass a numeric port parse.
+    /// Separated for unit tests (the pure half of the multicast_port validation).
+    static func isBooleanNSNumber(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
     private static func configureTransport(arguments: [String: Any]) async throws -> String {
         guard let config = await DittoManager.shared.dittoSelectedAppConfig else {
             throw MCPError.noActiveDatabase
@@ -613,6 +638,43 @@ enum MCPToolHandlers {
         let newLan = arguments["lan"] as? Bool ?? config.isLanEnabled
         let newAwdl = arguments["awdl"] as? Bool ?? config.isAwdlEnabled
 
+        // Multicast: enable flag plus optional validated group/port/interface
+        // overrides (invalid values fail loudly rather than reaching the SDK).
+        var multicast = MulticastConfig(
+            isEnabled: arguments["multicast"] as? Bool ?? config.isMulticastEnabled,
+            groupAddress: config.multicastGroupAddress,
+            port: config.multicastPort,
+            interfaceName: config.multicastInterfaceName
+        )
+        if let group = arguments["multicast_group_address"] as? String {
+            guard MulticastConfig.isValidGroupAddress(group) else {
+                throw MCPError.executionFailed(
+                    "Invalid multicast_group_address '\(group)' — must be class-D IPv4 (224.0.0.0–239.255.255.255)"
+                )
+            }
+            multicast.groupAddress = group
+        }
+        if let portNumber = arguments["multicast_port"] as? NSNumber {
+            // JSONSerialization surfaces JSON booleans as NSNumber too — `true`
+            // would otherwise parse via stringValue as "1" and silently configure
+            // port 1. Reject CFBoolean explicitly, failing loudly.
+            guard !isBooleanNSNumber(portNumber) else {
+                throw MCPError.executionFailed(
+                    "Invalid multicast_port '\(portNumber.boolValue)' — must be a whole number in 1–65535"
+                )
+            }
+            let portText = portNumber.stringValue
+            guard let port = MulticastConfig.parsePort(portText) else {
+                throw MCPError.executionFailed(
+                    "Invalid multicast_port '\(portText)' — must be a whole number in 1–65535"
+                )
+            }
+            multicast.port = port
+        }
+        if let interface = arguments["multicast_interface"] as? String {
+            multicast.interfaceName = interface.isEmpty ? nil : interface
+        }
+
         // Step 1: Stop sync
         await DittoManager.shared.selectedDatabaseStopSync()
         await SystemRepository.shared.stopObserver()
@@ -621,7 +683,8 @@ enum MCPToolHandlers {
         try await DittoManager.shared.applyTransportConfig(
             isBluetoothLeEnabled: newBluetooth,
             isLanEnabled: newLan,
-            isAwdlEnabled: newAwdl
+            isAwdlEnabled: newAwdl,
+            multicast: multicast
         )
 
         // Update persisted config. `DittoConfigForDatabase` is `@unchecked Sendable`
@@ -634,6 +697,10 @@ enum MCPToolHandlers {
             config.isBluetoothLeEnabled = newBluetooth
             config.isLanEnabled = newLan
             config.isAwdlEnabled = newAwdl
+            config.isMulticastEnabled = multicast.isEnabled
+            config.multicastGroupAddress = multicast.groupAddress
+            config.multicastPort = multicast.port
+            config.multicastInterfaceName = multicast.interfaceName
         }
         try await DatabaseRepository.shared.updateDittoAppConfig(config)
 
@@ -657,7 +724,10 @@ enum MCPToolHandlers {
             "applied": [
                 "bluetoothLE": newBluetooth,
                 "lan": newLan,
-                "awdl": newAwdl
+                "awdl": newAwdl,
+                "multicast": multicast.isEnabled,
+                "multicastGroupAddress": multicast.groupAddress,
+                "multicastPort": multicast.port
             ]
         ]
 

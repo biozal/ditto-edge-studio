@@ -337,7 +337,7 @@ actor CollectionsRepository {
     /// segments are joined with dots. Backtick-quoting around segments
     /// (emitted by older SDKs) is undone. A plain string array is accepted
     /// as a legacy fallback.
-    nonisolated static func parseIndexKeys(from json: [String: Any]) -> [IndexField] {
+    nonisolated static func parseIndexKeys(from json: [String: Any?]) -> [IndexField] {
         if let rawFields = json["fields"] as? [[String: Any]] {
             return rawFields.compactMap { dict -> IndexField? in
                 guard let segments = dict["key"] as? [String], !segments.isEmpty else { return nil }

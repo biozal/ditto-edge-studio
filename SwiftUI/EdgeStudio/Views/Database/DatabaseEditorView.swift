@@ -43,15 +43,12 @@ struct DatabaseEditorView: View {
                 Form {
                     HStack {
                         Spacer()
-                        Picker("", selection: $viewModel.mode) {
-                            ForEach(AuthMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-                        .accessibilityIdentifier("AuthModePicker")
+                        DittoSegmentedPicker(
+                            options: AuthMode.allCases,
+                            selection: $viewModel.mode
+                        ) { $0.displayName }
+                            .frame(maxWidth: 300)
+                            .accessibilityIdentifier("AuthModePicker")
                         Spacer()
                     }
                     #if os(macOS)
@@ -823,6 +820,10 @@ extension DatabaseEditorView {
         var isLanEnabled = true
         var isAwdlEnabled = true
         var isCloudSyncEnabled = true
+        var isMulticastEnabled = false
+        var multicastGroupAddress = MulticastConfig.defaultGroupAddress
+        var multicastPort = MulticastConfig.defaultPort
+        var multicastInterfaceName: String?
 
         // MARK: Advanced Configuration
 
@@ -879,6 +880,10 @@ extension DatabaseEditorView {
             isLanEnabled = appConfig.isLanEnabled
             isAwdlEnabled = appConfig.isAwdlEnabled
             isCloudSyncEnabled = appConfig.isCloudSyncEnabled
+            isMulticastEnabled = appConfig.isMulticastEnabled
+            multicastGroupAddress = appConfig.multicastGroupAddress
+            multicastPort = appConfig.multicastPort
+            multicastInterfaceName = appConfig.multicastInterfaceName
             collectionSyncScopes = appConfig.collectionSyncScopes
             // Canonicalised on the way in: a stored `.boolean` row spelled `true`/`FALSE`
             // is valid but unrenderable — the value picker tags are exactly
@@ -1216,6 +1221,10 @@ extension DatabaseEditorView {
                     isLanEnabled: isLanEnabled,
                     isAwdlEnabled: isAwdlEnabled,
                     isCloudSyncEnabled: isCloudSyncEnabled,
+                    isMulticastEnabled: isMulticastEnabled,
+                    multicastGroupAddress: multicastGroupAddress,
+                    multicastPort: multicastPort,
+                    multicastInterfaceName: multicastInterfaceName,
                     logLevel: logLevel,
                     isStrictModeEnabled: isStrictModeEnabled,
                     collectionSyncScopes: normalizedSyncScopes(),

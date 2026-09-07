@@ -49,6 +49,12 @@ final class QueryViewModel {
     /// `metricsEnabled` and `selectedQuery` to differentiate.
     var latestProfile: QueryProfile?
 
+    /// Advice from the most recent `ADVISE` run (SDK 5.1), or nil when the
+    /// current editor query hasn't been advised (or the result carried none).
+    /// Cleared whenever a query executes or a new ADVISE starts.
+    var queryAdvice: QueryAdvice?
+    var isAdviseRunning = false
+
     var isQueryExecuting = false
 
     // MARK: - Inspector Data
@@ -203,6 +209,8 @@ final class QueryViewModel {
     /// to history on success.
     func executeQuery(appState: AppState) async {
         isQueryExecuting = true
+        // A fresh execution supersedes any prior advice for this draft.
+        queryAdvice = nil
         do {
             if selectedExecuteMode == "Local" {
                 // Local path captures the PROFILE envelope when
@@ -226,6 +234,69 @@ final class QueryViewModel {
             appState.setError(error)
         }
         isQueryExecuting = false
+    }
+
+    // MARK: - ADVISE (SDK 5.1)
+
+    /// True when the editor text is a SELECT statement (ADVISE only advises SELECTs).
+    var canRunAdvise: Bool {
+        QueryService.isSelectStatement(selectedQuery) && !isQueryExecuting && !isAdviseRunning
+    }
+
+    /// Runs `ADVISE <current query>` through the selected execution mode and stores
+    /// the parsed advice. Parity with the VS Code extension: suggestions land in a
+    /// card above the results; each is applied (executed verbatim) only after the
+    /// user confirms.
+    func runAdvise(appState: AppState) async {
+        let query = selectedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard QueryService.isSelectStatement(query) else {
+            appState.setError(NSError(
+                domain: "EdgeStudio.QueryViewModel",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "ADVISE works on SELECT statements only."]
+            ))
+            return
+        }
+        isAdviseRunning = true
+        queryAdvice = nil
+        do {
+            let adviseQuery = "ADVISE \(query)"
+            let rows: [String] = if selectedExecuteMode == "Local" {
+                try await queryService.executeSelectedAppQuery(query: adviseQuery)
+            } else {
+                try await queryService.executeSelectedAppQueryHttp(query: adviseQuery)
+            }
+            queryAdvice = QueryAdviceExtractor.extract(from: rows)
+            // History parity with the extension + Android: record the ADVISE run.
+            // Stale-session refusals are logged-not-alerted (same as addQueryToHistory).
+            do {
+                try await historyRepository.saveQueryHistory(
+                    DittoQueryHistory(
+                        id: UUID().uuidString,
+                        query: adviseQuery,
+                        createdDate: Date.now.ISO8601Format()
+                    ),
+                    databaseId: databaseId
+                )
+            } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                Log.info("History save skipped (ADVISE): \(error.message)")
+            }
+        } catch {
+            appState.setError(error)
+        }
+        isAdviseRunning = false
+    }
+
+    /// Executes a suggestion's CREATE INDEX statement verbatim. Called only from
+    /// the confirmation path in the UI. Surfaces errors via appState and rethrows
+    /// so the card can flip the row to its failed state.
+    func applyAdviceSuggestion(_ suggestion: QueryIndexSuggestion, appState: AppState) async throws {
+        do {
+            _ = try await queryService.executeSelectedAppQuery(query: suggestion.statement)
+        } catch {
+            appState.setError(error)
+            throw error
+        }
     }
 
     /// Saves the current query to history. Public so the parent VM (or a test)

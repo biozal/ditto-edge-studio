@@ -87,7 +87,12 @@ final class SyncStatusViewModel {
         }
         await systemRepository.setOnConnectionsUpdate { [weak self] connections in
             Task { @MainActor [weak self] in
-                self?.connectionsByTransport = connections
+                // Same reasoning as `mergeStatusItems`. This observer has no
+                // backpressure at all — unlike the sync-status one above, there
+                // is no completion handshake — so an unconditional write was the
+                // hottest invalidation source in the detail tree.
+                guard let self, connectionsByTransport != connections else { return }
+                connectionsByTransport = connections
             }
         }
     }
@@ -179,6 +184,13 @@ final class SyncStatusViewModel {
         let brandNewPeers = newItems.filter { !existingIds.contains($0.id) }
         merged.append(contentsOf: brandNewPeers)
 
+        // `@Observable` does not equality-check its setters — every assignment
+        // calls `withMutation` and invalidates every reader. The presence
+        // observer fires continuously, so an unconditional write here re-ran
+        // `MainStudioView.body` (the whole NavigationSplitView, including its
+        // ViewThatFits measurement) many times a second even when nothing had
+        // changed. Gating on inequality makes an idle mesh genuinely free.
+        guard merged != syncStatusItems else { return }
         syncStatusItems = merged
     }
 }

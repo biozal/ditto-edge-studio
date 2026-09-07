@@ -79,11 +79,13 @@ fun PresenceListSection(
     viewModel: MainStudioViewModel,
     modifier: Modifier = Modifier,
     onAfterAddOrEditTriggered: (() -> Unit)? = null,
+    onScanSubscriptionsQr: (() -> Unit)? = null,
 ) {
     SubscriptionsListPane(
         viewModel = viewModel,
         modifier = modifier,
         onAfterAddOrEditTriggered = onAfterAddOrEditTriggered,
+        onScanQr = onScanSubscriptionsQr,
     )
 }
 
@@ -176,10 +178,20 @@ fun PresenceContentSection(
                 else -> {
                     val showDirectOnly by viewModel.showDirectConnectedOnly
                         .collectAsStateWithLifecycle()
+                    val controlsVisible by viewModel.presenceControlsVisible
+                        .collectAsStateWithLifecycle()
+                    // Hoisted so an active focus session survives the Peers ↔
+                    // Viewer tab switch (the tab `when` disposes the subtree).
+                    val focusedPeerId by viewModel.presenceFocusedPeerId
+                        .collectAsStateWithLifecycle()
                     PresenceGraphView(
                         peersUiState = peersUiState,
                         showDirectConnectedOnly = showDirectOnly,
                         onToggleDirectConnectedOnly = { viewModel.toggleDirectConnectedOnly() },
+                        focusedPeerId = focusedPeerId,
+                        onFocusedPeerChange = { viewModel.setPresenceFocusedPeer(it) },
+                        controlsVisible = controlsVisible,
+                        onToggleControlsVisible = { viewModel.togglePresenceControlsVisible() },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -238,6 +250,23 @@ fun PresenceContentSection(
                 }
             },
             onDismiss = { viewModel.editingSubscription = null },
+        )
+    }
+
+    // Subscriptions share-QR dialog / server-import sheet — hoisted here so they survive
+    // drawer dismiss below 840dp (same reasoning as the editor sheet above). Triggered via
+    // StudioUiState flags set by the list pane's header icons.
+    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
+    if (viewModel.session.uiState.showSubscriptionsQr) {
+        SubscriptionsQrDisplayDialog(
+            subscriptions = subscriptions,
+            onDismiss = { viewModel.session.uiState.showSubscriptionsQr = false },
+        )
+    }
+    if (viewModel.session.uiState.showImportSubscriptionsFromServer) {
+        ImportSubscriptionsFromServerSheet(
+            viewModel = viewModel,
+            onDismiss = { viewModel.session.uiState.showImportSubscriptionsFromServer = false },
         )
     }
 }

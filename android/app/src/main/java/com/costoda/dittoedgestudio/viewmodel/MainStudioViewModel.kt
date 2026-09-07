@@ -3,6 +3,7 @@ package com.costoda.dittoedgestudio.viewmodel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.outlined.DataUsage
+import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Storage
@@ -25,6 +26,7 @@ import com.costoda.dittoedgestudio.domain.model.DittoObserveEvent
 import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.EventFilterMode
 import com.costoda.dittoedgestudio.domain.model.IndexField
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +41,8 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
     LOGGING("Log Analyzer", Icons.Outlined.Description),
     APP_METRICS("App Metrics", Icons.Outlined.Memory),
     QUERY_METRICS("Query Metrics", Icons.AutoMirrored.Outlined.ManageSearch),
-    DISK_USAGE("Database Metrics", Icons.Outlined.DataUsage);
+    DISK_USAGE("Database Metrics", Icons.Outlined.DataUsage),
+    SYSTEM_METRICS("System Metrics", Icons.Outlined.MonitorHeart);
 
     val helpFileName: String get() = when (this) {
         SUBSCRIPTIONS -> "subscription.md"
@@ -49,11 +52,13 @@ enum class StudioNavItem(val label: String, val icon: ImageVector) {
         APP_METRICS -> "appmetrics.md"
         QUERY_METRICS -> "querymetrics.md"
         DISK_USAGE -> "diskusage.md"
+        SYSTEM_METRICS -> "systemmetrics.md"
     }
 
     /** True when this item only appears while "Collect Metrics" is enabled — mirrors
      *  SwiftUI's `SidebarDestination.isMetricsDestination`. */
-    val isMetricsDestination: Boolean get() = this == APP_METRICS || this == QUERY_METRICS
+    val isMetricsDestination: Boolean get() =
+        this == APP_METRICS || this == QUERY_METRICS || this == SYSTEM_METRICS
 
     companion object {
         /** Rail items visible for the given "Collect Metrics" setting — mirrors SwiftUI's
@@ -113,6 +118,22 @@ class MainStudioViewModel(
     var showAddIndex: Boolean
         get() = session.uiState.showAddIndex
         set(value) { session.uiState.showAddIndex = value }
+
+    /**
+     * Loads `SELECT * FROM <name>` into the query editor — what tapping a
+     * collection does in the SwiftUI sidebar
+     * (`SidebarViews.collectionTreeRows`), which Android was missing: its rows
+     * only expanded to reveal indexes.
+     *
+     * Writes straight to the session-scoped [QueryWorkbenchState] rather than
+     * going through `QueryEditorViewModel`, because that view model is created
+     * per composition of the content pane and is not in scope from the list
+     * pane. The state object is the shared one both panes read, so the editor
+     * picks the text up immediately.
+     */
+    fun loadCollectionQuery(collectionName: String) {
+        session.uiState.queryWorkbench.queryText.value = "SELECT * FROM $collectionName"
+    }
     var editingSubscription: DittoSubscription?
         get() = session.uiState.editingSubscription
         set(value) { session.uiState.editingSubscription = value }
@@ -168,6 +189,25 @@ class MainStudioViewModel(
         _showDirectConnectedOnly.update { !it }
     }
 
+    // Presence-viewer controls visibility (the VS Code extension's eye toggle) —
+    // hides the legend + Direct toggle + zoom cluster; reset and the eye itself
+    // always remain. Session-scoped here so it survives rail-section navigation.
+    private val _presenceControlsVisible = MutableStateFlow(true)
+    val presenceControlsVisible: StateFlow<Boolean> = _presenceControlsVisible.asStateFlow()
+    fun togglePresenceControlsVisible() {
+        _presenceControlsVisible.update { !it }
+    }
+
+    // Presence-viewer focus mode: the focused peer id (Expanded mesh only, null
+    // when unfocused). Hoisted here (like presenceControlsVisible) because the
+    // Peers ↔ Viewer tab switch disposes the PresenceGraphView subtree —
+    // view-local state would kill an active focus session on every tab hop.
+    private val _presenceFocusedPeerId = MutableStateFlow<String?>(null)
+    val presenceFocusedPeerId: StateFlow<String?> = _presenceFocusedPeerId.asStateFlow()
+    fun setPresenceFocusedPeer(peerId: String?) {
+        _presenceFocusedPeerId.value = peerId
+    }
+
     // Snapshot views — used only for initial values of `remember { mutableStateOf(...) }`
     // inside the transport-config sheet, and for non-Compose readers (tests).
     val syncEnabled: Boolean get() = session.syncEnabled.value
@@ -176,6 +216,7 @@ class MainStudioViewModel(
     val transportLanEnabled: Boolean get() = session.transportLanEnabled.value
     val transportWifiAwareEnabled: Boolean get() = session.transportWifiAwareEnabled.value
     val transportCloudSyncEnabled: Boolean get() = session.transportCloudSyncEnabled.value
+    val transportMulticastConfig: MulticastConfig get() = session.transportMulticastConfig.value
 
     init {
         // Idempotent — StudioSession.hydrate is safe to invoke on first VM creation only,
@@ -236,6 +277,26 @@ class MainStudioViewModel(
     }
     fun isObserverActive(observer: DittoObservable): Boolean = session.isObserverActive(observer)
 
+    // ── Welcome screen (auto-show on fresh databases) ────────────────────────
+    val welcomeCandidateFlow: StateFlow<Boolean> get() = session.welcomeCandidate
+
+    // ── system:metrics dashboard (SDK 5.1) ───────────────────────────────────
+    val systemMetrics: StateFlow<com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot>
+        get() = session.systemMetrics
+    fun startSystemMetricsPolling() = session.startSystemMetricsPolling()
+    fun stopSystemMetricsPolling() = session.stopSystemMetricsPolling()
+    fun refreshSystemMetricsNow() = session.refreshSystemMetricsNow()
+
+    /** Pinned system-metrics series for the open database, in pin order. */
+    val systemMetricPins: StateFlow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>>
+        get() = session.systemMetricPins
+
+    fun setSystemMetricPins(
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) = session.setSystemMetricPins(pins)
+
+    fun consumeWelcomeTrigger(): Boolean = session.consumeWelcomeTrigger()
+
     fun selectObserver(observer: DittoObservable) {
         selectedObserver = observer
         selectedEvent = null
@@ -247,10 +308,11 @@ class MainStudioViewModel(
         selectedEvent = event
     }
 
-    fun selectedObserverEvents(): List<DittoObserveEvent> {
-        val obsId = selectedObserver?.id ?: return emptyList()
-        return session.observerEventsFor(obsId)
-    }
+    // NOTE: deliberately no `selectedObserverEvents()` helper here. One existed and read
+    // `session.observerEventsFor(id)`, i.e. `_observerEvents.value` — a plain StateFlow
+    // field read, which Compose's snapshot system cannot observe. Callers looked correct
+    // and silently never recomposed when events arrived. Collect [observerEvents] in the
+    // composable and filter by the selected observer's id instead (see ObserverEventsSection).
 
     /**
      * Creates an index. Returns null on success or the error message on failure;
@@ -263,8 +325,13 @@ class MainStudioViewModel(
             onFailure = { it.message ?: "Failed to create index" },
         )
 
-    fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
-        session.applyTransportSettings(bt, lan, wifiAware)
+    fun applyTransportSettings(
+        bt: Boolean,
+        lan: Boolean,
+        wifiAware: Boolean,
+        multicast: MulticastConfig = session.transportMulticastConfig.value,
+    ) {
+        session.applyTransportSettings(bt, lan, wifiAware, multicast)
         transportConfigVisible = false
     }
 

@@ -537,7 +537,7 @@ struct QueryServiceTests {
 
 // MARK: - Integration Test Stubs
 
-// TODO: Add full HTTP response parsing tests to EdgeStudioIntegrationTests:
+// Note: full HTTP response parsing tests belong in EdgeStudioIntegrationTests:
 //
 // class QueryServiceIntegrationTests: XCTestCase {
 //     /// Test executeSelectedAppQueryHttp with mock URLProtocol

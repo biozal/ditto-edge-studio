@@ -153,15 +153,4 @@ Upgraded to **Ditto SDK 5.1** on both platforms.
 
 ---
 
-## .NET / Avalonia — archived
-
-Initial attachments support landed before the platform was archived (attachment
-viewer, Add Attachment context menu, Delete Attachment dialog).
-
-**The `dotnet/` Avalonia implementation is no longer maintained.** The Ditto
-Visual Studio Code extension and JetBrains IDE plugin replace it for the .NET
-community. The tree remains in git history for reference only.
-
----
-
 **Full Changelog**: `v1.0b4...v1.0b5`

@@ -78,13 +78,11 @@ struct ProfileViewerView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Picker("View mode", selection: $planMode) {
-                        ForEach(PlanMode.allCases, id: \.self) { mode in
-                            Label(mode.rawValue, systemImage: mode.icon).tag(mode)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    DittoSegmentedPicker(
+                        options: PlanMode.allCases,
+                        selection: $planMode,
+                        label: { Label($0.rawValue, systemImage: $0.icon).font(.caption.weight(.medium)) }
+                    )
                     .frame(width: 170)
                 }
 

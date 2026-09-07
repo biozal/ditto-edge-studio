@@ -25,41 +25,97 @@ class NetworkLayoutEngine {
     private let baseRadius: CGFloat = 123.75 // Ring 1 radius (220 * 0.75 * 0.75)
     private let radiusIncrement: CGFloat = 101.25 // Additional radius per ring (180 * 0.75 * 0.75)
     private let minAngularSeparation: CGFloat = 15.0 * .pi / 180.0 // 15° in radians
+    private let peerDiameter: CGFloat = 60 // Minimum center-to-center footprint per peer when sizing a ring up
+    private let peerSpacing: CGFloat = 20 // Gap between adjacent peers when sizing a ring up
+
+    /// Conservative center-to-center footprint used only when expanded (full-mesh)
+    /// mode packs a BFS layer across multiple visual rings. Pills have variable
+    /// widths, so this intentionally errs on the side of fewer peers per ring.
+    private let expandedNodeFootprint: CGFloat = 200
+
+    /// Runaway guard on the ring-packing loop. Ring capacity grows with radius, so
+    /// ~11 rings already seat over 500 peers — far past the 120-node mesh this view
+    /// is built for.
+    private let maxVisualRings = 32
 
     // MARK: - Public Methods
 
-    /// Calculate layout positions for all peers using BFS ring assignment
+    /// Calculate layout positions for all peers using BFS ring assignment.
+    ///
+    /// `allPeers` must include the local peer; disconnected peers (no BFS path from
+    /// local) are placed in the outermost ring rather than dropped. Edges in
+    /// `connections` are treated as undirected.
+    ///
+    /// `radiusScale` (default 1) multiplies the base ring radius and the per-ring
+    /// increment. The scene passes `EXPANDED_RADIUS_SCALE` (1.75) when "Direct
+    /// Connected only" is OFF to spread peers wider. Expanded mode also packs the mesh
+    /// into as many balanced concentric visual rings as it needs, in hop order so
+    /// direct peers stay closest to the local peer — see `packBfsRings` for why the
+    /// per-BFS-layer packing this used to do had to go. The crowding-based
+    /// minimum-circumference floor is intentionally NOT scaled (pill sizes don't
+    /// change), so very small meshes don't drift apart for no reason.
+    ///
+    /// `peerFootprints` carries renderer-measured pill widths (same coordinate
+    /// space as the layout) so long pills aren't packed too tightly; peers without
+    /// a measurement fall back to `expandedNodeFootprint`/`peerDiameter`.
+    ///
+    /// Kept in lockstep with the VS Code extension's `src/presence/
+    /// NetworkLayoutEngine.ts` so the visual output matches across clients.
+    ///
     /// - Parameters:
     ///   - localPeerKey: The local peer's key (center of diagram)
-    ///   - allPeers: Dictionary of all peer nodes
+    ///   - allPeers: All peer keys to place (must include `localPeerKey`)
     ///   - connections: Array of connection lines
+    ///   - radiusScale: Ring spread multiplier; > 1 enables expanded-mode packing
+    ///   - peerFootprints: Optional measured pill widths per peer key
     /// - Returns: Layout result with positions and ring assignments
     func calculateLayout(
         localPeerKey: String,
-        allPeers: [String: Any], // Can't use PeerNode here due to import issues
-        connections: [ConnectionInfo]
+        allPeers: [String],
+        connections: [ConnectionInfo],
+        radiusScale: CGFloat = 1,
+        peerFootprints: [String: CGFloat]? = nil
     ) -> LayoutResult {
         // Build adjacency graph from connections
         let adjacencyGraph = buildAdjacencyGraph(connections: connections, localPeer: localPeerKey)
 
         // Perform BFS to assign rings and record parent relationships
-        let (ringAssignments, parentMap) = performBFS(
+        var (bfsRings, parentMap) = performBFS(
             localPeer: localPeerKey,
             adjacencyGraph: adjacencyGraph,
-            allPeers: Array(allPeers.keys)
+            allPeers: allPeers
         )
 
-        // Calculate ring radii (may expand if too many peers)
-        let ringRadii = calculateRingRadii(ringAssignments: ringAssignments)
+        let expanded = radiusScale > 1
+        if expanded {
+            // Preserve the useful ring-1 chord locality before a crowded direct
+            // layer is split across multiple visual rings.
+            if let logicalRing1 = bfsRings[1], logicalRing1.count > 1 {
+                bfsRings[1] = sortRing1Peers(logicalRing1, adjacencyGraph: adjacencyGraph)
+            }
+        }
+        let ringAssignments = expanded
+            ? packBfsRings(bfsRings, radiusScale: radiusScale, peerFootprints: peerFootprints)
+            : bfsRings
 
-        // Calculate positions: ring-1 peers spread evenly in connection-aware order,
-        // ring-2+ peers placed behind their parent to avoid crossing unrelated nodes
+        // Calculate ring radii (may expand if too many peers)
+        let ringRadii = calculateRingRadii(
+            ringAssignments: ringAssignments,
+            radiusScale: radiusScale,
+            peerFootprints: peerFootprints
+        )
+
+        // Calculate positions: ring-1 peers spread evenly in connection-aware order.
+        // Compact mode anchors ring-2+ behind their BFS parent; expanded mode gives
+        // every visual ring equal angular spacing (parent anchoring would bunch
+        // siblings together again).
         let positions = calculatePositions(
             ringAssignments: ringAssignments,
             ringRadii: ringRadii,
             localPeer: localPeerKey,
             parentMap: parentMap,
-            adjacencyGraph: adjacencyGraph
+            adjacencyGraph: adjacencyGraph,
+            expanded: expanded
         )
 
         return LayoutResult(
@@ -112,10 +168,14 @@ class NetworkLayoutEngine {
         while !queue.isEmpty {
             let (currentPeer, currentRing) = queue.removeFirst()
 
-            // Get neighbors
+            // Get neighbors. Sorted for determinism: Set iteration order is
+            // per-process hash order, and without this a peer's ring/angle would
+            // vary between runs (and could differ between the direct and expanded
+            // passes of one toggle). The VS Code extension iterates JS Sets in
+            // insertion order; key order is the portable deterministic contract.
             guard let neighbors = adjacencyGraph[currentPeer] else { continue }
 
-            for neighbor in neighbors where !visited.contains(neighbor) {
+            for neighbor in neighbors.sorted() where !visited.contains(neighbor) {
                 visited.insert(neighbor)
                 let nextRing = currentRing + 1
 
@@ -130,30 +190,194 @@ class NetworkLayoutEngine {
 
         if !disconnectedPeers.isEmpty {
             let maxRing = ringAssignments.keys.max() ?? 0
-            ringAssignments[maxRing + 1] = Array(disconnectedPeers)
+            // Sorted — Set iteration order must not leak into ring order.
+            ringAssignments[maxRing + 1] = disconnectedPeers.sorted()
         }
 
         return (ringAssignments, parentMap)
     }
 
+    // MARK: - Private Methods - Expanded-Mode Ring Packing
+
+    /// Convert logical BFS layers into balanced visual rings for expanded (full-mesh)
+    /// mode.
+    ///
+    /// **Deliberate divergence from the VS Code extension**, which still gives every
+    /// BFS layer its own fresh visual ring ("the next BFS layer never starts until the
+    /// current layer is complete"). That reads well only when the mesh is a single wide
+    /// layer, which is what its fixtures happen to be. On a real multicast mesh, where
+    /// a handful of peers sit two or three hops out, it produces a ring holding exactly
+    /// one peer at a huge radius — a lone node dangling on a long spoke, which is what
+    /// the Android presence viewer was observed doing on device. A trailing remainder
+    /// had the same effect: 60 peers packed as 6 / 12 / 17 / 23 / **2**.
+    ///
+    /// Instead: flatten the layers in hop order (so low-hop peers still land
+    /// innermost), take the fewest rings that can hold everyone, and spread the peers
+    /// across those rings **in proportion to each ring's capacity**. Equal capacity
+    /// share means equal spacing between neighbours on every orbit, which is what makes
+    /// the rings read as balanced — outer rings legitimately hold more.
+    ///
+    /// A peer two hops out can now share a ring with direct peers. That is the intended
+    /// trade: ring index stops being a strict hop count and becomes "roughly how far
+    /// out you are", in exchange for orbits that stay balanced up to 120 nodes.
+    private func packBfsRings(
+        _ bfsRings: [Int: [String]],
+        radiusScale: CGFloat,
+        peerFootprints: [String: CGFloat]?
+    ) -> [Int: [String]] {
+        var packed: [Int: [String]] = [0: bfsRings[0] ?? []]
+
+        let ordered = bfsRings.keys.filter { $0 > 0 }.sorted().flatMap { bfsRings[$0] ?? [] }
+        guard !ordered.isEmpty else { return packed }
+
+        let capacities = expandedRingCapacities(
+            ordered,
+            radiusScale: radiusScale,
+            peerFootprints: peerFootprints
+        )
+        let counts = distributeAcrossRings(total: ordered.count, capacities: capacities)
+
+        var offset = 0
+        for (index, count) in counts.enumerated() where count > 0 {
+            packed[index + 1] = Array(ordered[offset ..< (offset + count)])
+            offset += count
+        }
+        return packed
+    }
+
+    /// Capacity of each visual ring, growing outward until the rings can hold `peers`.
+    ///
+    /// Capacity is measured against the widest pill in the whole mesh rather than the
+    /// widest still-unplaced one: the balanced packer decides every ring up front, so a
+    /// per-ring measurement would depend on an assignment that has not happened yet.
+    private func expandedRingCapacities(
+        _ peers: [String],
+        radiusScale: CGFloat,
+        peerFootprints: [String: CGFloat]?
+    ) -> [Int] {
+        var capacities: [Int] = []
+        var seated = 0
+        var ring = 1
+        while seated < peers.count, ring <= maxVisualRings {
+            let capacity = peersPerExpandedRing(
+                ring: ring,
+                radiusScale: radiusScale,
+                peers: peers,
+                peerFootprints: peerFootprints
+            )
+            capacities.append(capacity)
+            seated += capacity
+            ring += 1
+        }
+        // Capacity is always >= 1, so the loop only exits early at the ring cap. Park
+        // any overflow on the outermost ring rather than dropping peers off the graph.
+        if seated < peers.count, !capacities.isEmpty {
+            capacities[capacities.count - 1] += peers.count - seated
+        }
+        return capacities
+    }
+
+    /// Split `total` peers across rings in proportion to `capacities`, never exceeding
+    /// a ring's capacity. Largest-remainder apportionment, so the counts sum to exactly
+    /// `total` and the rounding loss lands on the rings that were closest to another
+    /// slot. Ties break on ring index so the same mesh always lays out the same way.
+    private func distributeAcrossRings(total: Int, capacities: [Int]) -> [Int] {
+        var counts = [Int](repeating: 0, count: capacities.count)
+        let capacitySum = capacities.reduce(0, +)
+        guard capacitySum > 0, total > 0 else { return counts }
+
+        let exact = capacities.map { CGFloat(total) * CGFloat($0) / CGFloat(capacitySum) }
+        for index in counts.indices {
+            counts[index] = Int(exact[index].rounded(.down))
+        }
+
+        let byRemainder = exact.indices.sorted {
+            let lhs = exact[$0] - exact[$0].rounded(.down)
+            let rhs = exact[$1] - exact[$1].rounded(.down)
+            return lhs == rhs ? $0 < $1 : lhs > rhs
+        }
+        var remaining = total - counts.reduce(0, +)
+        var progressed = true
+        while remaining > 0, progressed {
+            progressed = false
+            for index in byRemainder where remaining > 0 {
+                if counts[index] < capacities[index] {
+                    counts[index] += 1
+                    remaining -= 1
+                    progressed = true
+                }
+            }
+        }
+        return counts
+    }
+
+    /// How many peers fit on one visual ring at the given radius scale.
+    ///
+    /// Arc length is a useful first approximation, but equal-angle points are
+    /// separated by a chord — so the capacity is reduced until the shortest chord
+    /// in the ring can contain the widest pill plus its gap.
+    private func peersPerExpandedRing(
+        ring: Int,
+        radiusScale: CGFloat,
+        peers: [String],
+        peerFootprints: [String: CGFloat]?
+    ) -> Int {
+        let radius = (baseRadius + CGFloat(ring - 1) * radiusIncrement) * radiusScale
+        let widestPill = peers.reduce(CGFloat(0)) { max($0, peerFootprints?[$1] ?? 0) }
+        let footprint = max(expandedNodeFootprint, widestPill + peerSpacing)
+        var capacity = max(1, Int((2.0 * .pi * radius) / footprint))
+        while capacity > 1, 2.0 * radius * sin(.pi / CGFloat(capacity)) < footprint {
+            capacity -= 1
+        }
+        return capacity
+    }
+
     // MARK: - Private Methods - Ring Radii
 
-    /// Calculate ring radii, expanding if too many peers
-    private func calculateRingRadii(ringAssignments: [Int: [String]]) -> [Int: CGFloat] {
+    /// Calculate ring radii, expanding if too many peers.
+    ///
+    /// The crowding-based minimum-circumference floor is intentionally NOT scaled
+    /// by `radiusScale`: pill sizes are fixed, so the floor represents physical
+    /// crowding, not visual breathing room.
+    ///
+    /// The floor is chord-aware: equal-angle peers are separated by the CHORD
+    /// `2R·sin(π/n)`, which is shorter than the per-peer arc the circumference
+    /// floor assumes — at small ring counts the arc floor alone under-expands
+    /// (e.g. 4 peers × 340pt pills: arc floor ≈229, chord floor ≈255). The
+    /// extension enforces the same bound renderer-side
+    /// (`expandDirectRingForLabels`/`expandFocusedRingForLabels`); keeping it in
+    /// the engine covers every caller. Mirrored by the Android port
+    /// (`PresenceGraphLayout.calculateRingRadii`).
+    private func calculateRingRadii(
+        ringAssignments: [Int: [String]],
+        radiusScale: CGFloat,
+        peerFootprints: [String: CGFloat]?
+    ) -> [Int: CGFloat] {
         var ringRadii: [Int: CGFloat] = [:]
 
         // Ring 0 (local peer) is at center
         ringRadii[0] = 0.0
 
         for ring in ringAssignments.keys.sorted() where ring > 0 {
-            let peerCount = ringAssignments[ring]?.count ?? 0
-            let baseRadiusForRing = baseRadius + CGFloat(ring - 1) * radiusIncrement
+            let peers = ringAssignments[ring] ?? []
+            let baseRadiusForRing = (baseRadius + CGFloat(ring - 1) * radiusIncrement) * radiusScale
 
-            // Calculate minimum radius needed to avoid overlaps
-            // Assuming peer node size is ~60pt diameter
-            let peerDiameter: CGFloat = 60.0
-            let minimumCircumference = CGFloat(peerCount) * (peerDiameter + 20.0) // 20pt spacing
-            let minimumRadius = minimumCircumference / (2.0 * .pi)
+            // Minimum circumference to fit this ring's pills with spacing —
+            // measured pill widths when supplied, the 60pt default otherwise.
+            let minimumCircumference = peers.reduce(CGFloat(0)) { circumference, peer in
+                circumference + max(peerDiameter, peerFootprints?[peer] ?? 0) + peerSpacing
+            }
+            var minimumRadius = minimumCircumference / (2.0 * .pi)
+
+            // Chord floor: adjacent equal-angle peers sit `2R·sin(π/n)` apart, so
+            // the ring's widest pill (+ gap) needs R ≥ footprint / (2·sin(π/n)).
+            if peers.count > 1 {
+                let widestFootprint = peers.reduce(CGFloat(0)) { widest, peer in
+                    max(widest, max(peerDiameter, peerFootprints?[peer] ?? 0))
+                } + peerSpacing
+                let chordFloor = widestFootprint / (2.0 * sin(.pi / CGFloat(peers.count)))
+                minimumRadius = max(minimumRadius, chordFloor)
+            }
 
             // Use the larger of base radius or minimum required radius
             ringRadii[ring] = max(baseRadiusForRing, minimumRadius)
@@ -177,7 +401,8 @@ class NetworkLayoutEngine {
         ringRadii: [Int: CGFloat],
         localPeer: String,
         parentMap: [String: String],
-        adjacencyGraph: [String: Set<String>]
+        adjacencyGraph: [String: Set<String>],
+        expanded: Bool
     ) -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
 
@@ -192,12 +417,24 @@ class NetworkLayoutEngine {
                 continue
             }
 
-            if ring == 1 {
+            if expanded {
+                // Every visual ring is an independent orbit. Parent anchoring would
+                // bunch siblings together again, so expanded rings always use equal
+                // angular spacing. Ring 1 keeps its chord-locality ordering (the
+                // logical ring was sorted before packing; re-sort each packed subset
+                // so connected pairs stay adjacent within their visual ring).
+                let orderedPeers = ring == 1 ? sortRing1Peers(peers, adjacencyGraph: adjacencyGraph) : peers
+                let angles = calculateOptimalAngles(peerCount: orderedPeers.count, ringIndex: ring)
+                for (index, peerKey) in orderedPeers.enumerated() {
+                    let angle = angles[index]
+                    positions[peerKey] = CGPoint(x: radius * cos(angle), y: radius * sin(angle))
+                }
+            } else if ring == 1 {
                 // Ring 1: sort peers so directly-connected pairs land adjacent on the circle,
                 // then distribute evenly. This prevents connection chords from cutting through
                 // unrelated nodes that sit between the two endpoints.
                 let orderedPeers = sortRing1Peers(peers, adjacencyGraph: adjacencyGraph)
-                let angles = calculateOptimalAngles(peerCount: orderedPeers.count)
+                let angles = calculateOptimalAngles(peerCount: orderedPeers.count, ringIndex: ring)
                 for (index, peerKey) in orderedPeers.enumerated() {
                     let angle = angles[index]
                     positions[peerKey] = CGPoint(x: radius * cos(angle), y: radius * sin(angle))
@@ -357,10 +594,14 @@ class NetworkLayoutEngine {
     }
 
     /// Distribute `peerCount` peers evenly around a full circle, starting at the top (90°).
-    private func calculateOptimalAngles(peerCount: Int) -> [CGFloat] {
+    private func calculateOptimalAngles(peerCount: Int, ringIndex: Int) -> [CGFloat] {
         guard peerCount > 0 else { return [] }
-        let startAngle: CGFloat = .pi / 2.0
         let step: CGFloat = (2.0 * .pi) / CGFloat(peerCount)
+        // Ring 1 starts at the top (90°); each ring further out is rotated by half of
+        // its own angular step so consecutive orbits don't line their first peer up on
+        // the same radial spoke. Without the stagger every ring began at exactly 90°,
+        // drawing a seam of stacked nodes straight up from the local peer.
+        let startAngle: CGFloat = .pi / 2.0 + step * 0.5 * CGFloat(ringIndex - 1)
         return (0 ..< peerCount).map { startAngle + step * CGFloat($0) }
     }
 

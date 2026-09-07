@@ -56,6 +56,43 @@ val directConnections = peer.connections.filter { conn ->
 
 Connection endpoint field names (SDK v4/v5): `peer1` / `peer2`
 
+## Viewer Modes (Direct vs Expanded)
+
+The presence viewer has two modes, toggled by the **Direct** switch (default ON,
+`showDirectConnectedOnly`):
+
+- **Direct mode** — only peers with a direct connection to the local device (the
+  required filter above), laid out as a compact ring. Entering Direct mode
+  fit-zooms the viewport (zoom-out only, never past the user's chosen zoom level).
+- **Expanded mode** (Direct OFF) — the full mesh, including multi-hop (indirect)
+  peers. The layout spreads rings 1.75× wider and packs each crowded BFS layer
+  into multiple concentric visual rings (a later layer never starts until the
+  previous one is complete), using measured pill widths so long device names don't
+  overlap. This is the mode intended for large meshes (30+ devices).
+
+**Focus mode** (Expanded mode only): tapping a remote peer re-lays-out that peer
+at the centre with its direct neighbours on one orbit, magnifies to at least
+1.25× (never past the fit for the neighbourhood), and dims the rest of the mesh
+to a context backdrop. A top banner ("Focused on \<name\>") shows the exit button;
+focus also exits on re-tap of the focused peer, empty-canvas tap, tapping a
+dimmed context (non-orbit) peer, or a mode toggle; tapping another orbit peer
+refocuses onto it, and tapping the local peer while it's in the orbit is a
+no-op. Focus survives tab switches. In Direct mode a tap only dims (selection)
+— it never re-lays out.
+
+**Controls**: zoom spans 0.25×–2.0× magnification equivalent (SwiftUI camera
+scale 0.5–4.0; Android `Transform` scale 0.25–2.0) via pinch/scroll/buttons; the
+reset button recenters on the local peer at 100% and re-seats dragged peers (in
+focus mode it only resets the focus zoom). The eye toggle hides the legend,
+Direct toggle, and zoom cluster (reset and eye always remain; state survives
+tab switches). The SwiftUI app additionally has a background-effects toggle for
+the floating-squares layer, which also auto-pauses after 3 s idle.
+
+The engines are kept in lockstep across platforms:
+`SwiftUI/EdgeStudio/Components/PresenceViewer/NetworkLayoutEngine.swift`,
+`android/.../ui/mainstudio/presence/PresenceGraphLayout.kt`, and the VS Code
+extension's `src/presence/NetworkLayoutEngine.ts`.
+
 ## Cloud Server Exemption
 
 Peers with `isDittoServer = true` (Ditto Cloud / Big Peer) are always directly connected

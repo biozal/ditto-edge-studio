@@ -27,47 +27,6 @@ Select any record in the list to see the full DQL statement and the complete `EX
 
 ---
 
-## Prometheus Export
-
-> **macOS / iPadOS only.** Prometheus export is not available on Android.
-
-Push metrics to a **Prometheus Pushgateway** for aggregation by Prometheus and visualisation in Grafana or any compatible dashboard.
-
-### Configuration
-
-| Field | Description |
-|---|---|
-| **Pushgateway URL** | Base URL of your Pushgateway, e.g. `http://localhost:9091`. Leave blank to disable export. |
-| **Export Interval** | How often metrics are pushed automatically (minimum 10 s, default 60 s). |
-
-Tap **Apply** to save changes. The export timer restarts immediately.
-
-### Actions
-
-- **Push Now** — Sends the current metrics snapshot immediately, regardless of the timer. Useful for testing your configuration.
-- **Clear All Metrics** — Resets all in-memory metrics counters and clears the Query Metrics list. The export configuration is preserved.
-
-### Status Indicator
-
-| Colour | Meaning |
-|---|---|
-| Grey | Not configured — Pushgateway URL is empty |
-| Green | Last successful push time |
-| Red | Last push failed — error message shown |
-
-### Exported Metric Contents
-
-Metrics are pushed under the job label `edge_studio` and include information such as:
-
-- Process resource usage (e.g. resident and virtual memory, CPU time, open file descriptors)
-- Application uptime
-- Aggregate query statistics (e.g. total queries executed)
-- Query latency statistics (e.g. average and most recent query latency)
-
-The exact metric names and labels are determined by the exporter implementation and may evolve over time. Inspect the exported metrics (for example, via your Prometheus target or Pushgateway UI) to see the precise names available in your version.
-
----
-
 ## See also: Execution Profile
 
 Query Metrics records a per-query `EXPLAIN` plus latency for **every** query you run. The **Profile tab** in the Query results pane is a complementary feature — it captures the deeper `PROFILE` envelope (operator tree, per-phase timing) for the **most recent SELECT** so you can see exactly where the time went.

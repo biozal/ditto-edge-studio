@@ -100,62 +100,41 @@ struct ContentView: View {
                 storedDatabaseId = nil
             }
         }
-        // Destructive-delete gate: every delete trigger (the context menu on
-        // both platforms) only stages `appPendingDeletion` via
-        // `viewModel.deleteApp`; this dialog is the single path that actually
-        // deletes. `confirmationDialog` renders as a dialog on macOS and an
-        // action sheet on iOS, so one modifier covers both pickers.
-        .confirmationDialog(
-            "Delete \(viewModel.appPendingDeletion?.name ?? "Database")?",
-            isPresented: Binding(
-                get: { viewModel.appPendingDeletion != nil },
-                set: {
-                    if !$0 {
-                        viewModel.appPendingDeletion = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await viewModel.confirmPendingAppDeletion(appState: appState) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the local database and all its Edge Studio data. This cannot be undone.")
-        }
+        // Destructive-delete gate. Shared with DatabaseListPanel so a host that offers
+        // Delete cannot forget it — see DatabaseDeletionConfirmation.
+        .databaseDeletionConfirmation(viewModel: viewModel, appState: appState)
         #if os(macOS)
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            Task { await viewModel.startQuickstartDownload() }
-        }
-        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
-            Button("Continue Anyway") {
-                Task { await viewModel.continueDownloadWithoutConfig() }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+                Task { await viewModel.startQuickstartDownload() }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
-        }
-        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
-            Button("Replace", role: .destructive) {
-                Task { await viewModel.replaceExistingFolderAndDownload() }
+            .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
+                Button("Continue Anyway") {
+                    Task { await viewModel.continueDownloadWithoutConfig() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
             }
-            Button("Choose Different Location") {
-                Task { await viewModel.chooseDifferentLocationAndDownload() }
+            .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
+                Button("Replace", role: .destructive) {
+                    Task { await viewModel.replaceExistingFolderAndDownload() }
+                }
+                Button("Choose Different Location") {
+                    Task { await viewModel.chooseDifferentLocationAndDownload() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
-        }
-        .sheet(isPresented: $viewModel.showProgressSheet) {
-            QuickstartProgressWindow(
-                service: viewModel.quickstartService,
-                onCancel: { viewModel.showProgressSheet = false }
-            )
-            // Lock the sheet during an in-flight download, but allow dismissal
-            // when an error has been surfaced so the user can recover.
-            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
-        }
+            .sheet(isPresented: $viewModel.showProgressSheet) {
+                QuickstartProgressWindow(
+                    service: viewModel.quickstartService,
+                    onCancel: { viewModel.showProgressSheet = false }
+                )
+                // Lock the sheet during an in-flight download, but allow dismissal
+                // when an error has been surfaced so the user can recover.
+                .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
+            }
         #endif
     }
 
@@ -357,7 +336,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    .frame(minWidth: 360, minHeight: 420)
+                #if os(macOS)
+                    .frame(minWidth: 620, minHeight: 800)
+                #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -397,6 +378,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
+                    #if os(macOS)
+                        .frame(minWidth: 620, minHeight: 800)
+                    #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -690,14 +674,20 @@ extension ContentView {
         }
 
         /// Performs the actual deletion after explicit user confirmation.
-        /// No-op when nothing is staged.
-        func confirmPendingAppDeletion(appState: AppState) async {
-            guard let dittoApp = appPendingDeletion else { return }
+        ///
+        /// Takes the configuration explicitly rather than re-reading
+        /// `appPendingDeletion`. Dismissing the confirmation dialog clears that staged
+        /// value, and the dismissal runs *before* this action's `Task` does — so the
+        /// previous `guard let … else { return }` form returned silently every time,
+        /// making Delete a no-op that left nothing in the logs to explain itself.
+        func confirmAppDeletion(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
             appPendingDeletion = nil
+            Log.info("Deleting database configuration '\(dittoApp.name)' (confirmed)")
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
             } catch {
+                Log.error("Delete failed for '\(dittoApp.name)': \(error.localizedDescription)")
                 appState.setError(error)
             }
         }

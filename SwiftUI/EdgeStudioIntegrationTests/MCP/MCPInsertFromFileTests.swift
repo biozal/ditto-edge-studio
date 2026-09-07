@@ -11,7 +11,6 @@ import Testing
 /// All tests are serialized because only one server can run at a time.
 @Suite("MCP Insert From File Tests", .serialized, .tags(.mcp, .mcpTools))
 struct MCPInsertFromFileTests {
-
     // MARK: - Argument Validation (no database, no file)
 
     @Test("Missing file_path returns missing argument error", .tags(.mcp, .mcpTools, .fast))

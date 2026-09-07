@@ -10,7 +10,7 @@ extension MainStudioView {
                 queryTabInspectorView()
             case .observers:
                 observeDetailInspectorView()
-            case .appMetrics, .queryMetrics:
+            case .appMetrics, .queryMetrics, .systemMetrics:
                 metricsInspectorView()
             case .logging:
                 loggingInspectorView()
@@ -51,16 +51,18 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.queryVM.selectedQueryInspectorMenuItem) {
-                    ForEach(viewModel.queryVM.queryInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(ControlSize.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
+                DittoSegmentedPicker(
+                    options: viewModel.queryVM.queryInspectorMenuItems,
+                    selection: $viewModel.queryVM.selectedQueryInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
+                )
                 .accessibilityIdentifier("InspectorSegmentedPicker")
                 Spacer()
             }
@@ -101,16 +103,18 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem) {
-                    ForEach(viewModel.subObsVM.observeInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
+                DittoSegmentedPicker(
+                    options: viewModel.subObsVM.observeInspectorMenuItems,
+                    selection: $viewModel.subObsVM.selectedObserveInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
+                )
                 .accessibilityIdentifier("ObserveInspectorSegmentedPicker")
                 Spacer()
             }
@@ -145,16 +149,18 @@ extension MainStudioView {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Picker("", selection: $viewModel.selectedMetricsInspectorMenuItem) {
-                    ForEach(viewModel.metricsInspectorMenuItems) { item in
-                        item.image
-                            .tag(item)
-                            .font(.system(size: 20))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.extraLarge)
-                .labelsHidden()
+                // Icon-only navigation picker, sized to read like Xcode's own
+                // inspector segmented control: a small symbol on a compact row,
+                // not the oversized one the `.controlSize(.extraLarge)` native
+                // picker used to imply. The SF Symbol inherits both the size set
+                // here and the selected foreground style, the way a text segment
+                // would — `MenuItem.image` deliberately sets no font of its own.
+                DittoSegmentedPicker(
+                    options: viewModel.metricsInspectorMenuItems,
+                    selection: $viewModel.selectedMetricsInspectorMenuItem,
+                    label: { $0.image.font(.system(size: 14)) },
+                    verticalPadding: 5
+                )
                 .accessibilityIdentifier("MetricsInspectorSegmentedPicker")
                 Spacer()
             }
@@ -165,17 +171,16 @@ extension MainStudioView {
 
             if viewModel.selectedMetricsInspectorMenuItem.name == "Docs" {
                 metricsDocsInspectorContent()
-            } else {
-                metricsExportInspectorContent()
             }
-        }
-        .task {
-            await loadMetricsExportSettings()
         }
     }
 
     private func metricsDocsInspectorContent() -> some View {
-        let resourceName = viewModel.selectedSidebarDestination == .appMetrics ? "appmetrics" : "querymetrics"
+        let resourceName = switch viewModel.selectedSidebarDestination {
+        case .appMetrics: "appmetrics"
+        case .systemMetrics: "systemmetrics"
+        default: "querymetrics"
+        }
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Metrics Help").font(.headline)
@@ -185,143 +190,6 @@ extension MainStudioView {
             .padding(.top)
             HelpContentView(markdownContent: loadMarkdown(named: resourceName))
         }
-    }
-
-    private func metricsExportInspectorContent() -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Export Section
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Prometheus Export", systemImage: "arrow.up.to.line")
-                        .font(.headline)
-
-                    Text("Pushgateway URL")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("http://localhost:9091 (optional)", text: $viewModel.metricsPrometheusURLText)
-                    #if os(macOS)
-                        .textFieldStyle(.roundedBorder)
-                    #endif
-                        .autocorrectionDisabled()
-
-                    HStack {
-                        Text("Export interval:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("60", text: $viewModel.metricsPrometheusIntervalText)
-                        #if os(macOS)
-                            .textFieldStyle(.roundedBorder)
-                        #endif
-                            .frame(width: 60)
-                        Text("seconds")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-
-                    Button("Apply") {
-                        Task { await applyMetricsExportSettings() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-
-                Divider()
-
-                // Status Section
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Export Status", systemImage: "antenna.radiowaves.left.and.right")
-                        .font(.headline)
-
-                    if viewModel.metricsPrometheusStatusMessage.isEmpty {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.secondary.opacity(0.5))
-                                .frame(width: 8, height: 8)
-                            Text("Not configured")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(viewModel.metricsPrometheusStatusMessage.hasPrefix("Error") ? Color.red : Color.green)
-                                .frame(width: 8, height: 8)
-                            Text(viewModel.metricsPrometheusStatusMessage)
-                                .font(.caption)
-                                .foregroundStyle(viewModel.metricsPrometheusStatusMessage.hasPrefix("Error") ? .red : .primary)
-                        }
-                    }
-                }
-
-                Divider()
-
-                // Actions Section
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Actions", systemImage: "bolt")
-                        .font(.headline)
-
-                    Button {
-                        Task { await pushMetricsNow() }
-                    } label: {
-                        Label("Push Now", systemImage: "arrow.up.circle")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.metricsPrometheusIsConfigured)
-
-                    Button {
-                        Task { await clearAllMetrics() }
-                    } label: {
-                        Label("Clear All Metrics", systemImage: "trash")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundStyle(.red)
-                }
-            }
-            .padding()
-        }
-    }
-
-    private func loadMetricsExportSettings() async {
-        let url = await PrometheusExportBackend.shared.pushgatewayURL
-        let interval = await PrometheusExportBackend.shared.exportIntervalSeconds
-        let lastPush = await PrometheusExportBackend.shared.lastPushDate
-        let lastError = await PrometheusExportBackend.shared.lastPushError
-
-        viewModel.metricsPrometheusURLText = url?.absoluteString ?? ""
-        viewModel.metricsPrometheusIntervalText = "\(interval)"
-        viewModel.metricsPrometheusIsConfigured = url != nil
-
-        if let error = lastError {
-            viewModel.metricsPrometheusStatusMessage = "Error: \(error)"
-        } else if let date = lastPush {
-            let elapsed = Int(Date.now.timeIntervalSince(date))
-            viewModel.metricsPrometheusStatusMessage = "Last push: \(elapsed)s ago"
-        } else if url != nil {
-            viewModel.metricsPrometheusStatusMessage = "Configured — awaiting first push"
-        } else {
-            viewModel.metricsPrometheusStatusMessage = ""
-        }
-    }
-
-    private func applyMetricsExportSettings() async {
-        let trimmed = viewModel.metricsPrometheusURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = trimmed.isEmpty ? nil : URL(string: trimmed)
-        let interval = Int(viewModel.metricsPrometheusIntervalText) ?? 60
-        await PrometheusExportBackend.shared.configure(url: url, intervalSeconds: interval)
-        await loadMetricsExportSettings()
-    }
-
-    private func pushMetricsNow() async {
-        await PrometheusExportBackend.shared.pushNow()
-        await loadMetricsExportSettings()
-    }
-
-    private func clearAllMetrics() async {
-        await InMemoryMetricsStore.shared.reset()
-        await QueryMetricsRepository.shared.clearRecords()
-        await loadMetricsExportSettings()
     }
 
     // MARK: - Help Content

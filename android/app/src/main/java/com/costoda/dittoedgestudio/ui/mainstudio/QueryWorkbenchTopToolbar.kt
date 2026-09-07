@@ -20,6 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +61,13 @@ fun QueryWorkbenchTopToolbar(
     onCaptureProfilingDataChange: (Boolean) -> Unit,
     onCaptureQueryMetricsChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    // SwiftUI parity: JSON data import + DQL statement templates + results export.
+    onImportJson: (() -> Unit)? = null,
+    onGenerateStatement: ((com.costoda.dittoedgestudio.domain.model.DqlStatementKind) -> Unit)? = null,
+    // ADVISE (SDK 5.1): non-null enables the entry; `adviseEnabled` reflects
+    // "editor holds a SELECT" (ADVISE advises SELECTs only).
+    onAdvise: (() -> Unit)? = null,
+    adviseEnabled: Boolean = false,
 ) {
     var targetMenuExpanded by remember { mutableStateOf(false) }
     var optionsExpanded by remember { mutableStateOf(false) }
@@ -168,7 +176,9 @@ fun QueryWorkbenchTopToolbar(
                 // auto-opens the Metrics inspector tab — handled by the ViewModel).
                 DropdownMenuItem(
                     text = { Text("Run EXPLAIN") },
-                    enabled = !isExecuting && queryText.isNotBlank(),
+                    // `EXPLAIN ADVISE …` is not valid syntax (extension parity).
+                    enabled = !isExecuting && queryText.isNotBlank() &&
+                        !com.costoda.dittoedgestudio.domain.model.DqlStatements.isAdviseStatement(queryText),
                     onClick = {
                         optionsExpanded = false
                         keyboardController?.hide()
@@ -176,6 +186,18 @@ fun QueryWorkbenchTopToolbar(
                     },
                     modifier = Modifier.testTag("QueryOptions.RunExplain"),
                 )
+                if (onAdvise != null) {
+                    DropdownMenuItem(
+                        text = { Text("Run ADVISE") },
+                        enabled = adviseEnabled && !isExecuting,
+                        onClick = {
+                            optionsExpanded = false
+                            keyboardController?.hide()
+                            onAdvise()
+                        },
+                        modifier = Modifier.testTag("QueryOptions.RunAdvise"),
+                    )
+                }
                 // This switch writes the same DataStore pref as Settings →
                 // "Collect Metrics" — keep the label identical so users can
                 // recognize it as the same setting.
@@ -190,6 +212,35 @@ fun QueryWorkbenchTopToolbar(
                         )
                     },
                 )
+                // DQL generator (SwiftUI "Generate SELECT/INSERT/…" parity).
+                if (onGenerateStatement != null) {
+                    HorizontalDivider()
+                    com.costoda.dittoedgestudio.domain.model.DqlStatementKind.entries.forEach { kind ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Generate ${kind.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                                )
+                            },
+                            onClick = {
+                                optionsExpanded = false
+                                onGenerateStatement(kind)
+                            },
+                            modifier = Modifier.testTag("QueryOptions.Generate${kind.name}"),
+                        )
+                    }
+                }
+                if (onImportJson != null) {
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Import JSON data…") },
+                        onClick = {
+                            optionsExpanded = false
+                            onImportJson()
+                        },
+                        modifier = Modifier.testTag("QueryOptions.ImportJson"),
+                    )
+                }
                 // Per-query capture is gated on Collect Metrics in the VM — a live
                 // switch here would silently no-op while Collect Metrics is off, so
                 // disable it to make the dependency visible.

@@ -47,8 +47,11 @@ object QrCodeEncoder {
                 id = "",
                 name = database.name,
                 databaseId = database.databaseId,
-                token = database.token,
-                authUrl = database.authUrl,
+                // Emit the SDK-5 spellings. SwiftUI's decoder accepts both
+                // these and the pre-5 names, and this decoder now does too, so
+                // codes stay readable in both directions.
+                developmentToken = database.token,
+                url = database.authUrl,
                 websocketUrl = database.websocketUrl,
                 httpApiUrl = database.httpApiUrl,
                 httpApiKey = database.httpApiKey,
@@ -59,6 +62,10 @@ object QrCodeEncoder {
                 isLanEnabled = database.isLanEnabled,
                 isAwdlEnabled = database.isAwdlEnabled,
                 isCloudSyncEnabled = database.isCloudSyncEnabled,
+                isMulticastEnabled = database.isMulticastEnabled,
+                multicastGroupAddress = database.multicastGroupAddress,
+                multicastPort = database.multicastPort,
+                multicastInterfaceName = database.multicastInterfaceName,
                 logLevel = database.logLevel,
                 isStrictModeEnabled = database.isStrictModeEnabled,
             ),
@@ -83,7 +90,8 @@ object QrCodeEncoder {
         }
     }
 
-    private fun renderQrBitmap(content: String): Bitmap? {
+    /** Renders any payload string (EDS2 configs, EDS_SUBS1 subscriptions, …) as a QR bitmap. */
+    fun renderQrBitmap(content: String): Bitmap? {
         return try {
             val hints = mapOf(
                 EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,

@@ -5,6 +5,7 @@ import android.util.Log
 import com.costoda.dittoedgestudio.BuildConfig
 import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.QrCodePayload
 import com.costoda.dittoedgestudio.domain.model.QrConfigPayload
 import kotlinx.serialization.json.Json
@@ -14,6 +15,7 @@ import java.io.InputStream
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 import java.util.zip.ZipException
+import kotlinx.serialization.ExperimentalSerializationApi
 
 private const val TAG = "QrCodeDecoder"
 
@@ -29,9 +31,14 @@ internal class QrPayloadTooLargeException(message: String) : Exception(message)
 
 object QrCodeDecoder {
 
+    @OptIn(ExperimentalSerializationApi::class)
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
+        // Required for the `@JsonNames` aliases on `QrConfigPayload` that let
+        // SDK-5 (`developmentToken` / `url`) and pre-5 (`token` / `authUrl`)
+        // payloads both decode.
+        useAlternativeNames = true
     }
 
     /**
@@ -131,6 +138,19 @@ object QrCodeDecoder {
         // downstream require() at save/open time.
         require(name.isNotBlank()) { "QR config is missing a database name" }
         require(databaseId.isNotBlank()) { "QR config is missing a databaseId" }
+        // Multicast validation at the decode boundary (the UI path enforces the
+        // same rules via MulticastConfig): the group address must be class-D
+        // (224-239) and the port in 1..65535. DittoManager coerces the port with
+        // toUShort() — 0 becomes the SDK's broken "any port" sentinel and 70000
+        // silently truncates to 4464 — so an invalid QR must never reach
+        // Room/the SDK. Sanitize deterministically and UNCONDITIONALLY — garbage
+        // in a disabled config would otherwise persist and be applied into the
+        // disabled multicastBeta block. The enabled flag only flips off when the
+        // config was enabled AND invalid. The group address is trimmed here too:
+        // isValidGroupAddress trims before validating, so the stored value must
+        // be the trimmed one or a padded address would validate but persist dirty.
+        val multicastInvalid =
+            !MulticastConfig.isValidGroupAddress(multicastGroupAddress) || multicastPort !in 1..65535
         return DittoDatabase(
             name = name,
             databaseId = databaseId,
@@ -146,6 +166,14 @@ object QrCodeDecoder {
             isLanEnabled = isLanEnabled,
             isAwdlEnabled = isAwdlEnabled,
             isCloudSyncEnabled = isCloudSyncEnabled,
+            isMulticastEnabled = isMulticastEnabled && !multicastInvalid,
+            multicastGroupAddress = if (multicastInvalid) {
+                MulticastConfig.DEFAULT_GROUP_ADDRESS
+            } else {
+                multicastGroupAddress.trim()
+            },
+            multicastPort = if (multicastInvalid) MulticastConfig.DEFAULT_PORT else multicastPort,
+            multicastInterfaceName = if (multicastInvalid) null else multicastInterfaceName,
             logLevel = logLevel,
             isStrictModeEnabled = isStrictModeEnabled,
         )

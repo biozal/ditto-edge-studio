@@ -28,6 +28,10 @@ All cards sum to the total Ditto data directory size shown at the top.
 
 ---
 
+> **System Metrics moved.** Ditto's `system:metrics` counters (SDK 5.1) now have their own **System Metrics** item in the navigation menu, with per-metric details, pinning, and search. See its help page for details.
+
+---
+
 ## Per-Collection Breakdown
 
 One card appears per user collection, sorted largest-first by estimated document payload size. Each card shows the collection name, estimated size, and document count.

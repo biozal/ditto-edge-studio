@@ -24,10 +24,34 @@ data class MeshTopology(
     }
 }
 
-/** Minimal projection of a peer in the raw mesh — only what the graph view needs. */
+/**
+ * Projection of a peer in the raw mesh.
+ *
+ * Everything here comes from `DittoPeer` and is therefore available for **indirect**
+ * peers too — peers the local device has no connection to. The sync fields
+ * (`synced_up_to_local_commit_id`, `last_update_received_time`) deliberately do NOT
+ * live here: they come from `system:data_sync_info`, a local table computed from where
+ * this device actually receives data, so it has no rows for indirect peers at all. The
+ * presence viewer joins those in separately for the peers that have them.
+ *
+ * [os], [dittoSdkVersion] and [isCompatible] are nullable because the SDK learns them
+ * gradually — a peer can appear in the graph before they are known.
+ */
 data class MeshPeer(
     val peerKey: String,
     val deviceName: String?,
+    val os: PeerOS = PeerOS.Unknown,
+    val dittoSdkVersion: String? = null,
+    /** Whether THIS peer has a Ditto Cloud link — true even for peers we can't reach. */
+    val isConnectedToDittoServer: Boolean = false,
+    val isCompatible: Boolean? = null,
+    /** Raw peer metadata JSON, or null when empty. Capped at 4 KB by the SDK. */
+    val peerMetadata: String? = null,
+    /** Top-level key count of [peerMetadata] — the card shows a badge, not the blob. */
+    val peerMetadataKeyCount: Int = 0,
+    /** Raw identity-service metadata JSON (set by the auth webhook), or null when empty. */
+    val identityServiceMetadata: String? = null,
+    val identityServiceMetadataKeyCount: Int = 0,
 )
 
 /**

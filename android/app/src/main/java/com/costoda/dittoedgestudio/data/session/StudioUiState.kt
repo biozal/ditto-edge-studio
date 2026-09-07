@@ -45,6 +45,12 @@ class StudioUiState {
     var transportConfigVisible by mutableStateOf(false)
     var showAddIndex by mutableStateOf(false)
 
+    /** Subscriptions share-QR dialog (set by list pane, hosted by Presence content). */
+    var showSubscriptionsQr by mutableStateOf(false)
+
+    /** Import-subscriptions-from-server sheet (set by list pane, hosted by Presence content). */
+    var showImportSubscriptionsFromServer by mutableStateOf(false)
+
     /**
      * Inspector visibility. Null until the scaffold initializes it from the window size class
      * default on first composition.
@@ -85,6 +91,9 @@ class QueryWorkbenchState {
     val queryMetrics = MutableStateFlow<QueryMetrics?>(null)
     val queryProfile = MutableStateFlow<QueryProfile?>(null)
     val isFavorited = MutableStateFlow(false)
+
+    /** Advice from the most recent `ADVISE` run (SDK 5.1), cleared on new executions. */
+    val queryAdvice = MutableStateFlow<com.costoda.dittoedgestudio.domain.model.QueryAdvice?>(null)
 
     /** Picker selection — "Local" or "HTTP". Survives rail-section switches. */
     val executeMode: MutableStateFlow<String> = MutableStateFlow("Local")

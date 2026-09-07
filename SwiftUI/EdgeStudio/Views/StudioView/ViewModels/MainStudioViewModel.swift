@@ -100,12 +100,6 @@ extension MainStudioView {
         var metricsInspectorMenuItems: [MenuItem] = []
         var selectedMetricsInspectorMenuItem: MenuItem
 
-        // Metrics Inspector – Prometheus export form state (ephemeral UI)
-        var metricsPrometheusURLText = ""
-        var metricsPrometheusIntervalText = "60"
-        var metricsPrometheusStatusMessage = ""
-        var metricsPrometheusIsConfigured = false
-
         // MARK: - Load Task
 
         /// Tracks the structured-concurrency task that loads initial data so
@@ -169,10 +163,7 @@ extension MainStudioView {
 
             // Metrics Inspector toolbar
             let metricsDocsItem = MenuItem(id: 11, name: "Docs", systemIcon: "book.closed")
-            metricsInspectorMenuItems = [
-                metricsDocsItem,
-                MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
-            ]
+            metricsInspectorMenuItems = [metricsDocsItem]
             selectedMetricsInspectorMenuItem = metricsDocsItem
         }
 
@@ -293,6 +284,11 @@ extension MainStudioView {
                     selectedSidebarDestination = .subscriptions
                 }
 
+                // macOS only: the Welcome window is a `WindowGroup` declared
+                // inside the app's `#if os(macOS)` scene block, and iPadOS has
+                // no separate-window presentation for it. Posting regardless
+                // asked SwiftUI to open a scene that does not exist there.
+                #if os(macOS)
                 let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
                 // Never auto-open the welcome window under UI tests — it spawns a
                 // second window that steals focus and blocks element queries.
@@ -309,6 +305,7 @@ extension MainStudioView {
                         )
                     }
                 }
+                #endif
             }
         }
 

@@ -11,14 +11,14 @@ struct LogFileParserTests {
     }
 
     @Test("JSONL with fractional seconds parses to correct Date")
-    func jsonlWithFractionalSeconds() {
+    func jsonlWithFractionalSeconds() throws {
         let line = jsonlLine(timestamp: "2026-02-27T13:42:00.123Z")
         let entries = LogFileParser.parseJSONLString(line, source: .dittoSDK)
 
         #expect(entries.count == 1)
         let entry = entries[0]
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: entry.timestamp)
         #expect(components.year == 2026)
         #expect(components.month == 2)
@@ -29,7 +29,7 @@ struct LogFileParserTests {
     }
 
     @Test("JSONL without fractional seconds parses to correct Date (not Date())")
-    func jsonlWithoutFractionalSeconds() {
+    func jsonlWithoutFractionalSeconds() throws {
         let line = jsonlLine(timestamp: "2026-02-27T13:42:00Z")
         let before = Date()
         let entries = LogFileParser.parseJSONLString(line, source: .dittoSDK)
@@ -41,7 +41,7 @@ struct LogFileParserTests {
         #expect(ts < before || ts > after, "timestamp should not equal Date() — fallback must not have fired")
 
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: ts)
         #expect(components.year == 2026)
         #expect(components.month == 2)
@@ -51,14 +51,14 @@ struct LogFileParserTests {
     }
 
     @Test("JSONL with positive UTC offset parses to correct UTC Date")
-    func jsonlWithPositiveOffset() {
+    func jsonlWithPositiveOffset() throws {
         // 13:42:00+05:30 == 08:12:00 UTC
         let line = jsonlLine(timestamp: "2026-02-27T13:42:00+05:30")
         let entries = LogFileParser.parseJSONLString(line, source: .dittoSDK)
 
         #expect(entries.count == 1)
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: entries[0].timestamp)
         #expect(components.year == 2026)
         #expect(components.month == 2)
@@ -68,7 +68,7 @@ struct LogFileParserTests {
     }
 
     @Test("CocoaLumberjack line with slash separators and UTC time parses to correct Date")
-    func cocoaLumberjackSlashFormat() {
+    func cocoaLumberjackSlashFormat() throws {
         // CL format: yyyy/MM/dd HH:mm:ss:SSS LEVEL [file:line]  Message
         let line = "2026/02/27 08:15:30:456 INFO [AppDelegate.swift:42]  App launched"
         let entries = parseCLInlineString(line)
@@ -76,7 +76,7 @@ struct LogFileParserTests {
         #expect(entries.count == 1)
         let entry = entries[0]
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: entry.timestamp)
         #expect(components.year == 2026)
         #expect(components.month == 2)

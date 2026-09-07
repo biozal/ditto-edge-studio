@@ -52,6 +52,7 @@ struct DittoManagerTransportFlagsTests {
     func `UI testing forces every peer-to-peer transport off regardless of config`() {
         // ARRANGE — a config with everything enabled.
         let config = makeConfig(bluetoothLE: true, lan: true, awdl: true)
+        config.isMulticastEnabled = true
 
         // ACT
         let flags = DittoManager.transportFlags(for: config, isUITesting: true)
@@ -60,6 +61,7 @@ struct DittoManagerTransportFlagsTests {
         #expect(flags.bluetoothLE == false)
         #expect(flags.lan == false)
         #expect(flags.awdl == false)
+        #expect(flags.multicast == false)
     }
 
     /// Outside UI tests the user's choices must pass through untouched — the gate must not
@@ -68,6 +70,7 @@ struct DittoManagerTransportFlagsTests {
     func `outside UI testing the stored config passes through unchanged`() {
         // ARRANGE
         let config = makeConfig(bluetoothLE: true, lan: false, awdl: true)
+        config.isMulticastEnabled = true
 
         // ACT
         let flags = DittoManager.transportFlags(for: config, isUITesting: false)
@@ -76,6 +79,21 @@ struct DittoManagerTransportFlagsTests {
         #expect(flags.bluetoothLE)
         #expect(flags.lan == false)
         #expect(flags.awdl)
+        #expect(flags.multicast)
+    }
+
+    /// Multicast defaults to OFF (beta, same-segment requirement) — a config that
+    /// never opted in must not have the transport enabled by default.
+    @Test(.tags(.service, .fast))
+    func `multicast is disabled by default`() {
+        // ARRANGE — note: no explicit isMulticastEnabled assignment.
+        let config = makeConfig()
+
+        // ACT
+        let flags = DittoManager.transportFlags(for: config, isUITesting: false)
+
+        // ASSERT
+        #expect(flags.multicast == false)
     }
 
     /// A disabled transport stays disabled in production. Guards against a future

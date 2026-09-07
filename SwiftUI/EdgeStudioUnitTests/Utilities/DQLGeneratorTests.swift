@@ -15,12 +15,10 @@ import Testing
 /// Target: 90% code coverage for DQLGenerator.
 @Suite("DQL Generator Tests")
 struct DQLGeneratorTests {
-
     // MARK: - SELECT Tests
 
     @Suite("SELECT Statements")
     struct SelectTests {
-
         @Test("generateSelectAll produces SELECT * FROM collection", .tags(.utility, .fast))
         func testGenerateSelectAll() {
             // ARRANGE
@@ -91,7 +89,6 @@ struct DQLGeneratorTests {
 
     @Suite("INSERT Statements")
     struct InsertTests {
-
         @Test("generateInsert with single field produces correct INSERT", .tags(.utility, .fast))
         func testGenerateInsertSingleField() {
             // ACT
@@ -202,7 +199,6 @@ struct DQLGeneratorTests {
 
     @Suite("UPDATE Statements")
     struct UpdateTests {
-
         @Test("generateUpdate excludes _id from SET clause", .tags(.utility, .fast))
         func testGenerateUpdateExcludesId() {
             // ACT
@@ -297,7 +293,6 @@ struct DQLGeneratorTests {
 
     @Suite("DELETE Statements")
     struct DeleteTests {
-
         @Test("generateDelete produces correct DELETE statement", .tags(.utility, .fast))
         func testGenerateDelete() {
             // ACT
@@ -339,7 +334,6 @@ struct DQLGeneratorTests {
 
     @Suite("EVICT Statements")
     struct EvictTests {
-
         @Test("generateEvict produces correct EVICT statement", .tags(.utility, .fast))
         func testGenerateEvict() {
             // ACT
@@ -379,7 +373,6 @@ struct DQLGeneratorTests {
 
     @Suite("Edge Cases")
     struct EdgeCaseTests {
-
         @Test("SELECT with empty fields array produces SELECT  FROM collection", .tags(.utility, .fast))
         func testSelectEmptyFields() {
             // ACT

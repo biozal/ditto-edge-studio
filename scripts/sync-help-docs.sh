@@ -41,8 +41,4 @@ done
 rm -f "$ANDROID_DEST/UserGuide.md"
 echo "  ✓ Android: $ANDROID_DEST (excluding UserGuide.md)"
 
-# Note: the dotnet/Avalonia target is archived (see ReleaseNotes / CLAUDE.md).
-# It is intentionally not synced anymore. The historic files remain under
-# dotnet/src/EdgeStudio/Assets/Help/ for git history only.
-
 echo "Done."

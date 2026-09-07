@@ -11,6 +11,32 @@ class FloatingSquaresLayer {
     private var squares: [SKSpriteNode] = []
     private var parentScene: SKScene?
 
+    /// Whether the squares are visible and animating. Disabling hides every square
+    /// and pauses its actions, so the layer costs no frames while off (the VS Code
+    /// extension's background-effects toggle).
+    var isEnabled = true {
+        didSet {
+            guard isEnabled != oldValue else { return }
+            applyPauseState()
+        }
+    }
+
+    /// Transient freeze (3s idle timeout, extension parity): squares stay visible
+    /// but stop animating. Independent of `isEnabled` (the user toggle).
+    var isFrozen = false {
+        didSet {
+            guard isFrozen != oldValue else { return }
+            applyPauseState()
+        }
+    }
+
+    private func applyPauseState() {
+        for square in squares {
+            square.isHidden = !isEnabled
+            square.isPaused = !isEnabled || isFrozen
+        }
+    }
+
     /// Sets up the floating squares layer
     /// - Parameters:
     ///   - scene: The parent SKScene to add squares to

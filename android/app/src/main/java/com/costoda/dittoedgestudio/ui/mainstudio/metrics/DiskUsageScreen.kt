@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.metrics
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+// The `system:metrics` dashboard used to be a third section here; it is its own
+// rail item now (SystemMetricsScreen), so this screen is storage-only again.
 private enum class Section(val label: String) {
     Files("Files"),
     Collections("Collections"),
@@ -61,6 +64,10 @@ private enum class Section(val label: String) {
 fun DiskUsageScreen(
     viewModel: DiskUsageViewModel,
     modifier: Modifier = Modifier,
+    // Retained so the call site in AppNavGraph keeps its shape; the screen no
+    // longer reads anything from the studio session.
+    @Suppress("UNUSED_PARAMETER")
+    mainViewModel: com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel? = null,
 ) {
     val metrics by viewModel.metrics.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -176,11 +183,17 @@ private fun SectionSelector(
                         index = index,
                         count = Section.entries.size,
                     ),
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SulfurYellow,
-                        activeContentColor = Color.Black,
-                        activeBorderColor = SulfurYellow,
-                    ),
+                    // Brand yellow in dark mode only; light mode keeps the
+                    // Material defaults. See `dittoToggleButtonColors`.
+                    colors = if (isSystemInDarkTheme()) {
+                        SegmentedButtonDefaults.colors(
+                            activeContainerColor = SulfurYellow,
+                            activeContentColor = Color.Black,
+                            activeBorderColor = SulfurYellow,
+                        )
+                    } else {
+                        SegmentedButtonDefaults.colors()
+                    },
                 ) {
                     Text(section.label)
                 }

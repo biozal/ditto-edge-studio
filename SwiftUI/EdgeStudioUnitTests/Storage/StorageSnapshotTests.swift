@@ -3,7 +3,6 @@ import Testing
 
 @Suite("StorageSnapshot Tests")
 struct StorageSnapshotTests {
-
     @Test("formatMB converts bytes to MB with 2 decimal places", .tags(.storage))
     func testFormatMBPrecision() {
         #expect(StorageSnapshot.formatMB(1_048_576) == "1.00 MB")
@@ -35,7 +34,7 @@ struct StorageSnapshotTests {
         var snap = StorageSnapshot()
         snap.collectionBreakdown = [
             CollectionStats(name: "cars", documentCount: 10, cborPayloadBytes: 1_000),
-            CollectionStats(name: "trucks", documentCount: 5, cborPayloadBytes: 500),
+            CollectionStats(name: "trucks", documentCount: 5, cborPayloadBytes: 500)
         ]
         #expect(snap.collectionPayloadBytes == 1_500)
     }

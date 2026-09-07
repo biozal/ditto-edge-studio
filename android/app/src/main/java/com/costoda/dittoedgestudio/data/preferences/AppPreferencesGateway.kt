@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.data.preferences
 
+import com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -19,4 +20,33 @@ interface AppPreferencesGateway {
      */
     val presenceSplitView: Flow<Boolean>
     suspend fun setPresenceSplitView(enabled: Boolean)
+
+    /**
+     * "Show this screen when opening a new database" toggle for the Welcome
+     * screen (parity with SwiftUI's `showWelcomeOnNewDatabase` AppStorage).
+     * Default true — fresh databases get the onboarding tour.
+     */
+    val showWelcomeOnNewDatabase: Flow<Boolean>
+    suspend fun setShowWelcomeOnNewDatabase(enabled: Boolean)
+
+    /**
+     * Whether the SDK 5.1 `system:metrics` exporter is enabled before Ditto opens.
+     * Startup-gated in the SDK (runtime changes are ignored), so the toggle's effect
+     * applies at the next database open. Default true (extension parity).
+     */
+    val collectSystemMetrics: Flow<Boolean>
+    suspend fun setCollectSystemMetrics(enabled: Boolean)
+
+    /**
+     * Pinned `system:metrics` series for one database, in pin order — the
+     * troubleshooting set the System Metrics screen keeps above its namespace
+     * filter. Per database (parity with the SwiftUI `SystemMetricsPinStore` and
+     * the extension's per-connection `globalState` pins), so pins survive
+     * leaving the screen, closing the database, and process death.
+     *
+     * The screen owns edits and hands back the complete replacement list, so
+     * [setSystemMetricPins] is a wholesale write — there is no merge to get wrong.
+     */
+    fun systemMetricPins(databaseId: Long): Flow<List<SystemMetricSeriesRef>>
+    suspend fun setSystemMetricPins(databaseId: Long, pins: List<SystemMetricSeriesRef>)
 }

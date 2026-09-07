@@ -75,9 +75,9 @@ actor SystemRepository {
         case .accessPoint: return config.isLanEnabled
         case .p2pWiFi: return config.isAwdlEnabled
         case .webSocket: return config.isCloudSyncEnabled
-        // Multicast (beta, SDK 5.1.0) is configured via `DittoPeerToPeer.multicastBeta`, which the
-        // app does not currently expose, so there is no per-database flag to filter against.
-        case .multicast: return true
+        // Multicast (beta, SDK 5.1.0) is configured via `DittoPeerToPeer.multicastBeta`
+        // from the per-database `isMulticastEnabled` flag (Transport Settings).
+        case .multicast: return config.isMulticastEnabled
         case .unknown: return true
         }
     }
@@ -87,27 +87,9 @@ actor SystemRepository {
         localPeerKeyString: String? = nil,
         filteredBy config: DittoConfigForDatabase? = nil
     ) -> PeerEnrichmentData {
-        // Convert DittoPeerOS to custom PeerOS
-        let osInfo: PeerOS? = {
-            guard let dittoOS = peer.os else { return nil }
-
-            // Map DittoPeerOS to custom PeerOS enum
-            let osString = "\(dittoOS)"
-
-            if osString.contains("iOS") || osString.contains("ios") {
-                return .iOS(version: nil)
-            } else if osString.contains("Android") || osString.contains("android") {
-                return .android(version: nil)
-            } else if osString.contains("macOS") || osString.contains("macos") {
-                return .macOS(version: nil)
-            } else if osString.contains("Linux") || osString.contains("linux") {
-                return .linux(version: nil)
-            } else if osString.contains("Windows") || osString.contains("windows") {
-                return .windows(version: nil)
-            } else {
-                return .unknown(name: osString)
-            }
-        }()
+        // Shared with the presence viewer's detail card via PeerOS(dittoPeerOS:) so the
+        // peer list and the card cannot drift apart on OS naming.
+        let osInfo: PeerOS? = PeerOS(dittoPeerOS: peer.os)
 
         // Convert DittoAddress to custom PeerAddressInfo
         // Note: peer.address is deprecated but still usable for display purposes
@@ -277,10 +259,23 @@ actor SystemRepository {
                 await logPresenceDiagnostics(graph: presenceGraph)
                 #endif
 
-                let connectedPeers = presenceGraph.remotePeers.filter { peer in
-                    peer.connections.contains {
-                        $0.peerKeyString1 == localPeerKeyString || $0.peerKeyString2 == localPeerKeyString
+                // A remote peer counts as connected when EITHER side advertises an
+                // edge to the local peer: Ditto usually reports an undirected edge
+                // from both endpoints, but the local side is authoritative for edges
+                // attached to this process — a transport (notably multicast) is lost
+                // when only the local side advertises it. Same asymmetry the Presence
+                // Viewer's PresenceEdgeAggregator exists for (and the VS Code
+                // extension's buildPresenceGraphView).
+                let locallyAdvertisedPeerKeys = Set(
+                    presenceGraph.localPeer.connections.flatMap { connection in
+                        [connection.peerKeyString1, connection.peerKeyString2]
                     }
+                )
+                let connectedPeers = presenceGraph.remotePeers.filter { peer in
+                    locallyAdvertisedPeerKeys.contains(peer.peerKeyString)
+                        || peer.connections.contains {
+                            $0.peerKeyString1 == localPeerKeyString || $0.peerKeyString2 == localPeerKeyString
+                        }
                 }
 
                 // Fetch transport config for filtering stale SDK connections (SDK bug workaround)
@@ -570,12 +565,34 @@ actor SystemRepository {
                 // direct and should not contribute to the transport counts in the status bar.
                 // Also deduplicate by type — the SDK returns one DittoConnection per directional
                 // endpoint (A→B and B→A), which would otherwise double-count.
+                //
+                // Aggregate BOTH sides' advertised edges, bucketed per remote peer:
+                // the local peer's own connection list is authoritative for edges
+                // attached to this process — a transport (notably multicast) is
+                // lost when only the local side advertises it. Same aggregation
+                // semantics as the Presence Viewer's PresenceEdgeAggregator.
                 let localPeerKeyString = presenceGraph.localPeer.peerKeyString
+                var connectionsByPeer: [String: [DittoConnection]] = [:]
                 for peer in presenceGraph.remotePeers {
-                    var seenTypes: Set<String> = []
                     for connection in peer.connections {
                         guard connection.peerKeyString1 == localPeerKeyString ||
                             connection.peerKeyString2 == localPeerKeyString else { continue }
+                        connectionsByPeer[peer.peerKeyString, default: []].append(connection)
+                    }
+                }
+                for connection in presenceGraph.localPeer.connections {
+                    guard connection.peerKeyString1 == localPeerKeyString ||
+                        connection.peerKeyString2 == localPeerKeyString else { continue }
+                    let remoteKey = connection.peerKeyString1 == localPeerKeyString
+                        ? connection.peerKeyString2
+                        : connection.peerKeyString1
+                    guard !remoteKey.isEmpty else { continue }
+                    connectionsByPeer[remoteKey, default: []].append(connection)
+                }
+
+                for (_, peerConnections) in connectionsByPeer {
+                    var seenTypes: Set<String> = []
+                    for connection in peerConnections {
                         guard seenTypes.insert("\(connection.type)").inserted else { continue }
 
                         let connectionType = convertConnectionType(connection.type)

@@ -1,0 +1,72 @@
+{
+  "deadlock_critical": {
+    "pattern": "(?:deadlock|write transaction).*elapsed",
+    "level_filter": "error",
+    "severity": 5,
+    "recommendation": "Transaction blocked for an extended period at ERROR level. Possible deadlock or system issue."
+  },
+  "deadlock_warning": {
+    "pattern": "(?:Waiting for write transaction|blocked_by).*elapsed",
+    "level_filter": "warn",
+    "severity": 3,
+    "recommendation": "Transaction blocked 50s+. Monitor for resolution. Expected during large sync operations."
+  },
+  "ditto_query_size_exceeded": {
+    "pattern": "Query too big\\. It exceeded the server's size limit of [\\d.]+ [A-Z]+",
+    "severity": 5,
+    "recommendation": "Query exceeded the server's size limit. Replication has been disabled. Add more selective filters, reduce dataset size, or split the query."
+  },
+  "certificate_expired": {
+    "pattern": "received fatal alert: CertificateExpired",
+    "severity": 4,
+    "recommendation": "Peers in the mesh have expired certificates. Check device clocks."
+  },
+  "certificate_not_valid_yet": {
+    "pattern": "invalid peer certificate: NotValidYet",
+    "severity": 4,
+    "recommendation": "Peers in the mesh have certificates generated in the future. Check device clocks."
+  },
+  "ditto_authentication_failure": {
+    "pattern": "Request did not contain valid credentials",
+    "severity": 4,
+    "recommendation": "Device is not authenticating correctly. Verify the token and Auth URL."
+  },
+  "connection_incomplete": {
+    "pattern": "connection closed before .*complete|message incomplete|transfer incomplete",
+    "severity": 4,
+    "recommendation": "Connection terminated mid-transmission. Check network stability and retry logic."
+  },
+  "memory_oom": {
+    "pattern": "out of memory|OutOfMemoryError|OOMKiller|Killed process",
+    "severity": 4,
+    "recommendation": "Memory pressure detected — check host limits and process memory usage."
+  },
+  "crash_signal": {
+    "pattern": "segmentation fault|segfault|SIGSEGV|core dumped",
+    "severity": 5,
+    "recommendation": "Process crashed with a fatal signal. Capture a crash report and check for upstream bug reports."
+  },
+  "replication_metadata_corrupt_recovery": {
+    "pattern": "session metadata database was corrupt on open; deleting and reinitializing this peer's metadata, then retrying",
+    "level_filter": "warn",
+    "severity": 3,
+    "recommendation": "Per-peer replication metadata was corrupt on open and is being deleted and re-initialized automatically; application documents are unaffected (expected with relaxed_sync_metadata_durability after unclean shutdowns). Watch the ditto.replication.metadata_corrupt_recoveries metric — a sustained high rate for the same remote peer suggests frequent unclean shutdowns or storage problems on that device."
+  },
+  "replication_consecutive_resets": {
+    "pattern": "resetting replication state with remote peer; sync performance may be temporarily degraded",
+    "level_filter": "warn",
+    "severity": 3,
+    "recommendation": "Replication state with a remote peer has been reset repeatedly without a successful sync in between (WARN = 2nd+ consecutive reset); sync performance is temporarily degraded. Watch the ditto.replication.session_resets metric and check mesh stability with that peer (intermittent connectivity, clock skew, or divergent state)."
+  },
+  "replication_reset_local_trigger": {
+    "pattern": "replication reset was triggered by local peer",
+    "level_filter": "warn",
+    "severity": 3,
+    "recommendation": "A non-benign local error forced a replication reset (benign causes log at INFO instead). Inspect the line's error field for the cause and watch the ditto.replication.session_resets metric; repeated resets warrant checking local storage and sync configuration."
+  },
+  "post_eviction_cleanup_frequent": {
+    "pattern": "post-eviction session cleanup is running too frequently, which may cause excessive local overhead",
+    "severity": 2,
+    "recommendation": "Eviction-triggered session cleanup ran 2+ times within 3x replication_gc_debounce_ms (this is logged at INFO by design). If the evictions all come from one collection, batch them into fewer eviction calls or increase the replication_gc_debounce_ms system parameter."
+  }
+}

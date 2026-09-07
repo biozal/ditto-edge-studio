@@ -115,7 +115,21 @@ final class DittoLogCaptureService: DittoDelegate {
         isLoading = true
         defer { isLoading = false }
 
-        let logsDir = persistenceDir.appendingPathComponent("logs")
+        // The SDK writes its rotating logs to `ditto_logs/`; older SDK layouts
+        // used `logs/`. Reading only `logs/` silently returned zero entries on
+        // every current build — verified against every persistence directory
+        // under Application Support/ditto_edge_studio, all of which have
+        // `ditto_logs/` and none of which have `logs/`. Mirrors the directory
+        // probe `LoggingDetailView.exportDittoSDKLogs(to:)` already performs.
+        let fileManager = FileManager.default
+        let candidateDir = ["ditto_logs", "logs"]
+            .map { persistenceDir.appendingPathComponent($0) }
+            .first { fileManager.fileExists(atPath: $0.path) }
+        guard let logsDir = candidateDir else {
+            Log.warning("DittoLogCaptureService: no SDK log directory under \(persistenceDir.path)")
+            historicalEntries = []
+            return
+        }
         let entries = await Task.detached(priority: .utility) {
             LogFileParser.parseDirectory(logsDir)
         }.value

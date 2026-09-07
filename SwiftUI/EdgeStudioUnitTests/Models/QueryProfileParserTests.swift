@@ -21,7 +21,6 @@ import Testing
 
 @Suite("QueryProfileParser Tests")
 struct QueryProfileParserTests {
-
     // MARK: - Happy path
 
     @Suite("Happy path")

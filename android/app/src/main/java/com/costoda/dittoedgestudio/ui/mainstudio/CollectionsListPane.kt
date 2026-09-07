@@ -109,7 +109,15 @@ fun CollectionsListPane(
                 }
             } else {
                 collections.forEach { collection ->
-                    CollectionListItem(collection = collection)
+                    CollectionListItem(
+                        collection = collection,
+                        onSelect = {
+                            viewModel.loadCollectionQuery(it.name)
+                            // In drawer mode the editor is behind the drawer, so
+                            // dismiss it — same callback the Add Index FAB uses.
+                            onAfterTriggerAddIndex?.invoke()
+                        },
+                    )
                 }
             }
         }

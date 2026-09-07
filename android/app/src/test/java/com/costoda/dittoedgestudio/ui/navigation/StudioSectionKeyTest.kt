@@ -36,10 +36,10 @@ class StudioSectionKeyTest {
     }
 
     @Test
-    fun `all seven StudioNavItem entries are covered (entry count guard)`() {
+    fun `all eight StudioNavItem entries are covered (entry count guard)`() {
         // If the enum grows, the exhaustive whens in NavKeys.kt will be compile errors,
         // but this test catches any accidental shrink of the mapping.
-        assertEquals(7, StudioNavItem.entries.size)
+        assertEquals(8, StudioNavItem.entries.size)
     }
 
     // -----------------------------------------------------------------------

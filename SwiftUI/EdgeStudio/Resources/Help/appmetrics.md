@@ -6,7 +6,7 @@ App Metrics show live resource usage for the currently running Edge Studio proce
 
 ## Enabling Metrics
 
-Metrics are on by default (opt-out). Toggle **Collect Metrics** in **Settings** to show or hide the App Metrics and Query Metrics items in the navigation menu (the sidebar on macOS / iPadOS, the navigation rail/drawer on Android). The navigation menu updates dynamically — no restart required.
+Metrics are on by default (opt-out). Toggle **Collect Metrics** in **Settings** to show or hide the App Metrics, Query Metrics, and System Metrics items in the navigation menu (the sidebar on macOS / iPadOS, the navigation rail/drawer on Android). The navigation menu updates dynamically — no restart required.
 
 ---
 
@@ -57,6 +57,8 @@ One card appears per user collection, sorted largest-first by estimated size. Ea
 Tap the **?** on any collection card to see what is and is not included in the estimate.
 
 > The collection breakdown requires reading all documents across all collections. For large databases this can take several seconds — a spinner appears while the calculation runs.
+
+> **System Metrics moved.** Ditto's `system:metrics` counters (SDK 5.1) now have their own **System Metrics** item in the navigation menu, with per-metric details, pinning, and search. See its help page for details.
 
 ### Tips
 

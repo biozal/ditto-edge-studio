@@ -201,7 +201,13 @@ actor QueryService {
         // and prepending both would re-trigger profiling unnecessarily.
         if isMetricsEnabled {
             let resultCount = userItems.count + results.mutatedDocumentIDs().count
-            let explainOutput = await runExplain(ditto: ditto, query: query)
+            // EXPLAIN ADVISE is invalid syntax (extension skips the metrics EXPLAIN
+            // side-trip for ADVISE) — record the capture without an explain payload.
+            let explainOutput = if DqlStatements.isAdviseStatement(query) {
+                "EXPLAIN skipped: EXPLAIN ADVISE is not valid syntax"
+            } else {
+                await runExplain(ditto: ditto, query: query)
+            }
             await QueryMetricsRepository.shared.capture(
                 dql: query,
                 executionTimeMs: elapsedMs,

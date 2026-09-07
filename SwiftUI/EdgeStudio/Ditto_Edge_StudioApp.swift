@@ -129,6 +129,13 @@ struct Ditto_Edge_StudioApp: App {
                     }
                 }
                 .environment(appState)
+            // The three utility windows below are declared inside the
+            // `#if os(macOS)` scene block, so these receivers have to be
+            // guarded too. Unguarded, iPadOS posted the notification (from
+            // `MainStudioViewModel`'s fresh-database path) and then asked
+            // SwiftUI to open a scene that does not exist on that platform:
+            // "No Scene with id 'welcome-window' is defined".
+            #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
                     openWindow(id: "font-debug-window")
                 }
@@ -138,7 +145,6 @@ struct Ditto_Edge_StudioApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenWelcomeWindow"))) { _ in
                     openWindow(id: "welcome-window")
                 }
-            #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowQuickstartBrowser"))) { notification in
                     if let userInfo = notification.userInfo,
                        let projects = userInfo["projects"] as? [QuickstartProject],

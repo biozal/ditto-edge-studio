@@ -17,7 +17,6 @@
 import XCTest
 
 final class NavigationSmokeUITests: UITestBase {
-
     /// Opening a database lands the user in MainStudioView (CloseButton present).
     ///
     /// XCTSkips when no databases are configured.
@@ -60,7 +59,9 @@ final class NavigationSmokeUITests: UITestBase {
         // ASSERT — ContentView indicator should reappear.
         let addButton = app.buttons["AddDatabaseButton"].firstMatch
         guard addButton.waitForExistence(timeout: 15) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("Did not return to ContentView — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-no-return-to-contentview", lifetime: .keepAlways)

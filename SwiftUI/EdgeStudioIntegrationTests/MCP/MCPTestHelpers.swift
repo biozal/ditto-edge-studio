@@ -63,6 +63,7 @@ enum MCPTestHelpers {
 
     enum MCPTestError: Error {
         case sseHandshakeFailed
+        case invalidFixtureData
     }
 
     /// Opens an SSE connection (GET /mcp), parses the server-assigned
@@ -73,7 +74,7 @@ enum MCPTestHelpers {
     /// keepalive comment every 15 s, which simply buffers). On return — or
     /// when the server closes the connection — the stream is released.
     static func withSSESession(_ body: (String) async throws -> Void) async throws {
-        let url = URL(string: "\(baseURL)/mcp")!
+        let url = try requireURL("\(baseURL)/mcp")
         let (bytes, response) = try await URLSession.shared.bytes(from: url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw MCPTestError.sseHandshakeFailed
@@ -103,7 +104,7 @@ enum MCPTestHelpers {
 
     /// Sends a raw GET request and returns (statusCode, body).
     static func get(_ path: String) async throws -> (Int, String) {
-        let url = URL(string: "\(baseURL)\(path)")!
+        let url = try requireURL("\(baseURL)\(path)")
         let (data, response) = try await URLSession.shared.data(from: url)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let body = String(data: data, encoding: .utf8) ?? ""
@@ -112,7 +113,7 @@ enum MCPTestHelpers {
 
     /// Sends an OPTIONS request and returns the HTTPURLResponse.
     static func options(_ path: String) async throws -> HTTPURLResponse? {
-        var request = URLRequest(url: URL(string: "\(baseURL)\(path)")!)
+        var request = URLRequest(url: try requireURL("\(baseURL)\(path)"))
         request.httpMethod = "OPTIONS"
         let (_, response) = try await URLSession.shared.data(for: request)
         return response as? HTTPURLResponse
@@ -120,7 +121,7 @@ enum MCPTestHelpers {
 
     /// POSTs a JSON-RPC request and returns the decoded response dictionary.
     static func post(id: Int = 1, method: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        var request = URLRequest(url: URL(string: "\(baseURL)/mcp")!)
+        var request = URLRequest(url: try requireURL("\(baseURL)/mcp"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
@@ -149,8 +150,22 @@ enum MCPTestHelpers {
     ) async throws {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Downloads/\(name)")
-        try content.data(using: .utf8)!.write(to: url)
+        guard let data = content.data(using: .utf8) else {
+            throw MCPTestError.invalidFixtureData
+        }
+        try data.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         try await body(url.path)
+    }
+
+    /// Force-unwrap-free URL construction for test requests (SwiftLint:
+    /// force_unwrapping is an error-level repo rule).
+    static func requireURL(_ string: String) throws -> URL {
+        guard let url = URL(string: string) else {
+            throw NSError(domain: "MCPTestHelpers", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "bad test URL: \(string)"
+            ])
+        }
+        return url
     }
 }
