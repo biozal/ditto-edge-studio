@@ -4,9 +4,50 @@ import Foundation
 
 /// Parses log files from multiple formats into `LogEntry` arrays.
 enum LogFileParser {
+    // MARK: - SDK Log Directory
+
+    /// SDK log directory names, current layout first.
+    ///
+    /// The SDK writes its rotating logs to `<persistenceDirectory>/ditto_logs/`;
+    /// `logs/` is the older layout, kept as a fallback.
+    static let sdkLogDirectoryNames = ["ditto_logs", "logs"]
+
+    /// The SDK's log directory inside `persistenceDirectory`, or `nil` when neither
+    /// layout is present.
+    ///
+    /// `parseDirectory` is deliberately **not** recursive, so handing it the
+    /// persistence root finds nothing — the root holds only `ditto_logs/`,
+    /// `ditto_store/`, `ditto_replication/` and friends, and zero `.log` files. Every
+    /// caller that wants the SDK's logs must resolve the subdirectory first, which is
+    /// what this exists to make hard to forget.
+    static func sdkLogDirectory(
+        in persistenceDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        sdkLogDirectoryNames
+            .map { persistenceDirectory.appendingPathComponent($0) }
+            .first { fileManager.fileExists(atPath: $0.path) }
+    }
+
+    /// Parses the SDK's logs for a database, given its **persistence directory**
+    /// (not its log directory). Returns `[]` when the database has no log directory
+    /// yet — a real state on a database that has only just been opened.
+    static func parseDittoLogs(
+        persistenceDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> [LogEntry] {
+        guard let logDirectory = sdkLogDirectory(in: persistenceDirectory, fileManager: fileManager) else {
+            return []
+        }
+        return parseDirectory(logDirectory)
+    }
+
     // MARK: - Directory Parsing
 
     /// Parses all `.log` and `.log.gz` files in a Ditto SDK logs directory.
+    ///
+    /// Non-recursive, and takes the **log** directory. Pass a persistence directory
+    /// to `parseDittoLogs(persistenceDirectory:)` instead.
     static func parseDirectory(_ url: URL) -> [LogEntry] {
         let fileManager = FileManager.default
         guard let contents = try? fileManager.contentsOfDirectory(
