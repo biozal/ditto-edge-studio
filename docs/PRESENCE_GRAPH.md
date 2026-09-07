@@ -80,6 +80,29 @@ refocuses onto it, and tapping the local peer while it's in the orbit is a
 no-op. Focus survives tab switches. In Direct mode a tap only dims (selection)
 — it never re-lays out.
 
+**Peer search** (Presence Viewer tab): the search box rides in the Peers/Viewer
+tab row so the canvas keeps its full height. It matches peers by device name or
+peer key, case-insensitively, over the **full mesh** — a multi-hop peer is
+findable while Direct is ON, because picking it is exactly how the user jumps the
+graph over to it. While a query is active, matching peers and every connection
+touching a match stay at full opacity and everything else takes the same dim a
+click selection gives; search is the **weakest** dim source, so an explicit focus
+and a tap-to-isolate selection both win over it. Results list in a card that
+floats over the canvas (typing never reflows the graph); picking one focuses that
+peer exactly like clicking its pill, flipping Direct off first when needed, and
+re-picking the focused peer toggles focus off. Enter/Search focuses the first
+non-local hit. The local device is listed but never focusable. Escape (macOS) and
+Back (Android) unwind the innermost context first — an open detail card, then the
+query — leaving the focus view alone. Query and dimming survive a tab switch.
+
+> ⚠️ **`null` and "empty set" are different states.** `null`
+> (`searchMatchKeys` / `searchMatchIds`) means the box is empty: no dimming at
+> all. An **empty set** means an active query with no hits, which deliberately
+> dims the whole graph — "nothing here" is useful feedback. Conflating the two is
+> the defect this distinction exists to prevent, so the decision is made in
+> exactly one place per platform (`PresencePeerSearch.matchIds` on Android, the
+> view model's `pushSearchMatchesToScene` on SwiftUI).
+
 **Controls**: zoom spans 0.25×–2.0× magnification equivalent (SwiftUI camera
 scale 0.5–4.0; Android `Transform` scale 0.25–2.0) via pinch/scroll/buttons; the
 reset button recenters on the local peer at 100% and re-seats dragged peers (in
@@ -112,3 +135,19 @@ presence graph filtering, so they are exempt from this filter on all platforms.
 |----------|------|--------|
 | SwiftUI  | `SwiftUI/EdgeStudio/Data/Repositories/SystemRepository.swift` | `registerSyncStatusObserver`, `registerConnectionsPresenceObserver`, `extractPeerEnrichment` |
 | Android  | `android/app/src/main/java/com/costoda/dittoedgestudio/data/repository/SystemRepositoryImpl.kt` | `updatePresence` (peer list filter), `buildConnectionCounts` |
+
+### Peer search
+
+| Platform | File | Role |
+|----------|------|------|
+| SwiftUI  | `Components/PresenceViewer/PresencePeerSearch.swift` | Candidates, matching, key truncation (Foundation-pure) |
+| SwiftUI  | `Components/PresenceViewer/PresencePeerSearchField.swift` | The box + results card (a leaf, so the query never becomes a `MainStudioView.body` dependency) |
+| SwiftUI  | `Components/PresenceViewer/PresenceNetworkScene.swift` | `setSearchMatches`, `restingAlpha` precedence, `focusPeer` |
+| SwiftUI  | `Views/StudioView/Details/PresenceViewerSK.swift` | Query/pending-focus state, `focusSearchResult`, `handleEscape` |
+| SwiftUI  | `Views/StudioView/Details/DetailViews.swift` | Header-row wiring (outside `ViewThatFits` — see the note there) |
+| Android  | `ui/mainstudio/presence/PresencePeerSearch.kt` | Candidates, matching, `matchIds` (Compose-free) |
+| Android  | `ui/mainstudio/presence/PresencePeerSearchBar.kt` | The box + results card |
+| Android  | `ui/mainstudio/presence/PresenceGraphState.kt` | `PresenceFocusPlanner.litPeerIds` / `litEdgeAnchors` — the dim precedence |
+| Android  | `ui/mainstudio/presence/PresenceGraphView.kt` | `searchMatchIds` dimming, pending-focus consumption |
+| Android  | `ui/mainstudio/PresenceSection.kt` | Header-row wiring, pick routing, Back handling |
+| Android  | `viewmodel/MainStudioViewModel.kt` | `presenceSearchQuery`, `presencePendingFocusPeerId` |
