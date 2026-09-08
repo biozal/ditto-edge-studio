@@ -177,7 +177,12 @@ Note: Requires Metrics to be enabled in Settings
 #### `get_sync_status`
 ```
 Arguments: (none)
-Returns: { database, connectedPeers, transport: { bluetoothLE, lan, awdl, cloudSync } }
+Returns: { database, connectedPeers, meshPeers, transport: { bluetoothLE, lan, awdl, cloudSync } }
+
+  connectedPeers is the number of peers with a link to THIS device.
+  meshPeers is every peer visible anywhere in the mesh, including ones reachable
+  only through another peer. The two differ in any multi-hop mesh; see
+  docs/PRESENCE_GRAPH.md.
 ```
 
 #### `configure_transport`
@@ -226,10 +231,11 @@ Returns:
         "deviceName":         "iPhone 15 Pro",
         "osType":             "iOS",
         "sdkVersion":         "4.9.1",
-        "connectionStatus":   "Connected",
+        "connectionStatus":   "Connected",          // "Indirect" for multi-hop peers
+        "isDirectlyConnected": true,
         "addressInfo":        "192.168.1.42",
         "connections": [
-          { "type": "Bluetooth LE", "distanceMeters": 1.2 },
+          { "type": "Bluetooth LE" },
           { "type": "P2P WiFi" }
         ],
         "identityMetadata":   "{ ... }",
@@ -243,7 +249,9 @@ Notes:
   - Returns { "peers": [], "count": 0 } if no peers are currently connected
   - This is a one-time read from the presence graph; it does not register an
     observer and will not reflect subsequent connection changes
-  - distanceMeters is only present for Bluetooth LE connections
+  - Peers are NOT filtered to direct connections — the full mesh is returned, with
+    isDirectlyConnected marking which peers this device actually has a link to.
+    connections[] lists only the transports that touch THIS device.
   - syncedUpToCommitId may be empty if sync info is unavailable
   - identityMetadata and peerMetadata are JSON strings (empty string if absent)
 ```
@@ -270,8 +278,10 @@ Arguments: { "lines": int?, "filter": string?, "level": string? }
 Returns: JSON array of { timestamp, level, component, message } parsed from
          the active database's Ditto SDK log files (.log and .log.gz).
          "level" is a minimum severity: error|warning|info|debug|verbose.
-Note: Requires an active database. Reads the SDK logs from the database's
-      persistence directory.
+Note: Requires an active database. Reads the SDK logs from
+      <persistenceDirectory>/ditto_logs/ (falling back to logs/ for older SDK
+      layouts). Returns an explanatory message, not an empty array, when the
+      database has no log directory yet.
 ```
 
 ---
@@ -418,4 +428,4 @@ The MCP server implements the [MCP SSE transport](https://spec.modelcontextproto
 - **`POST /mcp`** — Direct JSON-RPC (for HTTP transport clients); response in HTTP body
 - **`GET /health`** — Simple health check returning `200 OK`
 
-No external Swift packages are required. The implementation is ~1400 lines across four files in `EdgeStudio/Data/MCPServer/`.
+No external Swift packages are required. The implementation is ~1600 lines across four files in `EdgeStudio/Data/MCPServer/`.
