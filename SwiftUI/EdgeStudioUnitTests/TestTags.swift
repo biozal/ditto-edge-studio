@@ -14,7 +14,6 @@ import Testing
 /// swift test --skip tag:slow
 /// ```
 extension Tag {
-    
     // MARK: - MCP Tags
 
     /// All MCP server tests
@@ -90,7 +89,6 @@ extension Tag {
 
 /// Common tag combinations for convenience
 extension Tag {
-    
     /// Database encryption tests (slow, encryption, database)
     static var databaseEncryption: [Tag] {
         [.encryption, .database, .slow]

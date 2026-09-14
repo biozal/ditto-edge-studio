@@ -17,28 +17,26 @@ extension MainStudioView {
 
                         Spacer()
 
-                        Picker("", selection: $selectedSyncTab) {
-                            Text("Peers").tag(0)
-                            Text("Viewer").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("SyncTabPicker")
+                        DittoSegmentedPicker(
+                            options: [0, 1],
+                            selection: $selectedSyncTab
+                        ) { $0 == 0 ? "Peers" : "Viewer" }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("SyncTabPicker")
 
                         Spacer()
                     }
 
                     // ── Narrow layout: picker on top, title below ─────────────────
                     VStack(alignment: .leading, spacing: 0) {
-                        Picker("", selection: $selectedSyncTab) {
-                            Text("Peers").tag(0)
-                            Text("Viewer").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.leading, 10)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("SyncTabPicker")
+                        DittoSegmentedPicker(
+                            options: [0, 1],
+                            selection: $selectedSyncTab
+                        ) { $0 == 0 ? "Peers" : "Viewer" }
+                            .padding(.leading, 10)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("SyncTabPicker")
 
                         Text("Presence")
                             .font(.title2)
@@ -48,21 +46,33 @@ extension MainStudioView {
                     }
                 }
 
+                // Peer search rides in the tab bar so the canvas keeps its full
+                // height (extension parity). Deliberately OUTSIDE the ViewThatFits
+                // above: the box is dynamic, and ViewThatFits measures every
+                // alternative on each change — the documented feedback loop the
+                // note at the top of this method exists to prevent.
+                //
+                // The child view owns every read of the query. Reading it here
+                // would make it a dependency of MainStudioView.body.
+                if selectedSyncTab == 1 {
+                    PresencePeerSearchField(viewModel: presenceViewerVM)
+                        .padding(.trailing, 8)
+                }
+
                 // Single TransportSettingsButton — stable identity regardless of ViewThatFits layout
                 TransportSettingsButton()
                     .padding(.trailing, 5)
             }
+            // The search results card is an overlay on the box above; without
+            // this the tab content below paints over it.
+            .zIndex(1)
 
-            // Dynamic subtitle outside ViewThatFits — updating this text no longer
-            // invalidates the layout-fitting measurement loop above.
-            if let statusInfo = viewModel.syncVM.syncStatusItems.first {
-                Text("Last updated: \(statusInfo.formattedLastUpdate)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 10)
-                    .padding(.bottom, 4)
-            }
+            // Read inside a child view, never here. `syncTabsDetailView()` is a
+            // *method* on MainStudioView, so anything it touches becomes a
+            // dependency of MainStudioView.body — i.e. the whole
+            // NavigationSplitView, sidebar and ViewThatFits included. Reading
+            // the presence feed here re-ran all of that on every tick.
+            SyncLastUpdatedLabel(viewModel: viewModel)
 
             // Tab content
             Group {
@@ -81,7 +91,8 @@ extension MainStudioView {
             // toolbar's middle slot so the canvas stays unobstructed. The Peers tab
             // doesn't need any extra controls — the @ViewBuilder closure returns an
             // empty conditional branch in that case (the bar's middle slot collapses).
-            DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
+            // Same reasoning: the connections read is confined to a leaf.
+            SyncBottomBar(viewModel: viewModel) {
                 if selectedSyncTab == 1 {
                     PresenceViewerToolbarControls(viewModel: presenceViewerVM)
                 }
@@ -239,6 +250,24 @@ extension MainStudioView {
                     QueryEditorView(queryText: $viewModel.queryVM.selectedQuery)
                         .frame(height: geometry.size.height * 0.5)
 
+                    // ADVISE (SDK 5.1) index-advice card — sits between editor and
+                    // results so it doesn't displace the results pane's layout.
+                    if let advice = viewModel.queryVM.queryAdvice {
+                        QueryAdviceCardView(
+                            advice: advice,
+                            onApply: { suggestion in
+                                do {
+                                    try await viewModel.queryVM.applyAdviceSuggestion(suggestion, appState: appState)
+                                    return true
+                                } catch {
+                                    return false
+                                }
+                            },
+                            onDismiss: { viewModel.queryVM.queryAdvice = nil }
+                        )
+                        .transition(.opacity)
+                    }
+
                     Divider()
 
                     QueryResultsView(
@@ -277,8 +306,8 @@ extension MainStudioView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
         }
         .overlay(alignment: .bottom) {
@@ -354,165 +383,174 @@ extension MainStudioView {
         }
         .animation(.easeInOut(duration: 0.25), value: queryCopiedDQLNotification)
         #if os(iOS)
-            .toolbar {
-                if horizontalSizeClass == .compact {
-                    // COMPACT: Single ToolbarItem with all 6 controls — prevents any iOS overflow
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        HStack(spacing: 8) {
-                            // Sidebar toggle
-                            Button { preferredCompactColumn = .sidebar } label: {
-                                Image(systemName: "sidebar.left")
-                            }
-                            .accessibilityIdentifier("SidebarToggleButton")
-
-                            Divider().frame(height: 18)
-
-                            // Execute mode picker
-                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
-                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: 85)
-
-                            // Execute play button
-                            Button { Task { await executeQuery() } } label: {
-                                FontAwesomeText(
-                                    icon: NavigationIcon.play,
-                                    size: 14,
-                                    color: viewModel.queryVM.isQueryExecuting ? .gray : .green
-                                )
-                                .accessibilityLabel("Execute Query")
-                            }
-                            .disabled(viewModel.queryVM.isQueryExecuting)
-                            .accessibilityIdentifier("ExecuteQueryButton")
-
-                            Divider().frame(height: 18)
-
-                            // Sync toggle
-                            Button {
-                                Task {
-                                    do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
-                                }
-                            } label: {
-                                Image(systemName: "arrow.2.circlepath")
-                                    .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
-                            }
-                            .accessibilityIdentifier("SyncButton")
-                            .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
-
-                            // Close
-                            Button {
-                                Task {
-                                    await viewModel.closeSelectedApp()
-                                    isMainStudioViewPresented = false
-                                }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.red)
-                            }
-                            .accessibilityIdentifier("CloseButton")
-
-                            // Inspector toggle
-                            Button { showInspector.toggle() } label: {
-                                Image(systemName: "sidebar.right")
-                                    .foregroundStyle(showInspector ? .primary : .secondary)
-                            }
-                            .accessibilityIdentifier("Toggle Inspector")
+        .toolbar {
+            if horizontalSizeClass == .compact {
+                // COMPACT: Single ToolbarItem with all 6 controls — prevents any iOS overflow
+                ToolbarItem(placement: .navigationBarLeading) {
+                    HStack(spacing: 8) {
+                        // Sidebar toggle
+                        Button { preferredCompactColumn = .sidebar } label: {
+                            Image(systemName: "sidebar.left")
                         }
-                    }
-                } else {
-                    // REGULAR (iPad): keep original split layout
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        HStack(spacing: 2) {
-                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
-                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: 90)
+                        .accessibilityIdentifier("SidebarToggleButton")
 
-                            Divider().frame(height: 18)
+                        Divider().frame(height: 18)
 
-                            Button { Task { await executeQuery() } } label: {
-                                FontAwesomeText(
-                                    icon: NavigationIcon.play,
-                                    size: 14,
-                                    color: viewModel.queryVM.isQueryExecuting ? .gray : .green
-                                )
-                                .accessibilityLabel("Execute Query")
-                                .padding(.horizontal, 4)
-                            }
-                            .disabled(viewModel.queryVM.isQueryExecuting)
-                            .accessibilityIdentifier("ExecuteQueryButton")
+                        // Execute mode picker
+                        Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                            ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
                         }
+                        .pickerStyle(.menu)
+                        .frame(width: 85)
+
+                        // Execute play button
+                        Button { Task { await executeQuery() } } label: {
+                            FontAwesomeText(
+                                icon: NavigationIcon.play,
+                                size: 14,
+                                color: viewModel.queryVM.isQueryExecuting ? .gray : .green
+                            )
+                            .accessibilityLabel("Execute Query")
+                        }
+                        .disabled(viewModel.queryVM.isQueryExecuting)
+                        .accessibilityIdentifier("ExecuteQueryButton")
+
+                        Divider().frame(height: 18)
+
+                        // Sync toggle
+                        Button {
+                            Task {
+                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.2.circlepath")
+                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
+                        }
+                        .accessibilityIdentifier("SyncButton")
+                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
+
+                        // Close
+                        Button {
+                            Task {
+                                await viewModel.closeSelectedApp()
+                                isMainStudioViewPresented = false
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                        .accessibilityIdentifier("CloseButton")
+
+                        // Inspector toggle
+                        Button { showInspector.toggle() } label: {
+                            Image(systemName: "sidebar.right")
+                                .foregroundStyle(showInspector ? .primary : .secondary)
+                        }
+                        .accessibilityIdentifier("Toggle Inspector")
                     }
-                    appNameToolbarLabel()
-                    syncToolbarButton()
-                    closeToolbarButton()
-                    inspectorToggleButton()
                 }
+            } else {
+                // REGULAR (iPad): keep original split layout
+                ToolbarItem(placement: .navigationBarLeading) {
+                    HStack(spacing: 2) {
+                        Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                            ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 90)
 
-                // BOTTOM BAR — iPhone only (unchanged)
-                if horizontalSizeClass == .compact {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        ConnectionStatusMenu(
-                            connections: viewModel.syncVM.connectionsByTransport,
-                            pageSize: $queryPageSize,
-                            pageSizes: queryPageSizes,
-                            onPageSizeChange: { newSize in
-                                queryPageSize = newSize
-                                queryCurrentPage = 1
+                        Divider().frame(height: 18)
+
+                        Button { Task { await executeQuery() } } label: {
+                            FontAwesomeText(
+                                icon: NavigationIcon.play,
+                                size: 14,
+                                color: viewModel.queryVM.isQueryExecuting ? .gray : .green
+                            )
+                            .accessibilityLabel("Execute Query")
+                            .padding(.horizontal, 4)
+                        }
+                        .disabled(viewModel.queryVM.isQueryExecuting)
+                        .accessibilityIdentifier("ExecuteQueryButton")
+                    }
+                }
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+                inspectorToggleButton()
+            }
+
+            // BOTTOM BAR — iPhone only (unchanged)
+            if horizontalSizeClass == .compact {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    ConnectionStatusMenu(
+                        connections: viewModel.syncVM.connectionsByTransport,
+                        pageSize: $queryPageSize,
+                        pageSizes: queryPageSizes,
+                        onPageSizeChange: { newSize in
+                            queryPageSize = newSize
+                            queryCurrentPage = 1
+                        }
+                    )
+
+                    Spacer()
+
+                    if !viewModel.queryVM.jsonResults.isEmpty {
+                        Button {
+                            queryCurrentPage = max(1, queryCurrentPage - 1)
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .disabled(queryCurrentPage <= 1)
+
+                        if queryPageCount > 1 {
+                            Menu {
+                                ForEach(1 ... queryPageCount, id: \.self) { page in
+                                    Button("Page \(page)") { queryCurrentPage = page }
+                                }
+                            } label: {
+                                Text("Pg \(queryCurrentPage)")
+                                    .font(.caption.monospacedDigit())
                             }
-                        )
+                        } else {
+                            Text("Pg 1")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            queryCurrentPage = min(queryPageCount, queryCurrentPage + 1)
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                        .disabled(queryCurrentPage >= queryPageCount)
 
                         Spacer()
 
-                        if !viewModel.queryVM.jsonResults.isEmpty {
+                        Menu {
+                            // ADVISE (SDK 5.1) — index suggestions for the editor query.
                             Button {
-                                queryCurrentPage = max(1, queryCurrentPage - 1)
+                                Task { await viewModel.queryVM.runAdvise(appState: appState) }
                             } label: {
-                                Image(systemName: "chevron.left")
+                                Label("Advise (index suggestions)…", systemImage: "lightbulb")
                             }
-                            .disabled(queryCurrentPage <= 1)
-
-                            if queryPageCount > 1 {
-                                Menu {
-                                    ForEach(1 ... queryPageCount, id: \.self) { page in
-                                        Button("Page \(page)") { queryCurrentPage = page }
-                                    }
-                                } label: {
-                                    Text("Pg \(queryCurrentPage)")
-                                        .font(.caption.monospacedDigit())
-                                }
-                            } else {
-                                Text("Pg 1")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Button {
-                                queryCurrentPage = min(queryPageCount, queryCurrentPage + 1)
-                            } label: {
-                                Image(systemName: "chevron.right")
-                            }
-                            .disabled(queryCurrentPage >= queryPageCount)
-
-                            Spacer()
-
-                            Menu {
-                                Button("Export JSON") { queryIsExporting = true }
-                                Divider()
-                                Button("Generate SELECT") { queryGenerateAndInsert(.select) }
-                                Button("Generate INSERT") { queryGenerateAndInsert(.insert) }
-                                Button("Generate UPDATE") { queryGenerateAndInsert(.update) }
-                                Button("Generate DELETE") { queryGenerateAndInsert(.delete) }
-                                Button("Generate EVICT") { queryGenerateAndInsert(.evict) }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                            }
+                            .disabled(!viewModel.queryVM.canRunAdvise)
+                            .accessibilityIdentifier("QueryAdviseMenuItem")
+                            Divider()
+                            Button("Export JSON") { queryIsExporting = true }
+                            Divider()
+                            Button("Generate SELECT") { queryGenerateAndInsert(.select) }
+                            Button("Generate INSERT") { queryGenerateAndInsert(.insert) }
+                            Button("Generate UPDATE") { queryGenerateAndInsert(.update) }
+                            Button("Generate DELETE") { queryGenerateAndInsert(.delete) }
+                            Button("Generate EVICT") { queryGenerateAndInsert(.evict) }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                 }
             }
+        }
         #endif
         #if os(macOS)
         .toolbar {
@@ -535,6 +573,9 @@ extension MainStudioView {
                 .disabled(viewModel.queryVM.isQueryExecuting)
                 .accessibilityIdentifier("ExecuteQueryButton")
             }
+            ToolbarItem(placement: .primaryAction) {
+                queryGenerateDQLButton
+            }
         }
         #endif
     }
@@ -543,6 +584,15 @@ extension MainStudioView {
 
     private var queryGenerateDQLButton: some View {
         Menu {
+            // ADVISE (SDK 5.1) — index suggestions for the editor query.
+            Button {
+                Task { await viewModel.queryVM.runAdvise(appState: appState) }
+            } label: {
+                Label("Advise (index suggestions)…", systemImage: "lightbulb")
+            }
+            .disabled(!viewModel.queryVM.canRunAdvise)
+            .accessibilityIdentifier("QueryAdviseMenuItem")
+            Divider()
             Button("SELECT with all fields") { queryGenerateAndInsert(.select) }
             Button("INSERT template") { queryGenerateAndInsert(.insert) }
             Button("UPDATE template") { queryGenerateAndInsert(.update) }
@@ -628,8 +678,8 @@ extension MainStudioView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
         }
         .overlay(alignment: .bottom) {
@@ -686,93 +736,93 @@ extension MainStudioView {
         .onChange(of: viewModel.subObsVM.selectedEventId) { _, _ in refreshObserveDetailData() }
         .onChange(of: viewModel.subObsVM.eventMode) { _, _ in refreshObserveDetailData() }
         #if os(iOS)
-            .navigationTitle("Observer Events")
-            .toolbar {
-                if horizontalSizeClass == .compact {
-                    sidebarToggleButton()
-                    // Single right-side ToolbarItem prevents overflow
-                    ToolbarItem(placement: .primaryAction) {
-                        HStack(spacing: 18) {
-                            Button {
-                                Task {
-                                    do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
-                                }
-                            } label: {
-                                Image(systemName: "arrow.2.circlepath")
-                                    .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
+        .navigationTitle("Observer Events")
+        .toolbar {
+            if horizontalSizeClass == .compact {
+                sidebarToggleButton()
+                // Single right-side ToolbarItem prevents overflow
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 18) {
+                        Button {
+                            Task {
+                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
                             }
-                            .accessibilityIdentifier("SyncButton")
-                            .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
-
-                            Button {
-                                Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                            }
-                            .accessibilityIdentifier("CloseButton")
-
-                            Button { showInspector.toggle() } label: {
-                                Image(systemName: "sidebar.right")
-                                    .foregroundStyle(showInspector ? .primary : .secondary)
-                            }
-                            .accessibilityIdentifier("Toggle Inspector")
+                        } label: {
+                            Image(systemName: "arrow.2.circlepath")
+                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
                         }
+                        .accessibilityIdentifier("SyncButton")
+                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
+
+                        Button {
+                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                        }
+                        .accessibilityIdentifier("CloseButton")
+
+                        Button { showInspector.toggle() } label: {
+                            Image(systemName: "sidebar.right")
+                                .foregroundStyle(showInspector ? .primary : .secondary)
+                        }
+                        .accessibilityIdentifier("Toggle Inspector")
                     }
-                } else {
-                    appNameToolbarLabel()
-                    syncToolbarButton()
-                    closeToolbarButton()
-                    inspectorToggleButton()
                 }
+            } else {
+                appNameToolbarLabel()
+                syncToolbarButton()
+                closeToolbarButton()
+                inspectorToggleButton()
+            }
 
-                // iPhone bottom bar
-                if horizontalSizeClass == .compact {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        ConnectionStatusMenu(
-                            connections: viewModel.syncVM.connectionsByTransport,
-                            pageSize: $observeDetailPageSize,
-                            pageSizes: observeDetailPageSizes,
-                            onPageSizeChange: { newSize in
-                                observeDetailPageSize = newSize
-                                observeDetailCurrentPage = 1
-                            }
-                        )
-
-                        Spacer()
-
-                        if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
-                            Button {
-                                observeDetailCurrentPage = max(1, observeDetailCurrentPage - 1)
-                            } label: {
-                                Image(systemName: "chevron.left")
-                            }
-                            .disabled(observeDetailCurrentPage <= 1)
-
-                            if observeDetailPageCount > 1 {
-                                Menu {
-                                    ForEach(1 ... observeDetailPageCount, id: \.self) { page in
-                                        Button("Page \(page)") { observeDetailCurrentPage = page }
-                                    }
-                                } label: {
-                                    Text("Pg \(observeDetailCurrentPage)")
-                                        .font(.caption.monospacedDigit())
-                                }
-                            } else {
-                                Text("Pg 1")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Button {
-                                observeDetailCurrentPage = min(observeDetailPageCount, observeDetailCurrentPage + 1)
-                            } label: {
-                                Image(systemName: "chevron.right")
-                            }
-                            .disabled(observeDetailCurrentPage >= observeDetailPageCount)
+            // iPhone bottom bar
+            if horizontalSizeClass == .compact {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    ConnectionStatusMenu(
+                        connections: viewModel.syncVM.connectionsByTransport,
+                        pageSize: $observeDetailPageSize,
+                        pageSizes: observeDetailPageSizes,
+                        onPageSizeChange: { newSize in
+                            observeDetailPageSize = newSize
+                            observeDetailCurrentPage = 1
                         }
+                    )
+
+                    Spacer()
+
+                    if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
+                        Button {
+                            observeDetailCurrentPage = max(1, observeDetailCurrentPage - 1)
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .disabled(observeDetailCurrentPage <= 1)
+
+                        if observeDetailPageCount > 1 {
+                            Menu {
+                                ForEach(1 ... observeDetailPageCount, id: \.self) { page in
+                                    Button("Page \(page)") { observeDetailCurrentPage = page }
+                                }
+                            } label: {
+                                Text("Pg \(observeDetailCurrentPage)")
+                                    .font(.caption.monospacedDigit())
+                            }
+                        } else {
+                            Text("Pg 1")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            observeDetailCurrentPage = min(observeDetailPageCount, observeDetailCurrentPage + 1)
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                        .disabled(observeDetailCurrentPage >= observeDetailPageCount)
                     }
                 }
             }
+        }
         #endif
     }
 
@@ -846,18 +896,15 @@ extension MainStudioView {
         VStack(alignment: .leading, spacing: 0) {
             if observeEvent != nil {
                 HStack(spacing: 8) {
-                    Picker("", selection: $observeDetailViewMode) {
-                        // Filter out .profile — it doesn't apply to
-                        // observe events (they're not queries). The
-                        // switch below uses `default` so the case
-                        // stays unreachable but exhaustive.
-                        ForEach(ResultViewTab.allCases.filter { $0 != .profile }, id: \.self) { tab in
-                            Label(tab.rawValue, systemImage: tab.icon).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    // Allow-list rather than a filter: observe events are not
+                    // queries, so .profile does not apply here. The switch below
+                    // keeps it exhaustive but unreachable.
+                    DittoSegmentedPicker(
+                        options: [ResultViewTab.raw, .table],
+                        selection: $observeDetailViewMode,
+                        label: { Label($0.rawValue, systemImage: $0.icon).font(.caption.weight(.medium)) }
+                    )
                     .frame(width: 160)
-                    .labelsHidden()
 
                     Spacer()
 
@@ -898,9 +945,8 @@ extension MainStudioView {
                         }
                     )
                 case .profile:
-                    // Unreachable — the picker above filters .profile
-                    // out. Present here only so the switch is
-                    // exhaustive for the compiler.
+                    // Unreachable — the picker above lists only .raw/.table.
+                    // Present here only so the switch is exhaustive.
                     EmptyView()
                 }
             } else {
@@ -912,5 +958,39 @@ extension MainStudioView {
             }
         }
         .padding(.leading, 12)
+    }
+}
+
+// MARK: - Presence-feed leaves
+
+/// The "Last updated" subtitle.
+///
+/// A separate `View` purely so the presence-feed read happens in *this* body
+/// rather than in `MainStudioView.body`. Observation records dependencies
+/// against whichever body performs the read, so confining it here confines the
+/// invalidation to a single line of text.
+private struct SyncLastUpdatedLabel: View {
+    @Bindable var viewModel: MainStudioView.ViewModel
+
+    var body: some View {
+        if let statusInfo = viewModel.syncVM.syncStatusItems.first {
+            Text("Last updated: \(statusInfo.formattedLastUpdate)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 10)
+                .padding(.bottom, 4)
+        }
+    }
+}
+
+/// Wraps `DetailBottomBar` so the `connectionsByTransport` read is scoped to
+/// the bar instead of the enclosing split view. See `SyncLastUpdatedLabel`.
+private struct SyncBottomBar<Middle: View>: View {
+    @Bindable var viewModel: MainStudioView.ViewModel
+    @ViewBuilder var middle: Middle
+
+    var body: some View {
+        DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) { middle }
     }
 }

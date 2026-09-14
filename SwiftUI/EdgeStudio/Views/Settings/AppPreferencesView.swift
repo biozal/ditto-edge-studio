@@ -23,6 +23,7 @@ struct AppPreferencesView: View {
 
 private struct GeneralPreferencesTab: View {
     @AppStorage("metricsEnabled") private var metricsEnabled = true
+    @AppStorage("collectSystemMetrics") private var collectSystemMetrics = true
     @AppStorage("mcpServerEnabled") private var mcpServerEnabled = false
     @AppStorage("mcpServerPort") private var mcpServerPort = 65269
     @State private var isServerActuallyRunning = false
@@ -32,6 +33,10 @@ private struct GeneralPreferencesTab: View {
             Section {
                 Toggle("Collect Metrics", isOn: $metricsEnabled)
                 Text("When disabled, no performance data is collected and the Metrics section is hidden from the navigation menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Collect system metrics", isOn: $collectSystemMetrics)
+                Text("Enables the SDK's system:metrics exporter for the App Metrics section. Takes effect the next time you open a database.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {

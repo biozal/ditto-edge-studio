@@ -22,10 +22,8 @@ private func runColor(
     guard let range = text.range(of: substring),
           let lower = AttributedString.Index(range.lowerBound, within: highlighted)
     else { return nil }
-    for run in highlighted.runs {
-        if run.range.contains(lower) {
-            return run.foregroundColor
-        }
+    for run in highlighted.runs where run.range.contains(lower) {
+        return run.foregroundColor
     }
     return nil
 }
@@ -36,7 +34,6 @@ private func description(of color: Color?) -> String? {
 
 @Suite("DQLSyntaxHighlighter Tests")
 struct DQLSyntaxHighlighterTests {
-
     @Test("Keywords are colored, case-insensitively")
     func keywordsColored() {
         let text = "select * FROM movies"
@@ -91,7 +88,6 @@ struct DQLSyntaxHighlighterTests {
 
 @Suite("JSONSyntaxHighlighter Tests")
 struct JSONSyntaxHighlighterTests {
-
     @Test("Keys use the keyword color, string values the string color")
     func keysAndValues() {
         let text = """
@@ -131,14 +127,15 @@ struct JSONSyntaxHighlighterTests {
 
 @Suite("ProfileOperatorCard JSON detection Tests")
 struct ProfileOperatorCardJSONTests {
-
     @Test("JSON objects pretty-print")
-    func objectPrettyPrints() {
+    func objectPrettyPrints() throws {
         let pretty = ProfileOperatorCard.prettyPrintedJSON(#"{"b":1,"a":"x"}"#)
-        #expect(pretty != nil)
-        #expect(pretty!.contains("\n"))
+        let prettyText = try #require(pretty)
+        #expect(prettyText.contains("\n"))
         // Sorted keys: "a" before "b".
-        #expect(pretty!.range(of: "\"a\"")!.lowerBound < pretty!.range(of: "\"b\"")!.lowerBound)
+        let aRange = try #require(prettyText.range(of: "\"a\""))
+        let bRange = try #require(prettyText.range(of: "\"b\""))
+        #expect(aRange.lowerBound < bRange.lowerBound)
     }
 
     @Test("Non-JSON values return nil")

@@ -4,6 +4,7 @@ import com.costoda.dittoedgestudio.domain.model.AdvancedSettingsDql
 import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.CollectionSyncScope
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.StartupSetting
 import com.costoda.dittoedgestudio.domain.model.StartupSettingType
 import com.costoda.dittoedgestudio.domain.model.SyncScope
@@ -298,5 +299,43 @@ class DittoManagerTest {
         manager.startSync()
 
         assertTrue(events.any { it == "dql:ALTER SYSTEM SET new_setting = :value" })
+    }
+
+    // --- multicastBeta transport-config mapping (SDK 5.1 reliable UDP multicast) ---
+
+    @Test
+    fun `multicastBeta spec maps flag group port and interface from the database config`() {
+        val db = serverDatabase.copy(
+            isMulticastEnabled = true,
+            multicastGroupAddress = "239.1.2.3",
+            multicastPort = 7000,
+            multicastInterfaceName = "en0",
+        )
+
+        val spec = db.toMulticastBetaSpec()
+
+        assertTrue(spec.enabled)
+        assertEquals("239.1.2.3", spec.groupAddress)
+        assertEquals(7000.toUShort(), spec.port)
+        assertEquals("en0", spec.interfaceName)
+    }
+
+    @Test
+    fun `multicastBeta spec defaults to disabled with SDK defaults`() {
+        val spec = serverDatabase.toMulticastBetaSpec()
+
+        assertTrue(!spec.enabled)
+        assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, spec.groupAddress)
+        assertEquals(MulticastConfig.DEFAULT_PORT.toUShort(), spec.port)
+        assertNull(spec.interfaceName)
+    }
+
+    @Test
+    fun `multicastBeta spec coerces the port with toUShort`() {
+        // The SDK field is a UShort; the mapping is the exact truncation contract
+        // the QR decode boundary validates against (0 → broken sentinel, 70000 → 4464).
+        assertEquals(1.toUShort(), serverDatabase.copy(multicastPort = 1).toMulticastBetaSpec().port)
+        assertEquals(65535.toUShort(), serverDatabase.copy(multicastPort = 65535).toMulticastBetaSpec().port)
+        assertEquals(4464.toUShort(), serverDatabase.copy(multicastPort = 70000).toMulticastBetaSpec().port)
     }
 }

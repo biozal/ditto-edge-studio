@@ -381,7 +381,18 @@ Queries are sent to the Ditto HTTP API endpoint configured on the active databas
 
 - The server binds to the loopback interface only (`NWParameters.requiredInterfaceType = .loopback`) — not accessible from other machines on your network
 - No authentication by default — any process on your Mac can connect
-- The server emits no CORS headers and does not answer CORS preflight requests — browser-based clients are not supported; MCP clients are CLI agents, not browsers
+- The server rejects any request that carries an `Origin` header, and any request whose
+  `Host` is not loopback (`localhost`, `127.0.0.1`, `::1`). Browsers attach `Origin` to
+  every cross-origin `fetch`/XHR and cannot suppress it; CLI agents do not send one. The
+  `Host` check blocks DNS rebinding, where an attacker-controlled name resolves to
+  127.0.0.1 so the page's own origin *is* the server.
+- **Absence of CORS headers is not a defence, and this document used to claim it was.**
+  A page can `fetch('http://localhost:65269/mcp', {method:'POST', body:'…'})`; the default
+  `Content-Type: text/plain` makes that a CORS *simple request*, so no preflight is issued
+  and the browser sends it. Missing CORS response headers only stop the page from *reading*
+  the reply — by then `execute_dql`, `set_sync`, `drop_index` or `configure_transport` has
+  already run against the live database. The `Origin`/`Host` checks above are what actually
+  stops it.
 - All tools target the **currently selected database in the Edge Studio UI** — be mindful of what database is active
 - The `execute_dql` tool can perform writes (INSERT, UPDATE, EVICT) — use with care
 - `set_sync(enabled: false)` stops all replication for the active database until re-enabled

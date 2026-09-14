@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -89,6 +90,14 @@ class StudioSessionTest {
         collectionsRepository = collectionsRepository,
         loggingCaptureService = logCaptureService,
         observableRepository = observableRepository,
+        historyRepository = mockk(relaxed = true),
+        appPreferences = mockk<com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway>().also {
+            io.mockk.every { it.collectSystemMetrics } returns kotlinx.coroutines.flow.MutableStateFlow(true)
+            // StudioSession collects the pins eagerly at construction.
+            io.mockk.every { it.systemMetricPins(any()) } returns
+                kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+        },
+        context = mockk(relaxed = true),
         ioDispatcher = testDispatcher,
         teardownDispatcher = testDispatcher,
     )
@@ -228,6 +237,44 @@ class StudioSessionTest {
     }
 
     @Test
+    fun `applyTransportSettings restarts sync and keeps persisted state when the apply throws`() = runTest {
+        // A failed live apply must not leave sync stopped, and the transport
+        // StateFlows must keep showing the persisted (actually-applied) values
+        // rather than the requested ones.
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true) {
+            every { sync } returns mockk(relaxed = true)
+        }
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+            isBluetoothLeEnabled = false,
+            isLanEnabled = false,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+        assertFalse(session.transportBluetoothEnabled.value)
+
+        every { dittoManager.applyTransportConfig(any(), any()) } throws RuntimeException("SDK rejected")
+
+        session.applyTransportSettings(bt = true, lan = true, wifiAware = true)
+        advanceUntilIdle()
+
+        // Sync + observers restart even though the apply threw mid-sequence.
+        coVerify(exactly = 1) { dittoManager.startSync() }
+        coVerify(exactly = 2) { systemRepository.startObserving(ditto) }
+        // Flows show the persisted values, not the rejected request.
+        assertFalse(session.transportBluetoothEnabled.value)
+        assertFalse(session.transportLanEnabled.value)
+        assertFalse(session.isApplyingTransport.value)
+    }
+
+    @Test
     fun `concurrent hydrate calls run DittoManager hydrate exactly once`() = runTest {
         // Two MainStudioViewModel instances (activity-store + entry-store) constructed in
         // the same composition pass both call hydrate() from init. The second must join
@@ -285,13 +332,54 @@ class StudioSessionTest {
         coEvery { observableRepository.loadObservables(any()) } returns emptyList()
 
         sessionB.hydrate()
-        // Pump pending coroutines; B must be parked on the registry await — hydrate must NOT have opened yet.
-        advanceUntilIdle()
+        // Pump pending coroutines *within* the await window; B must be parked on the registry
+        // await — hydrate must NOT have opened yet.
+        advanceTimeBy(DittoTeardownRegistry.AWAIT_CLOSE_TIMEOUT_MS / 2)
+        runCurrent()
         coVerify(exactly = 0) { dittoManager.hydrate(any()) }
 
         // Release A's close; B's hydrate is now free to proceed and call dittoManager.hydrate().
         gate.complete(Unit)
         advanceUntilIdle()
         coVerify(exactly = 1) { dittoManager.hydrate(any()) }
+    }
+
+    @Test
+    fun `hydrate proceeds when a previous close is wedged past the await timeout`() = runTest {
+        // Regression guard. Ditto.close() blocks while any read transaction is still open, so a
+        // single leaked transaction used to hang awaitCloseFor forever — and with it every later
+        // hydrate for that database. The studio then showed no collections, no subscriptions and
+        // a permanent Query Workbench spinner that survived backing out and re-entering. The
+        // await is now bounded: a wedged close degrades to "open anyway", never to a brick.
+        val sessionA = newSession(databaseId = 42L)
+        val gate = CompletableDeferred<Unit>()
+        coEvery { dittoManager.close() } coAnswers { gate.await() }
+
+        sessionA.close()
+        runCurrent()
+        assertTrue(DittoTeardownRegistry.inFlightJob(42L)?.isActive == true)
+
+        val sessionB = newSession(databaseId = 42L)
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns mockk(relaxed = true)
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        sessionB.hydrate()
+        // A's close never completes. Past the timeout, B must open rather than hang forever.
+        advanceTimeBy(DittoTeardownRegistry.AWAIT_CLOSE_TIMEOUT_MS + 1_000)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { dittoManager.hydrate(any()) }
+        assertEquals("db-42", sessionB.currentDittoId)
+        // A's close is still genuinely in flight — we proceeded past it, we did not abandon it.
+        assertTrue(DittoTeardownRegistry.inFlightJob(42L)?.isActive == true)
+
+        // Let the parked close finish so it does not leak into sibling tests.
+        gate.complete(Unit)
+        advanceUntilIdle()
     }
 }

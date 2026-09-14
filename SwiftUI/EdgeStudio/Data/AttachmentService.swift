@@ -53,7 +53,63 @@ final class AttachmentProgress {
 
 // MARK: - AttachmentService
 
+/// Resumes a checked continuation exactly once, from any thread.
+///
+/// The Ditto fetch callback fires off-actor and a timeout Task can race it; resuming a
+/// checked continuation twice is a hard trap, and never resuming it hangs the caller
+/// forever. This gate makes "first resume wins, later ones are no-ops" the only outcome.
+private final class ContinuationGate<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, any Error>?
+
+    init(_ continuation: CheckedContinuation<T, any Error>) {
+        self.continuation = continuation
+    }
+
+    func resume(returning value: T) {
+        take()?.resume(returning: value)
+    }
+
+    func resume(throwing error: any Error) {
+        take()?.resume(throwing: error)
+    }
+
+    private func take() -> CheckedContinuation<T, any Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        let pending = continuation
+        continuation = nil
+        return pending
+    }
+}
+
+/// Holds the in-flight stall timer so it can be re-armed from the fetch callback.
+private final class TimeoutBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+
+    /// Installs `newTask` and cancels whatever it replaced.
+    func replace(with newTask: Task<Void, Never>?) {
+        lock.lock()
+        let previous = task
+        task = newTask
+        lock.unlock()
+        previous?.cancel()
+    }
+
+    func cancel() {
+        replace(with: nil)
+    }
+}
+
 actor AttachmentService {
+    /// Upper bound on how long the fetch may go WITHOUT PROGRESS before giving up.
+    ///
+    /// Deliberately a stall deadline, not a total-duration one: a large attachment arriving
+    /// over BLE/AWDL can legitimately take minutes, and `localSizeLimit` only caps uploads
+    /// this app makes — a blob received from the mesh can be far bigger. An absolute cap
+    /// would fail a transfer that is working, with a message saying it had not replicated.
+    static let stallTimeoutSeconds: Double = 60
     static let shared = AttachmentService()
 
     private let dittoManager = DittoManager.shared
@@ -147,18 +203,46 @@ actor AttachmentService {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
+            // The fetch is BOUNDED. `fetchAttachment` only emits `.completed`/`.deleted`
+            // when the blob is present or removed; if it has not replicated to this peer no
+            // event ever arrives, so the continuation was never resumed and the awaiting
+            // task hung forever — leaving the inspector's spinner latched on with no way to
+            // clear it, since the only cancellation API has no production caller and did not
+            // resume the continuation either. `.progress` and `@unknown default` fall
+            // through without resuming too, so the timeout is what makes those safe.
+            let gate = ContinuationGate(continuation)
+            let timeouts = TimeoutBox()
+
+            /// Re-armed on every `.progress`, so the deadline measures SILENCE rather than
+            /// total transfer time.
+            @Sendable func armStallTimeout() {
+                timeouts.replace(with: Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(Self.stallTimeoutSeconds))
+                    guard !Task.isCancelled else { return }
+                    await self?.removeFetcher(id: id)
+                    gate.resume(
+                        throwing: AttachmentError.fetchFailed(
+                            "No progress for \(Int(Self.stallTimeoutSeconds))s. "
+                                + "The attachment may not have replicated to this peer yet."
+                        )
+                    )
+                })
+            }
+            armStallTimeout()
+
             do {
                 let fetcher = try ditto.store.fetchAttachment(token: token) { [weak self] event in
                     switch event {
                     case let .completed(attachment):
+                        timeouts.cancel()
                         // Clean up the fetcher reference
                         Task { await self?.removeFetcher(id: id) }
                         // Read the attachment data
                         do {
                             let data = try attachment.data()
-                            continuation.resume(returning: data)
+                            gate.resume(returning: data)
                         } catch {
-                            continuation.resume(
+                            gate.resume(
                                 throwing: AttachmentError.fetchFailed(
                                     "Failed to read attachment data: \(error.localizedDescription)"
                                 )
@@ -166,12 +250,15 @@ actor AttachmentService {
                         }
 
                     case .progress:
-                        // Progress updates are informational; the continuation resolves on completion
-                        break
+                        // Informational for the caller, but meaningful here: the transfer is
+                        // alive, so restart the stall clock. Without this the bound was
+                        // absolute and killed downloads that were working.
+                        armStallTimeout()
 
                     case .deleted:
+                        timeouts.cancel()
                         Task { await self?.removeFetcher(id: id) }
-                        continuation.resume(
+                        gate.resume(
                             throwing: AttachmentError.fetchFailed(
                                 "Attachment was deleted before fetch completed."
                             )
@@ -185,7 +272,8 @@ actor AttachmentService {
                 // Retain the fetcher so the download stays alive
                 self.activeFetchers[id] = fetcher
             } catch {
-                continuation.resume(
+                timeouts.cancel()
+                gate.resume(
                     throwing: AttachmentError.fetchFailed(
                         "Failed to start attachment fetch: \(error.localizedDescription)"
                     )

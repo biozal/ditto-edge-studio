@@ -143,7 +143,7 @@ fun activateObserver(observer: DittoObservable) {
 }
 ```
 
-**Diff computation (from .NET's ObserversViewModel.cs):**
+**Diff computation:**
 
 ```kotlin
 data class DiffResult(

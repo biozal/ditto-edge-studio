@@ -20,7 +20,15 @@ private const val QR_SIZE_PX = 512
 
 object QrCodeEncoder {
 
-    private val json = Json { }
+    // encodeDefaults = true is REQUIRED for cross-platform parity, not a preference.
+    // kotlinx skips any property whose value equals its declared default. `_id` is declared
+    // `= ""` and hardcoded to `""` on every encode, and `favorites` is declared
+    // `= emptyList()`, so neither key was emitted — while Swift decodes both with a plain
+    // `decode` (not `decodeIfPresent`) and `QRCodeGenerator.decode` swallows the resulting
+    // `keyNotFound` with `try?`. Every database QR produced here was silently undecodable
+    // on macOS/iPadOS. Android's own tests missed it because they hand-write `"_id": ""`
+    // into fixtures rather than running this encoder.
+    private val json = Json { encodeDefaults = true }
 
     /**
      * Encodes a [DittoDatabase] (and optional favorites) into an EDS2 QR code [Bitmap].
@@ -47,8 +55,11 @@ object QrCodeEncoder {
                 id = "",
                 name = database.name,
                 databaseId = database.databaseId,
-                token = database.token,
-                authUrl = database.authUrl,
+                // Emit the SDK-5 spellings. SwiftUI's decoder accepts both
+                // these and the pre-5 names, and this decoder now does too, so
+                // codes stay readable in both directions.
+                developmentToken = database.token,
+                url = database.authUrl,
                 websocketUrl = database.websocketUrl,
                 httpApiUrl = database.httpApiUrl,
                 httpApiKey = database.httpApiKey,
@@ -59,6 +70,10 @@ object QrCodeEncoder {
                 isLanEnabled = database.isLanEnabled,
                 isAwdlEnabled = database.isAwdlEnabled,
                 isCloudSyncEnabled = database.isCloudSyncEnabled,
+                isMulticastEnabled = database.isMulticastEnabled,
+                multicastGroupAddress = database.multicastGroupAddress,
+                multicastPort = database.multicastPort,
+                multicastInterfaceName = database.multicastInterfaceName,
                 logLevel = database.logLevel,
                 isStrictModeEnabled = database.isStrictModeEnabled,
             ),
@@ -66,9 +81,19 @@ object QrCodeEncoder {
         )
     }
 
+    /**
+     * The JSON step of [encodeToEds2], separated so tests can assert on what this encoder
+     * really emits. The previous tests hand-wrote `"_id": ""` into fixture JSON instead of
+     * running the encoder, which is why the missing keys shipped.
+     */
+    internal fun encodePayloadJson(payload: QrCodePayload): String = json.encodeToString(payload)
+
+    internal fun buildPayloadForTest(database: DittoDatabase, favorites: List<String>): QrCodePayload =
+        buildPayload(database, favorites)
+
     private fun encodeToEds2(payload: QrCodePayload): String? {
         return try {
-            val jsonString = json.encodeToString(payload)
+            val jsonString = encodePayloadJson(payload)
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
             val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false) // nowrap=false = RFC 1950
             deflater.setInput(bytes)
@@ -83,7 +108,8 @@ object QrCodeEncoder {
         }
     }
 
-    private fun renderQrBitmap(content: String): Bitmap? {
+    /** Renders any payload string (EDS2 configs, EDS_SUBS1 subscriptions, …) as a QR bitmap. */
+    fun renderQrBitmap(content: String): Bitmap? {
         return try {
             val hints = mapOf(
                 EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,

@@ -29,9 +29,9 @@ struct ContentView: View {
         return Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
-                #if os(macOS)
-                .frame(minWidth: 1400, minHeight: 820)
-                #endif
+                    #if os(macOS)
+                    .frame(minWidth: 1400, minHeight: 820)
+                    #endif
             } else if viewModel.isMainStudioViewPresented,
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
@@ -48,7 +48,7 @@ struct ContentView: View {
                 .id(selectedApp._id)
                 .environment(appState)
                 #if os(macOS)
-                    .frame(minWidth: 1400, minHeight: 820)
+                .frame(minWidth: 1400, minHeight: 820)
                 #endif
             } else {
                 #if os(iOS)
@@ -100,30 +100,9 @@ struct ContentView: View {
                 storedDatabaseId = nil
             }
         }
-        // Destructive-delete gate: every delete trigger (the context menu on
-        // both platforms) only stages `appPendingDeletion` via
-        // `viewModel.deleteApp`; this dialog is the single path that actually
-        // deletes. `confirmationDialog` renders as a dialog on macOS and an
-        // action sheet on iOS, so one modifier covers both pickers.
-        .confirmationDialog(
-            "Delete \(viewModel.appPendingDeletion?.name ?? "Database")?",
-            isPresented: Binding(
-                get: { viewModel.appPendingDeletion != nil },
-                set: {
-                    if !$0 {
-                        viewModel.appPendingDeletion = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await viewModel.confirmPendingAppDeletion(appState: appState) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the local database and all its Edge Studio data. This cannot be undone.")
-        }
+        // Destructive-delete gate. Shared with DatabaseListPanel so a host that offers
+        // Delete cannot forget it — see DatabaseDeletionConfirmation.
+        .databaseDeletionConfirmation(viewModel: viewModel, appState: appState)
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
             Task { await viewModel.startQuickstartDownload() }
@@ -357,7 +336,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    .frame(minWidth: 360, minHeight: 420)
+                    #if os(macOS)
+                    .frame(minWidth: 620, minHeight: 800)
+                    #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -397,6 +378,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
+                        #if os(macOS)
+                        .frame(minWidth: 620, minHeight: 800)
+                        #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -690,14 +674,20 @@ extension ContentView {
         }
 
         /// Performs the actual deletion after explicit user confirmation.
-        /// No-op when nothing is staged.
-        func confirmPendingAppDeletion(appState: AppState) async {
-            guard let dittoApp = appPendingDeletion else { return }
+        ///
+        /// Takes the configuration explicitly rather than re-reading
+        /// `appPendingDeletion`. Dismissing the confirmation dialog clears that staged
+        /// value, and the dismissal runs *before* this action's `Task` does — so the
+        /// previous `guard let … else { return }` form returned silently every time,
+        /// making Delete a no-op that left nothing in the logs to explain itself.
+        func confirmAppDeletion(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
             appPendingDeletion = nil
+            Log.info("Deleting database configuration '\(dittoApp.name)' (confirmed)")
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
             } catch {
+                Log.error("Delete failed for '\(dittoApp.name)': \(error.localizedDescription)")
                 appState.setError(error)
             }
         }
@@ -833,6 +823,18 @@ extension ContentView {
 
         func importFromQRCode(_ config: DittoConfigForDatabase, favorites: [FavoriteQueryItem], appState: AppState) async {
             do {
+                // `_id` is the SENDER's local row identifier and carries no meaning here, so
+                // an empty one gets a fresh identity rather than being inserted as-is.
+                // Android hardcodes `_id = ""` on every payload it encodes; with that key
+                // now actually reaching us (it used to be dropped, which made the whole code
+                // undecodable), the first import would insert a row with an empty primary
+                // key and the SECOND would fail on `UNIQUE constraint failed:
+                // databaseConfigs._id` — no two Android databases could ever be imported.
+                // Only the empty case is regenerated, so an Apple-to-Apple re-scan still
+                // collides loudly instead of silently duplicating a config.
+                if config._id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    config._id = UUID().uuidString
+                }
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
                     for item in favorites {

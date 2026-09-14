@@ -14,19 +14,17 @@ import Testing
 /// - Callback registration: setOnSyncStatusUpdate, setOnConnectionsUpdate,
 ///   and setAppState can be registered without crashing
 ///
-/// TODO: Integration tests needed
+/// Note: Integration tests planned
 /// Full integration tests with a live Ditto instance belong in
 /// EdgeStudioIntegrationTests.
 ///
 /// Target: ~20% code coverage (error paths and registration only).
 @Suite("SystemRepository Tests", .serialized)
 struct SystemRepositoryTests {
-
     // MARK: - Error Path Tests
 
     @Suite("Error Paths")
     struct ErrorPathTests {
-
         @Test("registerSyncStatusObserver with no selected app throws", .tags(.repository))
         func testRegisterSyncStatusObserverThrowsWithNoApp() async throws {
             // ARRANGE — No selected app (unit test: DittoManager.dittoSelectedApp is nil)
@@ -54,7 +52,6 @@ struct SystemRepositoryTests {
 
     @Suite("Stop Observer")
     struct StopObserverTests {
-
         @Test("stopObserver with no active observers does not crash", .tags(.repository))
         func testStopObserverWithNoActiveObservers() async {
             // ARRANGE — No observers registered
@@ -83,7 +80,6 @@ struct SystemRepositoryTests {
 
     @Suite("Callback Registration")
     struct CallbackRegistrationTests {
-
         @Test("setOnSyncStatusUpdate can be registered without crashing", .tags(.repository))
         func testSetOnSyncStatusUpdateRegistration() async {
             // ARRANGE
@@ -129,7 +125,7 @@ struct SystemRepositoryTests {
 
 // MARK: - Integration Test Stub
 
-// TODO: Integration tests needed
+// Note: Integration tests planned
 // The following tests require a live Ditto instance and belong in EdgeStudioIntegrationTests.
 // Add them when a Ditto test instance is available:
 //

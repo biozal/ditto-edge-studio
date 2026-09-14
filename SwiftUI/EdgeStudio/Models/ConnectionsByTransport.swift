@@ -107,7 +107,7 @@ struct ConnectionsByTransport: Codable, Equatable {
             transports.append(TransportInfo(
                 name: "Multicast",
                 count: multicast,
-                icon: ConnectivityIcon.ethernet,
+                icon: ConnectivityIcon.broadcast,
                 color: ConnectionType.multicast.cardColor
             ))
         }

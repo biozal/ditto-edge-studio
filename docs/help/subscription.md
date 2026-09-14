@@ -20,6 +20,14 @@ On macOS / iPadOS, tap the **+** button in the bottom-left of the sidebar, then 
 **Removing a subscription:**
 Swipe left on the subscription row (iPadOS) or right-click and choose *Delete* (macOS). On Android, tap the delete (trash) icon on the subscription row.
 
+**Bulk sharing via QR:**
+The QR icon at the top of the Subscriptions list encodes **all** subscriptions into a single QR code that any Edge Studio instance (macOS, iPadOS, or Android) can scan to import them at once (`EDS_SUBS1:` payload).
+
+**Bulk import:**
+The download icon at the top of the Subscriptions list offers two paths:
+- **From QR code** — scans a subscription QR code produced by another Edge Studio instance and imports every subscription in it.
+- **From server** *(requires the database's HTTP API URL + key)* — queries the server-side `__small_peer_info` for every peer's `local_subscriptions`, filters out system collections and subscriptions you already have, and lets you cherry-pick with checkboxes.
+
 **Best practices:**
 - Keep subscription queries as specific as possible to minimize data transfer.
 

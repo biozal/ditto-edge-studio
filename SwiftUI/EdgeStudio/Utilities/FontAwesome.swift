@@ -168,6 +168,7 @@ enum ConnectivityIcon {
     static let network: FAIcon = .icon_f6a9 // fa-plug (internet/websocket)
     static let ethernet: FAIcon = .icon_f796 // fa-ethernet
     static let broadcastTower: FAIcon = .icon_f519 // fa-broadcast-tower
+    static let broadcast: FAIcon = .icon_f2ce // fa-podcast (dot with radiating arcs) — multicast
     static let cloud: FAIcon = .icon_f0c2 // fa-cloud
 }
 

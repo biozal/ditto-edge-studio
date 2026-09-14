@@ -17,12 +17,22 @@ class ConnectionTypeEnabledTest {
 
     @Test
     fun `all transports enabled by default config`() {
-        // Default config: BLE on, LAN on, AWDL off, cloud on.
+        // Default config: BLE on, LAN on, AWDL off, cloud on, multicast off.
         assertTrue(ConnectionType.Bluetooth.isEnabledIn(allOn))
         assertTrue(ConnectionType.LAN.isEnabledIn(allOn))
         assertFalse(ConnectionType.P2PWiFi.isEnabledIn(allOn))
         assertTrue(ConnectionType.WebSocket.isEnabledIn(allOn))
+        assertFalse(ConnectionType.Multicast.isEnabledIn(allOn))
         assertTrue(ConnectionType.Unknown.isEnabledIn(allOn))
+    }
+
+    @Test
+    fun `multicast follows the per-database flag`() {
+        // Multicast (beta, SDK 5.1.0) filters against the per-database
+        // isMulticastEnabled flag (default OFF), like every other transport —
+        // mirrors SwiftUI isConnectionTypeEnabled.
+        assertFalse(ConnectionType.Multicast.isEnabledIn(allOn))
+        assertTrue(ConnectionType.Multicast.isEnabledIn(allOn.copy(isMulticastEnabled = true)))
     }
 
     @Test

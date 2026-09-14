@@ -26,11 +26,28 @@ data object QrScannerKey : NavKey
 @Serializable
 data object SettingsKey : NavKey
 
+/**
+ * Welcome tour for a database. Deliberately NOT a [StudioSectionKey]/
+ * `StudioChildKey`: it renders full-screen on top of the studio (pushed above
+ * the section key already on the back stack, which keeps the Koin session
+ * scope alive underneath).
+ */
+@Serializable
+data class WelcomeKey(val databaseId: Long) : NavKey
+
+/**
+ * Full-screen camera scanner for bulk subscription import (`EDS_SUBS1:` payloads).
+ * Plain NavKey (full-screen camera, no studio chrome); the studio session/scope stays
+ * alive on the back stack underneath, so saves go through the live session.
+ */
+@Serializable
+data class SubscriptionQrScannerKey(val databaseId: Long) : NavKey
+
 // ---------------------------------------------------------------------------
 // Studio rail section keys
 // ---------------------------------------------------------------------------
 
-/** Marker for the 7 studio rail sections. Rail selection replaces the top entry
+/** Marker for the 8 studio rail sections. Rail selection replaces the top entry
  *  (no per-section history): back from any section exits the studio. */
 sealed interface StudioSectionKey : NavKey {
     val databaseId: Long
@@ -43,6 +60,7 @@ sealed interface StudioSectionKey : NavKey {
 @Serializable data class AppMetricsKey(override val databaseId: Long) : StudioSectionKey      // App Metrics
 @Serializable data class QueryMetricsKey(override val databaseId: Long) : StudioSectionKey    // Query Metrics
 @Serializable data class DiskUsageKey(override val databaseId: Long) : StudioSectionKey       // Database Metrics
+@Serializable data class SystemMetricsKey(override val databaseId: Long) : StudioSectionKey   // System Metrics
 
 // ---------------------------------------------------------------------------
 // Studio child keys (compact-width drill-ins)
@@ -92,6 +110,7 @@ fun StudioNavItem.toSectionKey(databaseId: Long): StudioSectionKey = when (this)
     StudioNavItem.APP_METRICS   -> AppMetricsKey(databaseId)
     StudioNavItem.QUERY_METRICS -> QueryMetricsKey(databaseId)
     StudioNavItem.DISK_USAGE    -> DiskUsageKey(databaseId)
+    StudioNavItem.SYSTEM_METRICS -> SystemMetricsKey(databaseId)
 }
 
 /** Reverse mapping: recover the [StudioNavItem] from any [StudioSectionKey].
@@ -104,6 +123,7 @@ val StudioSectionKey.navItem: StudioNavItem get() = when (this) {
     is AppMetricsKey    -> StudioNavItem.APP_METRICS
     is QueryMetricsKey  -> StudioNavItem.QUERY_METRICS
     is DiskUsageKey     -> StudioNavItem.DISK_USAGE
+    is SystemMetricsKey -> StudioNavItem.SYSTEM_METRICS
 }
 
 /**

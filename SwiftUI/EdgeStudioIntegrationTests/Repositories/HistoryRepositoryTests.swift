@@ -231,7 +231,7 @@ struct HistoryRepositoryTests {
                 try await repo.saveQueryHistory(entry, databaseId: dbId)
 
                 // ACT
-                let idToDelete = try await repo.loadHistory(for: dbId).first!.id
+                let idToDelete = try #require(try await repo.loadHistory(for: dbId).first).id
                 try await repo.deleteQueryHistory(idToDelete)
 
                 // ASSERT
@@ -268,7 +268,7 @@ struct HistoryRepositoryTests {
                 try await repo.saveQueryHistory(entry2, databaseId: dbId)
 
                 let loaded = try await repo.loadHistory(for: dbId)
-                let idToDelete = loaded.last!.id // delete the older one
+                let idToDelete = try #require(loaded.last).id // delete the older one
 
                 // ACT
                 try await repo.deleteQueryHistory(idToDelete)
@@ -431,7 +431,7 @@ struct HistoryRepositoryTests {
 
                 // ACT
                 let loaded = try await repo.loadHistory(for: dbId)
-                try await repo.deleteQueryHistory(loaded.first!.id)
+                try await repo.deleteQueryHistory(try #require(loaded.first).id)
 
                 // ASSERT
                 #expect(callbackCount.value >= 1)

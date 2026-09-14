@@ -43,15 +43,12 @@ struct DatabaseEditorView: View {
                 Form {
                     HStack {
                         Spacer()
-                        Picker("", selection: $viewModel.mode) {
-                            ForEach(AuthMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-                        .accessibilityIdentifier("AuthModePicker")
+                        DittoSegmentedPicker(
+                            options: AuthMode.allCases,
+                            selection: $viewModel.mode
+                        ) { $0.displayName }
+                            .frame(maxWidth: 300)
+                            .accessibilityIdentifier("AuthModePicker")
                         Spacer()
                     }
                     #if os(macOS)
@@ -77,9 +74,9 @@ struct DatabaseEditorView: View {
                         // (`DittoManager.localDirectoryPath`), so changing it would
                         // orphan the local data. Delete and re-register to change it.
                         TextField("Database ID", text: $viewModel.databaseId)
-                        #if os(macOS)
+                            #if os(macOS)
                             .textFieldStyle(.roundedBorder)
-                        #endif
+                            #endif
                             .font(.system(.body, design: .monospaced))
                             .lineLimit(1)
                             .trimOnPaste($viewModel.databaseId)
@@ -212,18 +209,18 @@ struct DatabaseEditorView: View {
         switch mode {
         case .development:
             TextField("Development token", text: $viewModel.developmentToken)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .trimOnPaste($viewModel.developmentToken)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("TokenTextField")
         case .smallPeerOnly:
             TextField("Offline Token", text: $viewModel.developmentToken)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .trimOnPaste($viewModel.developmentToken)
                 .padding(.bottom, 5)
@@ -441,9 +438,9 @@ struct DatabaseEditorView: View {
     @ViewBuilder
     private func scopeCollectionField(id: UUID) -> some View {
         TextField("Collection", text: bindingForScopeCollection(id: id))
-        #if os(macOS)
+            #if os(macOS)
             .textFieldStyle(.roundedBorder)
-        #endif
+            #endif
             .lineLimit(1)
     }
 
@@ -559,9 +556,9 @@ struct DatabaseEditorView: View {
     @ViewBuilder
     private func settingNameField(id: UUID) -> some View {
         TextField("Parameter", text: bindingForSettingParameter(id: id))
-        #if os(macOS)
+            #if os(macOS)
             .textFieldStyle(.roundedBorder)
-        #endif
+            #endif
             .font(.system(.body, design: .monospaced))
             .lineLimit(1)
     }
@@ -588,17 +585,17 @@ struct DatabaseEditorView: View {
             .pickerStyle(.menu)
         } else {
             TextField("Value", text: bindingForSettingValue(id: id))
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .font(type == .json ? .system(.body, design: .monospaced) : .body)
                 .lineLimit(1)
-            #if os(iOS)
+                #if os(iOS)
                 // Not `.numbersAndPunctuation`: it has no `e`, and system parameters
                 // include values like 1.0000000000000001e-09.
                 .keyboardType(.asciiCapable)
                 .autocorrectionDisabled()
-            #endif
+                #endif
         }
     }
 
@@ -710,9 +707,9 @@ struct DatabaseEditorView: View {
     private func secretKeySection() -> some View {
         Section("Optional Secret Key") {
             TextField("Shared Key", text: $viewModel.secretKey)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .padding(.bottom, 5)
                 .accessibilityIdentifier("SecretKeyTextField")
@@ -730,9 +727,9 @@ struct DatabaseEditorView: View {
         // auth URL (now just "URL") is needed.
         Section("Ditto Server (BigPeer) Information") {
             TextField("URL", text: $viewModel.url)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("UrlTextField")
@@ -742,17 +739,17 @@ struct DatabaseEditorView: View {
     private func httpApiSection() -> some View {
         Section("Ditto Server - HTTP API - Optional") {
             TextField("HTTP API URL", text: $viewModel.httpApiUrl)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("HttpApiUrlTextField")
 
             TextField("HTTP API Key", text: $viewModel.httpApiKey)
-            #if os(macOS)
+                #if os(macOS)
                 .textFieldStyle(.roundedBorder)
-            #endif
+                #endif
                 .lineLimit(1)
                 .padding(.bottom, 10)
                 .accessibilityIdentifier("HttpApiKeyTextField")
@@ -823,6 +820,10 @@ extension DatabaseEditorView {
         var isLanEnabled = true
         var isAwdlEnabled = true
         var isCloudSyncEnabled = true
+        var isMulticastEnabled = false
+        var multicastGroupAddress = MulticastConfig.defaultGroupAddress
+        var multicastPort = MulticastConfig.defaultPort
+        var multicastInterfaceName: String?
 
         // MARK: Advanced Configuration
 
@@ -879,6 +880,10 @@ extension DatabaseEditorView {
             isLanEnabled = appConfig.isLanEnabled
             isAwdlEnabled = appConfig.isAwdlEnabled
             isCloudSyncEnabled = appConfig.isCloudSyncEnabled
+            isMulticastEnabled = appConfig.isMulticastEnabled
+            multicastGroupAddress = appConfig.multicastGroupAddress
+            multicastPort = appConfig.multicastPort
+            multicastInterfaceName = appConfig.multicastInterfaceName
             collectionSyncScopes = appConfig.collectionSyncScopes
             // Canonicalised on the way in: a stored `.boolean` row spelled `true`/`FALSE`
             // is valid but unrenderable — the value picker tags are exactly
@@ -1216,6 +1221,10 @@ extension DatabaseEditorView {
                     isLanEnabled: isLanEnabled,
                     isAwdlEnabled: isAwdlEnabled,
                     isCloudSyncEnabled: isCloudSyncEnabled,
+                    isMulticastEnabled: isMulticastEnabled,
+                    multicastGroupAddress: multicastGroupAddress,
+                    multicastPort: multicastPort,
+                    multicastInterfaceName: multicastInterfaceName,
                     logLevel: logLevel,
                     isStrictModeEnabled: isStrictModeEnabled,
                     collectionSyncScopes: normalizedSyncScopes(),

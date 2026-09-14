@@ -48,7 +48,7 @@ actor SQLCipherService {
 
     // MARK: - Schema Version
 
-    private let currentSchemaVersion = 5
+    private let currentSchemaVersion = 6
 
     // MARK: - Initialization
 
@@ -403,7 +403,11 @@ actor SQLCipherService {
                     logLevel TEXT NOT NULL DEFAULT 'info',
                     isStrictModeEnabled INTEGER DEFAULT 0,
                     collectionSyncScopes TEXT NOT NULL DEFAULT '[]',
-                    startupSettings TEXT NOT NULL DEFAULT '[]'
+                    startupSettings TEXT NOT NULL DEFAULT '[]',
+                    isMulticastEnabled INTEGER DEFAULT 0,
+                    multicastGroupAddress TEXT NOT NULL DEFAULT '224.1.2.3',
+                    multicastPort INTEGER DEFAULT 6003,
+                    multicastInterfaceName TEXT
                 )
             """)
 
@@ -501,6 +505,11 @@ actor SQLCipherService {
             try await migrateToVersion5()
         }
 
+        // Migrate from version 5 to 6: Add multicast (beta) transport columns
+        if oldVersion < 6 {
+            try await migrateToVersion6()
+        }
+
         // Belt and braces: each step already stamped its own version inside its
         // transaction, so this only matters when `newVersion` is ahead of every step.
         try await execute("PRAGMA user_version = \(newVersion)")
@@ -572,6 +581,26 @@ actor SQLCipherService {
         Log.info("Schema version 5 migration complete: advanced configuration columns added")
     }
 
+    /// Migration to version 6: Add multicast (beta) transport columns
+    ///
+    /// Existing rows default to multicast DISABLED with the SDK-default group/port
+    /// (Ditto SDK 5.1.0 `peerToPeer.multicastBeta`), so an upgrade never silently
+    /// changes a database's transport behavior.
+    private func migrateToVersion6() async throws {
+        Log.info("Migrating to schema version 6: Adding multicast transport columns")
+
+        try await executeTransaction {
+            try await addColumnIfMissing("isMulticastEnabled", definition: "INTEGER DEFAULT 0")
+            try await addColumnIfMissing("multicastGroupAddress", definition: "TEXT NOT NULL DEFAULT '224.1.2.3'")
+            try await addColumnIfMissing("multicastPort", definition: "INTEGER DEFAULT 6003")
+            try await addColumnIfMissing("multicastInterfaceName", definition: "TEXT")
+            // Inside the transaction so the version and the columns land together.
+            try await execute("PRAGMA user_version = 6")
+        }
+
+        Log.info("Schema version 6 migration complete: multicast transport columns added")
+    }
+
     /// True when `table` already has a column named `column`.
     private func columnExists(_ column: String, inTable table: String) async throws -> Bool {
         var found = false
@@ -636,6 +665,12 @@ actor SQLCipherService {
         /// and never queried independently — hence columns rather than child tables.
         let collectionSyncScopes: String
         let startupSettings: String
+        /// Multicast (beta) transport settings (schema v6+). Default: disabled with
+        /// SDK-default group/port.
+        let isMulticastEnabled: Bool
+        let multicastGroupAddress: String
+        let multicastPort: Int
+        let multicastInterfaceName: String?
 
         // swiftformat:disable:next init
         init(
@@ -645,7 +680,11 @@ actor SQLCipherService {
             token: String, authUrl: String,
             httpApiUrl: String, httpApiKey: String, secretKey: String,
             logLevel: String, isStrictModeEnabled: Bool = false,
-            collectionSyncScopes: String = "[]", startupSettings: String = "[]"
+            collectionSyncScopes: String = "[]", startupSettings: String = "[]",
+            isMulticastEnabled: Bool = false,
+            multicastGroupAddress: String = MulticastConfig.defaultGroupAddress,
+            multicastPort: Int = MulticastConfig.defaultPort,
+            multicastInterfaceName: String? = nil
         ) {
             self._id = _id
             self.name = name
@@ -665,6 +704,10 @@ actor SQLCipherService {
             self.isStrictModeEnabled = isStrictModeEnabled
             self.collectionSyncScopes = collectionSyncScopes
             self.startupSettings = startupSettings
+            self.isMulticastEnabled = isMulticastEnabled
+            self.multicastGroupAddress = multicastGroupAddress
+            self.multicastPort = multicastPort
+            self.multicastInterfaceName = multicastInterfaceName
         }
     }
 
@@ -673,8 +716,9 @@ actor SQLCipherService {
             INSERT INTO databaseConfigs (_id, name, databaseId, mode, allowUntrustedCerts,
                 isBluetoothLeEnabled, isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
                 token, authUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
-                isStrictModeEnabled, collectionSyncScopes, startupSettings)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                isStrictModeEnabled, collectionSyncScopes, startupSettings,
+                isMulticastEnabled, multicastGroupAddress, multicastPort, multicastInterfaceName)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         try await execute(
@@ -696,7 +740,11 @@ actor SQLCipherService {
             config.logLevel,
             config.isStrictModeEnabled ? 1 : 0,
             config.collectionSyncScopes,
-            config.startupSettings
+            config.startupSettings,
+            config.isMulticastEnabled ? 1 : 0,
+            config.multicastGroupAddress,
+            config.multicastPort,
+            config.multicastInterfaceName
         )
     }
 
@@ -724,7 +772,9 @@ actor SQLCipherService {
                 isBluetoothLeEnabled = ?, isLanEnabled = ?, isAwdlEnabled = ?, isCloudSyncEnabled = ?,
                 token = ?, authUrl = ?, httpApiUrl = ?, httpApiKey = ?, secretKey = ?,
                 logLevel = ?, isStrictModeEnabled = ?,
-                collectionSyncScopes = ?, startupSettings = ?
+                collectionSyncScopes = ?, startupSettings = ?,
+                isMulticastEnabled = ?, multicastGroupAddress = ?, multicastPort = ?,
+                multicastInterfaceName = ?
             WHERE _id = ?
         """
 
@@ -746,6 +796,10 @@ actor SQLCipherService {
             config.isStrictModeEnabled ? 1 : 0,
             config.collectionSyncScopes,
             config.startupSettings,
+            config.isMulticastEnabled ? 1 : 0,
+            config.multicastGroupAddress,
+            config.multicastPort,
+            config.multicastInterfaceName,
             config._id
         )
         // `WHERE databaseId = ?` bound the NEW id, so editing a Database ID matched no
@@ -781,7 +835,8 @@ actor SQLCipherService {
             SELECT _id, name, databaseId, mode, allowUntrustedCerts, isBluetoothLeEnabled,
                    isLanEnabled, isAwdlEnabled, isCloudSyncEnabled,
                    token, authUrl, httpApiUrl, httpApiKey, secretKey, logLevel,
-                   isStrictModeEnabled, collectionSyncScopes, startupSettings
+                   isStrictModeEnabled, collectionSyncScopes, startupSettings,
+                   isMulticastEnabled, multicastGroupAddress, multicastPort, multicastInterfaceName
             FROM databaseConfigs
         """
 
@@ -808,7 +863,13 @@ actor SQLCipherService {
                 // NOT NULL with a default, but a hand-edited database shouldn't be
                 // able to crash the app on launch.
                 collectionSyncScopes: Self.text(statement, 16, default: "[]"),
-                startupSettings: Self.text(statement, 17, default: "[]")
+                startupSettings: Self.text(statement, 17, default: "[]"),
+                isMulticastEnabled: sqlite3_column_int(statement, 18) != 0,
+                multicastGroupAddress: Self.text(statement, 19, default: MulticastConfig.defaultGroupAddress),
+                multicastPort: Int(sqlite3_column_int(statement, 20)),
+                // The only genuinely NULL-able column: NULL means "let the OS pick
+                // the interface", which is distinct from the empty string.
+                multicastInterfaceName: sqlite3_column_text(statement, 21).map { String(cString: $0) }
             ))
         }
 
@@ -1019,7 +1080,7 @@ actor SQLCipherService {
             try await execute("COMMIT")
             return result
         } catch {
-            try? await execute("ROLLBACK")
+            _ = try? await execute("ROLLBACK")
             throw error
         }
     }

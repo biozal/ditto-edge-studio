@@ -1,6 +1,13 @@
 import SwiftUI
 
 struct QueryToolbarView: View {
+    /// Surfaces repository failures. Every mutation below is fire-and-forget
+    /// from a `Task`, so without an explicit `catch` a thrown error would be
+    /// discarded by the unstructured task and the user would see the row simply
+    /// not delete, with no explanation. Matches how `InspectorViews` handles the
+    /// same repository calls.
+    @Environment(AppState.self) private var appState
+
     @Binding var collections: [String]
     @Binding var favorites: [DittoQueryHistory]
     @Binding var history: [DittoQueryHistory]
@@ -52,40 +59,71 @@ struct QueryToolbarView: View {
                     .contextMenu {
                         Button("Delete") {
                             Task {
-                                try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                do {
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                } catch {
+                                    Log.error("Failed to delete query history: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                         Button("Favorite") {
                             Task {
-                                try await FavoritesRepository.shared.saveFavorite(query, databaseId: databaseId)
+                                do {
+                                    try await FavoritesRepository.shared.saveFavorite(query, databaseId: databaseId)
+                                } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                                    // Correctly refused after a database switch —
+                                    // don't alert in the NEW session.
+                                    Log.info("Favorite save refused: \(error.message)")
+                                } catch {
+                                    Log.error("Failed to add favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
                     #else
                     .swipeActions(edge: .trailing) {
-                            Button(role: .cancel) {
-                                Task {
+                        Button(role: .cancel) {
+                            Task {
+                                do {
                                     try await FavoritesRepository.shared
                                         .saveFavorite(query, databaseId: databaseId)
+                                } catch let error as InvalidStateError where error.isStaleSessionRefusal {
+                                    Log.info("Favorite save refused: \(error.message)")
+                                } catch {
+                                    Log.error("Failed to add favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
                                 }
-                            } label: {
-                                Label("Favorite", systemImage: "star")
                             }
-
-                            Button(role: .destructive) {
-                                Task {
-                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
+                        } label: {
+                            Label("Favorite", systemImage: "star")
                         }
+
+                        Button(role: .destructive) {
+                            Task {
+                                do {
+                                    try await HistoryRepository.shared.deleteQueryHistory(query.id)
+                                } catch {
+                                    Log.error("Failed to delete query history: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                     #endif
                     Divider()
                 }
                 Button {
                     Task {
-                        try await HistoryRepository.shared.clearQueryHistory()
+                        do {
+                            try await HistoryRepository.shared.clearQueryHistory()
+                        } catch {
+                            Log.error("Failed to clear query history: \(error.localizedDescription)")
+                            appState.setError(error)
+                        }
                     }
                 } label: {
                     Label("Clear History", systemImage: "trash")
@@ -106,20 +144,30 @@ struct QueryToolbarView: View {
                     .contextMenu {
                         Button("Delete") {
                             Task {
-                                try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                do {
+                                    try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                } catch {
+                                    Log.error("Failed to delete favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
+                                }
                             }
                         }
                     }
                     #else
                     .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task {
+                        Button(role: .destructive) {
+                            Task {
+                                do {
                                     try await FavoritesRepository.shared.deleteFavorite(query.id)
+                                } catch {
+                                    Log.error("Failed to delete favorite: \(error.localizedDescription)")
+                                    appState.setError(error)
                                 }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
                             }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
+                    }
                     #endif
                     Divider()
                 }
@@ -189,4 +237,7 @@ struct QueryToolbarView: View {
         selectedQuery: .constant("SELECT * FROM movies"),
         databaseId: "preview-database"
     )
+    // Required: the delete/favorite actions read `appState` from the
+    // environment, which traps if nothing provides it.
+    .environment(AppState())
 }

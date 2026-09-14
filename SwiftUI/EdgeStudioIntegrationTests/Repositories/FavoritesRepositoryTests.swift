@@ -216,7 +216,7 @@ struct FavoritesRepositoryTests {
 
                 // ACT
                 let loaded = try await repo.loadFavorites(for: dbId)
-                try await repo.deleteFavorite(loaded.first!.id)
+                try await repo.deleteFavorite(try #require(loaded.first).id)
 
                 // ASSERT
                 let remaining = try await repo.loadFavorites(for: dbId)
@@ -252,7 +252,7 @@ struct FavoritesRepositoryTests {
                 try await repo.saveFavorite(fav2, databaseId: dbId)
 
                 let all = try await repo.loadFavorites(for: dbId)
-                let toDelete = all.first(where: { $0.query == "REMOVE THIS" })!.id
+                let toDelete = try #require(all.first { $0.query == "REMOVE THIS" }).id
 
                 // ACT
                 try await repo.deleteFavorite(toDelete)
@@ -360,7 +360,7 @@ struct FavoritesRepositoryTests {
                 let loaded = try await repo.loadFavorites(for: dbId)
 
                 // ACT
-                try await repo.deleteFavorite(loaded.first!.id)
+                try await repo.deleteFavorite(try #require(loaded.first).id)
 
                 // ASSERT
                 #expect(callbackCount.value >= 1)

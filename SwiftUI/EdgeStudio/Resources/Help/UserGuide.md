@@ -153,7 +153,6 @@ Records per-query `EXPLAIN` analysis for every DQL query you run — helping you
 - Queries are colour-coded by execution time: green under 10 ms, default text colour from 10–100 ms, and orange at 100 ms or more.
 - An index-usage badge shows whether each query used an index or performed a full collection scan.
 - Select any record to see the full DQL statement and `EXPLAIN` output.
-- Prometheus export is configured from the Inspector **Export** tab.
 - Open the Inspector **?** tab for full documentation.
 
 ---

@@ -8,7 +8,7 @@ import com.costoda.dittoedgestudio.viewmodel.StudioNavItem
 
 /**
  * Maps a keyboard digit key code (1-indexed) to a [StudioNavItem], or returns null if the
- * index is out of range. This pure function is the testable core of the Ctrl+1..7 shortcut.
+ * index is out of range. This pure function is the testable core of the Ctrl+1..8 shortcut.
  *
  * @param oneBasedIndex 1-based digit pressed (1 = first visible item, N = last visible item).
  * @param items The rail items currently visible. When "Collect Metrics" is disabled the
@@ -25,9 +25,9 @@ fun studioNavItemForDigit(
 }
 
 /**
- * Maps a [KeyEvent] to a [StudioNavItem] for the Ctrl+1..7 rail-section shortcuts.
+ * Maps a [KeyEvent] to a [StudioNavItem] for the Ctrl+1..8 rail-section shortcuts.
  *
- * Returns the matching [StudioNavItem] when the event is Ctrl+[1-7], or null for any
+ * Returns the matching [StudioNavItem] when the event is Ctrl+[1-8], or null for any
  * other event.
  *
  * Mapping:
@@ -38,6 +38,7 @@ fun studioNavItemForDigit(
  *   Ctrl+5 → APP_METRICS    (index 4)
  *   Ctrl+6 → QUERY_METRICS  (index 5)
  *   Ctrl+7 → DISK_USAGE     (index 6)
+ *   Ctrl+8 → SYSTEM_METRICS (index 7)
  *
  * UI-event plumbing (attaching onPreviewKeyEvent to the scaffold's root container) cannot
  * be meaningfully unit-tested on the JVM without a full Compose runtime. The pure key→digit
@@ -56,6 +57,7 @@ fun studioShortcutFor(
         Key.Five -> 5
         Key.Six -> 6
         Key.Seven -> 7
+        Key.Eight -> 8
         else -> return null
     }
     return studioNavItemForDigit(digit, items)

@@ -148,6 +148,41 @@ struct MCPHTTPParserTests {
         #expect(request == nil)
     }
 
+    @Test(.tags(.mcp, .fast))
+    func `Negative chunk-size line is rejected, not a crash`() {
+        // ARRANGE — regression: `Int(_:radix:)` accepts a leading minus, so a
+        // chunk-size line of "-1" parsed to -1. That satisfied the availability
+        // guard (`-1 <= remaining - 2`) and reached
+        // `data[offset ..< data.index(offset, offsetBy: -1)]` — a reversed Range,
+        // whose construction traps and killed the whole process. The comment above
+        // that guard claimed negatives were already handled; it was reasoning about
+        // a different quantity.
+        let raw = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n-1\r\nhello\r\n0\r\n\r\n"
+        let data = Data(raw.utf8)
+
+        // ACT — must not trap
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT — a negative length is not a body we can decode
+        #expect(request == nil)
+    }
+
+    @Test(.tags(.mcp, .fast))
+    func `Requests carrying an Origin header are still parsed (rejection happens at routing)`() {
+        // ARRANGE — the parser's job is to surface headers; the browser-origin
+        // rejection lives in MCPServerService.rejectIfBrowserOriginated. This pins
+        // the contract that routing depends on: Origin must reach it, lower-cased.
+        let raw = "POST /mcp HTTP/1.1\r\nHost: localhost:65269\r\nOrigin: https://evil.example\r\nContent-Length: 2\r\n\r\n{}"
+        let data = Data(raw.utf8)
+
+        // ACT
+        let request = MCPHTTPParser.tryParse(data)
+
+        // ASSERT
+        #expect(request?.headers["origin"] == "https://evil.example")
+        #expect(request?.headers["host"] == "localhost:65269")
+    }
+
     // MARK: - Incomplete Data (must return nil)
 
     @Test(.tags(.mcp, .fast))

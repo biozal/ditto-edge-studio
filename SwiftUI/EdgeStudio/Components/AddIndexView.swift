@@ -19,6 +19,32 @@ struct AddIndexView: View {
         var ascending = true
     }
 
+    /// Binding to a row's `name`, resolved by id at get/set time.
+    ///
+    /// Resolving on access is what makes self-removal safe: if the row is gone by the time
+    /// the binding is touched, the lookup misses and the accessor no-ops instead of
+    /// subscripting a stale index.
+    private func nameBinding(for id: FieldDraft.ID) -> Binding<String> {
+        Binding(
+            get: { fields.first { $0.id == id }?.name ?? "" },
+            set: { newValue in
+                guard let i = fields.firstIndex(where: { $0.id == id }) else { return }
+                fields[i].name = newValue
+            }
+        )
+    }
+
+    /// Binding to a row's sort direction, resolved by id at get/set time. See `nameBinding`.
+    private func ascendingBinding(for id: FieldDraft.ID) -> Binding<Bool> {
+        Binding(
+            get: { fields.first { $0.id == id }?.ascending ?? true },
+            set: { newValue in
+                guard let i = fields.firstIndex(where: { $0.id == id }) else { return }
+                fields[i].ascending = newValue
+            }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -28,17 +54,21 @@ struct AddIndexView: View {
                     }
                 }
                 Section("Fields") {
-                    ForEach(Array($fields.enumerated()), id: \.element.id) { index, $field in
+                    // Iterated BY VALUE, with each row's bindings resolved on access by id —
+                    // never `ForEach(Array($fields.enumerated()))`. A binding-based ForEach
+                    // materialises `$fields[i]` index projections, and this row body owns a
+                    // button that removes its own row: the removal invalidates that
+                    // index-derived binding before ForEach re-diffs, and the unchecked
+                    // subscript traps. Same rule, same reason, as DatabaseEditorView.swift:610.
+                    ForEach(Array(fields.enumerated()), id: \.element.id) { index, field in
                         HStack(spacing: 12) {
-                            TextField("Field \(index + 1)", text: $field.name)
+                            TextField("Field \(index + 1)", text: nameBinding(for: field.id))
                                 .autocorrectionDisabled()
-                            Picker("Direction", selection: $field.ascending) {
-                                Text("ASC").tag(true)
-                                Text("DESC").tag(false)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
-                            .frame(width: 140)
+                            DittoSegmentedPicker(
+                                options: [true, false],
+                                selection: ascendingBinding(for: field.id)
+                            ) { $0 ? "ASC" : "DESC" }
+                                .frame(width: 140)
                             if fields.count > 1 {
                                 Button {
                                     fields.removeAll { $0.id == field.id }
@@ -85,24 +115,24 @@ struct AddIndexView: View {
             }
             .navigationTitle("Add Index")
             #if os(macOS)
-                .formStyle(.columns)
-                .frame(minWidth: 420, minHeight: 280)
+            .formStyle(.columns)
+            .frame(minWidth: 420, minHeight: 280)
             #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", action: onCancel)
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Create") {
-                            Task { await createIndex() }
-                        }
-                        .disabled(
-                            selectedCollection.isEmpty ||
-                                fieldSpecs.isEmpty ||
-                                isCreating
-                        )
-                    }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        Task { await createIndex() }
+                    }
+                    .disabled(
+                        selectedCollection.isEmpty ||
+                            fieldSpecs.isEmpty ||
+                            isCreating
+                    )
+                }
+            }
         }
         .onAppear {
             if selectedCollection.isEmpty, let first = collections.first {

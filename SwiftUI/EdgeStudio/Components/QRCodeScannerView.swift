@@ -57,13 +57,13 @@ struct QRCodeScannerView: View {
             }
             .navigationTitle("Scan QR Code")
             #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                    }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
                 }
+            }
         }
         .onAppear {
             refreshAuthorizationStatus()

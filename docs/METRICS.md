@@ -16,9 +16,8 @@ This document describes the Metrics feature in Edge Studio: what is measured, ho
    - [Queries Section](#queries-section)
    - [Storage Section](#storage-section)
 5. [Query Metrics View](#query-metrics-view)
-6. [Prometheus Export](#prometheus-export)
-7. [Data Lifecycle](#data-lifecycle)
-8. [Key Files](#key-files)
+6. [Data Lifecycle](#data-lifecycle)
+7. [Key Files](#key-files)
 
 ---
 
@@ -277,50 +276,15 @@ Timestamps display as `MMM d, HH:mm:ss.SSS` (e.g. `Feb 22, 14:23:30.590`), inclu
 
 ---
 
-## Prometheus Export
+## Clear All Metrics
 
-**File:** `Data/MetricsBackend.swift` — `PrometheusExportBackend` actor
-**UI:** `Views/StudioView/InspectorViews.swift` — `metricsExportInspectorContent()`
+Query Metrics has a **Clear All** action that clears the per-query record list
+(`QueryMetricsRepository`). The in-memory counter store (`InMemoryMetricsStore`)
+is process-lifetime only — everything resets on app close.
 
-This is an optional feature. When a Pushgateway URL is configured, Edge Studio periodically pushes the current counter snapshot to a [Prometheus Pushgateway](https://github.com/prometheus/pushgateway) in the standard text exposition format.
-
-### How to configure
-
-In the Metrics sidebar, select the **App** view. A settings panel (or inspector area depending on layout) contains:
-
-- **Pushgateway URL** — e.g. `http://localhost:9091`. Leave blank to disable export.
-- **Export interval** — how often to push, in seconds. Minimum 10 seconds. Default 60.
-
-Press **Apply** to activate. The status indicator turns green after the first successful push.
-
-### What is exported
-
-Only counter values are exported. Timer samples (the ring buffer) are not included — only the cumulative totals stored in `counters`:
-
-```
-# HELP edge_studio_queries_total Edge Studio metric
-# TYPE edge_studio_queries_total gauge
-edge_studio_queries_total 42
-
-# HELP edge_studio_query_latency_ms Edge Studio metric
-# TYPE edge_studio_query_latency_ms gauge
-edge_studio_query_latency_ms 3.7
-```
-
-Labels with `.` and `-` are converted to `_` to comply with Prometheus naming rules. All metrics are exported as `gauge` type (not `counter`) because the values are read directly from the in-memory store.
-
-The job label is fixed as `edge_studio`:
-```
-PUT {pushgatewayURL}/metrics/job/edge_studio
-```
-
-### Push Now
-
-The **Push Now** button triggers an immediate push outside the normal interval. Useful for verifying connectivity to the Pushgateway.
-
-### Clear All Metrics
-
-The **Clear All Metrics** button resets both `InMemoryMetricsStore` (counters + samples) and `QueryMetricsRepository` (per-query records). Export is not stopped; if a Pushgateway is configured, the next push will send zeroed counter values.
+> The Prometheus pushgateway export was removed ahead of 1.0. The Ditto-level
+> `metrics_exporter_*` system parameters (see `ADVANCED_DATABASE_CONFIG.md`)
+> are unaffected — those are SDK engine settings, not app functionality.
 
 ---
 
@@ -344,9 +308,6 @@ App launch
   ├─ AppMetricsDetailView polls every 15s
   │   └─ MetricsRepository.queryMetricSnapshot()   ← reads InMemoryMetricsStore
   │
-  ├─ PrometheusExportBackend (if configured)
-  │   └─ Pushes InMemoryMetricsStore.countersSnapshot() every N seconds
-  │
 App closed → all in-memory data discarded
 ```
 
@@ -356,7 +317,7 @@ App closed → all in-memory data discarded
 
 | File | Role |
 |------|------|
-| `Data/MetricsBackend.swift` | `InMemoryMetricsStore`, `AppMetricsCounter`, `AppMetricsTimer`, `PrometheusExportBackend` |
+| `Data/MetricsBackend.swift` | `InMemoryMetricsStore`, `AppMetricsCounter`, `AppMetricsTimer` |
 | `Data/Repositories/MetricsRepository.swift` | Read-side: builds `ProcessMetricSnapshot` and `QueryMetricSnapshot` from Darwin APIs and `InMemoryMetricsStore` |
 | `Data/Repositories/QueryMetricsRepository.swift` | Per-query record store (actor, capped at 200 records) |
 | `Data/Repositories/StorageRepository.swift` | Storage read-side: `categorizeFiles(_:)` (filesystem categorization), `computeCollectionBreakdown` (per-collection CBOR sizing), `fetchStorageSnapshot()` (public entry point) |
@@ -366,4 +327,4 @@ App closed → all in-memory data discarded
 | `Components/MetricCard.swift` | Reusable card component with optional help popover |
 | `Views/Metrics/AppMetricsDetailView.swift` | Process + queries + storage aggregate view |
 | `Views/Metrics/QueryMetricsDetailView.swift` | Per-query log view |
-| `Views/StudioView/InspectorViews.swift` | Prometheus export configuration panel (`metricsExportInspectorContent()`) |
+| `Views/StudioView/InspectorViews.swift` | Metrics inspector (Docs tab content) |
