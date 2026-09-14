@@ -43,6 +43,73 @@ private func makeConfig(
     return config
 }
 
+@Suite("DittoManager — store directory resolution")
+struct DittoManagerStoreDirectoryTests {
+    /// The defect this exists to prevent: the store directory used to be keyed on the
+    /// user-editable *name*, so renaming a database resolved to a different directory,
+    /// opened an empty store, and left the real one orphaned on disk with no way back.
+    @Test(.tags(.service, .fast))
+    func `A renamed database keeps resolving to the store it already has`() {
+        // ARRANGE — the store was created while the database was called "Prod".
+        let existing = ["prod-abc", "ditto_logs", "other-xyz"]
+
+        // ACT — the user has since renamed it to "Production".
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "Production",
+            databaseId: "abc",
+            existingEntries: existing
+        )
+
+        // ASSERT — the original store is adopted, not abandoned for "production-abc".
+        #expect(resolved == "prod-abc")
+    }
+
+    @Test(.tags(.service, .fast))
+    func `An unrenamed database uses its current-name directory`() {
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "Prod",
+            databaseId: "abc",
+            existingEntries: ["prod-abc", "other-xyz"]
+        )
+
+        #expect(resolved == "prod-abc")
+    }
+
+    @Test(.tags(.service, .fast))
+    func `A brand-new database gets a directory named for its current name`() {
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "Brand New",
+            databaseId: "zzz",
+            existingEntries: ["prod-abc"]
+        )
+
+        #expect(resolved == "brand new-zzz")
+    }
+
+    @Test(.tags(.service, .fast))
+    func `Another database's directory is never adopted`() {
+        // Only the databaseId suffix may match — a name collision must not steal a store.
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "Prod",
+            databaseId: "abc",
+            existingEntries: ["prod-different", "prod-xyz"]
+        )
+
+        #expect(resolved == "prod-abc")
+    }
+
+    @Test(.tags(.service, .fast))
+    func `Name is trimmed and lower-cased so casing changes do not orphan the store`() {
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "  PROD  ",
+            databaseId: "abc",
+            existingEntries: ["prod-abc"]
+        )
+
+        #expect(resolved == "prod-abc")
+    }
+}
+
 @Suite("DittoManager — transport gating")
 struct DittoManagerTransportFlagsTests {
     /// The whole point of the gate: under UI tests no peer-to-peer transport may come up,

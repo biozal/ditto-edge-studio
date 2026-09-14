@@ -218,7 +218,25 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         context.coordinator.parent = self
-        if uiView.text != text {
+        // Distinguish a LAGGING re-render from a genuine programmatic write.
+        //
+        // The problem being solved: this editor's host re-renders often (the same body reads
+        // live sync/presence state), so `text` can arrive stale mid-typing; writing it back
+        // truncates in-flight input.
+        //
+        // But a plain `!uiView.isFirstResponder` guard — the shape the macOS branch uses —
+        // is wrong here, because on iPadOS plenty of things write the query while the
+        // keyboard is still up: tapping a collection in the sidebar, an inspector
+        // History/Favorites row (a side column on iPad, so nothing resigns focus), the query
+        // toolbar, and "generate DQL". Those writes were silently dropped, and the next
+        // keystroke pushed the stale editor text back over the model, losing them for good.
+        //
+        // `lastPushedText` is the value this view last sent UP to the binding. If `text`
+        // still equals it, the binding has not changed and this is just a lagging render —
+        // skip. If it differs, something else changed the model and the write must land,
+        // focused or not.
+        let isLaggingRender = uiView.isFirstResponder && text == context.coordinator.lastPushedText
+        if uiView.text != text, !isLaggingRender {
             let selected = uiView.selectedRange
             context.coordinator.isApplyingHighlight = true
             uiView.text = text
@@ -233,6 +251,13 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
+        /// The last value this view pushed UP to the binding.
+        ///
+        /// Lets `updateUIView` tell a stale re-render (binding unchanged since our own last
+        /// push — skip, or in-flight typing gets truncated) from a real programmatic write
+        /// (binding changed elsewhere — must be applied even while focused).
+        var lastPushedText: String?
+
         static let editorFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
 
         var parent: DQLCodeEditorRepresentable
@@ -254,6 +279,7 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isApplyingHighlight else { return }
+            lastPushedText = textView.text
             parent.text = textView.text
             scheduleHighlight()
         }

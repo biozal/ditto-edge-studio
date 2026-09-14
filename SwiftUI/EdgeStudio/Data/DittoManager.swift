@@ -63,15 +63,25 @@ actor DittoManager {
     ) throws -> DittoConfig {
         switch appConfig.mode {
         case .smallPeerOnly:
+            // `persistenceDirectory` must be passed here too. It defaults to nil, and
+            // omitting it made the SDK write to its own default location while the rest of
+            // the app went on believing the store lived at `localDirectoryPath`. Three
+            // things broke, all silently and only in this mode: "Delete database" removed
+            // the app's empty directory and reported success while the real store — every
+            // document, attachment and the offline license state — stayed on disk forever;
+            // the Log Analyzer found no `ditto_logs/` and showed zero SDK entries; and the
+            // MCP `get_ditto_logs` tool returned nothing for the same reason.
             if !appConfig.secretKey.isEmpty {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
-                    connect: .smallPeersOnly(privateKey: appConfig.secretKey)
+                    connect: .smallPeersOnly(privateKey: appConfig.secretKey),
+                    persistenceDirectory: persistenceDirectory
                 )
             } else {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
-                    connect: .smallPeersOnly()
+                    connect: .smallPeersOnly(),
+                    persistenceDirectory: persistenceDirectory
                 )
             }
         case .development:
@@ -600,21 +610,94 @@ actor DittoManager {
 
     /// Returns the root directory for a database configuration's local storage.
     /// The Ditto data files live in a `database/` subdirectory within this path.
+    /// The directory is keyed on the **databaseId**, which is immutable; the name only
+    /// decides what a *new* directory is called.
+    ///
+    /// The name is user-editable, so keying the resolved path on it meant renaming a
+    /// database silently abandoned its store: the next open resolved to
+    /// `<newname>-<id>`, `Ditto.open` created an empty store there, every collection
+    /// looked empty, and deleting the config afterwards removed the new empty directory
+    /// while the real one stayed on disk forever, unreachable from the app. For a
+    /// `.smallPeerOnly` database, with no cloud copy, that is unrecoverable.
+    ///
+    /// Resolution is discovery-only — it never moves or deletes anything, so an existing
+    /// install keeps using exactly the directory it already has:
+    ///  1. the directory for the current name, if it already exists;
+    ///  2. otherwise any existing directory ending in `-<databaseId>`, whatever name it
+    ///     was created under (this is what makes a rename harmless);
+    ///  3. otherwise the current-name path, for a genuinely new database.
     nonisolated static func localDirectoryPath(
         for databaseConfig: DittoConfigForDatabase
     ) -> URL {
         let isUITesting = isRunningUITests()
         let baseComponent =
             isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
-        let dbname = databaseConfig.name.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ).lowercased()
-        return FileManager.default.urls(
+        let root = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
             .appendingPathComponent(baseComponent)
-            .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
+
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        // Candidates are ordered MOST-RECENTLY-MODIFIED FIRST, never alphabetically.
+        //
+        // The only installs holding two `-<databaseId>` directories are the ones this
+        // adoption exists to rescue — already bitten by the rename bug, or left behind by a
+        // delete whose file removal failed (that path only logs a warning). Picking
+        // alphabetically could hand back the STALE store: "alpha-abc" sorts before
+        // "zebra-abc", so a database renamed Alpha → Zebra → New would adopt the empty
+        // directory abandoned weeks earlier and every document written since would vanish
+        // from the UI. Modification time picks the store actually in use.
+        let byRecency = entries.sorted { lhs, rhs in
+            let lhsDate = modificationDate(of: root.appendingPathComponent(lhs))
+            let rhsDate = modificationDate(of: root.appendingPathComponent(rhs))
+            if lhsDate == rhsDate {
+                return lhs < rhs
+            } // stable tiebreak
+            return lhsDate > rhsDate
+        }
+        let resolved = storeDirectoryName(
+            currentName: databaseConfig.name,
+            databaseId: databaseConfig.databaseId,
+            existingEntries: byRecency
+        )
+        return root.appendingPathComponent(resolved)
+    }
+
+    /// Content-modification date, or `.distantPast` when it cannot be read.
+    private nonisolated static func modificationDate(of url: URL) -> Date {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+        return values?.contentModificationDate ?? .distantPast
+    }
+
+    /// The directory-name decision behind `localDirectoryPath`, extracted so it is
+    /// testable without touching Application Support.
+    ///
+    /// - Parameter existingEntries: directory names already present in the store root.
+    nonisolated static func storeDirectoryName(
+        currentName: String,
+        databaseId: String,
+        existingEntries: [String]
+    ) -> String {
+        let dbname = currentName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let currentNameDirectory = "\(dbname)-\(databaseId)"
+
+        if existingEntries.contains(currentNameDirectory) {
+            return currentNameDirectory
+        }
+
+        // Adopt a store created under a previous name. `sorted()` so a root that somehow
+        // holds two matches resolves deterministically rather than by enumeration order.
+        let suffix = "-\(databaseId)"
+        if let adopted = existingEntries.filter({ $0.hasSuffix(suffix) }).sorted().first {
+            Log.info(
+                "Adopting existing store directory '\(adopted)' for database "
+                    + "'\(currentName)' (id: \(databaseId)) — renamed since it was created."
+            )
+            return adopted
+        }
+
+        return currentNameDirectory
     }
 
     /// Shuts down all Ditto instances and cleans up resources

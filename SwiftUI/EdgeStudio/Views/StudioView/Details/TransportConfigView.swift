@@ -139,9 +139,9 @@ struct TransportConfigView: View {
 
                     TextField("Port", text: $viewModel.multicastPortText)
                         .textFieldStyle(.roundedBorder)
-                    #if os(macOS)
+                        #if os(macOS)
                         .frame(maxWidth: 120)
-                    #endif
+                        #endif
                     if !viewModel.isMulticastPortValid {
                         Text("UDP port 1–65535 (all peers must match)")
                             .font(.caption2)
@@ -344,15 +344,27 @@ extension TransportConfigView {
         /// Applies transport configuration changes with proper sync and observer lifecycle
         /// Follows the MainStudioView.toggleSync() pattern for observer management
         func applyTransportConfig(appState: AppState) async {
-            guard currentStep == .idle else { return }
+            // Re-entry must match the button's own enablement rule
+            // (`.disabled(currentStep.isInProgress || …)`), not `== .idle`.
+            //
+            // Nothing ever assigned `.idle` again after `.complete` or `.error`, so from the
+            // second Apply onward in a popover session this guard returned immediately: the
+            // button was enabled (the success path re-baselines `original*`, so flipping any
+            // toggle makes `hasChanges` true again), the green "Configuration applied
+            // successfully" banner stayed up, and nothing was applied. The toggles and the
+            // banner described transports that were not in effect.
+            guard !currentStep.isInProgress else { return }
             currentStep = .stoppingSync
 
             do {
                 // STEP 1: STOP SYNC
                 await DittoManager.shared.selectedDatabaseStopSync()
 
-                // Stop observers to prevent stale data updates
-                await SystemRepository.shared.stopObserver()
+                // Stop observers to prevent stale data updates.
+                // pauseObservers(), NOT stopObserver(): this is a restart inside a live
+                // session, and stopObserver() also nils the delivery callbacks that only
+                // MainStudioView's .task ever installs — which this popover never re-fires.
+                await SystemRepository.shared.pauseObservers()
 
                 // STEP 2: APPLY CONFIGURATION
                 currentStep = .applyingConfig

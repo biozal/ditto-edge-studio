@@ -234,6 +234,7 @@ enum MCPToolHandlers {
                 "properties": [
                     "lines": [
                         "type": "integer",
+                        "minimum": 0,
                         "description": "Maximum number of most-recent log lines to return (default: 200)"
                     ],
                     "filter": [
@@ -251,6 +252,7 @@ enum MCPToolHandlers {
                 "properties": [
                     "lines": [
                         "type": "integer",
+                        "minimum": 0,
                         "description": "Maximum number of most-recent entries to return (default: 200)"
                     ],
                     "filter": [
@@ -689,8 +691,11 @@ enum MCPToolHandlers {
         }
 
         // Step 1: Stop sync
+        // pauseObservers(), NOT stopObserver(): an agent reconfiguring transports must not
+        // silently kill the app's own Peers List and status bar, which is what clearing the
+        // delivery callbacks mid-session does — nothing reinstalls them.
         await DittoManager.shared.selectedDatabaseStopSync()
-        await SystemRepository.shared.stopObserver()
+        await SystemRepository.shared.pauseObservers()
 
         // Step 2: Apply config
         try await DittoManager.shared.applyTransportConfig(
@@ -850,7 +855,13 @@ enum MCPToolHandlers {
     // MARK: get_app_logs
 
     private static func getAppLogs(arguments: [String: Any]) async throws -> String {
-        let maxLines = arguments["lines"] as? Int ?? 200
+        // Clamped, not trusted. `arguments` is the raw JSON-RPC dictionary — nothing
+        // between the socket and here validates it against the declared inputSchema — and
+        // `Collection.suffix(_:)` has a precondition that traps on a negative length.
+        // A client sending {"lines": -1} (a plausible LLM encoding of "all of them")
+        // therefore killed the whole Edge Studio process, taking the open database
+        // session and any in-flight sync down with it.
+        let maxLines = max(0, arguments["lines"] as? Int ?? 200)
         let filterStr = (arguments["filter"] as? String ?? "").lowercased()
 
         let logFiles = LoggingService.shared.getAllLogFiles()
@@ -872,7 +883,13 @@ enum MCPToolHandlers {
     // MARK: get_ditto_logs
 
     private static func getDittoLogs(arguments: [String: Any]) async throws -> String {
-        let maxLines = arguments["lines"] as? Int ?? 200
+        // Clamped, not trusted. `arguments` is the raw JSON-RPC dictionary — nothing
+        // between the socket and here validates it against the declared inputSchema — and
+        // `Collection.suffix(_:)` has a precondition that traps on a negative length.
+        // A client sending {"lines": -1} (a plausible LLM encoding of "all of them")
+        // therefore killed the whole Edge Studio process, taking the open database
+        // session and any in-flight sync down with it.
+        let maxLines = max(0, arguments["lines"] as? Int ?? 200)
         let filterStr = (arguments["filter"] as? String ?? "").lowercased()
         let levelStr = (arguments["level"] as? String ?? "").lowercased()
 

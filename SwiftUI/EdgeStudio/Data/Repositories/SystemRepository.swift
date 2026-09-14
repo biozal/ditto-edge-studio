@@ -797,6 +797,35 @@ actor SystemRepository {
         pendingStatusItems = nil
     }
 
+    /// Stops the SDK observers but KEEPS the delivery callbacks installed.
+    ///
+    /// Use this for a restart *within* a live session — applying transport settings, or
+    /// the MCP `configure_transport` tool — where the observers must be torn down and
+    /// re-registered around an SDK reconfiguration.
+    ///
+    /// [stopObserver] is the session-teardown path, and clearing the callbacks is correct
+    /// there because the *next* session reinstalls them via `setOnSyncStatusUpdate`. That
+    /// reasoning does not hold mid-session: the callbacks are installed exactly once, by
+    /// `SyncStatusViewModel.installCallbacks()` off `MainStudioView`'s `.task`, and a
+    /// popover over the live view never re-fires it. Calling `stopObserver()` there left
+    /// `onSyncStatusUpdate` nil forever, so `processSyncStatusUpdate` parked every later
+    /// update into `pendingStatusItems` — drained only by `setOnSyncStatusUpdate`, which
+    /// nothing called again — and `onConnectionsUpdate?(…)` became a no-op. The Peers List
+    /// and the connection status bar kept rendering their last values and never updated
+    /// again until the database was closed and reopened.
+    func pauseObservers() async {
+        // stop(), not just nil — see stopSyncStatusObserver().
+        syncStatusObserver?.stop()
+        connectionsPresenceObserver?.stop()
+        syncStatusObserver = nil
+        connectionsPresenceObserver = nil
+        // Deliberately NOT cleared: onSyncStatusUpdate, onConnectionsUpdate.
+        dittoServerCount = 0
+        isProcessingUpdate = false
+        hasPendingUpdate = false
+        pendingStatusItems = nil
+    }
+
     #if DEBUG
     /// Actor-isolated diagnostic logger. Called via `await` from the
     /// non-isolated presence observer Task so `presenceDiagFireCount` can be

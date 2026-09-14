@@ -363,6 +363,35 @@ class PresenceNetworkScene: SKScene {
         if let existingNode = peerNodes[peerKeyString] {
             // Update existing peer (e.g., device name changed)
             existingNode.updateDeviceName(peer.deviceName)
+            // A peer that drops and comes straight back inside the 0.3 s removal fade is
+            // still in `peerNodes`, so it lands here — but its node is mid-fade, and the
+            // sequence ends in `removeFromParent()` plus a completion that deletes the model
+            // entry. Nothing used to cancel that, so the peer the latest presence push says
+            // is connected was removed anyway and stayed invisible until some later change
+            // happened to arrive. Cancelling the keyed action and restoring the visual state
+            // is what makes the re-appearance stick.
+            if existingNode.action(forKey: Self.disappearActionKey) != nil {
+                existingNode.removeAction(forKey: Self.disappearActionKey)
+                // The CURRENT resting alpha, never blindly 1.0 — the same rule
+                // `animatePeerAppearance` states. With a peer search or a focus/selection
+                // active, a non-matching peer whose link flaps would otherwise be restored
+                // fully opaque and never re-dimmed: `setSearchMatches` returns early when the
+                // match set is unchanged (a non-match is absent from it before and after),
+                // and `refreshFocusAfterTopologyChange` re-applies only focus and tap-isolate
+                // dimming. The result was one glaring pill hanging off dim lines.
+                existingNode.alpha = restingAlpha(forPeerKey: peerKeyString)
+                existingNode.setScale(1.0)
+                if existingNode.parent == nil {
+                    peerNodesLayer.addChild(existingNode)
+                }
+                // The fade also ran `moveToCenter`, so the node is stranded partway to the
+                // centre. A layout pass would put it back — but it will not run on its own
+                // here: the key never left `peerNodes` (the removal completion had not fired
+                // yet), so `peersChanged` compares equal and the recalculation is skipped.
+                // Marking the layout dirty is what schedules it, and it also respects the
+                // `isUserInteracting` deferral rather than teleporting under a live drag.
+                layoutDirty = true
+            }
         } else {
             // Create new peer node
             let deviceType = PeerNode.DeviceType.detect(from: peer.deviceName)
@@ -712,6 +741,10 @@ class PresenceNetworkScene: SKScene {
         node.run(scaleUp, withKey: "appearScale")
     }
 
+    /// Key for the removal animation, so a peer that re-appears mid-fade can cancel it.
+    /// The sequence must be keyed — an unkeyed `run` cannot be found or stopped.
+    static let disappearActionKey = "peerDisappear"
+
     private func animatePeerDisappearance(node: SKNode, completion: @escaping () -> Void) {
         // Animate to center, fade out, scale down
         let fadeOut = SKAction.fadeOut(withDuration: 0.3)
@@ -722,11 +755,13 @@ class PresenceNetworkScene: SKScene {
         group.timingMode = .easeIn
 
         let remove = SKAction.removeFromParent()
-        let sequence = SKAction.sequence([group, remove])
+        // The completion is the LAST step of the keyed sequence rather than a `run(_:completion:)`
+        // argument, because SKNode has no `run(_:withKey:completion:)` overload and the action
+        // must be keyed to be cancellable. Cancelling via `removeAction(forKey:)` therefore
+        // skips this step too, so a peer that re-appears mid-fade keeps its model entry.
+        let sequence = SKAction.sequence([group, remove, SKAction.run(completion)])
 
-        node.run(sequence) {
-            completion()
-        }
+        node.run(sequence, withKey: Self.disappearActionKey)
     }
 
     private func animateLineDrawing(line: ConnectionLine) {

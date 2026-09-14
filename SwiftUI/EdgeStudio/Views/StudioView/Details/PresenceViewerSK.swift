@@ -95,30 +95,30 @@ struct PresenceViewerSK: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
         .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
         #if os(macOS)
-            // Escape with focus on the canvas (a mouse pick moves focus onto a
-            // results row, and an open detail card never had an Escape route at all).
-            // The search box carries its own `.onKeyPress(.escape)` for the
-            // still-typing case; both land on the same unwind order.
-            .onExitCommand { viewModel.handleEscape() }
+        // Escape with focus on the canvas (a mouse pick moves focus onto a
+        // results row, and an open detail card never had an Escape route at all).
+        // The search box carries its own `.onKeyPress(.escape)` for the
+        // still-typing case; both land on the same unwind order.
+        .onExitCommand { viewModel.handleEscape() }
         #endif
-            .onAppear {
-                createScene()
-            }
-            .task {
-                // Start presence observation tied to the view's lifetime via
-                // structured concurrency, rather than an untracked Task in the
-                // ViewModel's init that can race view teardown on rapid tab switches.
-                await viewModel.startProductionMode()
-            }
-            .onDisappear {
-                // Stop the presence observer here rather than relying on
-                // ViewModel ARC dealloc. The VM holds a DittoObserver that
-                // (via ditto.presence) retains the Ditto instance — leaving
-                // it alive after database close blocks the SDK's own deinit
-                // shutdown and prevents SQLite WAL from being flushed.
-                viewModel.stopProductionMode()
-                cleanupScene()
-            }
+        .onAppear {
+            createScene()
+        }
+        .task {
+            // Start presence observation tied to the view's lifetime via
+            // structured concurrency, rather than an untracked Task in the
+            // ViewModel's init that can race view teardown on rapid tab switches.
+            await viewModel.startProductionMode()
+        }
+        .onDisappear {
+            // Stop the presence observer here rather than relying on
+            // ViewModel ARC dealloc. The VM holds a DittoObserver that
+            // (via ditto.presence) retains the Ditto instance — leaving
+            // it alive after database close blocks the SDK's own deinit
+            // shutdown and prevents SQLite WAL from being flushed.
+            viewModel.stopProductionMode()
+            cleanupScene()
+        }
     }
 
     // MARK: - Connection Legend
@@ -361,8 +361,20 @@ extension PresenceViewerSK {
             }
         }
 
-        /// Current zoom level (0.5 = 50%, 1.0 = 100%, 2.0 = 200%)
+        /// Current SpriteKit camera **scale**, which is the INVERSE of magnification:
+        /// a larger scale shows more of the scene. Range 0.5 … 4.0, i.e. 200% … 25%.
+        /// Use ``zoomPercent`` for anything shown to the user.
         var zoomLevel: CGFloat = 1.0
+
+        /// Magnification as a whole percentage, for display.
+        ///
+        /// `scale = 1 / magnification` (the same relationship `PresenceFocusPlanner`
+        /// `focusCameraScale` documents), so camera scale 0.5 is 200% and 4.0 is 25%.
+        /// docs/PRESENCE_GRAPH.md specifies the user-facing range as 0.25×–2.0×.
+        var zoomPercent: Int {
+            guard zoomLevel > 0 else { return 100 }
+            return Int((100 / zoomLevel).rounded())
+        }
 
         /// Display name of the focused peer (focus mode, full-mesh view only).
         /// Drives the top banner; nil when no peer is focused.
@@ -719,8 +731,8 @@ extension PresenceViewerSK {
             updateZoomLevel(newZoom)
         }
 
-        /// Update zoom level and apply to scene camera
-        /// - Parameter level: New zoom level (0.5 to 2.0)
+        /// Update the camera scale and apply it to the scene camera.
+        /// - Parameter level: New camera **scale** (0.5 … 4.0 = 200% … 25% magnification).
         func updateZoomLevel(_ level: CGFloat) {
             zoomLevel = level
             scene?.camera?.setScale(level)
@@ -850,10 +862,18 @@ struct PresenceViewerToolbarControls: View {
                 .help("Zoom out (or use scroll wheel)")
 
                 // Zoom level readout.
-                Text("\(Int(viewModel.zoomLevel * 100))%")
+                //
+                // `zoomLevel` is the SKCameraNode SCALE, and magnification is its inverse —
+                // a larger scale shows MORE of the scene. Printing the scale directly meant
+                // pressing "+" made the number go DOWN and fully zoomed out read "400%".
+                // docs/PRESENCE_GRAPH.md specifies the user-facing range as 0.25×–2.0×
+                // magnification (camera scale 0.5–4.0), i.e. 25%–200% — which is what
+                // dividing gives. `focusCameraScale` states the same relationship:
+                // "scale = 1/magnification".
+                Text("\(viewModel.zoomPercent)%")
                     .font(.system(size: 12, design: .monospaced))
                     .frame(width: 40, alignment: .center)
-                    .accessibilityLabel("Zoom level \(Int(viewModel.zoomLevel * 100)) percent")
+                    .accessibilityLabel("Zoom level \(viewModel.zoomPercent) percent")
 
                 // Zoom in.
                 Button(action: { viewModel.zoomIn() }, label: {

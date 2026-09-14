@@ -29,9 +29,9 @@ struct ContentView: View {
         return Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
-                #if os(macOS)
-                .frame(minWidth: 1400, minHeight: 820)
-                #endif
+                    #if os(macOS)
+                    .frame(minWidth: 1400, minHeight: 820)
+                    #endif
             } else if viewModel.isMainStudioViewPresented,
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
@@ -48,7 +48,7 @@ struct ContentView: View {
                 .id(selectedApp._id)
                 .environment(appState)
                 #if os(macOS)
-                    .frame(minWidth: 1400, minHeight: 820)
+                .frame(minWidth: 1400, minHeight: 820)
                 #endif
             } else {
                 #if os(iOS)
@@ -104,37 +104,37 @@ struct ContentView: View {
         // Delete cannot forget it — see DatabaseDeletionConfirmation.
         .databaseDeletionConfirmation(viewModel: viewModel, appState: appState)
         #if os(macOS)
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-                Task { await viewModel.startQuickstartDownload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+            Task { await viewModel.startQuickstartDownload() }
+        }
+        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
+            Button("Continue Anyway") {
+                Task { await viewModel.continueDownloadWithoutConfig() }
             }
-            .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
-                Button("Continue Anyway") {
-                    Task { await viewModel.continueDownloadWithoutConfig() }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
+        }
+        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
+            Button("Replace", role: .destructive) {
+                Task { await viewModel.replaceExistingFolderAndDownload() }
             }
-            .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
-                Button("Replace", role: .destructive) {
-                    Task { await viewModel.replaceExistingFolderAndDownload() }
-                }
-                Button("Choose Different Location") {
-                    Task { await viewModel.chooseDifferentLocationAndDownload() }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
+            Button("Choose Different Location") {
+                Task { await viewModel.chooseDifferentLocationAndDownload() }
             }
-            .sheet(isPresented: $viewModel.showProgressSheet) {
-                QuickstartProgressWindow(
-                    service: viewModel.quickstartService,
-                    onCancel: { viewModel.showProgressSheet = false }
-                )
-                // Lock the sheet during an in-flight download, but allow dismissal
-                // when an error has been surfaced so the user can recover.
-                .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
-            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
+        }
+        .sheet(isPresented: $viewModel.showProgressSheet) {
+            QuickstartProgressWindow(
+                service: viewModel.quickstartService,
+                onCancel: { viewModel.showProgressSheet = false }
+            )
+            // Lock the sheet during an in-flight download, but allow dismissal
+            // when an error has been surfaced so the user can recover.
+            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
+        }
         #endif
     }
 
@@ -336,9 +336,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                #if os(macOS)
+                    #if os(macOS)
                     .frame(minWidth: 620, minHeight: 800)
-                #endif
+                    #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -378,9 +378,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    #if os(macOS)
+                        #if os(macOS)
                         .frame(minWidth: 620, minHeight: 800)
-                    #endif
+                        #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -823,6 +823,18 @@ extension ContentView {
 
         func importFromQRCode(_ config: DittoConfigForDatabase, favorites: [FavoriteQueryItem], appState: AppState) async {
             do {
+                // `_id` is the SENDER's local row identifier and carries no meaning here, so
+                // an empty one gets a fresh identity rather than being inserted as-is.
+                // Android hardcodes `_id = ""` on every payload it encodes; with that key
+                // now actually reaching us (it used to be dropped, which made the whole code
+                // undecodable), the first import would insert a row with an empty primary
+                // key and the SECOND would fail on `UNIQUE constraint failed:
+                // databaseConfigs._id` — no two Android databases could ever be imported.
+                // Only the empty case is regenerated, so an Apple-to-Apple re-scan still
+                // collides loudly instead of silently duplicating a config.
+                if config._id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    config._id = UUID().uuidString
+                }
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
                     for item in favorites {

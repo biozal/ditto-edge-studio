@@ -230,8 +230,19 @@ enum LogFileParser {
             ptr.load(as: UInt32.self).littleEndian
         }
 
-        // Allocate output buffer — use 4x as fallback if size hint is 0
-        let bufferSize = originalSize > 0 ? Int(originalSize) : compressedPayload.count * 8
+        // Allocate output buffer — use 8x as fallback if size hint is 0.
+        //
+        // ISIZE is a HINT FROM THE FILE, and it is clamped. On a truncated or corrupt
+        // `.log.gz` those last four bytes are ordinary deflate payload — effectively random
+        // — so trusting them meant a zero-filled allocation of up to 4 GiB (expected ~2 GiB)
+        // on a path the Log Analyzer reaches straight from its `.task`. Deflate cannot
+        // exceed roughly 1032:1, so anything past that ratio is not a real size hint;
+        // fall back to the ratio-based guess and let the decoder report the true length.
+        let maxPlausible = max(compressedPayload.count * 1032, 1024)
+        let hinted = Int(originalSize)
+        let bufferSize = (hinted > 0 && hinted <= maxPlausible)
+            ? hinted
+            : min(compressedPayload.count * 8, maxPlausible)
         var outputBuffer = [UInt8](repeating: 0, count: bufferSize)
 
         let decompressedSize = compressedPayload.withUnsafeBytes { srcPtr -> Int in
