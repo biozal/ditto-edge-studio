@@ -21,17 +21,17 @@ struct TransportSettingsButton: View {
         .buttonStyle(.glass)
         .clipShape(Circle())
         #if os(iOS)
-            .sheet(isPresented: $showPopover) {
-                TransportConfigView()
-                    .presentationDetents([.medium, .large], selection: $selectedDetent)
-                    .presentationDragIndicator(.visible)
-            }
+        .sheet(isPresented: $showPopover) {
+            TransportConfigView()
+                .presentationDetents([.medium, .large], selection: $selectedDetent)
+                .presentationDragIndicator(.visible)
+        }
         #else
-            .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-                TransportConfigView()
-                    .frame(width: 340)
-                    .padding(.vertical, 8)
-            }
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            TransportConfigView()
+                .frame(width: 340)
+                .padding(.vertical, 8)
+        }
         #endif
     }
 }

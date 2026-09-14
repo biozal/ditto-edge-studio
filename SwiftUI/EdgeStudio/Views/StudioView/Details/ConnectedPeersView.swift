@@ -215,10 +215,10 @@ private struct PeerCard: View, Equatable {
                     Text(status.id)
                         .font(.caption2)
                         .foregroundStyle(copiedText == status.id ? .green : .white.opacity(0.80))
-                    #if os(macOS)
+                        #if os(macOS)
                         .help("Double-click to copy ID")
                         .onTapGesture(count: 2) { onCopy(status.id) }
-                    #endif
+                        #endif
                 }
 
                 Spacer()
@@ -256,10 +256,10 @@ private struct PeerCard: View, Equatable {
                         Text(addressInfo.displayText)
                             .font(.caption)
                             .foregroundStyle(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
-                        #if os(macOS)
+                            #if os(macOS)
                             .help("Double-click to copy address")
                             .onTapGesture(count: 2) { onCopy(addressInfo.displayText) }
-                        #endif
+                            #endif
                     }
                 }
 

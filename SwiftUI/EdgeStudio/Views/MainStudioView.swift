@@ -283,9 +283,9 @@ struct MainStudioView: View {
                 }
                 .padding(.leading, 12)
                 #if os(iOS)
-                    .padding(.bottom, 28)
+                .padding(.bottom, 28)
                 #else
-                    .padding(.bottom, 12)
+                .padding(.bottom, 12)
                 #endif
             }
             .padding(.leading, 16)
@@ -314,24 +314,24 @@ struct MainStudioView: View {
                         observeDetailView()
                     case .appMetrics:
                         AppMetricsDetailView()
-                        #if os(iOS)
+                            #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
-                        #endif
+                            #endif
                     case .systemMetrics:
                         SystemMetricsDetailView(databaseId: viewModel.selectedApp._id)
-                        #if os(iOS)
+                            #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
-                        #endif
+                            #endif
                     case .queryMetrics:
                         QueryMetricsDetailView()
-                        #if os(iOS)
+                            #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
-                        #endif
+                            #endif
                     case .logging:
                         LoggingDetailView()
-                        #if os(iOS)
+                            #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
-                        #endif
+                            #endif
                     }
                 }
             }
@@ -342,65 +342,65 @@ struct MainStudioView: View {
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
-            .navigationSplitViewStyle(.prominentDetail)
-            .background(WindowFrameRestorer())
+        .navigationSplitViewStyle(.prominentDetail)
+        .background(WindowFrameRestorer())
         #endif
-            .inspector(isPresented: $showInspector) {
-                inspectorView()
-                    .presentationDragIndicator(.visible)
-                    .presentationDetents([.medium, .large])
-                    .inspectorColumnWidth(min: 220, ideal: 320, max: 500)
-            }
-            .sheet(item: $activeSheet) { sheet in
-                sheetContent(for: sheet)
-            }
+        .inspector(isPresented: $showInspector) {
+            inspectorView()
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.medium, .large])
+                .inspectorColumnWidth(min: 220, ideal: 320, max: 500)
+        }
+        .sheet(item: $activeSheet) { sheet in
+            sheetContent(for: sheet)
+        }
         #if os(macOS)
-            .toolbar {
-                syncCloseToolbarGroup() // Sync + Close grouped
-                inspectorToggleButton() // Inspector visually separate
-            }
+        .toolbar {
+            syncCloseToolbarGroup() // Sync + Close grouped
+            inspectorToggleButton() // Inspector visually separate
+        }
         #else
-            .toolbar {
-                // Compact-only: NavigationSplitView in regular size class already
-                // exposes a system column toggle; avoid duplicating it.
-                if horizontalSizeClass == .compact {
-                    sidebarToggleButton() // Leading: open sidebar on iPhone / iPad Slide Over
-                }
-                syncToolbarButton() // Trailing: sync on/off
-                closeToolbarButton() // Trailing: back to database picker
+        .toolbar {
+            // Compact-only: NavigationSplitView in regular size class already
+            // exposes a system column toggle; avoid duplicating it.
+            if horizontalSizeClass == .compact {
+                sidebarToggleButton() // Leading: open sidebar on iPhone / iPad Slide Over
             }
+            syncToolbarButton() // Trailing: sync on/off
+            closeToolbarButton() // Trailing: back to database picker
+        }
         #endif
-            // Sync inspector items on first render (picks up the UserDefaults value after registerDefaults)
-            // and kick off the initial repository load. The load runs as a tracked
-            // `loadTask` on the ViewModel so `closeSelectedApp` / `deinit` can cancel it.
-            .task {
-                viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(
-                    metricsEnabled: metricsEnabled
-                )
-                viewModel.startLoad()
-            }
-            // React to metrics setting changes (macOS Settings window or iOS Settings app)
-            .onChange(of: metricsEnabled) { _, enabled in
-                viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
-                if !enabled {
-                    // Auto-navigate away from metrics sidebar destinations
-                    if viewModel.selectedSidebarDestination.isMetricsDestination {
-                        viewModel.selectedSidebarDestination = .subscriptions
-                    }
-                    // Auto-navigate away from Metrics inspector tab
-                    if viewModel.queryVM.selectedQueryInspectorMenuItem.name == "Metrics" {
-                        viewModel.queryVM.selectedQueryInspectorMenuItem = viewModel.queryVM.queryInspectorMenuItems[0]
-                    }
+        // Sync inspector items on first render (picks up the UserDefaults value after registerDefaults)
+        // and kick off the initial repository load. The load runs as a tracked
+        // `loadTask` on the ViewModel so `closeSelectedApp` / `deinit` can cancel it.
+        .task {
+            viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(
+                metricsEnabled: metricsEnabled
+            )
+            viewModel.startLoad()
+        }
+        // React to metrics setting changes (macOS Settings window or iOS Settings app)
+        .onChange(of: metricsEnabled) { _, enabled in
+            viewModel.queryVM.queryInspectorMenuItems = QueryViewModel.buildQueryInspectorItems(metricsEnabled: enabled)
+            if !enabled {
+                // Auto-navigate away from metrics sidebar destinations
+                if viewModel.selectedSidebarDestination.isMetricsDestination {
+                    viewModel.selectedSidebarDestination = .subscriptions
+                }
+                // Auto-navigate away from Metrics inspector tab
+                if viewModel.queryVM.selectedQueryInspectorMenuItem.name == "Metrics" {
+                    viewModel.queryVM.selectedQueryInspectorMenuItem = viewModel.queryVM.queryInspectorMenuItems[0]
                 }
             }
-            // Refresh metrics record whenever query results change
-            .onChange(of: viewModel.queryVM.jsonResults) { _, _ in
-                Task { await viewModel.queryVM.refreshLastQueryMetrics() }
-            }
+        }
+        // Refresh metrics record whenever query results change
+        .onChange(of: viewModel.queryVM.jsonResults) { _, _ in
+            Task { await viewModel.queryVM.refreshLastQueryMetrics() }
+        }
         #if os(iOS)
-            .onChange(of: viewModel.selectedSidebarDestination) { _, _ in
-                preferredCompactColumn = .detail
-            }
+        .onChange(of: viewModel.selectedSidebarDestination) { _, _ in
+            preferredCompactColumn = .detail
+        }
         #endif
     }
 

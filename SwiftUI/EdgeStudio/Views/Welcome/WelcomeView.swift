@@ -279,11 +279,11 @@ struct WelcomeView: View {
             Divider()
             HStack {
                 Toggle("Show this screen when opening a new database", isOn: $showWelcomeOnNewDatabase)
-                #if os(macOS)
+                    #if os(macOS)
                     .toggleStyle(.checkbox)
-                #else
+                    #else
                     .toggleStyle(.switch)
-                #endif
+                    #endif
                     .font(.footnote)
                 Spacer()
                 Button("Close", action: onClose)

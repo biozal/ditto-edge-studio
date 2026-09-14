@@ -395,43 +395,43 @@ extension MainStudioView {
             }
             #else
             .swipeActions(edge: .trailing) {
-                    if observer.storeObserver == nil {
-                        Button {
-                            Task {
-                                do {
-                                    try await viewModel.subObsVM.registerStoreObserver(observer)
-                                    viewModel.subObsVM.selectedObservable = observer
-                                    viewModel.selectedSidebarDestination = .observers
-                                } catch { appState.setError(error) }
-                            }
-                        } label: {
-                            Label("Activate", systemImage: "play.circle")
-                        }
-                    } else {
-                        Button {
-                            Task {
-                                do {
-                                    try await viewModel.subObsVM.removeStoreObserver(
-                                        observer
-                                    )
-                                } catch { appState.setError(error) }
-                            }
-                        } label: {
-                            Label("Stop", systemImage: "stop.circle")
-                        }
-                    }
-                }
-                .swipeActions(edge: .leading) {
-                    Button(role: .destructive) {
+                if observer.storeObserver == nil {
+                    Button {
                         Task {
                             do {
-                                try await viewModel.subObsVM.deleteObservable(observer)
+                                try await viewModel.subObsVM.registerStoreObserver(observer)
+                                viewModel.subObsVM.selectedObservable = observer
+                                viewModel.selectedSidebarDestination = .observers
                             } catch { appState.setError(error) }
                         }
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label("Activate", systemImage: "play.circle")
+                    }
+                } else {
+                    Button {
+                        Task {
+                            do {
+                                try await viewModel.subObsVM.removeStoreObserver(
+                                    observer
+                                )
+                            } catch { appState.setError(error) }
+                        }
+                    } label: {
+                        Label("Stop", systemImage: "stop.circle")
                     }
                 }
+            }
+            .swipeActions(edge: .leading) {
+                Button(role: .destructive) {
+                    Task {
+                        do {
+                            try await viewModel.subObsVM.deleteObservable(observer)
+                        } catch { appState.setError(error) }
+                    }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
             #endif
         }
     }

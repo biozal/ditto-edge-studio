@@ -130,7 +130,7 @@ struct ImportSubscriptionsView: View {
                     ))
                     .labelsHidden()
                     #if os(macOS)
-                        .toggleStyle(.checkbox)
+                    .toggleStyle(.checkbox)
                     #endif
 
                     VStack(alignment: .leading, spacing: 6) {

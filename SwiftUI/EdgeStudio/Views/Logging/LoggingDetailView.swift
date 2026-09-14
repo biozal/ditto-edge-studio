@@ -377,9 +377,9 @@ struct LoggingDetailView: View {
                     .font(.caption)
                 TextField("Search…", text: $searchText)
                     .font(.caption)
-                #if os(macOS)
+                    #if os(macOS)
                     .textFieldStyle(.roundedBorder)
-                #endif
+                    #endif
 
                 if !searchText.isEmpty {
                     Button {
@@ -533,7 +533,7 @@ struct LoggingDetailView: View {
                 }
                 .listStyle(.plain)
                 #if os(macOS)
-                    .scrollContentBackground(.hidden)
+                .scrollContentBackground(.hidden)
                 #endif
             }
         }

@@ -170,10 +170,10 @@ struct SystemMetricsDetailView: View {
             TextField("Filter metrics…", text: $query)
                 .textFieldStyle(.plain)
                 .font(.callout)
-            #if os(iOS)
+                #if os(iOS)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-            #endif
+                #endif
                 .accessibilityIdentifier("SystemMetricsSearchField")
             if !query.isEmpty {
                 Button {
