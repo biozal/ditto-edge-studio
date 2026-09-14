@@ -34,6 +34,32 @@ class DatabaseRepositoryImpl(private val dao: DatabaseConfigDao) : DatabaseRepos
 
     override suspend fun save(database: DittoDatabase): Long = withContext(Dispatchers.IO) {
         if (database.id == 0L) {
+            // A config arriving with no row id is not necessarily NEW — a QR import or a
+            // hand-typed config can carry a databaseId that is already registered.
+            //
+            // Inserting it used to hit the unique `databaseId` index under
+            // `OnConflictStrategy.REPLACE`, and SQLite REPLACE *deletes* the conflicting
+            // parent row: every subscription, observer, favorite and history row for that
+            // databaseId went with it via `ON DELETE CASCADE`, silently, while the scanner
+            // reported success. Re-sharing a database config is the feature's main use, so
+            // this destroyed exactly the users who used it as intended.
+            //
+            // Resolve the conflict here instead: adopt the existing row's id and UPDATE it,
+            // which leaves the row (and therefore its children) in place. The DAO's insert
+            // is now ABORT, so any conflict this lookup misses fails loudly rather than
+            // deleting data.
+            val existing = dao.getByDatabaseId(database.databaseId)
+            if (existing != null) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        TAG,
+                        "save MERGE: dbId='${database.databaseId}' already registered as " +
+                            "rowId=${existing.id} — updating in place, children preserved",
+                    )
+                }
+                dao.update(database.toEntity().copy(id = existing.id))
+                return@withContext existing.id
+            }
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, "save INSERT: dbId='${database.databaseId}' name='${database.name}'")
             }

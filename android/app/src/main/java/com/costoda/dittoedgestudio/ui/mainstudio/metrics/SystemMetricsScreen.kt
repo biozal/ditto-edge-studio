@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -717,6 +718,21 @@ private fun DragHandle(
     // rows that differ only by `db=`. Naming the labels too keeps each handle
     // distinguishable to a screen reader — and to a test querying by description.
     val name = if (ref.labels.isEmpty()) ref.key else "${ref.key} ${ref.labelLine}"
+
+    // The gesture block below is keyed on `ref.id` DELIBERATELY — see Rule 2 in
+    // docs/PINNED_REORDER.md: restarting it mid-drag tears down the detector that owns the
+    // gesture. But `pointerInput` launches its coroutine once and never re-runs while the
+    // key is unchanged, so the lambdas it captured are the ones from the row's FIRST
+    // composition — closing over the `index` and `displayed` list as they were then. After a
+    // reorder committed, a second drag of the same row therefore computed against the old
+    // index and the old list, persisting a wrong order and silently reverting the previous
+    // move. Only the first drag of any given row was correct.
+    //
+    // rememberUpdatedState fixes that without touching the key: the block reads the latest
+    // lambdas through these holders, so the gesture survives and the values stay fresh.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val moveActions = buildList {
         onMoveUp?.let { add(CustomAccessibilityAction("Move $name up") { it(); true }) }
         onMoveDown?.let { add(CustomAccessibilityAction("Move $name down") { it(); true }) }
@@ -734,12 +750,12 @@ private fun DragHandle(
             // `key(ref.id)` note at the call site.
             .pointerInput(ref.id) {
                 detectDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                     onDrag = { change, dragAmount ->
                         change.consume()
-                        onDrag(dragAmount.y)
+                        currentOnDrag(dragAmount.y)
                     },
                 )
             },

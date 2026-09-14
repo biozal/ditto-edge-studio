@@ -33,7 +33,18 @@ import org.koin.core.parameter.parametersOf
 fun QrDisplayDialog(
     database: DittoDatabase,
     onDismiss: () -> Unit,
-    viewModel: QrDisplayViewModel = koinViewModel(parameters = { parametersOf(database) }),
+    // `key` is REQUIRED here. Without it Koin falls back to the class-default ViewModel
+    // key, and `ViewModelProvider.get` returns the already-stored instance without ever
+    // re-invoking the factory — so `parametersOf(database)` was ignored from the second use
+    // onward. The VM captures `database` at construction and renders its QR once in `init`,
+    // and it lives in the DatabaseList NavEntry store, which is the start destination and
+    // never leaves the back stack. Every database after the first therefore showed the
+    // FIRST database's QR — its token and secret key — under its own name in the header,
+    // so nothing on screen contradicted it.
+    viewModel: QrDisplayViewModel = koinViewModel(
+        key = "qr_display_${database.databaseId}",
+        parameters = { parametersOf(database) },
+    ),
 ) {
     val bitmap by viewModel.bitmap.collectAsStateWithLifecycle()
     val isError by viewModel.isError.collectAsStateWithLifecycle()

@@ -397,7 +397,23 @@ class DatabaseEditorViewModel(
             // definition not corrupt — never carry a stale true forward.
             hasCorruptSyncScopes = false,
         )
-        val savedId = repository.save(database)
+        // The write is guarded because it can now fail loudly instead of destroying data.
+        // The DAO insert is `OnConflictStrategy.ABORT` (it used to be REPLACE, which resolved
+        // a duplicate `databaseId` by DELETING the existing row and cascade-wiping its
+        // subscriptions, observers, favorites and history). ABORT is the right trade, but it
+        // means a conflict that slips past the pre-check in `DatabaseRepositoryImpl.save` —
+        // two concurrent saves from a double-tapped Save button, since the check and the
+        // insert are not one transaction — raises SQLiteConstraintException. Uncaught, that
+        // escaped into the screen's `rememberCoroutineScope` launch and killed the process.
+        // Editing an existing config's Database ID can raise it too (FK/UNIQUE), which is
+        // why that field is read-only once registered.
+        val savedId = try {
+            repository.save(database)
+        } catch (e: Exception) {
+            saveWarning.value =
+                "Could not save this database configuration: ${e.message ?: e::class.simpleName}"
+            return false
+        }
         val saved = database.copy(id = if (isNewItem) savedId else database.id)
 
         if (!isNewItem) {

@@ -1045,26 +1045,37 @@ fun LoggingScreen(
     }
 }
 
-    /** Non-null on failure (message for the banner). */
-    private fun exportLogEntries(
+    /**
+     * Non-null on failure (message for the banner).
+     *
+     * `suspend` + `withContext(Dispatchers.IO)`: this is called from the SAF result callback
+     * on the composition scope, which is `AndroidUiDispatcher.Main`. It writes the whole
+     * retained buffer — deliberately, not just the visible 200 rows — and the Ditto SDK tab
+     * retains up to 20,000 entries, each costing a `SimpleDateFormat.format` plus several
+     * appends. Running that on the main thread froze the UI for the length of the write and
+     * was a plausible ANR.
+     */
+    private suspend fun exportLogEntries(
         context: android.content.Context,
         uri: android.net.Uri,
         entries: List<LogEntry>,
-    ): String? = try {
-        val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", java.util.Locale.US)
-        context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-            entries.forEach { entry ->
-                writer.append(
-                    iso.format(entry.timestamp),
-                ).append("  ").append(entry.level.name.uppercase().padEnd(7))
-                    .append(" [").append(entry.component.displayName).append("]  ")
-                    .append(entry.message.replace('\n', ' '))
-                writer.newLine()
-            }
-        } ?: return "Could not open the destination file"
-        null
-    } catch (e: Exception) {
-        "Export failed: ${e.message}"
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", java.util.Locale.US)
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                entries.forEach { entry ->
+                    writer.append(
+                        iso.format(entry.timestamp),
+                    ).append("  ").append(entry.level.name.uppercase().padEnd(7))
+                        .append(" [").append(entry.component.displayName).append("]  ")
+                        .append(entry.message.replace('\n', ' '))
+                    writer.newLine()
+                }
+            } ?: return@withContext "Could not open the destination file"
+            null
+        } catch (e: Exception) {
+            "Export failed: ${e.message}"
+        }
     }
 
 /** Date picker for the log date-range filter; start picks normalize to the

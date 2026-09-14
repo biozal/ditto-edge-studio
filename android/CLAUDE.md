@@ -293,7 +293,13 @@ The app supports cross-platform QR code sharing of database configs, compatible 
 - **zlib:** `Deflater(DEFAULT_COMPRESSION, nowrap=false)` / `Inflater(nowrap=false)` — RFC 1950 standard format, matches Apple's `.zlib` compression
 - **Max payload:** 2200 characters. Favorites are dropped if payload would exceed this limit with them included.
 - **`_id` field on import:** Ignored — Room generates a new auto-increment `Long` id for each imported config
-- **Duplicate handling:** `OnConflictStrategy.REPLACE` in the DAO; scanning the same QR twice upserts silently
+- **Duplicate handling:** scanning a QR for an already-registered `databaseId` **updates the
+  existing row in place**, preserving its subscriptions, observers, favorites and history.
+  The DAO insert is `OnConflictStrategy.ABORT`, deliberately — it used to be `REPLACE`, and
+  SQLite REPLACE resolves a conflict by *deleting* the conflicting parent row, which
+  cascade-wiped every child row for that database with no warning and no undo. Re-sharing a
+  config is the feature's main use, so this destroyed exactly the people who used it as
+  intended. `DatabaseRepositoryImpl.save` resolves the duplicate before inserting.
 
 ### Key Files
 

@@ -135,13 +135,23 @@ class StudioSession(
     private val _subscriptions = MutableStateFlow<List<DittoSubscription>>(emptyList())
     val subscriptions: StateFlow<List<DittoSubscription>> = _subscriptions.asStateFlow()
 
-    private val activeHandles = mutableMapOf<Long, DittoSyncSubscription>()
+    // ConcurrentHashMap, not mutableMapOf. These handle maps are written from BOTH the main
+    // thread — `activateObserver`/`deactivateObserver` are plain non-suspend functions called
+    // straight from Compose click handlers, and Koin's `onClose` — and from `sessionScope`
+    // coroutines on Dispatchers.IO (addSubscriptionSuspend, updateSubscription,
+    // removeSubscription, updateObserver, removeObserver). `close()` then iterates them while
+    // those coroutines may still be live, so an unsynchronized LinkedHashMap could throw
+    // ConcurrentModificationException out of Compose disposal, or lose a write and leak an
+    // SDK handle that is never closed. Iteration here is weakly consistent, which is what
+    // close() wants: it closes whatever is present and clears.
+    private val activeHandles = java.util.concurrent.ConcurrentHashMap<Long, DittoSyncSubscription>()
 
     // ── Observers ─────────────────────────────────────────────────────────────
     private val _observers = MutableStateFlow<List<DittoObservable>>(emptyList())
     val observers: StateFlow<List<DittoObservable>> = _observers.asStateFlow()
 
-    private val activeObserverHandles = mutableMapOf<Long, DittoStoreObserver>()
+    /** Concurrent for the same reason as [activeHandles]. */
+    private val activeObserverHandles = java.util.concurrent.ConcurrentHashMap<Long, DittoStoreObserver>()
 
     private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
     val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
@@ -469,13 +479,24 @@ class StudioSession(
                     _transportMulticastConfig.value = database.multicastConfig
 
                     val ditto = dittoManager.hydrate(database)
+                    // Set IMMEDIATELY after hydrate, before the observers below.
+                    //
+                    // `hydrate` starts sync internally (runOpenSequence -> sync.start()), so
+                    // from this line on the SDK really is replicating. Setting the flag only
+                    // after the four `startObserving`/`start*` calls meant that if any of
+                    // them threw — they all run inside this runCatching — the SDK was syncing
+                    // while `_syncEnabled` stayed false. That used to be self-correcting,
+                    // because applying transport settings restarted sync unconditionally;
+                    // now that the restart is gated on this flag, a stale false would leave
+                    // replication permanently off for the session with the toolbar already
+                    // showing it off, and no way for the user to tell.
+                    _syncEnabled.value = true
                     systemRepository.startObserving(ditto)
                     collectionsRepository.startObserving(ditto)
                     // SwiftUI parity: DittoManager starts the log-only transport-condition
                     // collector and the (auto-allow) connection-request handler on open.
                     loggingCaptureService.startTransportConditionObservation(ditto)
                     loggingCaptureService.startConnectionRequestHandler(ditto)
-                    _syncEnabled.value = true
                     val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
 
                     saved.forEach { sub ->
@@ -741,6 +762,12 @@ class StudioSession(
         val db = currentDatabase ?: return
         sessionScope.launch {
             _isApplyingTransport.value = true
+            // Remember whether the user actually had sync on. The transport sheet is
+            // reachable with sync stopped (PresenceSection shows it with no sync gate), and
+            // the finally block below used to restart sync unconditionally — silently
+            // resuming replication the user had deliberately stopped, while the toolbar
+            // indicator kept reading `_syncEnabled` and still showed sync as off.
+            val wasSyncEnabled = _syncEnabled.value
             val applied = try {
                 // 1. Stop sync and observers. This also satisfies the SDK's
                 //    multicast constraint: multicastBeta changes are deferred while
@@ -777,7 +804,12 @@ class StudioSession(
                 // re-applies and re-verifies the advanced configuration — then
                 // re-register observers. Under finally so a throw above can never
                 // leave sync stopped on a live database.
-                runCatching { dittoManager.startSync() }
+                //
+                // ...but only restore the state the user chose. Restarting unconditionally
+                // turned "sync off" into "sync on" behind their back.
+                if (wasSyncEnabled) {
+                    runCatching { dittoManager.startSync() }
+                }
                 runCatching { systemRepository.startObserving(ditto) }
             }
             // Publish the requested values only when they were actually applied. On

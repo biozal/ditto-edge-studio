@@ -22,8 +22,18 @@ import org.junit.Test
 
 class SystemRepositoryTest {
 
+    // Both the collection scope AND the metrics dispatcher are Unconfined.
+    //
+    // `updatePresence` awaits the `system:data_sync_info` enrichment before it publishes
+    // meshTopology/peers, and that await hops to the metrics dispatcher. Leaving that one on
+    // Dispatchers.IO meant the hop was a real suspension point: `startObserving` returned
+    // while the coroutine was still parked, so a synchronous read of `meshTopology.value`
+    // raced the assignment and saw MeshTopology.Empty. Pinning both to Unconfined makes the
+    // whole pipeline run to completion inside `startObserving`, which is what these tests
+    // assume. Production still gets Dispatchers.IO by default.
     private fun makeRepo() = SystemRepositoryImpl(
-        CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+        metricsDispatcher = Dispatchers.Unconfined,
     )
 
     @Test

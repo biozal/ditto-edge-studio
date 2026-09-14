@@ -215,8 +215,17 @@ internal fun CameraPreview(
             .build()
         BarcodeScanning.getClient(options)
     }
-    // resetKey causes this to reset when the user retries after an error
-    val hasDetected = remember(resetKey) { AtomicBoolean(false) }
+    // ONE stable AtomicBoolean, reset in place — never `remember(resetKey)`.
+    //
+    // Keying the remember produced a NEW AtomicBoolean on retry, but the object the camera
+    // consults is the one captured when the AndroidView `factory` ran, and that factory has
+    // no `update` block, so it runs once per composition node and never again. The error
+    // path does not remove CameraPreview from the composition either (its guard excludes
+    // only `Success`), so after a bad scan the analyzer kept testing the original
+    // AtomicBoolean — already `true` — and no further barcode was ever reported. Retry
+    // looked alive and was permanently dead.
+    val hasDetected = remember { AtomicBoolean(false) }
+    LaunchedEffect(resetKey) { hasDetected.set(false) }
     val cameraRef = remember { mutableStateOf<Camera?>(null) }
     val previewViewRef = remember { mutableStateOf<PreviewView?>(null) }
 

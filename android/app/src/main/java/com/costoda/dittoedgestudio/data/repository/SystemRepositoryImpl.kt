@@ -13,11 +13,13 @@ import com.costoda.dittoedgestudio.domain.model.PeerConnectionInfo
 import com.costoda.dittoedgestudio.domain.model.PeerOS
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import com.ditto.kotlin.Ditto
+import com.ditto.kotlin.DittoConnection
 import com.ditto.kotlin.DittoConnectionType
 import com.ditto.kotlin.DittoPeer
 import com.ditto.kotlin.DittoPeerOs
 import com.ditto.kotlin.DittoPresenceGraph
 import com.ditto.kotlin.serialization.DittoJsonSerializable
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +41,16 @@ class SystemRepositoryImpl(
      * Null means "no config known" — nothing is filtered.
      */
     private val databaseProvider: () -> com.costoda.dittoedgestudio.domain.model.DittoDatabase? = { null },
+    /**
+     * Dispatcher for the `system:data_sync_info` enrichment query (see [metricsScope]).
+     *
+     * Injectable for the same reason `StudioSession` injects its dispatchers: hardcoding
+     * `Dispatchers.IO` here made the presence pipeline impossible to drive deterministically.
+     * `updatePresence` awaits this dispatcher before publishing [meshTopology], so a test
+     * collecting on `Dispatchers.Unconfined` still hit a real suspension point and read the
+     * flow before the assignment ran — a race that presented as a product bug and was not one.
+     */
+    private val metricsDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : SystemRepository {
 
     companion object {
@@ -86,7 +98,7 @@ class SystemRepositoryImpl(
      * happening; the presence pipeline protects itself with a timeout instead (see
      * [fetchSyncMetricsBestEffort]).
      */
-    private val metricsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val metricsScope = CoroutineScope(SupervisorJob() + metricsDispatcher)
 
     /** In-flight enrichment query, reused so a slow one can't stack up per presence tick. */
     @Volatile
@@ -172,6 +184,13 @@ class SystemRepositoryImpl(
 
         val localPeerKey = graph.localPeer.peerKey
 
+        // Peers the LOCAL side advertises a link to. See the filter below for why both
+        // sides must be consulted rather than the remote peer's `connections` alone.
+        val locallyAdvertisedPeerKeys: Set<String> = graph.localPeer.connections
+            .flatMap { conn -> listOf(conn.peer1, conn.peer2) }
+            .filter { it.isNotBlank() && it != localPeerKey }
+            .toSet()
+
         // 2. Deduplicate remote peers by peerKey, then filter to directly connected peers only.
         // presenceGraph.remotePeers returns the full mesh topology (all peers in the network,
         // including multihop peers). A peer is "directly connected" if the local device's peer
@@ -183,8 +202,17 @@ class SystemRepositoryImpl(
             }
             .values
             .filter { peer ->
-                // Only directly connected peers — local peer must be an endpoint of at least one connection
-                peer.connections.any { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
+                // Only directly connected peers — the local peer must be an endpoint of at
+                // least one connection. Both sides are consulted: Ditto usually reports an
+                // undirected edge from both endpoints, but the local peer is authoritative
+                // for edges attached to this process, and a link only the local side
+                // advertises (notably multicast) is invisible in the remote peer's own
+                // `connections`. Testing just the remote side dropped such a peer from the
+                // Peers List while this app's own Presence Viewer — which already unions
+                // both sides when building the mesh below — still drew it. SwiftUI unions
+                // both (SystemRepository.swift:262-279); this is the Android half.
+                peer.peerKey in locallyAdvertisedPeerKeys ||
+                    peer.connections.any { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
             }
 
         val processedIds = mutableSetOf<String>()
@@ -260,6 +288,7 @@ class SystemRepositoryImpl(
         _connectionsByTransport.value = buildConnectionCounts(
             deduped,
             localPeerKey,
+            localConnections = graph.localPeer.connections,
             dittoServerCount = remotePeers.count { it.isDittoServer },
             config = config,
         )
@@ -383,6 +412,7 @@ class SystemRepositoryImpl(
     private fun buildConnectionCounts(
         peers: Collection<DittoPeer>,
         localPeerKey: String,
+        localConnections: List<DittoConnection>,
         dittoServerCount: Int,
         config: com.costoda.dittoedgestudio.domain.model.DittoDatabase?,
     ): ConnectionsByTransport {
@@ -392,8 +422,14 @@ class SystemRepositoryImpl(
         var webSocket = 0
         var multicast = 0
 
-        peers.forEach { peer ->
-            peer.connections
+        // The local peer's own connections are counted alongside each remote peer's.
+        // A transport only the local side advertises (notably multicast) appears in
+        // `localPeer.connections` and in NO remote peer's list, so tallying the remote
+        // side alone under-counted it — the status bar showed a transport as absent while
+        // the Presence Viewer drew the very edge it came from. SwiftUI unions both sides
+        // (SystemRepository.swift:574-591); this is the Android half.
+        (peers.map { it.connections } + listOf(localConnections)).forEach { peerConnections ->
+            peerConnections
                 .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
                 .distinctBy { it.connectionType }
                 .forEach { conn ->

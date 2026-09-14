@@ -32,9 +32,24 @@ object SubscriptionsQrCodec {
         val subscriptions: List<Item>,
     )
 
-    private val json = Json { ignoreUnknownKeys = true }
+    // encodeDefaults = true is REQUIRED for cross-platform parity, not a preference.
+    // kotlinx skips any property whose value equals its declared default, so `version`
+    // (declared `= 1`) was never written and the emitted JSON was
+    // `{"subscriptions":[...]}` — while Swift's `SubscriptionsQRPayload.version` is a
+    // non-optional `Int`, so its synthesized decoder threw `keyNotFound` and
+    // `decodeSubscriptions` swallowed it with `try?`. Apple devices silently could not
+    // scan subscription codes produced here, contradicting this file's own header.
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 
-    fun encode(subscriptions: List<DittoSubscription>): String? {
+    /**
+     * The JSON step of [encode], separated so tests can assert on what this codec really
+     * emits. The previous test hand-wrote `{"version":1,…}` rather than asserting on
+     * encoder output, which is why the missing `version` key shipped.
+     */
+    internal fun encodePayloadJson(subscriptions: List<DittoSubscription>): String? {
         if (subscriptions.isEmpty()) return null
         val items = subscriptions.map {
             Item(
@@ -43,8 +58,12 @@ object SubscriptionsQrCodec {
                 args = null,
             )
         }
+        return json.encodeToString(Payload(subscriptions = items))
+    }
+
+    fun encode(subscriptions: List<DittoSubscription>): String? {
         return try {
-            val jsonString = json.encodeToString(Payload(subscriptions = items))
+            val jsonString = encodePayloadJson(subscriptions) ?: return null
             val bytes = jsonString.toByteArray(Charsets.UTF_8)
             val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, false) // RFC 1950, matches iOS
             deflater.setInput(bytes)
