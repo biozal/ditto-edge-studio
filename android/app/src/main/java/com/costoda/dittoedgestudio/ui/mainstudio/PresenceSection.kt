@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -281,6 +282,29 @@ fun PresenceContentSection(
                         )
                     }
                 }
+            }
+        }
+
+        // Transport-apply failures never throw to the caller — the sheet dismisses
+        // the moment Apply is tapped — so the last failure (e.g. the SDK rejecting
+        // a multicast config at sync start) surfaces here until the next successful
+        // apply or database reopen.
+        val transportApplyError by viewModel.transportApplyError
+            .collectAsStateWithLifecycle()
+        if (transportApplyError != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = transportApplyError ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(10.dp),
+                )
             }
         }
 

@@ -533,6 +533,24 @@ class QrCodeDecoderTest {
     }
 
     @Test
+    fun `decode disables multicast for addresses only Kotlin toIntOrNull accepts`() {
+        // Leading zeros / signs / non-ASCII digits parse via toIntOrNull but are
+        // rejected by the SDK's Rust Ipv4Addr::parse at sync.start() — they must
+        // be sanitized at the decode boundary, not persisted to fail later.
+        for (badGroup in listOf("224.01.2.3", "+224.1.2.3", "224.1.2.٣")) {
+            val raw = buildV2Payload(isMulticastEnabled = true, multicastGroupAddress = badGroup)
+
+            val result = QrCodeDecoder.decode(raw)
+
+            assertNotNull("group $badGroup should still decode", result)
+            assertFalse("group $badGroup", result!!.database.isMulticastEnabled)
+            assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, result.database.multicastGroupAddress)
+            assertEquals(MulticastConfig.DEFAULT_PORT, result.database.multicastPort)
+            assertNull(result.database.multicastInterfaceName)
+        }
+    }
+
+    @Test
     fun `decode resets garbage multicast values even when multicast is disabled`() {
         // The sanitize is NOT gated on the enabled flag: garbage in a disabled
         // config would otherwise persist and be applied into the (disabled)

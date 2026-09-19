@@ -141,6 +141,11 @@ actor DatabaseRepository {
             // reach the editor and fix it) but `hydrate` refuses to open it, because a
             // dropped `LocalPeerOnly` scope would otherwise start syncing.
             config.hasCorruptSyncScopes = decodedScopes.isCorrupt
+            // The memberwise init bypasses the JSON-decode boundary's multicast
+            // sanitization, and the port column is nullable (NULL reads as 0 — the
+            // SDK's "any port" sentinel). Sanitize here so a hand-edited or corrupted
+            // row can never push an invalid multicast config into the SDK at open.
+            config.sanitizeMulticastSettings()
             return config
         }
 

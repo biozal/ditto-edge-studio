@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A borderless gear button that presents TransportConfigView in a popover.
 /// Styled to match native macOS toolbar icon buttons (sidebar/inspector toggles).
-/// Used in ConnectedPeersView and PresenceViewerSK.
+/// Used in the Presence detail header (MainStudioView.syncTabsDetailView).
 struct TransportSettingsButton: View {
     @State private var showPopover = false
     @State private var selectedDetent: PresentationDetent = .large

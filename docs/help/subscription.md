@@ -64,4 +64,6 @@ Use the **reset** button (crosshairs icon) to recenter the camera and snap any d
 ## Updating Transports
 The **Cog** icon in the upper right handle corner of the Details part of the screen can be used to turn on and off transports like Bluetooth, P2P WiFi (AWDL), and LAN traffic.  This can allow you to test fail over and firewall settings to validate that your app can talk to other devices on the network without adding a bunch of debug code into your app.
 
+Enabling **Multicast (beta)** turns on the reliable UDP multicast transport (Ditto SDK 5.1.0 beta): all peers on the same Wi-Fi segment join a shared multicast group instead of maintaining one connection per peer. When it is on, three extra fields appear — **Group Address** (class-D IPv4, default `224.1.2.3`), **Port** (UDP 1–65535, default `6003`), and an optional **Interface Name** (blank lets the OS pick). Every peer in the group must use the same group address and port. Applying transport settings temporarily stops sync, as with the other transports.
+
 

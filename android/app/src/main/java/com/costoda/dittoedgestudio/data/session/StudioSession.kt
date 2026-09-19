@@ -131,6 +131,18 @@ class StudioSession(
     private val _isApplyingTransport = MutableStateFlow(false)
     val isApplyingTransport: StateFlow<Boolean> = _isApplyingTransport.asStateFlow()
 
+    /**
+     * Last transport-apply failure (apply itself, or the sync restart after it),
+     * or null when the last apply fully succeeded. The apply path never throws
+     * to the caller — the sheet dismisses immediately — so this flow is the
+     * only surface for failures such as the SDK rejecting a multicast config
+     * at `sync.start()` (prerequisite/validation errors that
+     * `updateTransportConfig` cannot catch, because the Kotlin SDK sets the
+     * config without validating).
+     */
+    private val _transportApplyError = MutableStateFlow<String?>(null)
+    val transportApplyError: StateFlow<String?> = _transportApplyError.asStateFlow()
+
     // ── Subscriptions ─────────────────────────────────────────────────────────
     private val _subscriptions = MutableStateFlow<List<DittoSubscription>>(emptyList())
     val subscriptions: StateFlow<List<DittoSubscription>> = _subscriptions.asStateFlow()
@@ -446,6 +458,7 @@ class StudioSession(
             }
             try {
                 _hydrateError.value = null
+                _transportApplyError.value = null
                 runCatching {
                     // If a previous session for this databaseId is still closing Ditto on the
                     // teardown scope, wait for it to finish before opening the same persistence
@@ -768,6 +781,8 @@ class StudioSession(
             // resuming replication the user had deliberately stopped, while the toolbar
             // indicator kept reading `_syncEnabled` and still showed sync as off.
             val wasSyncEnabled = _syncEnabled.value
+            var applyError: Throwable? = null
+            var restartError: Throwable? = null
             val applied = try {
                 // 1. Stop sync and observers. This also satisfies the SDK's
                 //    multicast constraint: multicastBeta changes are deferred while
@@ -795,6 +810,7 @@ class StudioSession(
                 dittoManager.refreshActiveConfigIfMatching(updatedDb)
                 true
             } catch (e: Exception) {
+                applyError = e
                 if (BuildConfig.DEBUG) {
                     Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
                 }
@@ -803,29 +819,50 @@ class StudioSession(
                 // 4. Restart sync through the DittoManager funnel — every sync start
                 // re-applies and re-verifies the advanced configuration — then
                 // re-register observers. Under finally so a throw above can never
-                // leave sync stopped on a live database.
-                //
-                // ...but only restore the state the user chose. Restarting unconditionally
-                // turned "sync off" into "sync on" behind their back.
+                // leave sync stopped on a live database — but only restore the state
+                // the user chose. Restarting unconditionally turned "sync off" into
+                // "sync on" behind their back. A restart failure (e.g. the SDK
+                // rejecting a multicast prerequisite or config at sync start) is
+                // captured, never swallowed: sync state is re-derived from the live
+                // instance below and the failure surfaces via transportApplyError.
                 if (wasSyncEnabled) {
                     runCatching { dittoManager.startSync() }
+                        .onFailure {
+                            restartError = it
+                            Log.w(TAG, "sync restart after transport apply failed: ${it.message}", it)
+                        }
                 }
                 runCatching { systemRepository.startObserving(ditto) }
+                    .onFailure { Log.w(TAG, "observer restart after transport apply failed: ${it.message}", it) }
             }
-            // Publish the requested values only when they were actually applied. On
-            // failure re-publish the persisted config so the UI shows the live
-            // state, not a requested state the SDK never took.
-            if (applied) {
+            // Sync state always mirrors the live instance, never the request —
+            // the restart above may have failed (leaving sync stopped).
+            runCatching { _syncEnabled.value = ditto.sync.isActive }
+                .onFailure { Log.w(TAG, "failed to read sync state after transport apply: ${it.message}", it) }
+            // Publish the requested values only when they were actually applied AND
+            // the restart succeeded. Otherwise re-publish the persisted config so the
+            // UI shows the live state, not a requested state the SDK never took.
+            if (applied && restartError == null) {
                 _transportBluetoothEnabled.value = bt
                 _transportLanEnabled.value = lan
                 _transportWifiAwareEnabled.value = wifiAware
                 _transportMulticastConfig.value = multicast
+                _transportApplyError.value = null
             } else {
                 val persisted = currentDatabase ?: db
                 _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
                 _transportLanEnabled.value = persisted.isLanEnabled
                 _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
                 _transportMulticastConfig.value = persisted.multicastConfig
+                _transportApplyError.value = when {
+                    restartError != null ->
+                        "Transport settings saved, but sync failed to restart: " +
+                            (restartError?.message ?: restartError?.javaClass?.simpleName)
+                    applyError != null ->
+                        "Failed to apply transport settings: " +
+                            (applyError?.message ?: applyError?.javaClass?.simpleName)
+                    else -> null
+                }
             }
             _isApplyingTransport.value = false
         }

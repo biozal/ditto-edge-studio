@@ -95,7 +95,7 @@ curl -X POST http://localhost:65269/mcp \
 | `drop_index` | Drop an index by name |
 | `get_query_metrics` | Get recent query execution metrics and EXPLAIN output |
 | `get_sync_status` | Get peer count and transport configuration |
-| `configure_transport` | Enable/disable Bluetooth, LAN, or AWDL transports |
+| `configure_transport` | Enable/disable Bluetooth, LAN, AWDL, or Multicast (beta) transports |
 | `insert_documents_from_file` | Insert documents from a local JSON file |
 | `set_sync` | Start or stop sync for the active database |
 | `get_peers` | Get a one-time snapshot of all connected peers with full details |
@@ -138,7 +138,7 @@ Returns: {
     httpApiConfigured,   // true when both httpApiUrl and httpApiKey are set
     allowUntrustedCerts, // TLS setting
     logLevel,
-    transport: { bluetoothLE, lan, awdl, cloudSync }
+    transport: { bluetoothLE, lan, awdl, cloudSync, multicast }
   }
 Note: Credentials are never included — token, httpApiKey, and secretKey are
       stripped; httpApiConfigured is a boolean, not the key itself.
@@ -177,7 +177,7 @@ Note: Requires Metrics to be enabled in Settings
 #### `get_sync_status`
 ```
 Arguments: (none)
-Returns: { database, connectedPeers, meshPeers, transport: { bluetoothLE, lan, awdl, cloudSync } }
+Returns: { database, connectedPeers, meshPeers, transport: { bluetoothLE, lan, awdl, cloudSync, multicast } }
 
   connectedPeers is the number of peers with a link to THIS device.
   meshPeers is every peer visible anywhere in the mesh, including ones reachable
@@ -187,11 +187,22 @@ Returns: { database, connectedPeers, meshPeers, transport: { bluetoothLE, lan, a
 
 #### `configure_transport`
 ```
-Arguments: { "bluetooth": bool?, "lan": bool?, "awdl": bool? }
+Arguments: {
+    "bluetooth": bool?,
+    "lan": bool?,
+    "awdl": bool?,
+    "multicast": bool?,
+    "multicast_group_address": str?,   // optional, class-D IPv4 (default 224.1.2.3)
+    "multicast_port": int?,            // optional, UDP 1–65535 (default 6003)
+    "multicast_interface": str?        // optional, network interface name
+  }
 Returns: Applied configuration summary
 Note: Omitted parameters are unchanged. Stops and restarts sync automatically.
-      There is no "cloud" parameter — this tool only toggles the three
-      peer-to-peer transports.
+      There is no "cloud" parameter — this tool toggles the peer-to-peer
+      transports, including the Multicast (beta) reliable UDP transport
+      (Ditto SDK 5.1.0 beta). Invalid multicast values return a structured
+      error instead of reaching the SDK. All peers in a multicast group must
+      use the same group address and port.
 ```
 
 #### `insert_documents_from_file`
@@ -343,6 +354,9 @@ Queries are sent to the Ditto HTTP API endpoint configured on the active databas
 ```
 "Disable Bluetooth and LAN transports, then show me the current sync status"
 → Claude calls configure_transport then get_sync_status
+
+"Enable the beta multicast transport on group 224.1.2.3 port 6003"
+→ Claude calls configure_transport with multicast=true, multicast_group_address="224.1.2.3", multicast_port=6003
 ```
 
 ### Explore schema

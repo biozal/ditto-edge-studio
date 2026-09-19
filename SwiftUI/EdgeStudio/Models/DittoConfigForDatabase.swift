@@ -229,14 +229,26 @@ final class DittoConfigForDatabase: Codable, @unchecked Sendable {
 
         // Multicast validation at the decode boundary, UNCONDITIONALLY (not gated
         // on the enable flag — a disabled config carrying garbage must not
-        // resurrect it when the user later toggles multicast on). Port 0 is the
-        // SDK's broken "any port" sentinel and UInt16(clamping:) silently
-        // truncates out-of-range values, so an invalid group/port can never reach
-        // the SDK: reset all three fields to the SDK defaults, and flip an
-        // ENABLED config off — an unusable transport must not stay enabled.
-        // Mirrors Android's QrCodeDecoder; covers every JSON-decode path (QR v1/v2,
+        // resurrect it when the user later toggles multicast on). Mirrors
+        // Android's QrCodeDecoder; covers every JSON-decode path (QR v1/v2,
         // plist, exported JSON), not just the QR scanner. (Runs last: @Observable
         // stored properties must all be initialized before `self` is used.)
+        sanitizeMulticastSettings()
+    }
+
+    /// Resets multicast fields to the SDK defaults when the stored group/port
+    /// is invalid, and flips an ENABLED config off — an unusable transport must
+    /// not stay enabled. Port 0 is the SDK's broken "any port" sentinel and
+    /// UInt16(clamping:) silently truncates out-of-range values, so an invalid
+    /// group/port can never reach the SDK.
+    ///
+    /// Called from BOTH config-decode boundaries: the JSON `Decodable` init
+    /// (QR v1/v2, plist, exported JSON) and the SQLite load path in
+    /// `DatabaseRepository.loadDatabaseConfigs`, which builds this model via the
+    /// memberwise initializer straight from SQL columns (a nullable port column
+    /// reads NULL as 0 via `sqlite3_column_int`) and would otherwise bypass this
+    /// sanitization entirely.
+    func sanitizeMulticastSettings() {
         if !MulticastConfig.isValidGroupAddress(multicastGroupAddress) || !(1 ... 65535).contains(multicastPort) {
             multicastGroupAddress = MulticastConfig.defaultGroupAddress
             multicastPort = MulticastConfig.defaultPort

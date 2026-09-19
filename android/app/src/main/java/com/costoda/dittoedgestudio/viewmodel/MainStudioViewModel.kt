@@ -177,6 +177,7 @@ class MainStudioViewModel(
     // recomposes when sync starts/stops or transport-apply finishes.
     val syncEnabledFlow: StateFlow<Boolean> get() = session.syncEnabled
     val isApplyingTransportFlow: StateFlow<Boolean> get() = session.isApplyingTransport
+    val transportApplyError: StateFlow<String?> get() = session.transportApplyError
 
     // ── Presence Viewer filter state ─────────────────────────────────────────
     // Mirrors iOS PresenceViewerSK.ViewModel.showDirectConnectedOnly. Controls whether

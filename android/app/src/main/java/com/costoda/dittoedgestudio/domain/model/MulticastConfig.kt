@@ -23,11 +23,24 @@ data class MulticastConfig(
         const val DEFAULT_GROUP_ADDRESS = "224.1.2.3"
         const val DEFAULT_PORT = 6003
 
-        /** IPv4 class-D dotted-quad: four octets 0..255, first in 224..239. */
+        /**
+         * IPv4 class-D dotted-quad: four octets 0..255, first in 224..239.
+         *
+         * Strict octet parsing, mirroring SwiftUI's validator and the SDK's
+         * Rust `Ipv4Addr::parse` (the validator the SDK runs at
+         * `sync.start()`): Kotlin's `toIntOrNull` accepts leading zeros,
+         * a leading `+`, and non-ASCII digits, all of which the SDK rejects.
+         * A value that only fails at sync start is persisted first and then
+         * fails on every open — it must be rejected here, at the boundary.
+         * Note `parsePort` is intentionally NOT strictened: the port crosses
+         * the FFI as an integer, so "+6003"/"06003" parse to the same value.
+         */
         fun isValidGroupAddress(address: String): Boolean {
             val parts = address.trim().split(".")
             if (parts.size != 4) return false
             val octets = parts.map { part ->
+                if (part.isEmpty() || part.any { it !in '0'..'9' }) return false
+                if (part.length > 1 && part.startsWith("0")) return false
                 part.toIntOrNull()?.takeIf { it in 0..255 } ?: return false
             }
             return octets.first() in 224..239

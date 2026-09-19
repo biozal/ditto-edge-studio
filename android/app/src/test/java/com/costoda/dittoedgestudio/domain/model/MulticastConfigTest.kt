@@ -55,6 +55,22 @@ class MulticastConfigTest {
     }
 
     @Test
+    fun `lenient-parse group addresses are rejected by strict octet parsing`() {
+        // Kotlin's toIntOrNull accepts all of these, but the SDK's Rust
+        // Ipv4Addr::parse (the validator run at sync.start()) rejects them —
+        // a value that passes here is persisted first and then fails at every
+        // sync start, so it must be rejected at the boundary. Mirrors the
+        // SwiftUI MulticastConfigTests cases.
+        assertFalse(MulticastConfig.isValidGroupAddress("224.01.2.3")) // leading zeros
+        assertFalse(MulticastConfig.isValidGroupAddress("0224.1.2.3"))
+        assertFalse(MulticastConfig.isValidGroupAddress("224.1.2.03"))
+        assertFalse(MulticastConfig.isValidGroupAddress("+224.1.2.3")) // explicit sign
+        assertFalse(MulticastConfig.isValidGroupAddress("224.1.2.٣")) // Arabic-Indic digit
+        assertFalse(MulticastConfig.isValidGroupAddress("224. 1.2.3")) // inner whitespace
+        assertFalse(MulticastConfig.isValidGroupAddress("224..1.2.3")) // empty octet
+    }
+
+    @Test
     fun `valid ports parse`() {
         assertEquals(6003, MulticastConfig.parsePort("6003"))
         assertEquals(1, MulticastConfig.parsePort("1"))

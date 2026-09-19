@@ -272,6 +272,90 @@ class StudioSessionTest {
         assertFalse(session.transportBluetoothEnabled.value)
         assertFalse(session.transportLanEnabled.value)
         assertFalse(session.isApplyingTransport.value)
+        // The failure surfaces via the error flow instead of being swallowed.
+        assertNotNull(session.transportApplyError.value)
+        assertTrue(
+            "apply error should describe the apply failure: ${session.transportApplyError.value}",
+            session.transportApplyError.value!!.contains("Failed to apply transport settings"),
+        )
+    }
+
+    @Test
+    fun `applyTransportSettings surfaces a restart failure and reflects real sync state`() = runTest {
+        // updateTransportConfig does NOT validate multicast configs (the Kotlin
+        // SDK sets them with should_validate=false), so an SDK-invalid config
+        // persists fine and only throws at the sync restart. That failure must
+        // not be swallowed: sync state mirrors the live instance, flows show
+        // persisted values, and the error is surfaced.
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true) {
+            every { sync } returns mockk(relaxed = true)
+            every { sync.isActive } returns false
+        }
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+        assertTrue(session.syncEnabled.value)
+
+        // Apply succeeds (config was set without validation), restart throws.
+        every { dittoManager.applyTransportConfig(any(), any()) } returns Unit
+        coEvery { dittoManager.startSync() } throws RuntimeException("multicast validation failed")
+
+        session.applyTransportSettings(bt = true, lan = true, wifiAware = true)
+        advanceUntilIdle()
+
+        // Sync state mirrors the live instance — stopped — not the request.
+        assertFalse(session.syncEnabled.value)
+        // The transport settings WERE applied and persisted (updateTransportConfig
+        // does not validate), so the flows show them — only the restart failed.
+        assertTrue(session.transportBluetoothEnabled.value)
+        assertTrue(session.transportWifiAwareEnabled.value)
+        // The restart failure is surfaced, not swallowed.
+        assertNotNull(session.transportApplyError.value)
+        assertTrue(
+            "error should describe the restart failure: ${session.transportApplyError.value}",
+            session.transportApplyError.value!!.contains("sync failed to restart"),
+        )
+        assertFalse(session.isApplyingTransport.value)
+    }
+
+    @Test
+    fun `applyTransportSettings clears the error flow on a fully successful apply`() = runTest {
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true) {
+            every { sync } returns mockk(relaxed = true)
+            every { sync.isActive } returns true
+        }
+        coEvery { databaseRepository.getById(42L) } returns DittoDatabase(
+            databaseId = "db-42",
+            mode = AuthMode.SMALL_PEERS_ONLY,
+        )
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+        every { dittoManager.applyTransportConfig(any(), any()) } returns Unit
+        coEvery { dittoManager.startSync() } returns Unit
+
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+
+        session.applyTransportSettings(bt = false, lan = true, wifiAware = true)
+        advanceUntilIdle()
+
+        assertTrue(session.syncEnabled.value)
+        assertFalse(session.transportBluetoothEnabled.value)
+        assertTrue(session.transportWifiAwareEnabled.value)
+        assertNull(session.transportApplyError.value)
+        assertFalse(session.isApplyingTransport.value)
     }
 
     @Test
