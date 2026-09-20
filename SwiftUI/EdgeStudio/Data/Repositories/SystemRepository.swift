@@ -430,8 +430,13 @@ actor SystemRepository {
         }
     }
 
-    /// Processes sync status updates with backpressure handling
-    private func processSyncStatusUpdate(_ statusItems: [SyncStatusInfo]) async {
+    /// Processes sync status updates with backpressure handling.
+    ///
+    /// Internal (not private) so unit tests can drive the dispatch pipeline
+    /// with a synthetic emission — the SDK observer that normally feeds it
+    /// requires a live Ditto instance (see the integration-test stub in
+    /// SystemRepositoryTests). Behavior is unchanged.
+    func processSyncStatusUpdate(_ statusItems: [SyncStatusInfo]) async {
         #if DEBUG
         // Diagnostic for empty-Peers-List investigation. Logs the state of the
         // dispatch pipeline so we can see whether items are reaching it, the
@@ -813,6 +818,8 @@ actor SystemRepository {
     /// nothing called again — and `onConnectionsUpdate?(…)` became a no-op. The Peers List
     /// and the connection status bar kept rendering their last values and never updated
     /// again until the database was closed and reopened.
+    ///
+    /// Pinned by `TransportApplyCallbackWiringTests`.
     func pauseObservers() async {
         // stop(), not just nil — see stopSyncStatusObserver().
         syncStatusObserver?.stop()

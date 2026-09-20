@@ -621,7 +621,8 @@ enum MCPToolHandlers {
                 "bluetoothLE": config.isBluetoothLeEnabled,
                 "lan": config.isLanEnabled,
                 "awdl": config.isAwdlEnabled,
-                "cloudSync": config.isCloudSyncEnabled
+                "cloudSync": config.isCloudSyncEnabled,
+                "multicast": config.isMulticastEnabled
             ]
         ]
 
@@ -694,6 +695,7 @@ enum MCPToolHandlers {
         // pauseObservers(), NOT stopObserver(): an agent reconfiguring transports must not
         // silently kill the app's own Peers List and status bar, which is what clearing the
         // delivery callbacks mid-session does — nothing reinstalls them.
+        // Pinned by TransportApplyCallbackWiringTests.
         await DittoManager.shared.selectedDatabaseStopSync()
         await SystemRepository.shared.pauseObservers()
 

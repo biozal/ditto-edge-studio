@@ -364,6 +364,7 @@ extension TransportConfigView {
                 // pauseObservers(), NOT stopObserver(): this is a restart inside a live
                 // session, and stopObserver() also nils the delivery callbacks that only
                 // MainStudioView's .task ever installs — which this popover never re-fires.
+                // Pinned by TransportApplyCallbackWiringTests.
                 await SystemRepository.shared.pauseObservers()
 
                 // STEP 2: APPLY CONFIGURATION
