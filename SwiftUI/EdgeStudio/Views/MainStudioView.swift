@@ -212,36 +212,28 @@ struct MainStudioView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading) {
-                #if os(iOS)
-                if horizontalSizeClass == .compact {
-                    HStack {
-                        Spacer()
-                        Button {
-                            preferredCompactColumn = .detail
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss sidebar")
-                        .accessibilityIdentifier("SidebarDismissButton")
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                }
-                #endif
                 unifiedSidebarView()
             }
             .padding(.leading, 16)
             .padding(.trailing, 16)
             .padding(.top, 12)
             .padding(.bottom, 16) // Add padding for status bar height
-            .navigationSplitViewColumnWidth(
-                min: 200,
-                ideal: 260,
-                max: 320
-            )
+            #if os(iOS)
+                .toolbar {
+                    // This toolbar belongs to the sidebar, so it is visible only
+                    // while the compact split view presents that column. Native
+                    // toolbar chrome supplies Liquid Glass and adapts the action
+                    // into iPhone Duo's vertical control rail.
+                    if horizontalSizeClass == .compact {
+                        sidebarDismissToolbarButton()
+                    }
+                }
+            #endif
+                .navigationSplitViewColumnWidth(
+                    min: 200,
+                    ideal: 260,
+                    max: 320
+                )
         } detail: {
             Group {
                 if viewModel.isLoading {
@@ -609,6 +601,33 @@ struct MainStudioView: View {
                 Label("Sidebar", systemImage: "sidebar.left")
             }
             .accessibilityIdentifier("SidebarToggleButton")
+        }
+    }
+
+    /// Dismisses a compact sidebar without changing its selected destination.
+    /// As a native primary action, the system renders this as a Liquid Glass
+    /// control in the standard top bar on iPhone and iPad, and moves it into
+    /// iPhone Duo's trailing vertical action rail when supported.
+    private var sidebarDismissButtonContent: some View {
+        Button {
+            preferredCompactColumn = .detail
+        } label: {
+            Label("Dismiss Sidebar", systemImage: "xmark")
+        }
+        .accessibilityIdentifier("SidebarDismissButton")
+    }
+
+    @ToolbarContentBuilder
+    func sidebarDismissToolbarButton() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "dismissSidebar", placement: .primaryAction) {
+                sidebarDismissButtonContent
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "dismissSidebar", placement: .primaryAction) {
+                sidebarDismissButtonContent
+            }
         }
     }
     #endif
