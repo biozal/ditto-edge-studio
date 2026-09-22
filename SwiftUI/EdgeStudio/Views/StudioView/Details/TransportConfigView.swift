@@ -139,9 +139,9 @@ struct TransportConfigView: View {
 
                     TextField("Port", text: $viewModel.multicastPortText)
                         .textFieldStyle(.roundedBorder)
-                        #if os(macOS)
+                    #if os(macOS)
                         .frame(maxWidth: 120)
-                        #endif
+                    #endif
                     if !viewModel.isMulticastPortValid {
                         Text("UDP port 1–65535 (all peers must match)")
                             .font(.caption2)

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A borderless gear button that presents TransportConfigView in a popover.
-/// Styled to match native macOS toolbar icon buttons (sidebar/inspector toggles).
-/// Used in the Presence detail header (MainStudioView.syncTabsDetailView).
+/// Transport Settings action used by the Presence header on macOS and the native
+/// detail toolbar on iOS. The iOS `Label` supplies both the vertical-bar symbol
+/// and the title used by the system overflow menu on iPhone Duo.
 struct TransportSettingsButton: View {
     @State private var showPopover = false
     @State private var selectedDetent: PresentationDetent = .large
@@ -12,14 +12,22 @@ struct TransportSettingsButton: View {
         Button {
             showPopover.toggle()
         } label: {
+            #if os(macOS)
             Image(systemName: "gearshape")
-                .foregroundStyle(colorScheme == .dark ? Color.Ditto.trafficWhite : .black)
-                .font(.system(size: 18))
-                .padding(5)
+            #else
+            Label("Transport Settings", systemImage: "gearshape")
+            #endif
         }
-        .tint(colorScheme == .dark ? Color.Ditto.jetBlack : .white)
-        .buttonStyle(.glass)
-        .clipShape(Circle())
+        .accessibilityLabel("Transport Settings")
+        .accessibilityIdentifier("TransportSettingsButton")
+        #if os(macOS)
+            .foregroundStyle(colorScheme == .dark ? Color.Ditto.trafficWhite : .black)
+            .font(.system(size: 18))
+            .padding(5)
+            .tint(colorScheme == .dark ? Color.Ditto.jetBlack : .white)
+            .buttonStyle(.glass)
+            .clipShape(Circle())
+        #endif
         #if os(iOS)
         .sheet(isPresented: $showPopover) {
             TransportConfigView()
@@ -28,10 +36,10 @@ struct TransportSettingsButton: View {
         }
         #else
         .popover(isPresented: $showPopover, arrowEdge: .bottom) {
-            TransportConfigView()
-                .frame(width: 340)
-                .padding(.vertical, 8)
-        }
+                TransportConfigView()
+                    .frame(width: 340)
+                    .padding(.vertical, 8)
+            }
         #endif
     }
 }

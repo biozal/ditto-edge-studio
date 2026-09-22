@@ -29,9 +29,9 @@ struct ContentView: View {
         return Group {
             if viewModel.isClosingDatabase {
                 closingDatabaseView
-                    #if os(macOS)
-                    .frame(minWidth: 1400, minHeight: 820)
-                    #endif
+                #if os(macOS)
+                .frame(minWidth: 1400, minHeight: 820)
+                #endif
             } else if viewModel.isMainStudioViewPresented,
                       let selectedApp = viewModel.selectedDittoConfigForDatabase
             {
@@ -48,7 +48,7 @@ struct ContentView: View {
                 .id(selectedApp._id)
                 .environment(appState)
                 #if os(macOS)
-                .frame(minWidth: 1400, minHeight: 820)
+                    .frame(minWidth: 1400, minHeight: 820)
                 #endif
             } else {
                 #if os(iOS)
@@ -57,8 +57,8 @@ struct ContentView: View {
                 // Xcode-launch-style fixed-size, non-resizable window.
                 // The Scene uses `.windowResizability(.contentSize)`, so
                 // declaring a fixed `.frame(width:height:)` here locks
-                // the window to that exact size — guarantees all 3 CTA
-                // buttons (Database Config, Ditto Portal, Import from
+                // the window to that exact size — guarantees both CTA
+                // buttons (Ditto Portal, Import from
                 // QR Code) and the database list panel are always
                 // fully drawn regardless of which screen the user is
                 // on. Once a database is opened MainStudioView's
@@ -104,37 +104,37 @@ struct ContentView: View {
         // Delete cannot forget it — see DatabaseDeletionConfirmation.
         .databaseDeletionConfirmation(viewModel: viewModel, appState: appState)
         #if os(macOS)
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            Task { await viewModel.startQuickstartDownload() }
-        }
-        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
-            Button("Continue Anyway") {
-                Task { await viewModel.continueDownloadWithoutConfig() }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+                Task { await viewModel.startQuickstartDownload() }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
-        }
-        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
-            Button("Replace", role: .destructive) {
-                Task { await viewModel.replaceExistingFolderAndDownload() }
+            .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
+                Button("Continue Anyway") {
+                    Task { await viewModel.continueDownloadWithoutConfig() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
             }
-            Button("Choose Different Location") {
-                Task { await viewModel.chooseDifferentLocationAndDownload() }
+            .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
+                Button("Replace", role: .destructive) {
+                    Task { await viewModel.replaceExistingFolderAndDownload() }
+                }
+                Button("Choose Different Location") {
+                    Task { await viewModel.chooseDifferentLocationAndDownload() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
-        }
-        .sheet(isPresented: $viewModel.showProgressSheet) {
-            QuickstartProgressWindow(
-                service: viewModel.quickstartService,
-                onCancel: { viewModel.showProgressSheet = false }
-            )
-            // Lock the sheet during an in-flight download, but allow dismissal
-            // when an error has been surfaced so the user can recover.
-            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
-        }
+            .sheet(isPresented: $viewModel.showProgressSheet) {
+                QuickstartProgressWindow(
+                    service: viewModel.quickstartService,
+                    onCancel: { viewModel.showProgressSheet = false }
+                )
+                // Lock the sheet during an in-flight download, but allow dismissal
+                // when an error has been surfaced so the user can recover.
+                .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
+            }
         #endif
     }
 
@@ -147,6 +147,21 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The primary database-creation action stays in native toolbar chrome on
+    /// every platform. iPhone Duo can then place it in its trailing action rail
+    /// instead of leaving a custom floating button over the database list.
+    @ToolbarContentBuilder
+    func addDatabaseToolbarItem() -> some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                viewModel.showAppEditor(DittoConfigForDatabase.new())
+            } label: {
+                Label("Add Database", systemImage: "plus")
+            }
+            .accessibilityIdentifier("AddDatabaseButton")
+        }
     }
 }
 
@@ -237,25 +252,6 @@ extension ContentView {
 
                     VStack(spacing: 14) {
                         Button {
-                            viewModel.showAppEditor(DittoConfigForDatabase.new())
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "plus")
-                                    .foregroundStyle(.black)
-                                Text("Database Config")
-                                    .foregroundStyle(.black)
-                                    .fontWeight(.medium)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .tint(.dittoYellow)
-                        .focusEffectDisabled()
-                        .accessibilityIdentifier("AddDatabaseButton")
-
-                        Button {
                             if let url = URL(string: "https://portal.ditto.live") {
                                 NSWorkspace.shared.open(url)
                             }
@@ -303,6 +299,9 @@ extension ContentView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+            addDatabaseToolbarItem()
+        }
         .sheet(
             isPresented: $viewModel.isPresented,
             onDismiss: { databaseEditorHasUnsavedChanges = false },
@@ -336,9 +335,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    #if os(macOS)
+                #if os(macOS)
                     .frame(minWidth: 620, minHeight: 800)
-                    #endif
+                #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -378,9 +377,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                        #if os(macOS)
+                    #if os(macOS)
                         .frame(minWidth: 620, minHeight: 800)
-                        #endif
+                    #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -390,10 +389,11 @@ extension ContentView {
             }
     }
 
-    /// Compact mode: < 650pt wide — HIG-compliant NavigationStack with yellow FAB
+    /// The database listing uses a NavigationStack so native toolbar actions adapt
+    /// to each Apple platform, including iPhone Duo's trailing action rail.
     var compactPickerContent: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack {
                 Color(uiColor: .systemBackground).ignoresSafeArea()
 
                 if viewModel.isLoading {
@@ -409,7 +409,7 @@ extension ContentView {
                         Text("No Databases")
                             .font(.title2)
                             .foregroundStyle(.primary)
-                        Text("Tap + to add a database configuration.")
+                        Text("Use Add Database to create a database configuration.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -464,30 +464,18 @@ extension ContentView {
                         .padding(.horizontal)
                         .accessibilityIdentifier("DatabaseList")
                     }
-                    .safeAreaInset(edge: .bottom) {
-                        Color.clear.frame(height: 88)
-                    }
                 }
-
-                // Floating Action Button — HIG: primary creation action, bottom-right, thumb-accessible
-                Button {
-                    viewModel.showAppEditor(DittoConfigForDatabase.new())
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.black)
-                        .frame(width: 56, height: 56)
-                        .background(Color.dittoYellow)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
-                }
-                .padding(.bottom, 24)
-                .padding(.trailing, 24)
-                .accessibilityIdentifier("AddDatabaseButton")
             }
             .navigationTitle("Edge Studio")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                if #available(iOS 27.1, *) {
+                    addDatabaseToolbarItem()
+                        .axisBehavior(.verticalPreferred)
+                } else {
+                    addDatabaseToolbarItem()
+                }
+
                 // HIG: secondary/utility actions in navigation bar trailing
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

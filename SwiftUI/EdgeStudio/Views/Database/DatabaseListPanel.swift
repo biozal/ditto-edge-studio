@@ -25,7 +25,7 @@ struct DatabaseListPanel: View {
                     Text("No database configurations found")
                         .foregroundStyle(.primary)
                     Text(
-                        "Use \"+ Database Config\" button to add one.  \nNew to Ditto?  Click Help -> User Guide for \nmore information on how to get started."
+                        "Use Add Database in the toolbar to add one.  \nNew to Ditto?  Click Help -> User Guide for \nmore information on how to get started."
                     )
                     .foregroundStyle(Color.Ditto.papyrusWhite)
                     .font(.caption)

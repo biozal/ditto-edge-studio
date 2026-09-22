@@ -37,7 +37,7 @@ struct TransportApplyCallbackWiringTests {
             invocations += 1
             lock.unlock()
         }
-        var count: Int {
+        var invocationCount: Int {
             lock.lock()
             defer { lock.unlock() }
             return invocations
@@ -67,7 +67,7 @@ struct TransportApplyCallbackWiringTests {
 
         // Baseline: an emission reaches the installed callback.
         await repo.processSyncStatusUpdate(emission(1))
-        #expect(recorder.count == 1)
+        #expect(recorder.invocationCount == 1)
 
         // ACT — the exact SystemRepository sequence the transport-apply path
         // performs (TransportConfigView.applyTransportConfig): reconfiguration
@@ -83,7 +83,7 @@ struct TransportApplyCallbackWiringTests {
         // which cleared the dispatch callback; this emission was then queued as
         // pending forever and the count stayed at 1 — the frozen Sync tab.
         await repo.processSyncStatusUpdate(emission(2))
-        #expect(recorder.count == 2)
+        #expect(recorder.invocationCount == 2)
     }
 
     @Test(.tags(.repository, .regression))
@@ -110,7 +110,7 @@ struct TransportApplyCallbackWiringTests {
 
         // Not delivered — queued as pending until the next session installs a
         // callback (which is exactly what database reopen does).
-        #expect(recorder.count == 0)
+        #expect(recorder.invocationCount == 0)
     }
 
     @Test(.tags(.repository, .regression))
@@ -136,7 +136,7 @@ struct TransportApplyCallbackWiringTests {
         // the emission queued — see the stopObserver contract test below.
         await repo.stopObserver()
         await repo.processSyncStatusUpdate(emission(1))
-        #expect(recorder.count == 0)
+        #expect(recorder.invocationCount == 0)
 
         // Reopening the database re-installs the callback, which drains the
         // queued update.
@@ -145,6 +145,6 @@ struct TransportApplyCallbackWiringTests {
             completion()
         }
         try await Task.sleep(for: .milliseconds(200))
-        #expect(recorder.count == 1)
+        #expect(recorder.invocationCount == 1)
     }
 }

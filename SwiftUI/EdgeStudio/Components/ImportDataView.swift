@@ -259,45 +259,45 @@ struct ImportDataView: View {
             }
             .padding(30)
             #if os(macOS)
-            .frame(width: 550)
-            .frame(minHeight: 500, maxHeight: 800)
+                .frame(width: 550)
+                .frame(minHeight: 500, maxHeight: 800)
             #endif
-            .navigationTitle("Import JSON Data")
+                .navigationTitle("Import JSON Data")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isPresented = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if importSuccess {
-                        Button("Done") { isPresented = false }
-                    } else {
-                        Button("Import") { performImport() }
-                            .disabled(!canImport || isImporting)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { isPresented = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        if importSuccess {
+                            Button("Done") { isPresented = false }
+                        } else {
+                            Button("Import") { performImport() }
+                                .disabled(!canImport || isImporting)
+                        }
                     }
                 }
-            }
             #endif
-            .fileImporter(
-                isPresented: $showingFilePicker,
-                allowedContentTypes: [UTType.json],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case let .success(files):
-                    if let file = files.first {
-                        // Store the security-scoped URL
-                        selectedFileURL = file
-                        selectedFileName = file.lastPathComponent
+                .fileImporter(
+                    isPresented: $showingFilePicker,
+                    allowedContentTypes: [UTType.json],
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case let .success(files):
+                        if let file = files.first {
+                            // Store the security-scoped URL
+                            selectedFileURL = file
+                            selectedFileName = file.lastPathComponent
+                        }
+                    case let .failure(error):
+                        appState.setError(error)
                     }
-                case let .failure(error):
-                    appState.setError(error)
                 }
-            }
-            .onAppear {
-                loadExistingCollections()
-            }
+                .onAppear {
+                    loadExistingCollections()
+                }
         } // NavigationStack
     }
 

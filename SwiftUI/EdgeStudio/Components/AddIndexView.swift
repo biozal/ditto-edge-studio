@@ -115,24 +115,24 @@ struct AddIndexView: View {
             }
             .navigationTitle("Add Index")
             #if os(macOS)
-            .formStyle(.columns)
-            .frame(minWidth: 420, minHeight: 280)
+                .formStyle(.columns)
+                .frame(minWidth: 420, minHeight: 280)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task { await createIndex() }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel", action: onCancel)
                     }
-                    .disabled(
-                        selectedCollection.isEmpty ||
-                            fieldSpecs.isEmpty ||
-                            isCreating
-                    )
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Create") {
+                            Task { await createIndex() }
+                        }
+                        .disabled(
+                            selectedCollection.isEmpty ||
+                                fieldSpecs.isEmpty ||
+                                isCreating
+                        )
+                    }
                 }
-            }
         }
         .onAppear {
             if selectedCollection.isEmpty, let first = collections.first {

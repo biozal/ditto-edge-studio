@@ -18,12 +18,12 @@ struct SecureField: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    // Remove extra background, match card
-                    #if os(iOS)
+                // Remove extra background, match card
+                #if os(iOS)
                     .background(Color(.secondarySystemBackground))
-                    #else
+                #else
                     .background(Color(NSColor.windowBackgroundColor))
-                    #endif
+                #endif
                     .cornerRadius(8)
             })
             .buttonStyle(PlainButtonStyle())

@@ -125,9 +125,11 @@ struct ConnectedPeersView: View {
                         }
                     }
                     // Extra bottom clearance so the last card is never hidden behind
-                    // the DetailBottomBar overlay (~56pt tall). Covers both the
-                    // network-interfaces case and the peers-only case.
+                    // the macOS floating DetailBottomBar overlay (~56pt tall). iOS
+                    // uses a native bottom toolbar, which insets content itself.
+                    #if os(macOS)
                     .padding(.bottom, 72)
+                    #endif
                 }
                 .transition(.blurReplace)
             }
@@ -215,10 +217,10 @@ private struct PeerCard: View, Equatable {
                     Text(status.id)
                         .font(.caption2)
                         .foregroundStyle(copiedText == status.id ? .green : .white.opacity(0.80))
-                        #if os(macOS)
+                    #if os(macOS)
                         .help("Double-click to copy ID")
                         .onTapGesture(count: 2) { onCopy(status.id) }
-                        #endif
+                    #endif
                 }
 
                 Spacer()
@@ -256,10 +258,10 @@ private struct PeerCard: View, Equatable {
                         Text(addressInfo.displayText)
                             .font(.caption)
                             .foregroundStyle(copiedText == addressInfo.displayText ? .green : .white.opacity(0.80))
-                            #if os(macOS)
+                        #if os(macOS)
                             .help("Double-click to copy address")
                             .onTapGesture(count: 2) { onCopy(addressInfo.displayText) }
-                            #endif
+                        #endif
                     }
                 }
 

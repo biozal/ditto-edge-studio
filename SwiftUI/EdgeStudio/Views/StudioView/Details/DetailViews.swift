@@ -1,9 +1,27 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Aligns the peer search field with the segmented picker even when the picker
+/// lives above the title in the compact Presence header.
+private extension VerticalAlignment {
+    enum PresenceHeaderControls: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[VerticalAlignment.center]
+        }
+    }
+
+    static let presenceHeaderControls = VerticalAlignment(PresenceHeaderControls.self)
+}
 
 extension MainStudioView {
     func syncTabsDetailView() -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
+            // The compact alternative puts the title below the picker. A custom
+            // guide keeps the adjacent search field aligned to the picker—not to
+            // the taller picker-and-title stack—without relying on fixed offsets.
+            HStack(alignment: .presenceHeaderControls, spacing: 0) {
                 ViewThatFits(in: .horizontal) {
                     // ── Wide layout: title on left, picker centered ───────────────
                     // NOTE: No dynamic data inside ViewThatFits — avoids onChange(of: Layout)
@@ -23,6 +41,9 @@ extension MainStudioView {
                         ) { $0 == 0 ? "Peers" : "Viewer" }
                             .padding(.horizontal)
                             .padding(.vertical, 8)
+                            .alignmentGuide(.presenceHeaderControls) { dimensions in
+                                dimensions[VerticalAlignment.center]
+                            }
                             .accessibilityIdentifier("SyncTabPicker")
 
                         Spacer()
@@ -36,6 +57,9 @@ extension MainStudioView {
                         ) { $0 == 0 ? "Peers" : "Viewer" }
                             .padding(.leading, 10)
                             .padding(.vertical, 8)
+                            .alignmentGuide(.presenceHeaderControls) { dimensions in
+                                dimensions[VerticalAlignment.center]
+                            }
                             .accessibilityIdentifier("SyncTabPicker")
 
                         Text("Presence")
@@ -57,11 +81,18 @@ extension MainStudioView {
                 if selectedSyncTab == 1 {
                     PresencePeerSearchField(viewModel: presenceViewerVM)
                         .padding(.trailing, 8)
+                        .alignmentGuide(.presenceHeaderControls) { dimensions in
+                            dimensions[VerticalAlignment.center]
+                        }
                 }
 
-                // Single TransportSettingsButton — stable identity regardless of ViewThatFits layout
+                #if os(macOS)
+                // macOS keeps this contextual action in the Presence header. On iOS
+                // it is a native detail-toolbar item so iPhone Duo can place it in
+                // the shared vertical action rail.
                 TransportSettingsButton()
                     .padding(.trailing, 5)
+                #endif
             }
             // The search results card is an overlay on the box above; without
             // this the tab content below paints over it.
@@ -86,6 +117,9 @@ extension MainStudioView {
                 }
             }
         }
+        #if os(macOS)
+        // macOS keeps the floating glass bar. On iOS the same actions are native
+        // toolbar content, so iPhone Duo can arrange them on its trailing rail.
         .overlay(alignment: .bottom) {
             // The Viewer tab injects its own Direct/reset/zoom controls into the
             // toolbar's middle slot so the canvas stays unobstructed. The Peers tab
@@ -99,6 +133,7 @@ extension MainStudioView {
             }
             .padding(.bottom, 12)
         }
+        #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
@@ -135,41 +170,30 @@ extension MainStudioView {
         }
         #if os(iOS)
         .toolbar {
-            if horizontalSizeClass == .compact {
+            // Same native items in every size class. Separate ToolbarItems
+            // (not a custom HStack cluster) are required for iPhone Duo:
+            // custom-view items are dropped when the system presents bars
+            // vertically on the trailing edge.
+            if showsLeadingSidebarToggle {
                 sidebarToggleButton()
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 16) {
-                        Button {
-                            Task {
-                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
-                            }
-                        } label: {
-                            Image(systemName: "arrow.2.circlepath")
-                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
-                        }
-                        .accessibilityIdentifier("SyncButton")
-                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
-
-                        Button {
-                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        }
-                        .accessibilityIdentifier("CloseButton")
-
-                        Button { showInspector.toggle() } label: {
-                            Image(systemName: "sidebar.right")
-                                .foregroundStyle(showInspector ? .primary : .secondary)
-                        }
-                        .accessibilityIdentifier("Toggle Inspector")
-                    }
-                }
-            } else {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()
             }
+            if horizontalSizeClass == .regular {
+                appNameToolbarLabel()
+            }
+            transportSettingsToolbarButton()
+
+            // Independent native items let iPhone Duo stack these controls in its
+            // vertical bar (or put low-priority items in overflow). A custom
+            // HStack plus Spacer keeps the whole strip horizontal and collides
+            // with the connection counter on the outer display.
+            SyncConnectionsToolbarItem(viewModel: viewModel)
+            if selectedSyncTab == 1 {
+                PresenceViewerToolbarItems(viewModel: presenceViewerVM)
+            }
+
+            // Persistent workspace actions always trail the contextual Presence
+            // actions, so their order is Sync, Close, then Inspector.
+            workspaceToolbarActions()
         }
         #endif
     }
@@ -306,35 +330,14 @@ extension MainStudioView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
         }
+        #if os(macOS)
+        // macOS-only floating glass bar; iOS uses the native bottom toolbar
+        // declared in the .toolbar block below.
         .overlay(alignment: .bottom) {
-            #if os(iOS)
-            if horizontalSizeClass != .compact {
-                DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
-                    if !viewModel.queryVM.jsonResults.isEmpty {
-                        PaginationControls(
-                            totalCount: queryResultsCount,
-                            currentPage: $queryCurrentPage,
-                            pageCount: queryPageCount,
-                            pageSize: $queryPageSize,
-                            pageSizes: queryPageSizes,
-                            onPageChange: { newPage in
-                                queryCurrentPage = max(1, min(newPage, queryPageCount))
-                            },
-                            onPageSizeChange: { newSize in
-                                queryPageSize = newSize
-                                queryCurrentPage = 1
-                            },
-                            onExport: { queryIsExporting = true }
-                        )
-                    }
-                }
-                .padding(.bottom, 12)
-            }
-            #else
             DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
                 if !viewModel.queryVM.jsonResults.isEmpty {
                     PaginationControls(
@@ -355,8 +358,8 @@ extension MainStudioView {
                 }
             }
             .padding(.bottom, 12)
-            #endif
         }
+        #endif
         .fileExporter(
             isPresented: $queryIsExporting,
             document: QueryResultsDocument(jsonData: queryFlattenResults()),
@@ -383,108 +386,73 @@ extension MainStudioView {
         }
         .animation(.easeInOut(duration: 0.25), value: queryCopiedDQLNotification)
         #if os(iOS)
-        .toolbar {
-            if horizontalSizeClass == .compact {
-                // COMPACT: Single ToolbarItem with all 6 controls — prevents any iOS overflow
-                ToolbarItem(placement: .navigationBarLeading) {
-                    HStack(spacing: 8) {
-                        // Sidebar toggle
-                        Button { preferredCompactColumn = .sidebar } label: {
-                            Image(systemName: "sidebar.left")
-                        }
-                        .accessibilityIdentifier("SidebarToggleButton")
-
-                        Divider().frame(height: 18)
-
-                        // Execute mode picker
-                        Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
-                            ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 85)
-
-                        // Execute play button
-                        Button { Task { await executeQuery() } } label: {
-                            FontAwesomeText(
-                                icon: NavigationIcon.play,
-                                size: 14,
-                                color: viewModel.queryVM.isQueryExecuting ? .gray : .green
-                            )
-                            .accessibilityLabel("Execute Query")
-                        }
-                        .disabled(viewModel.queryVM.isQueryExecuting)
-                        .accessibilityIdentifier("ExecuteQueryButton")
-
-                        Divider().frame(height: 18)
-
-                        // Sync toggle
-                        Button {
-                            Task {
-                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
+            .toolbar {
+                if horizontalSizeClass == .compact {
+                    // COMPACT: sidebar + query controls leading, standard
+                    // actions trailing as separate native items. Custom-view
+                    // clusters are dropped from iPhone Duo's vertical side
+                    // bar, so sync/close/inspector must be real ToolbarItems.
+                    sidebarToggleButton()
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        HStack(spacing: 8) {
+                            // Execute mode picker
+                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
                             }
-                        } label: {
-                            Image(systemName: "arrow.2.circlepath")
-                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
-                        }
-                        .accessibilityIdentifier("SyncButton")
-                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
+                            .pickerStyle(.menu)
+                            .frame(width: 85)
 
-                        // Close
-                        Button {
-                            Task {
-                                await viewModel.closeSelectedApp()
-                                isMainStudioViewPresented = false
+                            // Execute play button
+                            Button { Task { await executeQuery() } } label: {
+                                Label("Execute Query", systemImage: "play")
+                                    .foregroundStyle(viewModel.queryVM.isQueryExecuting ? .gray : .green)
                             }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.red)
+                            .disabled(viewModel.queryVM.isQueryExecuting)
+                            .accessibilityIdentifier("ExecuteQueryButton")
                         }
-                        .accessibilityIdentifier("CloseButton")
-
-                        // Inspector toggle
-                        Button { showInspector.toggle() } label: {
-                            Image(systemName: "sidebar.right")
-                                .foregroundStyle(showInspector ? .primary : .secondary)
-                        }
-                        .accessibilityIdentifier("Toggle Inspector")
                     }
-                }
-            } else {
-                // REGULAR (iPad): keep original split layout
-                ToolbarItem(placement: .navigationBarLeading) {
-                    HStack(spacing: 2) {
-                        Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
-                            ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 90)
-
-                        Divider().frame(height: 18)
-
-                        Button { Task { await executeQuery() } } label: {
-                            FontAwesomeText(
-                                icon: NavigationIcon.play,
-                                size: 14,
-                                color: viewModel.queryVM.isQueryExecuting ? .gray : .green
-                            )
-                            .accessibilityLabel("Execute Query")
-                            .padding(.horizontal, 4)
-                        }
-                        .disabled(viewModel.queryVM.isQueryExecuting)
-                        .accessibilityIdentifier("ExecuteQueryButton")
+                    workspaceToolbarActions()
+                } else {
+                    // REGULAR (iPad, iPhone Duo inner display)
+                    if showsLeadingSidebarToggle {
+                        // Regular-width split views already show the sidebar.
+                        // This remains available only if the environment later
+                        // reports collapsed navigation.
+                        sidebarToggleButton()
                     }
-                }
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()
-            }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        HStack(spacing: 2) {
+                            Picker("", selection: $viewModel.queryVM.selectedExecuteMode) {
+                                ForEach(viewModel.queryVM.executeModes, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 90)
 
-            // BOTTOM BAR — iPhone only (unchanged)
-            if horizontalSizeClass == .compact {
+                            Divider().frame(height: 18)
+
+                            Button { Task { await executeQuery() } } label: {
+                                FontAwesomeText(
+                                    icon: NavigationIcon.play,
+                                    size: 14,
+                                    color: viewModel.queryVM.isQueryExecuting ? .gray : .green
+                                )
+                                .accessibilityLabel("Execute Query")
+                                .padding(.horizontal, 4)
+                            }
+                            .disabled(viewModel.queryVM.isQueryExecuting)
+                            .accessibilityIdentifier("ExecuteQueryButton")
+                        }
+                    }
+                    appNameToolbarLabel()
+                    workspaceToolbarActions()
+                }
+
+                // BOTTOM BAR — all of iOS (was compact-only). A native bottom
+                // toolbar lets the system present it vertically on iPhone Duo;
+                // the previous floating overlay could not move.
                 ToolbarItemGroup(placement: .bottomBar) {
-                    ConnectionStatusMenu(
-                        connections: viewModel.syncVM.connectionsByTransport,
+                    SyncConnectionsMenu(
+                        viewModel: viewModel,
                         pageSize: $queryPageSize,
                         pageSizes: queryPageSizes,
                         onPageSizeChange: { newSize in
@@ -499,7 +467,7 @@ extension MainStudioView {
                         Button {
                             queryCurrentPage = max(1, queryCurrentPage - 1)
                         } label: {
-                            Image(systemName: "chevron.left")
+                            Label("Previous Page", systemImage: "chevron.left")
                         }
                         .disabled(queryCurrentPage <= 1)
 
@@ -521,7 +489,7 @@ extension MainStudioView {
                         Button {
                             queryCurrentPage = min(queryPageCount, queryCurrentPage + 1)
                         } label: {
-                            Image(systemName: "chevron.right")
+                            Label("Next Page", systemImage: "chevron.right")
                         }
                         .disabled(queryCurrentPage >= queryPageCount)
 
@@ -550,7 +518,6 @@ extension MainStudioView {
                     }
                 }
             }
-        }
         #endif
         #if os(macOS)
         .toolbar {
@@ -678,34 +645,14 @@ extension MainStudioView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             #endif
         }
+        #if os(macOS)
+        // macOS-only floating glass bar; iOS uses the native bottom toolbar
+        // declared in the .toolbar block below.
         .overlay(alignment: .bottom) {
-            #if os(iOS)
-            if horizontalSizeClass != .compact {
-                DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
-                    if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
-                        PaginationControls(
-                            totalCount: observeDetailFilteredData.count,
-                            currentPage: $observeDetailCurrentPage,
-                            pageCount: observeDetailPageCount,
-                            pageSize: $observeDetailPageSize,
-                            pageSizes: observeDetailPageSizes,
-                            onPageChange: { newPage in
-                                observeDetailCurrentPage = max(1, min(newPage, observeDetailPageCount))
-                            },
-                            onPageSizeChange: { newSize in
-                                observeDetailPageSize = newSize
-                                observeDetailCurrentPage = 1
-                            }
-                        )
-                    }
-                }
-                .padding(.bottom, 12)
-            }
-            #else
             DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) {
                 if viewModel.subObsVM.selectedEventObject != nil && !observeDetailFilteredData.isEmpty {
                     PaginationControls(
@@ -725,8 +672,8 @@ extension MainStudioView {
                 }
             }
             .padding(.bottom, 12)
-            #endif
         }
+        #endif
         .onChange(of: viewModel.subObsVM.eventStore.count) { _, _ in
             observerCurrentPage = 1
             if !observerPageSizes.contains(observerPageSize) {
@@ -736,50 +683,23 @@ extension MainStudioView {
         .onChange(of: viewModel.subObsVM.selectedEventId) { _, _ in refreshObserveDetailData() }
         .onChange(of: viewModel.subObsVM.eventMode) { _, _ in refreshObserveDetailData() }
         #if os(iOS)
-        .navigationTitle("Observer Events")
-        .toolbar {
-            if horizontalSizeClass == .compact {
-                sidebarToggleButton()
-                // Single right-side ToolbarItem prevents overflow
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 18) {
-                        Button {
-                            Task {
-                                do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
-                            }
-                        } label: {
-                            Image(systemName: "arrow.2.circlepath")
-                                .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
-                        }
-                        .accessibilityIdentifier("SyncButton")
-                        .accessibilityValue(viewModel.syncVM.isSyncEnabled ? "on" : "off")
-
-                        Button {
-                            Task { await viewModel.closeSelectedApp(); isMainStudioViewPresented = false }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        }
-                        .accessibilityIdentifier("CloseButton")
-
-                        Button { showInspector.toggle() } label: {
-                            Image(systemName: "sidebar.right")
-                                .foregroundStyle(showInspector ? .primary : .secondary)
-                        }
-                        .accessibilityIdentifier("Toggle Inspector")
-                    }
+            .navigationTitle("Observer Events")
+            .toolbar {
+                // Same native items in every size class so the system can
+                // present them vertically on iPhone Duo (custom-view clusters
+                // are dropped from vertical bars).
+                if showsLeadingSidebarToggle {
+                    sidebarToggleButton()
                 }
-            } else {
-                appNameToolbarLabel()
-                syncToolbarButton()
-                closeToolbarButton()
-                inspectorToggleButton()
-            }
+                if horizontalSizeClass == .regular {
+                    appNameToolbarLabel()
+                }
+                workspaceToolbarActions()
 
-            // iPhone bottom bar
-            if horizontalSizeClass == .compact {
+                // Native bottom toolbar for all of iOS (was compact-only).
                 ToolbarItemGroup(placement: .bottomBar) {
-                    ConnectionStatusMenu(
-                        connections: viewModel.syncVM.connectionsByTransport,
+                    SyncConnectionsMenu(
+                        viewModel: viewModel,
                         pageSize: $observeDetailPageSize,
                         pageSizes: observeDetailPageSizes,
                         onPageSizeChange: { newSize in
@@ -794,7 +714,7 @@ extension MainStudioView {
                         Button {
                             observeDetailCurrentPage = max(1, observeDetailCurrentPage - 1)
                         } label: {
-                            Image(systemName: "chevron.left")
+                            Label("Previous Page", systemImage: "chevron.left")
                         }
                         .disabled(observeDetailCurrentPage <= 1)
 
@@ -816,13 +736,12 @@ extension MainStudioView {
                         Button {
                             observeDetailCurrentPage = min(observeDetailPageCount, observeDetailCurrentPage + 1)
                         } label: {
-                            Image(systemName: "chevron.right")
+                            Label("Next Page", systemImage: "chevron.right")
                         }
                         .disabled(observeDetailCurrentPage >= observeDetailPageCount)
                     }
                 }
             }
-        }
         #endif
     }
 
@@ -986,11 +905,56 @@ private struct SyncLastUpdatedLabel: View {
 
 /// Wraps `DetailBottomBar` so the `connectionsByTransport` read is scoped to
 /// the bar instead of the enclosing split view. See `SyncLastUpdatedLabel`.
+/// macOS-only: iOS detail views declare native trailing toolbar items instead.
 private struct SyncBottomBar<Middle: View>: View {
     @Bindable var viewModel: MainStudioView.ViewModel
     @ViewBuilder var middle: Middle
 
     var body: some View {
-        DetailBottomBar(connections: viewModel.syncVM.connectionsByTransport) { middle }
+        DetailBottomBar(
+            connections: viewModel.syncVM.connectionsByTransport
+        ) { middle }
     }
 }
+
+#if os(iOS)
+/// Native toolbar wrapper for the connection counter. It intentionally owns the
+/// `connectionsByTransport` read so frequent presence updates don't invalidate
+/// the enclosing detail view.
+private struct SyncConnectionsToolbarItem: ToolbarContent {
+    @Bindable var viewModel: MainStudioView.ViewModel
+
+    var body: some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "connectionStatus", placement: .primaryAction) {
+                SyncConnectionsMenu(viewModel: viewModel)
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "connectionStatus", placement: .primaryAction) {
+                SyncConnectionsMenu(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+/// Leaf wrapper around `ConnectionStatusMenu` so the `connectionsByTransport`
+/// read happens in this body rather than in the enclosing detail view (same
+/// invalidation-confinement reasoning as `SyncLastUpdatedLabel`). Used by the
+/// native iOS trailing toolbars.
+private struct SyncConnectionsMenu: View {
+    @Bindable var viewModel: MainStudioView.ViewModel
+    var pageSize: Binding<Int>?
+    var pageSizes: [Int] = []
+    var onPageSizeChange: ((Int) -> Void)?
+
+    var body: some View {
+        ConnectionStatusMenu(
+            connections: viewModel.syncVM.connectionsByTransport,
+            pageSize: pageSize,
+            pageSizes: pageSizes,
+            onPageSizeChange: onPageSizeChange ?? { _ in }
+        )
+    }
+}
+#endif

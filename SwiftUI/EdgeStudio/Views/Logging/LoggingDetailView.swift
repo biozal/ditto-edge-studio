@@ -3,9 +3,24 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The main logging detail view, accessible from the Logging sidebar item.
-struct LoggingDetailView: View {
+struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: ToolbarContent>: View {
     @Environment(AppState.self) var appState
     @State private var capture = DittoLogCaptureService.shared
+
+    /// The Logging detail owns its stateful Info and Log Actions items. The
+    /// surrounding Studio injects Add / Sidebar before them and the persistent
+    /// workspace actions after them, so iPhone Duo receives one ordered toolbar
+    /// declaration rather than three independently merged toolbars.
+    private let leadingToolbar: () -> LeadingToolbar
+    private let trailingWorkspaceToolbar: () -> WorkspaceToolbar
+
+    init(
+        @ToolbarContentBuilder leadingToolbar: @escaping () -> LeadingToolbar,
+        @ToolbarContentBuilder trailingWorkspaceToolbar: @escaping () -> WorkspaceToolbar
+    ) {
+        self.leadingToolbar = leadingToolbar
+        self.trailingWorkspaceToolbar = trailingWorkspaceToolbar
+    }
 
     // MARK: - Filter State
 
@@ -32,21 +47,26 @@ struct LoggingDetailView: View {
     /// Source tabs visible in the current platform.
     /// The Imported tab is macOS-only because log file import uses a macOS file picker.
     /// Platform-constant — computed once rather than rebuilt on every body render.
-    private static let visibleSourceTabs: [LoggingSourceTab] = {
+    private static var visibleSourceTabs: [LoggingSourceTab] {
         #if os(macOS)
         return LoggingSourceTab.allCases
         #else
         return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
-    }()
+    }
 
     // MARK: - Footer State
 
+    #if os(macOS)
     @State private var isFooterCollapsed = false
+    #endif
 
     // MARK: - Toolbar State
 
     @State private var activeLogLevel = "info"
+    #if os(iOS)
+    @State private var isShowingLogDisplayInfo = false
+    #endif
 
     // MARK: - Log Pattern Analysis (VS Code extension log-analyzer parity)
 
@@ -88,9 +108,11 @@ struct LoggingDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             toolbarRow
 
             Divider()
+            #endif
 
             sourceRow
 
@@ -125,10 +147,12 @@ struct LoggingDetailView: View {
             logList
                 .layoutPriority(1)
         }
+        #if os(macOS)
         .overlay(alignment: .bottom) {
             footerRow
                 .padding(.bottom, 12)
         }
+        #endif
         .task {
             // Load active config log level
             if let config = await DittoManager.shared.dittoSelectedAppConfig {
@@ -199,13 +223,155 @@ struct LoggingDetailView: View {
         .sheet(isPresented: $isShowingPatternManager) {
             LogPatternManagerView(store: patternStore)
         }
+        #if os(iOS)
+        .navigationTitle("Logs")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            leadingToolbar()
+            logToolbarItems()
+            trailingWorkspaceToolbar()
+        }
+        .alert("Log Display", isPresented: $isShowingLogDisplayInfo) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(footerLabel)
+        }
+        #endif
         .onDisappear {
             capture.stopLiveCapture()
         }
     }
 
+    private var footerLabel: String {
+        let displayed = cachedFilteredEntries.count
+        let total = activeSourceEntryCount
+        let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
+        if isFiltered {
+            return "\(displayed) entries"
+        } else if displayed < total {
+            return "Showing \(displayed) of \(total) (most recent)"
+        } else {
+            return "\(displayed) entries"
+        }
+    }
+
+    private func updateSDKLogLevel(_ newLevel: String) {
+        Task {
+            do {
+                if let config = await DittoManager.shared.dittoSelectedAppConfig {
+                    config.logLevel = newLevel
+                    try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                }
+            } catch {
+                Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
+                appState.setError(error)
+            }
+        }
+    }
+
+    private func reloadLogs() {
+        Task {
+            if let dir = await DittoManager.shared.activePersistenceDirectory {
+                await capture.loadHistoricalLogs(from: dir)
+            }
+            await capture.loadAppLogs()
+        }
+    }
+
+    private func clearSelectedLogs() {
+        switch capture.selectedSource {
+        case .dittoSDK:
+            capture.clearLive()
+            capture.clearHistorical()
+        case .application:
+            LoggingService.shared.clearAllLogs()
+            Task { await capture.loadAppLogs() }
+        case .imported:
+            capture.clearImported()
+        case .transportConditions:
+            capture.clearTransportEntries()
+        case .connectionRequests:
+            capture.clearConnectionRequestEntries()
+        }
+    }
+
+    #if os(iOS)
+    @ToolbarContentBuilder
+    private func logToolbarItems() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "logDisplayInfo", placement: .primaryAction) {
+                Button {
+                    isShowingLogDisplayInfo = true
+                } label: {
+                    Label("Log Display Info", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("LogDisplayInfoButton")
+            }
+            .axisBehavior(.verticalPreferred)
+
+            ToolbarItem(id: "logActions", placement: .primaryAction) {
+                logActionsMenu
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "logDisplayInfo", placement: .primaryAction) {
+                Button {
+                    isShowingLogDisplayInfo = true
+                } label: {
+                    Label("Log Display Info", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("LogDisplayInfoButton")
+            }
+
+            ToolbarItem(id: "logActions", placement: .primaryAction) {
+                logActionsMenu
+            }
+        }
+    }
+
+    private var logActionsMenu: some View {
+        Menu {
+            Section("SDK Log Level") {
+                Picker("SDK Log Level", selection: $activeLogLevel) {
+                    Text("Error").tag("error")
+                    Text("Warning").tag("warning")
+                    Text("Info").tag("info")
+                    Text("Debug").tag("debug")
+                    Text("Verbose").tag("verbose")
+                }
+                .onChange(of: activeLogLevel) { _, newLevel in
+                    updateSDKLogLevel(newLevel)
+                }
+            }
+
+            Button("Refresh", systemImage: "arrow.clockwise") {
+                reloadLogs()
+            }
+            Button(isPaused ? "Resume" : "Pause", systemImage: isPaused ? "play.fill" : "pause.fill") {
+                isPaused.toggle()
+            }
+            .accessibilityIdentifier("LogPauseToolbarButton")
+            Button("Patterns", systemImage: "slider.horizontal.3") {
+                isShowingPatternManager = true
+            }
+            .accessibilityIdentifier("LogPatternsToolbarButton")
+
+            Divider()
+
+            Button("Clear Logs", systemImage: "trash", role: .destructive) {
+                clearSelectedLogs()
+            }
+            .accessibilityIdentifier("LogClearToolbarButton")
+        } label: {
+            Label("Log Actions", systemImage: "slider.horizontal.3")
+        }
+        .accessibilityIdentifier("LogActionsToolbarMenu")
+    }
+    #endif
+
     // MARK: - Toolbar
 
+    #if os(macOS)
     private var toolbarRow: some View {
         HStack(spacing: 12) {
             Text("Logs")
@@ -229,20 +395,7 @@ struct LoggingDetailView: View {
                 .labelsHidden()
                 .frame(maxWidth: 100)
                 .onChange(of: activeLogLevel) { _, newLevel in
-                    Task {
-                        do {
-                            if let config = await DittoManager.shared.dittoSelectedAppConfig {
-                                // Mutate the shared config on the MainActor (this
-                                // onChange runs on the MainActor), then hand it to
-                                // the actor only for persistence + live apply.
-                                config.logLevel = newLevel
-                                try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
-                            }
-                        } catch {
-                            Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
-                            appState.setError(error)
-                        }
-                    }
+                    updateSDKLogLevel(newLevel)
                 }
             }
 
@@ -283,6 +436,7 @@ struct LoggingDetailView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
+    #endif
 
     // MARK: - Source Row
 
@@ -377,9 +531,9 @@ struct LoggingDetailView: View {
                     .font(.caption)
                 TextField("Search…", text: $searchText)
                     .font(.caption)
-                    #if os(macOS)
+                #if os(macOS)
                     .textFieldStyle(.roundedBorder)
-                    #endif
+                #endif
 
                 if !searchText.isEmpty {
                     Button {
@@ -533,12 +687,14 @@ struct LoggingDetailView: View {
                 }
                 .listStyle(.plain)
                 #if os(macOS)
-                .scrollContentBackground(.hidden)
+                    .scrollContentBackground(.hidden)
                 #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    #if os(macOS)
 
     // MARK: - Footer
 
@@ -565,18 +721,6 @@ struct LoggingDetailView: View {
             } else {
                 GlassEffectContainer {
                     HStack(spacing: 12) {
-                        let displayed = cachedFilteredEntries.count
-                        let total = activeSourceEntryCount
-                        let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
-                        let footerLabel: String = {
-                            if isFiltered {
-                                return "\(displayed) entries"
-                            } else if displayed < total {
-                                return "Showing \(displayed) of \(total) (most recent)"
-                            } else {
-                                return "\(displayed) entries"
-                            }
-                        }()
                         Text(footerLabel)
                             .font(.system(size: 14, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -656,20 +800,7 @@ struct LoggingDetailView: View {
 
                         // Clear — icon only, red tint
                         Button {
-                            switch capture.selectedSource {
-                            case .dittoSDK:
-                                capture.clearLive()
-                                capture.clearHistorical()
-                            case .application:
-                                LoggingService.shared.clearAllLogs()
-                                Task { await capture.loadAppLogs() }
-                            case .imported:
-                                capture.clearImported()
-                            case .transportConditions:
-                                capture.clearTransportEntries()
-                            case .connectionRequests:
-                                capture.clearConnectionRequestEntries()
-                            }
+                            clearSelectedLogs()
                         } label: {
                             Image(systemName: "trash")
                                 .font(.system(size: 14))
@@ -700,6 +831,7 @@ struct LoggingDetailView: View {
         .frame(maxWidth: .infinity)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFooterCollapsed)
     }
+    #endif
 
     // MARK: - Filtered Entries
 

@@ -26,21 +26,21 @@ struct PresenceViewerSK: View {
                 .focusable() // Allow view to receive keyboard and scroll events
 
             // Only the connection-types legend stays inside this view as a corner
-            // overlay. The Direct toggle, reset button, and zoom controls used to
-            // live here too but were hoisted to the parent's DetailBottomBar so they
-            // sit on the floating toolbar — see `presenceViewerToolbarControls(vm:)`
-            // in MainStudioView.
+            // overlay. The Direct toggle, reset button, and zoom controls live in
+            // the parent's toolbar (individual native toolbar items on iOS,
+            // floating `DetailBottomBar` on macOS).
             //
-            // Bottom padding clears the DetailBottomBar floating-toolbar overlay
-            // below this view. The bar's own footprint is ~56pt (HStack contents +
-            // 12pt vertical padding × 2 + glass-effect spread) plus the 12pt
-            // .padding(.bottom, 12) the overlay anchor applies. 100pt leaves a
-            // comfortable ~24pt visual gap between the legend's bottom edge and
-            // the toolbar's top edge.
+            // macOS bottom padding clears the floating-toolbar overlay below this
+            // view (~56pt bar + 12pt overlay anchor + comfortable gap). iOS uses a
+            // native bottom toolbar, which insets the safe area itself.
             if viewModel.controlsVisible {
                 connectionLegend
                     .padding(.leading, 16)
+                #if os(macOS)
                     .padding(.bottom, 100)
+                #else
+                    .padding(.bottom, 16)
+                #endif
                     .transition(.opacity)
             }
 
@@ -95,30 +95,30 @@ struct PresenceViewerSK: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
         .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
         #if os(macOS)
-        // Escape with focus on the canvas (a mouse pick moves focus onto a
-        // results row, and an open detail card never had an Escape route at all).
-        // The search box carries its own `.onKeyPress(.escape)` for the
-        // still-typing case; both land on the same unwind order.
-        .onExitCommand { viewModel.handleEscape() }
+            // Escape with focus on the canvas (a mouse pick moves focus onto a
+            // results row, and an open detail card never had an Escape route at all).
+            // The search box carries its own `.onKeyPress(.escape)` for the
+            // still-typing case; both land on the same unwind order.
+            .onExitCommand { viewModel.handleEscape() }
         #endif
-        .onAppear {
-            createScene()
-        }
-        .task {
-            // Start presence observation tied to the view's lifetime via
-            // structured concurrency, rather than an untracked Task in the
-            // ViewModel's init that can race view teardown on rapid tab switches.
-            await viewModel.startProductionMode()
-        }
-        .onDisappear {
-            // Stop the presence observer here rather than relying on
-            // ViewModel ARC dealloc. The VM holds a DittoObserver that
-            // (via ditto.presence) retains the Ditto instance — leaving
-            // it alive after database close blocks the SDK's own deinit
-            // shutdown and prevents SQLite WAL from being flushed.
-            viewModel.stopProductionMode()
-            cleanupScene()
-        }
+            .onAppear {
+                createScene()
+            }
+            .task {
+                // Start presence observation tied to the view's lifetime via
+                // structured concurrency, rather than an untracked Task in the
+                // ViewModel's init that can race view teardown on rapid tab switches.
+                await viewModel.startProductionMode()
+            }
+            .onDisappear {
+                // Stop the presence observer here rather than relying on
+                // ViewModel ARC dealloc. The VM holds a DittoObserver that
+                // (via ditto.presence) retains the Ditto instance — leaving
+                // it alive after database close blocks the SDK's own deinit
+                // shutdown and prevents SQLite WAL from being flushed.
+                viewModel.stopProductionMode()
+                cleanupScene()
+            }
     }
 
     // MARK: - Connection Legend
@@ -806,20 +806,24 @@ extension PresenceViewerSK {
     }
 }
 
-// MARK: - Floating Toolbar Controls
+// MARK: - Toolbar Controls
 
-/// Drop-in middle-content for `DetailBottomBar` when the Presence Viewer tab is active.
-/// Houses what used to be the bottom-right overlay (Direct toggle, reset, ± zoom)
-/// inline with the rest of the toolbar so the canvas is unobstructed.
-///
-/// Caller pattern (inside `MainStudioView.syncTabsDetailView`):
-/// ```
-/// DetailBottomBar(connections: ...) {
-///     if selectedSyncTab == 1 {
-///         PresenceViewerToolbarControls(viewModel: presenceViewerVM)
-///     }
-/// }
-/// ```
+// macOS middle-content for the Presence detail toolbar when the Viewer tab is active.
+// Houses what used to be the bottom-right overlay (Direct toggle, reset, ± zoom)
+// inline with the rest of the toolbar so the canvas is unobstructed. Rendered in
+// the floating `DetailBottomBar` on macOS. iOS uses
+// `PresenceViewerToolbarItems`, whose individual native controls can move to
+// iPhone Duo's vertical bar.
+//
+// Caller pattern (inside `MainStudioView.syncTabsDetailView`):
+// ```
+// DetailBottomBar(connections: ...) {
+//     if selectedSyncTab == 1 {
+//         PresenceViewerToolbarControls(viewModel: presenceViewerVM)
+//     }
+// }
+// ```
+#if os(macOS)
 struct PresenceViewerToolbarControls: View {
     @Bindable var viewModel: PresenceViewerSK.ViewModel
 
@@ -917,6 +921,94 @@ struct PresenceViewerToolbarControls: View {
         }
     }
 }
+#endif
+
+#if os(iOS)
+/// Semantic Presence Viewer controls for iOS toolbars. The low-frequency actions
+/// are one native menu, letting iPhone Duo keep a coherent trailing action rail
+/// and place individual commands in the system menu instead of a second rail.
+struct PresenceViewerToolbarItems: ToolbarContent {
+    @Bindable var viewModel: PresenceViewerSK.ViewModel
+
+    var body: some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "presenceViewerControls", placement: .primaryAction) {
+                viewerControlsMenu
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "presenceViewerControls", placement: .primaryAction) {
+                viewerControlsMenu
+            }
+        }
+    }
+
+    private var viewerControlsMenu: some View {
+        Menu {
+            if viewModel.controlsVisible {
+                Button {
+                    viewModel.showDirectConnectedOnly.toggle()
+                } label: {
+                    Label(
+                        viewModel.showDirectConnectedOnly
+                            ? "Show Full Network"
+                            : "Show Direct Connections",
+                        systemImage: "link"
+                    )
+                }
+                .accessibilityIdentifier("PresenceDirectConnectionsButton")
+                .accessibilityValue(viewModel.showDirectConnectedOnly ? "Direct connections" : "Full network")
+
+                Divider()
+                Text("Current zoom: \(viewModel.zoomPercent)%")
+                Button("Zoom Out", systemImage: "minus.magnifyingglass") {
+                    viewModel.zoomOut()
+                }
+                .disabled(viewModel.zoomLevel >= 4.0)
+                Button("Zoom In", systemImage: "plus.magnifyingglass") {
+                    viewModel.zoomIn()
+                }
+                .disabled(viewModel.zoomLevel <= 0.5)
+                .accessibilityIdentifier("PresenceZoomMenu")
+            }
+
+            Divider()
+
+            Button {
+                viewModel.recenterView()
+            } label: {
+                Label("Reset View", systemImage: "scope")
+            }
+            .accessibilityIdentifier("PresenceResetViewButton")
+
+            Button {
+                viewModel.backgroundEffectsEnabled.toggle()
+            } label: {
+                Label(
+                    viewModel.backgroundEffectsEnabled
+                        ? "Hide Background Effects"
+                        : "Show Background Effects",
+                    systemImage: viewModel.backgroundEffectsEnabled ? "sparkles" : "sparkle"
+                )
+            }
+            .accessibilityIdentifier("PresenceBackgroundEffectsButton")
+
+            Button {
+                viewModel.controlsVisible.toggle()
+            } label: {
+                Label(
+                    viewModel.controlsVisible ? "Hide Graph Controls" : "Show Graph Controls",
+                    systemImage: viewModel.controlsVisible ? "eye" : "eye.slash"
+                )
+            }
+            .accessibilityIdentifier("PresenceControlsVisibilityButton")
+        } label: {
+            Label("Viewer Controls", systemImage: "slider.horizontal.3")
+        }
+        .accessibilityIdentifier("PresenceViewerControlsMenu")
+    }
+}
+#endif
 
 // MARK: - Preview
 

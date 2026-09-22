@@ -41,10 +41,10 @@ struct PresencePeerSearchField: View {
                 .font(.callout)
                 .focused($isFocused)
                 .autocorrectionDisabled()
-                #if os(iOS)
+            #if os(iOS)
                 .textInputAutocapitalization(.never)
                 .submitLabel(.search)
-                #endif
+            #endif
                 // Enter jumps straight to the first focusable hit — the "find a
                 // peer without touching the mouse" path.
                 .onSubmit { viewModel.focusFirstSearchResult() }

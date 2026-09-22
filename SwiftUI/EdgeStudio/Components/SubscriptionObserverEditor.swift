@@ -52,27 +52,27 @@ struct SubscriptionObserverEditor: View {
             #endif
             .navigationTitle(title)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        onCancel()
-                    } label: {
-                        Label("Cancel", systemImage: "xmark")
-                    }
-                    .accessibilityIdentifier("EditorCancelButton")
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            onSave(name, query, appState)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            onCancel()
+                        } label: {
+                            Label("Cancel", systemImage: "xmark")
                         }
+                        .accessibilityIdentifier("EditorCancelButton")
                     }
-                    .disabled(name.isEmpty || query.isEmpty)
-                    .accessibilityIdentifier("EditorSaveButton")
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            Task {
+                                onSave(name, query, appState)
+                            }
+                        }
+                        .disabled(name.isEmpty || query.isEmpty)
+                        .accessibilityIdentifier("EditorSaveButton")
+                    }
                 }
-            }
         }
     }
 }
