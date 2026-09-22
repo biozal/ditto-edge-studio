@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A segmented picker whose selected segment is Ditto yellow with black content.
+/// A segmented picker with Ditto yellow and black selection colours in dark mode.
 ///
 /// ## Why this exists rather than `.pickerStyle(.segmented)`
 ///
@@ -9,8 +9,8 @@ import SwiftUI
 /// underneath, whose `selectedSegmentTintColor` can only be reached through the
 /// global `UIAppearance` proxy (which would restyle every segmented control in
 /// the app, and does nothing on macOS, where the control is an
-/// `NSSegmentedControl`). A small custom control is the only way to get the
-/// brand colour on both platforms without a global side effect.
+/// `NSSegmentedControl`). A custom control provides the selected colours on both
+/// platforms without a global side effect.
 ///
 /// Android reached the same conclusion for the same reason — see
 /// `SegmentedButtonDefaults.colors(activeContainerColor = SulfurYellow,
@@ -22,10 +22,9 @@ import SwiftUI
 ///
 /// The brand yellow is applied **only in dark mode**, where it reads as a bright
 /// accent against a dark chrome — the same role it plays on Android, whose UI is
-/// dark. In light mode a yellow fill with black text is heavy and muddy next to
-/// the surrounding system controls, so the selection falls back to the accent
-/// colour the stock segmented picker would have used. Light mode therefore looks
-/// as it always did; only dark mode is branded.
+/// dark. Light mode uses a high-contrast neutral pair: primary-colour fill and
+/// white text. The app's accent asset is white, so using it as the selected fill
+/// would make the white selected label disappear.
 ///
 /// `label` is a `@ViewBuilder`, so a segment can be text, an SF Symbol, or a
 /// `Label`. Symbols inherit the selected foreground style the same way text
@@ -43,7 +42,7 @@ struct DittoSegmentedPicker<Value: Hashable, SegmentLabel: View>: View {
 
     /// Fill behind the selected segment.
     private var selectedFill: Color {
-        colorScheme == .dark ? Color.dittoYellow : Color.accentColor
+        colorScheme == .dark ? Color.dittoYellow : Color.primary
     }
 
     /// Content colour on the selected segment, paired with `selectedFill`.

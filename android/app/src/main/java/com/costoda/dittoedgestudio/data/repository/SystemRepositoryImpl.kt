@@ -221,7 +221,12 @@ class SystemRepositoryImpl(
         // 3. Map presence peers with merged sync metrics
         val remotePeers = deduped.map { peer ->
             processedIds.add(peer.peerKey)
-            peer.toSyncStatusInfo(syncMetrics[peer.peerKey], localPeerKey, config)
+            peer.toSyncStatusInfo(
+                metrics = syncMetrics[peer.peerKey],
+                localPeerKey = localPeerKey,
+                localConnections = graph.localPeer.connections,
+                config = config,
+            )
         }.toMutableList()
 
         // 4. Add Cloud Server peers from DQL not in presence graph
@@ -315,6 +320,7 @@ class SystemRepositoryImpl(
     private fun DittoPeer.toSyncStatusInfo(
         metrics: JSONObject? = null,
         localPeerKey: String,
+        localConnections: List<DittoConnection>,
         config: com.costoda.dittoedgestudio.domain.model.DittoDatabase? = null,
     ): SyncStatusInfo {
         val docs = metrics?.optJSONObject(FIELD_DOCUMENTS)
@@ -324,8 +330,14 @@ class SystemRepositoryImpl(
             deviceName = deviceName.takeIf { it.isNotBlank() },
             osInfo = os?.toPeerOS() ?: PeerOS.Unknown,
             dittoSdkVersion = dittoSdkVersion?.takeIf { it.isNotBlank() },
-            connections = connections
-                .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
+            // The local endpoint can be the only side advertising a direct edge.
+            // Match BOTH endpoints so another local peer's link or a transitive
+            // edge cannot supply this card's transport.
+            connections = (connections + localConnections)
+                .filter { conn ->
+                    (conn.peer1 == localPeerKey && conn.peer2 == peerKey) ||
+                        (conn.peer2 == localPeerKey && conn.peer1 == peerKey)
+                }
                 .distinctBy { conn -> conn.connectionType }
                 .map { conn ->
                     PeerConnectionInfo(
@@ -422,32 +434,30 @@ class SystemRepositoryImpl(
         var webSocket = 0
         var multicast = 0
 
-        // The local peer's own connections are counted alongside each remote peer's.
-        // A transport only the local side advertises (notably multicast) appears in
-        // `localPeer.connections` and in NO remote peer's list, so tallying the remote
-        // side alone under-counted it — the status bar showed a transport as absent while
-        // the Presence Viewer drew the very edge it came from. SwiftUI unions both sides
-        // (SystemRepository.swift:574-591); this is the Android half.
-        (peers.map { it.connections } + listOf(localConnections)).forEach { peerConnections ->
-            peerConnections
-                .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
-                .distinctBy { it.connectionType }
-                .forEach { conn ->
-                    val type = conn.connectionType.toConnectionType()
-                    // Skip connections for disabled transports (SDK bug workaround:
-                    // the presence graph retains stale connections after transport
-                    // config changes). Mirrors SwiftUI's isConnectionTypeEnabled.
-                    if (config != null && !type.isEnabledIn(config)) return@forEach
-                    when (type) {
-                        ConnectionType.Bluetooth -> bluetooth++
-                        ConnectionType.LAN -> lan++
-                        ConnectionType.P2PWiFi -> p2pWifi++
-                        ConnectionType.WebSocket -> webSocket++
-                        ConnectionType.Multicast -> multicast++
-                        ConnectionType.Unknown -> { /* skip */ }
-                    }
+        // Count each remote endpoint once per transport, regardless of which side
+        // advertises the edge. Deduplicating each peer list separately double-counts
+        // two-sided edges and collapses multiple local-only peers into one.
+        (peers.flatMap { it.connections } + localConnections)
+            .filter { conn -> conn.peer1 == localPeerKey || conn.peer2 == localPeerKey }
+            .distinctBy { conn ->
+                val remoteKey = if (conn.peer1 == localPeerKey) conn.peer2 else conn.peer1
+                remoteKey to conn.connectionType
+            }
+            .forEach { conn ->
+                val type = conn.connectionType.toConnectionType()
+                // Skip connections for disabled transports (SDK bug workaround:
+                // the presence graph retains stale connections after transport
+                // config changes). Mirrors SwiftUI's isConnectionTypeEnabled.
+                if (config != null && !type.isEnabledIn(config)) return@forEach
+                when (type) {
+                    ConnectionType.Bluetooth -> bluetooth++
+                    ConnectionType.LAN -> lan++
+                    ConnectionType.P2PWiFi -> p2pWifi++
+                    ConnectionType.WebSocket -> webSocket++
+                    ConnectionType.Multicast -> multicast++
+                    ConnectionType.Unknown -> { /* skip */ }
                 }
-        }
+            }
 
         return ConnectionsByTransport(
             bluetooth = bluetooth,

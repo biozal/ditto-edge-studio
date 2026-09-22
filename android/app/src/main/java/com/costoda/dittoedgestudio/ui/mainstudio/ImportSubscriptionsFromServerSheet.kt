@@ -38,7 +38,7 @@ import com.costoda.dittoedgestudio.viewmodel.MainStudioViewModel
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
-private data class ImportableSubscription(
+internal data class ImportableSubscription(
     val deviceName: String,
     val deviceInfo: String,
     val collectionName: String,
@@ -70,7 +70,7 @@ fun ImportSubscriptionsFromServerSheet(
     LaunchedEffect(Unit) {
         runCatching {
             val result = queryExecution.execute("SELECT * FROM __small_peer_info", "HTTP")
-            result.documents.flatMap { row -> importablesFromRow(row, existingQueries = existing) }
+            importableSubscriptions(result.documents, existingQueries = existing)
         }.onSuccess { importables = it }
             .onFailure { loadError = it.message ?: "Failed to fetch subscriptions from the server" }
     }
@@ -111,7 +111,7 @@ fun ImportSubscriptionsFromServerSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 else -> LazyColumn(modifier = Modifier.height(320.dp)) {
-                    items(importables!!, key = { "${it.deviceName}|${it.query}" }) { item ->
+                    items(importables!!, key = { it.query }) { item ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
@@ -120,7 +120,7 @@ fun ImportSubscriptionsFromServerSheet(
                                 checked = item.isSelected,
                                 onCheckedChange = { checked ->
                                     importables = importables!!.map {
-                                        if (it.deviceName == item.deviceName && it.query == item.query) {
+                                        if (it.query == item.query) {
                                             it.copy(isSelected = checked)
                                         } else {
                                             it
@@ -186,6 +186,14 @@ fun ImportSubscriptionsFromServerSheet(
     }
 }
 
+/** A subscription is imported once even when several peers advertise the same query. */
+internal fun importableSubscriptions(
+    rows: List<Map<String, Any?>>,
+    existingQueries: List<com.costoda.dittoedgestudio.domain.model.DittoSubscription>,
+): List<ImportableSubscription> = rows
+    .flatMap { importablesFromRow(it, existingQueries) }
+    .distinctBy { it.query }
+
 /** Maps one `__small_peer_info` row into importable subscriptions. */
 private fun importablesFromRow(
     row: Map<String, Any?>,
@@ -200,7 +208,7 @@ private fun importablesFromRow(
     val queries = localSubs["queries"] as? List<*> ?: return emptyList()
 
     return queries.mapNotNull { q ->
-        val query = (q as? Map<*, *>)?.get("query") as? String ?: return@mapNotNull null
+        val query = ((q as? Map<*, *>)?.get("query") as? String)?.trim() ?: return@mapNotNull null
         val collection = DqlGenerator.collectionName(query) ?: return@mapNotNull null
         // System collections (__presence etc.) and existing subs are skipped (parity).
         if (collection.startsWith("__")) return@mapNotNull null

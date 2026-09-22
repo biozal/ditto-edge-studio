@@ -58,7 +58,8 @@ class LogPatternEngine(patterns: Map<String, LogPattern>) {
 
     /** True if [message] matches this pattern's regex — for the editor's test line. */
     fun matches(pattern: LogPatternBody, level: DittoLogLevel, tag: String, message: String): Boolean {
-        val compiledKey = "" // key irrelevant for a one-off match check
+        if (rejectReason("preview", pattern, PatternSource.USER) != null) return false
+        val compiledKey = "preview"
         val lp = LogPattern(compiledKey, pattern, pattern.severity, parseLevelFilter(pattern.levelFilter), PatternSource.USER)
         val compiled = runCatching { lp.toCompiled() }.getOrNull() ?: return false
         return (compiled.levelFilter == null || level == compiled.levelFilter) &&

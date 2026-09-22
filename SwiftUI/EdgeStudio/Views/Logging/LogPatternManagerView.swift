@@ -247,8 +247,8 @@ struct LogPatternEditorView: View {
 
     private var testResult: (matched: Bool, label: String)? {
         guard !testLine.isEmpty else { return nil }
-        if (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)) == nil {
-            return (false, "Pattern is not a valid regex")
+        if let reason = LogPatternEngine.rejectReason(key: "preview", body: draftBody, source: .user) {
+            return (false, "Cannot test: \(reason)")
         }
         // Level filter is an exact equality, so test at the filter's level; the
         // component is derived from the pasted line via the heuristic the

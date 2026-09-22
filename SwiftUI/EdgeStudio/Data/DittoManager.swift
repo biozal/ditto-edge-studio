@@ -128,16 +128,6 @@ actor DittoManager {
             )
             .appendingPathComponent("database")
 
-            // Ensure directory exists
-            if !FileManager.default.fileExists(atPath: localDirectoryPath.path) {
-                try FileManager.default.createDirectory(
-                    at: localDirectoryPath,
-                    withIntermediateDirectories: true
-                )
-            }
-
-            Log.info("Ditto database path: \(localDirectoryPath.path)")
-
             // Refuse to open a database whose stored sync scopes could not be read:
             // proceeding would sync collections the user may have marked device-local.
             if databaseConfig.hasCorruptSyncScopes {
@@ -157,6 +147,17 @@ actor DittoManager {
                     "Invalid app configuration - missing databaseId or developmentToken"
                 )
             }
+
+            // Older small-peer configurations used the SDK default directory.
+            // Adopt that store before opening at the explicit app-owned path.
+            try PersistenceDirectoryPreparation.prepare(
+                mode: databaseConfig.mode,
+                databaseID: databaseConfig.databaseId,
+                isUITesting: UITestConfiguration.current.isEnabled,
+                destination: localDirectoryPath,
+                legacyRoot: Ditto.defaultRootDirectory
+            )
+            Log.info("Ditto database path: \(localDirectoryPath.path)")
 
             // Apply stored log level BEFORE Ditto.init() — required by SDK
             DittoLogger.minimumLogLevel = Self.dittoLogLevel(
@@ -671,7 +672,7 @@ actor DittoManager {
     /// The directory-name decision behind `localDirectoryPath`, extracted so it is
     /// testable without touching Application Support.
     ///
-    /// - Parameter existingEntries: directory names already present in the store root.
+    /// - Parameter existingEntries: directory names in the store root, ordered newest first.
     nonisolated static func storeDirectoryName(
         currentName: String,
         databaseId: String,
@@ -684,10 +685,10 @@ actor DittoManager {
             return currentNameDirectory
         }
 
-        // Adopt a store created under a previous name. `sorted()` so a root that somehow
-        // holds two matches resolves deterministically rather than by enumeration order.
+        // Preserve the recency ordering supplied by `localDirectoryPath`. Alphabetical
+        // sorting here would select an older store after multiple renames.
         let suffix = "-\(databaseId)"
-        if let adopted = existingEntries.filter({ $0.hasSuffix(suffix) }).sorted().first {
+        if let adopted = existingEntries.first(where: { $0.hasSuffix(suffix) }) {
             Log.info(
                 "Adopting existing store directory '\(adopted)' for database "
                     + "'\(currentName)' (id: \(databaseId)) — renamed since it was created."

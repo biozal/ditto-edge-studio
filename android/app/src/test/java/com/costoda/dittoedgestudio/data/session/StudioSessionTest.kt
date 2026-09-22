@@ -15,16 +15,32 @@ import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
+import com.ditto.kotlin.Ditto
+import com.ditto.kotlin.DittoConfig
+import com.ditto.kotlin.DittoFactory
+import com.ditto.kotlin.DittoQueryResult
+import com.ditto.kotlin.DittoStore
 import io.mockk.coVerify
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -36,6 +52,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -80,7 +97,11 @@ class StudioSessionTest {
         DittoTeardownRegistry.inFlightJob(7L)?.cancel()
     }
 
-    private fun newSession(databaseId: Long = 42L): StudioSession = StudioSession(
+    private fun newSession(
+        databaseId: Long = 42L,
+        ioDispatcher: CoroutineDispatcher = testDispatcher,
+        teardownDispatcher: CoroutineDispatcher = testDispatcher,
+    ): StudioSession = StudioSession(
         databaseId = databaseId,
         databaseRepository = databaseRepository,
         dittoManager = dittoManager,
@@ -98,14 +119,14 @@ class StudioSessionTest {
                 kotlinx.coroutines.flow.MutableStateFlow(emptyList())
         },
         context = mockk(relaxed = true),
-        ioDispatcher = testDispatcher,
-        teardownDispatcher = testDispatcher,
+        ioDispatcher = ioDispatcher,
+        teardownDispatcher = teardownDispatcher,
     )
 
     @Test
     fun `close is idempotent - dittoManager close called exactly once`() = runTest {
         val session = newSession()
-        coEvery { dittoManager.close() } returns Unit
+        coEvery { dittoManager.closeIfCurrent(any()) } returns Unit
 
         // First close
         session.close()
@@ -119,7 +140,7 @@ class StudioSessionTest {
         advanceUntilIdle()
 
         // Verify Ditto was closed exactly once across all three calls
-        coVerify(exactly = 1) { dittoManager.close() }
+        coVerify(exactly = 1) { dittoManager.closeIfCurrent(any()) }
     }
 
     @Test
@@ -136,7 +157,7 @@ class StudioSessionTest {
     @Test
     fun `close clears subscription and observer state`() = runTest {
         val session = newSession()
-        coEvery { dittoManager.close() } returns Unit
+        coEvery { dittoManager.closeIfCurrent(any()) } returns Unit
 
         session.close()
         advanceUntilIdle()
@@ -163,16 +184,16 @@ class StudioSessionTest {
     fun `close does not block the calling thread`() = runTest {
         val session = newSession()
         val gate = CompletableDeferred<Unit>()
-        coEvery { dittoManager.close() } coAnswers { gate.await() }
+        coEvery { dittoManager.closeIfCurrent(any()) } coAnswers { gate.await() }
 
-        // Call close(); it must RETURN even though dittoManager.close() is still suspended on the gate.
+        // Call close(); it must RETURN even though dittoManager.closeIfCurrent(any()) is still suspended on the gate.
         session.close()
 
         // The session is marked closed synchronously, and the teardown job is registered.
         assertTrue(session.isClosed())
         val teardownJob = DittoTeardownRegistry.inFlightJob(42L)
         assertNotNull("teardown job should be registered", teardownJob)
-        // Drive the dispatcher just enough to actually invoke dittoManager.close() — it must
+        // Drive the dispatcher just enough to actually invoke dittoManager.closeIfCurrent(any()) — it must
         // suspend on the gate, NOT complete.
         runCurrent()
         assertTrue("teardown should still be suspended on the gate", teardownJob!!.isActive)
@@ -182,7 +203,7 @@ class StudioSessionTest {
         advanceUntilIdle()
         assertTrue("teardown should have completed", teardownJob.isCompleted)
         assertNull(DittoTeardownRegistry.inFlightJob(42L))
-        coVerify(exactly = 1) { dittoManager.close() }
+        coVerify(exactly = 1) { dittoManager.closeIfCurrent(any()) }
     }
 
     @Test
@@ -224,7 +245,7 @@ class StudioSessionTest {
     @Test
     fun `addIndex on a closed session throws CancellationException to the caller`() = runTest {
         val session = newSession()
-        coEvery { dittoManager.close() } returns Unit
+        coEvery { dittoManager.closeIfCurrent(any()) } returns Unit
         session.close()
         advanceUntilIdle()
 
@@ -359,6 +380,159 @@ class StudioSessionTest {
     }
 
     @Test
+    fun `Logs save updates the config read on section reentry and the next transport save`() = runTest {
+        val initial = DittoDatabase(id = 42L, databaseId = "db-42", logLevel = "info")
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true)
+        coEvery { databaseRepository.getById(42L) } returns initial
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        val writes = mutableListOf<DittoDatabase>()
+        coEvery { databaseRepository.save(any()) } answers {
+            writes += firstArg<DittoDatabase>()
+            42L
+        }
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+
+        // This is the exact callback wired by LoggingSection to LoggingScreen.
+        session.saveLogLevel(com.ditto.kotlin.DittoLogLevel.Debug)
+        assertEquals("debug", session.databaseConfig.value?.logLevel)
+        assertEquals("debug", session.currentDatabase()?.logLevel)
+        io.mockk.verify {
+            dittoManager.refreshActiveConfigIfMatching(initial.copy(logLevel = "debug"))
+        }
+
+        session.applyTransportSettings(bt = false, lan = true, wifiAware = false)
+        advanceUntilIdle()
+
+        assertEquals(2, writes.size)
+        assertEquals("debug", writes.last().logLevel)
+        assertFalse(writes.last().isBluetoothLeEnabled)
+        assertEquals(writes.last(), session.databaseConfig.value)
+        session.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `a transport apply queued behind a log-level save copies the newly saved level`() = runTest {
+        val initial = DittoDatabase(id = 42L, databaseId = "db-42", logLevel = "info")
+        val ditto = mockk<com.ditto.kotlin.Ditto>(relaxed = true)
+        coEvery { databaseRepository.getById(42L) } returns initial
+        coEvery { dittoManager.hydrate(any()) } returns ditto
+        every { dittoManager.currentInstance() } returns ditto
+        val saveGate = CompletableDeferred<Unit>()
+        val writes = mutableListOf<DittoDatabase>()
+        coEvery { databaseRepository.save(any()) } coAnswers {
+            writes += firstArg<DittoDatabase>()
+            if (writes.size == 1) saveGate.await()
+            42L
+        }
+        val session = newSession()
+        session.hydrate()
+        advanceUntilIdle()
+
+        val logSave = launch { session.saveLogLevel(com.ditto.kotlin.DittoLogLevel.Debug) }
+        runCurrent()
+        session.applyTransportSettings(bt = false, lan = false, wifiAware = false)
+        runCurrent()
+        assertEquals("transport save must wait for the log-level save", 1, writes.size)
+
+        saveGate.complete(Unit)
+        advanceUntilIdle()
+        logSave.join()
+
+        assertEquals(2, writes.size)
+        assertEquals("debug", writes.last().logLevel)
+        assertFalse(writes.last().isLanEnabled)
+        assertEquals(writes.last(), session.databaseConfig.value)
+        session.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `metrics polling pauses when hidden and preserves accumulated deltas on reentry`() = runTest {
+        val store = mockk<com.ditto.kotlin.DittoStore>()
+        val ditto = mockk<com.ditto.kotlin.Ditto> { every { this@mockk.store } returns store }
+        every { dittoManager.currentInstance() } returns ditto
+        var reads = 0
+        coEvery {
+            store.execute(
+                "SELECT * FROM system:metrics",
+                any<com.ditto.kotlin.serialization.DittoCborSerializable.Dictionary>(),
+                any<(com.ditto.kotlin.DittoQueryResult) -> List<Map<String, Any?>>>(),
+            )
+        } answers {
+            reads++
+            val delta = if (reads == 1) 7 else 3
+            val item = mockk<com.ditto.kotlin.DittoQueryResultItem> {
+                every { jsonString() } returns """{"key":"ditto.test.counter","delta":$delta}"""
+            }
+            val result = mockk<com.ditto.kotlin.DittoQueryResult> { every { items } returns listOf(item) }
+            thirdArg<(com.ditto.kotlin.DittoQueryResult) -> List<Map<String, Any?>>>().invoke(result)
+        }
+        val session = newSession()
+        session.startSystemMetricsPolling()
+        runCurrent()
+        val first = session.systemMetrics.value
+        assertEquals(7.0, first.samples.single().sinceConnect, 0.0)
+        assertTrue(first.sinceMs > 0)
+
+        session.stopSystemMetricsPolling()
+        runCurrent()
+        advanceTimeBy(15_000)
+        runCurrent()
+        assertEquals("hidden dashboard must not consume SDK deltas", 1, reads)
+        assertEquals(first, session.systemMetrics.value)
+
+        session.startSystemMetricsPolling()
+        runCurrent()
+        val resumed = session.systemMetrics.value
+        assertEquals(10.0, resumed.samples.single().sinceConnect, 0.0)
+        assertEquals(3.0, resumed.samples.single().periodDelta, 0.0)
+        assertEquals(first.sinceMs, resumed.sinceMs)
+        session.close()
+        advanceUntilIdle()
+        assertTrue(session.systemMetrics.value.samples.isEmpty())
+        assertEquals(0L, session.systemMetrics.value.sinceMs)
+    }
+
+    @Test
+    fun `a new session starts metrics accumulation from its own first delta`() = runTest {
+        val store = mockk<com.ditto.kotlin.DittoStore>()
+        val ditto = mockk<com.ditto.kotlin.Ditto> { every { this@mockk.store } returns store }
+        every { dittoManager.currentInstance() } returns ditto
+        val item = mockk<com.ditto.kotlin.DittoQueryResultItem> {
+            every { jsonString() } returns """{"key":"ditto.test.counter","delta":4}"""
+        }
+        val result = mockk<com.ditto.kotlin.DittoQueryResult> { every { items } returns listOf(item) }
+        coEvery {
+            store.execute(
+                "SELECT * FROM system:metrics",
+                any<com.ditto.kotlin.serialization.DittoCborSerializable.Dictionary>(),
+                any<(com.ditto.kotlin.DittoQueryResult) -> List<Map<String, Any?>>>(),
+            )
+        } answers {
+            thirdArg<(com.ditto.kotlin.DittoQueryResult) -> List<Map<String, Any?>>>().invoke(result)
+        }
+        val first = newSession()
+        first.startSystemMetricsPolling()
+        runCurrent()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(8.0, first.systemMetrics.value.samples.single().sinceConnect, 0.0)
+        first.close()
+        advanceUntilIdle()
+
+        val reopened = newSession()
+        reopened.startSystemMetricsPolling()
+        runCurrent()
+        assertEquals(4.0, reopened.systemMetrics.value.samples.single().sinceConnect, 0.0)
+        reopened.close()
+        advanceUntilIdle()
+    }
+
+    @Test
     fun `concurrent hydrate calls run DittoManager hydrate exactly once`() = runTest {
         // Two MainStudioViewModel instances (activity-store + entry-store) constructed in
         // the same composition pass both call hydrate() from init. The second must join
@@ -393,11 +567,89 @@ class StudioSessionTest {
     }
 
     @Test
+    fun `delayed old teardown cannot close a newly opened different database`() = runTest {
+        // Hold only the teardown queue, before it enters the REAL manager.close().
+        // A mock that suspends inside close would miss this ownership boundary.
+        val teardownScheduler = TestCoroutineScheduler()
+        val heldTeardown = StandardTestDispatcher(teardownScheduler)
+        dittoManager = DittoManager(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+        val oldInstance = mockSdkInstance()
+        val newInstance = mockSdkInstance()
+        val opened = Channel<Ditto>(Channel.UNLIMITED)
+        every { systemRepository.startObserving(any()) } answers {
+            opened.trySend(firstArg())
+            Unit
+        }
+        for (id in listOf(42L, 7L)) {
+            coEvery { databaseRepository.getById(id) } returns DittoDatabase(
+                id = id,
+                databaseId = "db-$id",
+                mode = AuthMode.SMALL_PEERS_ONLY,
+            )
+        }
+        coEvery { subscriptionsRepository.loadSubscriptions(any()) } returns emptyList()
+        coEvery { observableRepository.loadObservables(any()) } returns emptyList()
+        mockkObject(DittoFactory)
+        coEvery { DittoFactory.create(any<DittoConfig>(), any()) } returnsMany listOf(oldInstance, newInstance)
+        val oldSession = newSession(42L, Dispatchers.Default, heldTeardown)
+        val newSession = newSession(7L, Dispatchers.Default, heldTeardown)
+        try {
+            oldSession.hydrate()
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { assertSame(oldInstance, opened.receive()) }
+            }
+            oldSession.close()
+            assertTrue(DittoTeardownRegistry.inFlightJob(42L)?.isActive == true)
+
+            // This is the picker opening B after closing A. B's production hydrate
+            // waits only for B's registry key, and the real manager replaces A.
+            newSession.hydrate()
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { assertSame(newInstance, opened.receive()) }
+            }
+            assertSame(newInstance, dittoManager.currentInstance())
+            assertEquals(7L, dittoManager.currentDatabase()?.id)
+
+            // Now allow the old session's actual teardown to enter manager.close.
+            teardownScheduler.runCurrent()
+            assertSame("Old session teardown must not detach the new database", newInstance, dittoManager.currentInstance())
+        } finally {
+            oldSession.close()
+            newSession.close()
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    do {
+                        teardownScheduler.runCurrent()
+                        delay(10)
+                    } while (listOf(42L, 7L).any { DittoTeardownRegistry.inFlightJob(it)?.isActive == true })
+                }
+            }
+            opened.close()
+            unmockkObject(DittoFactory)
+        }
+    }
+
+    /** Mock only the SDK boundary; session ownership and manager lifecycle stay real. */
+    private fun mockSdkInstance(): Ditto {
+        val store = mockk<DittoStore>(relaxed = true)
+        coEvery {
+            store.execute(any<String>(), any<Map<String, Any?>>(), any<(DittoQueryResult) -> Any?>())
+        } answers {
+            thirdArg<(DittoQueryResult) -> Any?>().invoke(mockk<DittoQueryResult>(relaxed = true) {
+                every { items } returns emptyList()
+            })
+        }
+        return mockk(relaxed = true) {
+            every { this@mockk.store } returns store
+        }
+    }
+
+    @Test
     fun `hydrate awaits in-flight close for the same database`() = runTest {
         // Session A: arrange a close that suspends indefinitely on a gate.
         val sessionA = newSession(databaseId = 42L)
         val gate = CompletableDeferred<Unit>()
-        coEvery { dittoManager.close() } coAnswers { gate.await() }
+        coEvery { dittoManager.closeIfCurrent(any()) } coAnswers { gate.await() }
 
         sessionA.close()
         runCurrent()
@@ -437,7 +689,7 @@ class StudioSessionTest {
         // await is now bounded: a wedged close degrades to "open anyway", never to a brick.
         val sessionA = newSession(databaseId = 42L)
         val gate = CompletableDeferred<Unit>()
-        coEvery { dittoManager.close() } coAnswers { gate.await() }
+        coEvery { dittoManager.closeIfCurrent(any()) } coAnswers { gate.await() }
 
         sessionA.close()
         runCurrent()

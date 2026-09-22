@@ -2,8 +2,8 @@ package com.costoda.dittoedgestudio.data.ditto
 
 import android.net.LocalServerSocket
 import android.net.LocalSocket
+import android.net.LocalSocketAddress
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -13,6 +13,9 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * PoC-grade protocol tests for [DebugSocketClient] against a self-hosted
@@ -22,13 +25,83 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DebugSocketClientTest {
 
-    private var server: LocalServerSocket? = null
-    private var serverThread: Thread? = null
+    private val servers = mutableListOf<Pair<String, LocalServerSocket>>()
+    private val serverThreads = mutableListOf<Thread>()
+    private val connections = ConcurrentLinkedQueue<LocalSocket>()
+    private val serverFailures = ConcurrentLinkedQueue<Throwable>()
+    private val stopping = AtomicBoolean(false)
 
     @After
     fun tearDown() {
-        runCatching { server?.close() }
-        serverThread?.interrupt()
+        stopping.set(true)
+        servers.forEach { (name, server) ->
+            // Closing a listener (or interrupting its thread) does not unblock
+            // LocalServerSocket.accept on Android. A single local connection
+            // wakes accept; stopping makes serveConnection close it immediately.
+            try {
+                LocalSocket().use { wakeup ->
+                    wakeup.connect(LocalSocketAddress(name, LocalSocketAddress.Namespace.ABSTRACT))
+                }
+            } catch (error: IOException) { serverFailures.add(error) }
+            try { server.close() } catch (error: IOException) { serverFailures.add(error) }
+        }
+        connections.forEach { connection ->
+            // LocalSocket.close alone may not unblock a pending read.
+            try { connection.shutdownInput() } catch (_: IOException) { /* already disconnected */ }
+            try { connection.shutdownOutput() } catch (_: IOException) { /* already disconnected */ }
+            try { connection.close() } catch (error: IOException) { serverFailures.add(error) }
+        }
+        serverThreads.forEach(Thread::interrupt)
+        val deadline = System.nanoTime() + 3_000_000_000L
+        serverThreads.forEach { thread ->
+            val remainingMs = (deadline - System.nanoTime()) / 1_000_000L
+            if (remainingMs > 0) thread.join(remainingMs)
+        }
+        val survivors = serverThreads.filter { it.isAlive }
+        assertTrue("Test server threads did not stop: ${survivors.map { it.name }}", survivors.isEmpty())
+        if (serverFailures.isNotEmpty()) {
+            throw AssertionError("Unexpected test server failure").apply {
+                serverFailures.forEach { addSuppressed(it) }
+            }
+        }
+    }
+
+    private fun startServerThread(block: () -> Unit) {
+        val thread = Thread(block, "debug-socket-test-${serverThreads.size}").apply {
+            isDaemon = true
+            // Report unexpected failures through JUnit after joining, rather than
+            // crashing instrumentation during an unrelated later test.
+            uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, error -> serverFailures.add(error) }
+        }
+        serverThreads.add(thread)
+        thread.start()
+    }
+
+    private fun serveConnection(connection: LocalSocket, block: (LocalSocket) -> Unit) {
+        connections.add(connection)
+        try {
+            connection.use { if (!stopping.get()) block(it) }
+        } catch (error: IOException) {
+            // Timeout/oversize tests intentionally close the client before the
+            // reply. Other I/O errors still fail this test via the thread handler.
+            val disconnected = error.message.orEmpty().let {
+                it.contains("Broken pipe", ignoreCase = true) ||
+                    it.contains("Connection reset", ignoreCase = true)
+            }
+            if (!stopping.get() && !disconnected) throw error
+        } catch (error: InterruptedException) {
+            if (!stopping.get()) throw error
+            Thread.currentThread().interrupt()
+        } finally {
+            connections.remove(connection)
+        }
+    }
+
+    private fun accept(server: LocalServerSocket): LocalSocket? = try {
+        server.accept()
+    } catch (error: IOException) {
+        if (!stopping.get()) throw error
+        null
     }
 
     /** Starts an echo-ish server: replies to each line with `line` reversed. */
@@ -39,42 +112,34 @@ class DebugSocketClientTest {
         // LocalServerSocket is abstract-namespace; the client takes a namespace param.
         val name = "poc-${System.nanoTime()}"
         val srv = LocalServerSocket(name)
-        server = srv
-        serverThread = Thread {
+        servers.add(name to srv)
+        startServerThread {
             var handled = 0
-            while (!Thread.currentThread().isInterrupted && handled < replies) {
-                val conn = try {
-                    srv.accept()
-                } catch (_: Exception) {
-                    break
-                } ?: continue
-                Thread {
-                    conn.use { c ->
-                        val buf = ByteArray(1024)
-                        var line = StringBuilder()
-                        while (true) {
-                            val read = try {
-                                c.inputStream.read(buf)
-                            } catch (_: Exception) {
-                                break
-                            }
-                            if (read < 0) break
-                            line.append(String(buf, 0, read))
-                            var idx = line.indexOf("\n")
-                            while (idx >= 0) {
-                                val statement = line.substring(0, idx)
-                                line = StringBuilder(line.substring(idx + 1))
-                                if (delayMs > 0) Thread.sleep(delayMs)
-                                c.outputStream.write((statement.reversed() + "\n").toByteArray())
-                                c.outputStream.flush()
-                                idx = line.indexOf("\n")
-                            }
+            while (!stopping.get() && handled < replies) {
+                val conn = accept(srv) ?: break
+                // Each server has one tracked thread. There are no detached
+                // per-connection workers that can outlive tearDown.
+                serveConnection(conn) { c ->
+                    val buf = ByteArray(1024)
+                    var line = StringBuilder()
+                    while (!stopping.get()) {
+                        val read = c.inputStream.read(buf)
+                        if (read < 0) break
+                        line.append(String(buf, 0, read))
+                        var idx = line.indexOf("\n")
+                        while (idx >= 0) {
+                            val statement = line.substring(0, idx)
+                            line = StringBuilder(line.substring(idx + 1))
+                            if (delayMs > 0) Thread.sleep(delayMs)
+                            c.outputStream.write((statement.reversed() + "\n").toByteArray())
+                            c.outputStream.flush()
+                            idx = line.indexOf("\n")
                         }
                     }
-                }.start()
+                }
                 handled++
             }
-        }.apply { isDaemon = true; start() }
+        }
         return name
     }
 
@@ -134,23 +199,18 @@ class DebugSocketClientTest {
     fun oversizedReplyIsRejected() = runBlocking {
         val name = "poc-big-${System.nanoTime()}"
         val srv = LocalServerSocket(name)
-        server = srv
-        serverThread = Thread {
-            val conn = try { srv.accept() } catch (_: Exception) { return@Thread }
-            try {
-                conn.use { c ->
-                    val buf = ByteArray(1024)
-                    while (c.inputStream.read(buf) >= 0) {
-                        // flood: 1 MiB of X per query line, no newline → over the cap
-                        c.outputStream.write(ByteArray(1024 * 1024) { 'X'.code.toByte() })
-                        c.outputStream.flush()
-                        break
-                    }
+        servers.add(name to srv)
+        startServerThread {
+            val conn = accept(srv)
+            if (conn != null) serveConnection(conn) { c ->
+                val buf = ByteArray(1024)
+                if (c.inputStream.read(buf) >= 0) {
+                    // flood: 1 MiB of X per query line, no newline → over the cap
+                    c.outputStream.write(ByteArray(1024 * 1024) { 'X'.code.toByte() })
+                    c.outputStream.flush()
                 }
-            } catch (_: java.io.IOException) {
-                // Broken pipe when the client force-closes after the cap — expected.
             }
-        }.apply { isDaemon = true; start() }
+        }
         val client = DebugSocketClient(
             queryTimeoutMs = 5_000,
             maxLineBytes = 256 * 1024,

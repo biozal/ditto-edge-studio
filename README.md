@@ -206,6 +206,12 @@ xcodebuild test -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 ./scripts/coverage_dashboard.sh
 ```
 
+From the repository root, `make test` runs unit tests, `make test-integration`
+runs integration tests, and `make test-ui` runs UI tests. `make test-swiftui`
+runs all three targets using the project's normal signing and test-host settings.
+`make test-syntax` parses Swift files in all three test directories without running tests.
+The coverage scripts use the checkout containing the script, regardless of the working directory.
+
 ### Test Infrastructure
 
 | Target | Framework | Purpose | Coverage Goal |

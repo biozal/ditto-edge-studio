@@ -363,11 +363,12 @@ private fun LogPatternEditorDialog(
         body,
         PatternSource.USER,
     )
+
     val regexValid = pattern.isNotEmpty() && runCatching { pattern.toRegex(RegexOption.IGNORE_CASE) }.isSuccess
 
     val testResult = if (testLine.isBlank()) null else {
         val probe = LogPatternEngine(emptyMap())
-        if (!regexValid) false to "Pattern is not a valid regex"
+        if (patternError != null) false to patternError
         else {
             // Level filter is an exact equality, so test at the filter's level;
             // the component is derived from the pasted line via the same

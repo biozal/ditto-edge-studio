@@ -25,6 +25,11 @@ class DittoManager(
     private val multicastLockController: MulticastLockController? = null,
 ) {
 
+    // Publication and conditional teardown must be one atomic ownership change.
+    // Native close remains outside this monitor because it can block.
+    private val instanceLock = Any()
+
+    @Volatile
     private var ditto: Ditto? = null
 
     @Volatile
@@ -43,8 +48,10 @@ class DittoManager(
      * silently reverting the scope the user just changed.
      */
     fun refreshActiveConfigIfMatching(database: DittoDatabase) {
-        if (activeDatabase?.id == database.id && database.id != 0L) {
-            activeDatabase = database
+        synchronized(instanceLock) {
+            if (activeDatabase?.id == database.id && database.id != 0L) {
+                activeDatabase = database
+            }
         }
     }
 
@@ -109,8 +116,10 @@ class DittoManager(
         // (user settings → transports → DQL_STRICT_MODE → sync scopes → startSync).
         runOpenSequence(newDitto, database)
 
-        ditto = newDitto
-        activeDatabase = database
+        synchronized(instanceLock) {
+            ditto = newDitto
+            activeDatabase = database
+        }
         return newDitto
     }
 
@@ -124,8 +133,10 @@ class DittoManager(
      * [refreshActiveConfigIfMatching] keeps current across edit-saves.
      */
     suspend fun startSync() {
-        val instance = ditto ?: error("No active Ditto instance")
-        val database = activeDatabase ?: error("No active database")
+        val (instance, database) = synchronized(instanceLock) {
+            val current = ditto ?: error("No active Ditto instance")
+            current to (activeDatabase ?: error("No active database"))
+        }
         runOpenSequence(instance, database)
     }
 
@@ -139,17 +150,23 @@ class DittoManager(
      * open already starts from SDK defaults.
      */
     suspend fun resetSystemSettingsToDefaults(database: DittoDatabase) {
-        val instance = ditto
-        if (instance == null || activeDatabase?.id != database.id) {
+        val instance = synchronized(instanceLock) {
+            val current = ditto
+            if (current == null || activeDatabase?.id != database.id) {
+                null
+            } else {
+                // Adopt the saved config together with the matching handle; a
+                // concurrent replacement must never inherit this old config.
+                activeDatabase = database
+                current
+            }
+        }
+        if (instance == null) {
             if (BuildConfig.DEBUG) {
                 Log.i(TAG, "[Advanced] Reset requested for a database that is not open — no action needed")
             }
             return
         }
-        // Adopt the saved config first: everything below re-applies from it, and the
-        // manager's copy must not keep pointing at the pre-reset object.
-        activeDatabase = database
-
         // STOP SYNC FIRST. `RESET ALL` clears the collection sync scopes, so running it
         // against a syncing instance leaves every collection replicable at the SDK
         // default `AllPeers` for the whole re-apply window — including ones the user
@@ -217,6 +234,11 @@ class DittoManager(
 
     fun currentInstance(): Ditto? = ditto
 
+    /** Capture a session's handle before its asynchronous teardown is enqueued. */
+    fun currentInstanceForDatabase(databaseId: Long): Ditto? = synchronized(instanceLock) {
+        ditto.takeIf { activeDatabase?.id == databaseId }
+    }
+
     fun applyTransportConfig(ditto: Ditto, database: DittoDatabase) {
         ditto.updateTransportConfig { builder ->
             builder.peerToPeer {
@@ -258,12 +280,30 @@ class DittoManager(
     }
 
     private suspend fun closeCurrentInstance() {
-        val current = ditto ?: return
-        // Null out first so any concurrent calls to currentInstance() see null immediately
+        val current = synchronized(instanceLock) { detachInstanceLocked() } ?: return
+        closeDetachedInstance(current)
+    }
+
+    /** A delayed session close may release only the handle it captured, once. */
+    suspend fun closeIfCurrent(expectedInstance: Ditto?) {
+        val current = synchronized(instanceLock) {
+            if (expectedInstance == null || ditto !== expectedInstance) return
+            detachInstanceLocked()
+        } ?: return
+        closeDetachedInstance(current)
+    }
+
+    /** Caller must hold [instanceLock]. Each detached handle has one close owner. */
+    private fun detachInstanceLocked(): Ditto? {
+        val current = ditto ?: return null
         ditto = null
         activeDatabase = null
-        // Never keep the process-level multicast lock past a database session.
+        // A stale close must not release the replacement database's lock.
         multicastLockController?.release()
+        return current
+    }
+
+    private suspend fun closeDetachedInstance(current: Ditto) {
         withContext(Dispatchers.IO) {
             // close() cancels the Ditto coroutine scope and calls implementation.close(),
             // which releases the persistence-directory lock. Stopping sync alone is not

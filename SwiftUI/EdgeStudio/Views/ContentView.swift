@@ -404,19 +404,26 @@ extension ContentView {
                 } else if let loadError = viewModel.loadAppsError {
                     loadAppsErrorView(loadError)
                 } else if viewModel.dittoApps.isEmpty {
-                    VStack(spacing: 20) {
-                        FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
-                        Text("No Databases")
-                            .font(.title2)
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("EmptyDatabaseList")
-                        Text("Use Add Database to create a database configuration.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
+                            Text("No Databases")
+                                .font(.title2)
+                                .foregroundStyle(.primary)
+                                .accessibilityIdentifier("EmptyDatabaseList")
+                            Text("Use Add Database to create a database configuration.")
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Center when it fits; larger accessibility text can scroll
+                    // instead of truncating the instructions to the viewport.
+                    .defaultScrollAnchor(.center, for: .alignment)
                 } else {
                     ScrollView {
                         LazyVGrid(

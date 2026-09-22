@@ -27,6 +27,40 @@ afterward. On the tested iPad 27.0 beta, screenshots verify larger text but
 still show a light palette; dark rendering is **not verified**. Keep that
 limitation separate from the configuration name.
 
+A rebuilt Duo 27.1 run on 2026-09-22 verified dark rendering and AXXXL text
+in screenshots captured before each audit. Earlier light captures did not
+establish dark coverage; the cause of the difference was not established. Each device/runtime still needs its
+own pre-audit screenshot evidence.
+
+### Registration contrast adjudication
+
+Two independent reviewers verified that the Duo audit's registration contrast
+finding targets the native `SaveButton` while its accessibility state is
+disabled and the required fields are empty. WCAG's
+[SC 1.4.3 guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html#inactive-controls)
+exempts inactive controls and specifically describes a submit button disabled
+until required fields are complete. W3C's
+[WCAG2ICT guidance](https://www.w3.org/TR/wcag2ict-22/#applying-sc-1-4-3-contrast-minimum-to-non-web-documents-and-software)
+applies this criterion directly to native software. Apple documents
+[issue-specific audit filtering after investigation](https://developer.apple.com/videos/play/wwdc2023/10035/).
+
+The empty-registration audit therefore handles only a `.contrast` issue whose
+element has identifier `SaveButton` and `isEnabled == false`. Dynamic Type,
+clipping, other elements, and enabled Save contrast remain failures. A separate
+test fills the three required fields with synthetic values, asserts Save is
+enabled, and runs an unfiltered audit without saving or opening a database.
+Both tests run in default and dark/AXXXL configurations. This exception does
+not establish that earlier native-toolbar Dynamic Type findings are resolved.
+
+The accessibility plan also switches both authentication modes and verifies
+the token field updates. Its bounded form-scrolling helper permits offscreen
+lazy rows to appear after scrolling instead of requiring them beforehand.
+The interaction checks pass in both configurations on Duo and iPad. Registration
+audits still fail; source changes and passing interaction checks do not establish
+accessibility readiness. A later visual correction gives the selected light-mode
+authentication label white text on a primary-color fill, avoiding the prior
+white-on-white pairing in the shared picker.
+
 ## Running
 
 Install the desired simulator runtimes in Xcode, then discover destination IDs:
@@ -129,21 +163,28 @@ from a successful launch on an iPhone Duo destination.
 
 ## Validation status (2026-09-22)
 
-Tested with Xcode 27.1 beta, Duo simulator 27.1 and iPad Pro 11-inch (M5)
+Initial mobile implementation used Xcode 27.1 beta; the release review uses Xcode 27 beta 1 with Duo simulator 27.1 and iPad Pro 11-inch (M5)
 simulator 27.0. These results do not establish compatibility with the 26.0 floor.
 
 | Check | Result |
 | --- | --- |
-| Duo regression | All 10 cases passed across the full run and focused correction reruns; no single all-green full run is claimed. |
-| iPad regression | 8/10 in the full run; pagination and final registration passed focused reruns. 9 cases passed across runs; inspector dismissal remains a visible failure. |
-| Accessibility | Duo: 0/4 executions passed; iPad: 1/4. Audits expose text clipping, Dynamic Type, and contrast findings. |
-| Isolation unit tests | 12 methods / 19 parameterized executions passed. |
-| Runner / build / lint | 5 runner tests, macOS ARM64 build, mobile build, and strict lint on all 35 changed/new Swift files passed. |
-| Pre-push unit coverage gate | 897 tests passed; repository-wide line coverage 28.76% is below the hook's 50% threshold. The hook blocks publishing despite passing unit tests. |
-| Full macOS suite | 1062 passed, 9 UI failures, 5 skipped. Failure causality is unresolved; no pre-change baseline comparison was made. |
+| Duo regression | Fresh full run: 10/10 passed, no skips. Focused inspector follow-up also passed. |
+| iPad regression | Full run: 8/10 passed. Query error recovery repeatedly exceeds the 180-second budget after two 60-second XCTest animation-idle waits; the first precedes the synthesized Execute tap. Inspector/navigation/Close passes its focused follow-up; nine of ten cases have passed across runs, with no all-green full iPad run claimed. |
+| Accessibility | Each device: 4/8 executions passed (two cases across two configurations), zero skips. List and authentication-mode interaction checks pass; empty/enabled registration audits still fail. The latest full matrix precedes the subsequent light-mode picker color correction. |
+| Isolation unit tests | 12 methods / 19 parameterized executions passed during implementation; included in the subsequent broad suite. |
+| Runner / build / lint | Five runner tests pass. Desktop/mobile builds and targeted validation are recorded in the release ledger. |
+| Pre-push hook | Removed at the user's request. Coverage remains a reviewed requirement; no hook was recreated. |
+| Full macOS suite | 1104 test IDs passed (1177 executions), zero failures, three documented skips. Four desktop registration checks also pass after the picker color correction. |
 
-The failing assertions remain enabled. See the implementation record for
-independent confirmations, result-bundle paths, and unverified visual claims.
+The failing assertions remain enabled. Native Save contrast and Dynamic Type
+findings have not been established as resolved or exempted, apart from the
+precisely scoped inactive-control contrast rule above. Physical devices, the
+26.0 minimum runtime, Duo fold transitions, Stage Manager resizing and manual
+VoiceOver still require verification.
+
+See the [release review ledger](../plans/2026-09-22-release-adversarial-review.md)
+for independent confirmations, exact result-bundle paths, follow-up results and
+unverified claims. This matrix does **not** establish production readiness.
 
 ## References
 

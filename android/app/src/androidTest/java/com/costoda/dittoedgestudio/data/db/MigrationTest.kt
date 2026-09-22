@@ -291,7 +291,8 @@ class MigrationTest {
             TEST_DB,
             CURRENT_VERSION,
             /* validateDroppedTables = */ true,
-            AppDatabase.MIGRATION_5_6
+            AppDatabase.MIGRATION_5_6,
+            AppDatabase.MIGRATION_6_7,
         )
 
         // Both rows survive, ids and payloads intact, database_id backfilled to ''.

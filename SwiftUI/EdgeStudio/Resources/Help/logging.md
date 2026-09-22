@@ -93,14 +93,14 @@ Open the manager from the toolbar (**Patterns** / slider icon).
 
 Safety guards for user patterns: maximum 512 characters, and nested quantifiers such as `(a+)+` are rejected (they can backtrack exponentially).
 
-The editor validates the regex as you type and includes a **test line** field: paste a log line to see a live ✓/✗ match result.
+The editor validates the regex as you type and includes a **test line** field: paste a log line to see a live ✓/✗ match result. Rejected drafts show the validation reason instead of running the preview.
 
 ### Where patterns live
 
 - **Bundled** (read-only): a built-in catalog of known Ditto problem signatures (deadlocks, query size limits, certificate expiry, authentication failures, incomplete connections, OOM, crash signals).
 - **User patterns**: persisted between launches in `user_patterns.json` under the app support / private storage directory — macOS/iPadOS: `~/Library/Application Support/ditto_edge_studio/log-analyzer/`; Android: `<filesDir>/log-analyzer/`. The JSON format matches the bundled catalog and the VS Code extension, so a patterns file can be shared across Edge Studio editions by hand.
 
-> **Note:** Only the newest 5,000 entries of the active source are scanned, and the scan is throttled to keep hot log streams from janking the UI.
+> **Note:** Only the newest 5,000 entries of the active source are scanned. While the analyzer is visible, it checks for a changed snapshot every 500 ms after the preceding scan finishes. New log batches do not restart that wait, so analysis continues during a sustained stream. Pause freezes the displayed analysis; Resume picks up the latest snapshot on the next check.
 
 ---
 

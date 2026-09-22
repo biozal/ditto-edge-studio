@@ -37,6 +37,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
@@ -46,6 +48,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -106,8 +109,30 @@ class StudioSession(
     val currentDittoIdFlow: StateFlow<String?> = _currentDittoId.asStateFlow()
     val currentDittoId: String? get() = _currentDittoId.value
 
-    private var currentDatabase: DittoDatabase? = null
+    private val _databaseConfig = MutableStateFlow<DittoDatabase?>(null)
+    val databaseConfig: StateFlow<DittoDatabase?> = _databaseConfig.asStateFlow()
+    private var currentDatabase: DittoDatabase?
+        get() = _databaseConfig.value
+        set(value) { _databaseConfig.value = value }
     fun currentDatabase(): DittoDatabase? = currentDatabase
+
+    // Whole-row config writes must copy the latest committed state, including
+    // when a Logs change overlaps a suspended transport save.
+    private val configMutationMutex = Mutex()
+
+    /** Persists the Logs toolbar choice in every active configuration copy. */
+    suspend fun saveLogLevel(level: com.ditto.kotlin.DittoLogLevel) =
+        withContext(sessionScope.coroutineContext) {
+            configMutationMutex.withLock {
+                val database = currentDatabase ?: error("No active database")
+                val updated = database.copy(
+                    logLevel = com.costoda.dittoedgestudio.data.logging.sdkLogLevelConfigValue(level),
+                )
+                databaseRepository.save(updated)
+                currentDatabase = updated
+                dittoManager.refreshActiveConfigIfMatching(updated)
+            }
+        }
 
     // ── Sync / transport state ────────────────────────────────────────────────
     private val _syncEnabled = MutableStateFlow(false)
@@ -202,6 +227,9 @@ class StudioSession(
         _systemMetrics.asStateFlow()
 
     private var systemMetricsJob: Job? = null
+    // The zero point belongs to the connection/session, not an individual visit
+    // to the dashboard. Read and reset under the samples lock.
+    private var systemMetricsSinceMs: Long? = null
 
     /**
      * Manual-refresh signal for the poll loop. Extra buffer capacity with
@@ -221,7 +249,7 @@ class StudioSession(
      * (the exporter is startup-gated — nothing to poll until the next open).
      */
     fun startSystemMetricsPolling() {
-        if (systemMetricsJob?.isActive == true) return
+        if (closed.get() || systemMetricsJob?.isActive == true) return
         systemMetricsJob = sessionScope.launch {
             if (!appPreferences.collectSystemMetrics.first()) {
                 _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
@@ -230,8 +258,6 @@ class StudioSession(
                 )
                 return@launch
             }
-            val sinceMs = System.currentTimeMillis()
-            var zeroed = false
             while (true) {
                 // Re-check per iteration (extension + Swift parity): hydrate() is async, so
                 // arriving at the dashboard before it completes must recover automatically.
@@ -244,11 +270,9 @@ class StudioSession(
                     awaitNextSystemMetricsPoll()
                     continue
                 }
-                if (!zeroed) {
-                    // First poll of a session: samples may predate us (shared session on
-                    // section re-entry) — reset so "since connect" matches this open.
-                    synchronized(systemMetricSamples) { systemMetricSamples.clear() }
-                    zeroed = true
+                val sinceMs = synchronized(systemMetricSamples) {
+                    if (closed.get()) return@launch
+                    systemMetricsSinceMs ?: System.currentTimeMillis().also { systemMetricsSinceMs = it }
                 }
                 try {
                     val rows = ditto.store.execute(SYSTEM_METRICS_QUERY) { result ->
@@ -260,6 +284,9 @@ class StudioSession(
                             }.getOrNull()
                         }
                     }
+                    // A disposed poll may finish its SDK read later; it must not
+                    // publish into a closed session or race a replacement poll.
+                    currentCoroutineContext().ensureActive()
                     if (com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.isExporterDisabled(rows)) {
                         _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
                             samples = emptyList(),
@@ -267,22 +294,22 @@ class StudioSession(
                         )
                     } else {
                         synchronized(systemMetricSamples) {
+                            if (closed.get()) return@launch
                             com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.accumulate(
                                 rows,
                                 samples = systemMetricSamples,
                             )
+                            _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                                samples = systemMetricSamples.values.toList().sortedBy { it.key },
+                                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.READY,
+                                sinceMs = sinceMs,
+                                polledAtMs = System.currentTimeMillis(),
+                            )
                         }
-                        _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
-                            samples = synchronized(systemMetricSamples) {
-                                systemMetricSamples.values.toList().sortedBy { it.key }
-                            },
-                            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.READY,
-                            sinceMs = sinceMs,
-                            polledAtMs = System.currentTimeMillis(),
-                        )
                     }
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
+                    if (closed.get()) return@launch
                     _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
                         samples = emptyList(),
                         status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.ERROR,
@@ -772,99 +799,101 @@ class StudioSession(
         multicast: MulticastConfig = _transportMulticastConfig.value,
     ) {
         val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
         sessionScope.launch {
-            _isApplyingTransport.value = true
-            // Remember whether the user actually had sync on. The transport sheet is
-            // reachable with sync stopped (PresenceSection shows it with no sync gate), and
-            // the finally block below used to restart sync unconditionally — silently
-            // resuming replication the user had deliberately stopped, while the toolbar
-            // indicator kept reading `_syncEnabled` and still showed sync as off.
-            val wasSyncEnabled = _syncEnabled.value
-            var applyError: Throwable? = null
-            var restartError: Throwable? = null
-            val applied = try {
-                // 1. Stop sync and observers. This also satisfies the SDK's
-                //    multicast constraint: multicastBeta changes are deferred while
-                //    sync is active, so every apply happens with sync stopped.
-                ditto.sync.stop()
-                systemRepository.stopObserving()
+            configMutationMutex.withLock {
+                val db = currentDatabase ?: return@withLock
+                _isApplyingTransport.value = true
+                // Remember whether the user actually had sync on. The transport sheet is
+                // reachable with sync stopped (PresenceSection shows it with no sync gate), and
+                // the finally block below used to restart sync unconditionally — silently
+                // resuming replication the user had deliberately stopped, while the toolbar
+                // indicator kept reading `_syncEnabled` and still showed sync as off.
+                val wasSyncEnabled = _syncEnabled.value
+                var applyError: Throwable? = null
+                var restartError: Throwable? = null
+                val applied = try {
+                    // 1. Stop sync and observers. This also satisfies the SDK's
+                    //    multicast constraint: multicastBeta changes are deferred while
+                    //    sync is active, so every apply happens with sync stopped.
+                    ditto.sync.stop()
+                    systemRepository.stopObserving()
 
-                // 2. Apply new transport config to live Ditto instance
-                val updatedDb = db.copy(
-                    isBluetoothLeEnabled = bt,
-                    isLanEnabled = lan,
-                    isAwdlEnabled = wifiAware,
-                    isMulticastEnabled = multicast.enabled,
-                    multicastGroupAddress = multicast.groupAddress,
-                    multicastPort = multicast.port,
-                    multicastInterfaceName = multicast.interfaceName,
-                )
-                dittoManager.applyTransportConfig(ditto, updatedDb)
+                    // 2. Apply new transport config to live Ditto instance
+                    val updatedDb = db.copy(
+                        isBluetoothLeEnabled = bt,
+                        isLanEnabled = lan,
+                        isAwdlEnabled = wifiAware,
+                        isMulticastEnabled = multicast.enabled,
+                        multicastGroupAddress = multicast.groupAddress,
+                        multicastPort = multicast.port,
+                        multicastInterfaceName = multicast.interfaceName,
+                    )
+                    dittoManager.applyTransportConfig(ditto, updatedDb)
 
-                // 3. Persist to Room so settings survive app restart, and keep the
-                // manager's active config current so the restart re-applies the new
-                // transports rather than the ones the database was opened with.
-                databaseRepository.save(updatedDb)
-                currentDatabase = updatedDb
-                dittoManager.refreshActiveConfigIfMatching(updatedDb)
-                true
-            } catch (e: Exception) {
-                applyError = e
-                if (BuildConfig.DEBUG) {
-                    Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                    // 3. Persist to Room so settings survive app restart, and keep the
+                    // manager's active config current so the restart re-applies the new
+                    // transports rather than the ones the database was opened with.
+                    databaseRepository.save(updatedDb)
+                    currentDatabase = updatedDb
+                    dittoManager.refreshActiveConfigIfMatching(updatedDb)
+                    true
+                } catch (e: Exception) {
+                    applyError = e
+                    if (BuildConfig.DEBUG) {
+                        Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                    }
+                    false
+                } finally {
+                    // 4. Restart sync through the DittoManager funnel — every sync start
+                    // re-applies and re-verifies the advanced configuration — then
+                    // re-register observers. Under finally so a throw above can never
+                    // leave sync stopped on a live database — but only restore the state
+                    // the user chose. Restarting unconditionally turned "sync off" into
+                    // "sync on" behind their back. A restart failure (e.g. the SDK
+                    // rejecting a multicast prerequisite or config at sync start) is
+                    // captured, never swallowed: sync state is re-derived from the live
+                    // instance below and the failure surfaces via transportApplyError.
+                    if (wasSyncEnabled) {
+                        runCatching { dittoManager.startSync() }
+                            .onFailure {
+                                restartError = it
+                                Log.w(TAG, "sync restart after transport apply failed: ${it.message}", it)
+                            }
+                    }
+                    runCatching { systemRepository.startObserving(ditto) }
+                        .onFailure { Log.w(TAG, "observer restart after transport apply failed: ${it.message}", it) }
                 }
-                false
-            } finally {
-                // 4. Restart sync through the DittoManager funnel — every sync start
-                // re-applies and re-verifies the advanced configuration — then
-                // re-register observers. Under finally so a throw above can never
-                // leave sync stopped on a live database — but only restore the state
-                // the user chose. Restarting unconditionally turned "sync off" into
-                // "sync on" behind their back. A restart failure (e.g. the SDK
-                // rejecting a multicast prerequisite or config at sync start) is
-                // captured, never swallowed: sync state is re-derived from the live
-                // instance below and the failure surfaces via transportApplyError.
-                if (wasSyncEnabled) {
-                    runCatching { dittoManager.startSync() }
-                        .onFailure {
-                            restartError = it
-                            Log.w(TAG, "sync restart after transport apply failed: ${it.message}", it)
-                        }
+                // Sync state always mirrors the live instance, never the request —
+                // the restart above may have failed (leaving sync stopped).
+                runCatching { _syncEnabled.value = ditto.sync.isActive }
+                    .onFailure { Log.w(TAG, "failed to read sync state after transport apply: ${it.message}", it) }
+                // Publish the requested values only when they were actually applied AND
+                // the restart succeeded. Otherwise re-publish the persisted config so the
+                // UI shows the live state, not a requested state the SDK never took.
+                if (applied && restartError == null) {
+                    _transportBluetoothEnabled.value = bt
+                    _transportLanEnabled.value = lan
+                    _transportWifiAwareEnabled.value = wifiAware
+                    _transportMulticastConfig.value = multicast
+                    _transportApplyError.value = null
+                } else {
+                    val persisted = currentDatabase ?: db
+                    _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
+                    _transportLanEnabled.value = persisted.isLanEnabled
+                    _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
+                    _transportMulticastConfig.value = persisted.multicastConfig
+                    _transportApplyError.value = when {
+                        restartError != null ->
+                            "Transport settings saved, but sync failed to restart: " +
+                                (restartError?.message ?: restartError?.javaClass?.simpleName)
+                        applyError != null ->
+                            "Failed to apply transport settings: " +
+                                (applyError?.message ?: applyError?.javaClass?.simpleName)
+                        else -> null
+                    }
                 }
-                runCatching { systemRepository.startObserving(ditto) }
-                    .onFailure { Log.w(TAG, "observer restart after transport apply failed: ${it.message}", it) }
+                _isApplyingTransport.value = false
             }
-            // Sync state always mirrors the live instance, never the request —
-            // the restart above may have failed (leaving sync stopped).
-            runCatching { _syncEnabled.value = ditto.sync.isActive }
-                .onFailure { Log.w(TAG, "failed to read sync state after transport apply: ${it.message}", it) }
-            // Publish the requested values only when they were actually applied AND
-            // the restart succeeded. Otherwise re-publish the persisted config so the
-            // UI shows the live state, not a requested state the SDK never took.
-            if (applied && restartError == null) {
-                _transportBluetoothEnabled.value = bt
-                _transportLanEnabled.value = lan
-                _transportWifiAwareEnabled.value = wifiAware
-                _transportMulticastConfig.value = multicast
-                _transportApplyError.value = null
-            } else {
-                val persisted = currentDatabase ?: db
-                _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
-                _transportLanEnabled.value = persisted.isLanEnabled
-                _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
-                _transportMulticastConfig.value = persisted.multicastConfig
-                _transportApplyError.value = when {
-                    restartError != null ->
-                        "Transport settings saved, but sync failed to restart: " +
-                            (restartError?.message ?: restartError?.javaClass?.simpleName)
-                    applyError != null ->
-                        "Failed to apply transport settings: " +
-                            (applyError?.message ?: applyError?.javaClass?.simpleName)
-                    else -> null
-                }
-            }
-            _isApplyingTransport.value = false
         }
     }
 
@@ -874,7 +903,7 @@ class StudioSession(
      *
      * Safe to call from the main thread (e.g. Koin's `onClose` fired from
      * `DisposableEffect.onDispose`): the fast synchronous portion (handle releases,
-     * StateFlow resets) runs inline, but the suspending `dittoManager.close()` is dispatched
+     * StateFlow resets) runs inline, but the suspending `dittoManager.closeIfCurrent()` is dispatched
      * to [DittoTeardownRegistry] on [teardownDispatcher] — a process-wide supervisor scope
      * that survives this session's own scope cancellation. The resulting [Job] is registered
      * by [databaseId] so that a subsequent `hydrate()` for the same database can `join()` it
@@ -882,6 +911,9 @@ class StudioSession(
      */
     fun close() {
         if (!closed.compareAndSet(false, true)) return
+        // Capture ownership now, before dispatching. A different database may
+        // hydrate while this teardown waits on the IO queue.
+        val instanceToClose = dittoManager.currentInstanceForDatabase(databaseId)
 
         // Stop observer subscriptions on the underlying repositories so any background work
         // they spawned can terminate before we cancel our own scope.
@@ -890,6 +922,14 @@ class StudioSession(
         runCatching { loggingCaptureService.stopTransportConditionObservation() }
         runCatching { loggingCaptureService.stopConnectionRequestHandler() }
         stopSystemMetricsPolling()
+        synchronized(systemMetricSamples) {
+            systemMetricSamples.clear()
+            systemMetricsSinceMs = null
+            _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                samples = emptyList(),
+                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
+            )
+        }
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }
@@ -915,12 +955,12 @@ class StudioSession(
             // NonCancellable: even if the registry's job is cancelled by something exotic, the
             // native Ditto release must complete to free the persistence-directory lock.
             withContext(NonCancellable) {
-                // dittoManager.close() must be invoked exactly ONCE — a timed-out native close
+                // dittoManager.closeIfCurrent() must be invoked exactly ONCE — a timed-out native close
                 // keeps running, so retrying would race two concurrent closes on one handle.
                 // The timeout therefore wraps a join() on a child job (cancelling a join never
                 // cancels the job), giving us the slow-close warning without a second close.
                 val closeJob = launch {
-                    runCatching { dittoManager.close() }
+                    runCatching { dittoManager.closeIfCurrent(instanceToClose) }
                         .onFailure { e ->
                             if (BuildConfig.DEBUG) {
                                 Log.w(TAG, "Error closing Ditto on session close: ${e.message}")

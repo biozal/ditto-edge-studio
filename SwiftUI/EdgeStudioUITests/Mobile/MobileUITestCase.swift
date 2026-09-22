@@ -39,8 +39,10 @@ class MobileUITestCase: UITestCase {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         if ProcessInfo.processInfo.environment["EDGE_UI_TEST_DARK_LARGE_TEXT"] == "1" {
             XCUIDevice.shared.appearance = .dark
-            app.launchArguments += ["-UIPreferredContentSizeCategoryName",
-                                    UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue]
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName",
+                UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue
+            ]
         }
         app.launch()
         try require(app.buttons["AddDatabaseButton"], timeout: 30)
@@ -102,7 +104,24 @@ class MobileUITestCase: UITestCase {
     func navigate(to destination: String) throws {
         let item = app.buttons["NavItem_\(destination)"]
         if !item.exists || !item.isHittable {
-            try tap(app.buttons["SidebarToggleButton"])
+            let toggles = app.buttons.matching(NSPredicate(
+                format: "identifier == %@ OR label == %@", "SidebarToggleButton", "Show Sidebar"
+            ))
+            /// Compact layouts use the app button; regular split views expose
+            /// the native Show Sidebar control instead.
+            func reachableToggle() -> XCUIElement? {
+                toggles.allElementsBoundByIndex.first { $0.exists && $0.isHittable }
+            }
+            let reachable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                reachableToggle() != nil
+            }, object: nil)
+            guard XCTWaiter.wait(for: [reachable], timeout: 5) == .completed,
+                  let toggle = reachableToggle() else
+            {
+                XCTFail("Hidden sidebar must have a reachable native or custom Show Sidebar control")
+                throw HarnessError.missingElement
+            }
+            try tap(toggle)
         }
         try tap(item)
         let dismiss = app.buttons["SidebarDismissButton"]
@@ -161,9 +180,14 @@ class MobileUITestCase: UITestCase {
         }
         // UIKit's native overflow reconstructs actions without SwiftUI IDs.
         // Plans pin English; scope the fallback to the actual overflow list.
-        let labels = ["CloseButton": "Close", "Toggle Inspector": "Inspector",
-                      "PresenceViewerControlsMenu": "Viewer Controls", "LogActionsToolbarMenu": "Log Actions",
-                      "Next Page": "Next Page", "Previous Page": "Previous Page"]
+        let labels = [
+            "CloseButton": "Close",
+            "Toggle Inspector": "Inspector",
+            "PresenceViewerControlsMenu": "Viewer Controls",
+            "LogActionsToolbarMenu": "Log Actions",
+            "Next Page": "Next Page",
+            "Previous Page": "Previous Page"
+        ]
         guard let label = labels[identifier] else { throw HarnessError.missingElement }
         let item = app.collectionViews.buttons.matching(NSPredicate(format: "label == %@", label)).element
         try tap(item)
@@ -200,9 +224,10 @@ class MobileUITestCase: UITestCase {
     }
 
     func revealFormField(_ field: XCUIElement, towardBeginning: Bool = false) throws {
-        if !towardBeginning { try require(field) }
+        // Form rows are lazy at large text sizes: the target and Name field
+        // need not exist before scrolling. The registration sheet has one Form.
+        let form = try require(app.collectionViews.element)
         for attempt in 0 ... 5 {
-            let form = app.collectionViews.containing(.textField, identifier: "NameTextField").element
             let window = app.windows.firstMatch
             var visible = form.frame.intersection(window.frame)
             var unobstructedWindow = window.frame
@@ -216,17 +241,25 @@ class MobileUITestCase: UITestCase {
             if field.exists {
                 // AX can briefly report hittable while the keyboard accessory covers a field.
                 let available = field.elementType == .button ? unobstructedWindow : visible
-                if available.contains(field.frame), field.isHittable { return }
+                if available.contains(field.frame), field.isHittable {
+                    return
+                }
             }
-            if attempt == 5 { break }
+            if attempt == 5 {
+                break
+            }
             XCTAssertGreaterThan(visible.height, 100, "Form must have a visible scrolling area")
             let origin = window.coordinate(withNormalizedOffset: .zero)
             // Drag in the form's leading padding so text fields don't open an edit menu.
             let dragX = visible.minX + visible.width * 0.02 - window.frame.minX
-            let start = origin.withOffset(CGVector(dx: dragX,
-                                                   dy: visible.minY + visible.height * 0.85 - window.frame.minY))
-            let end = origin.withOffset(CGVector(dx: dragX,
-                                                 dy: visible.minY + visible.height * 0.3 - window.frame.minY))
+            let start = origin.withOffset(CGVector(
+                dx: dragX,
+                dy: visible.minY + visible.height * 0.85 - window.frame.minY
+            ))
+            let end = origin.withOffset(CGVector(
+                dx: dragX,
+                dy: visible.minY + visible.height * 0.3 - window.frame.minY
+            ))
             if towardBeginning {
                 end.press(forDuration: 0.1, thenDragTo: start)
             } else {
@@ -244,9 +277,58 @@ class MobileUITestCase: UITestCase {
             grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
                 .press(forDuration: 0.1, thenDragTo: end)
         } else {
+            try dismissSidebarOverlayIfPresent()
             try tapToolbar("Toggle Inspector")
         }
         XCTAssertTrue(app.descendants(matching: .any)["QueryInspectorView"].firstMatch.waitForNonExistence(timeout: 5))
+    }
+
+    /// An iPad sidebar can become an overlay when the inspector narrows the
+    /// detail. Its scrim consumes taps even when AX reports the toolbar hittable.
+    private func dismissSidebarOverlayIfPresent() throws {
+        let editor = app.textViews["QueryEditorTextView"]
+        let items = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'NavItem_'"))
+        func hasOverlay() -> Bool {
+            guard editor.exists else { return false }
+            return items.allElementsBoundByIndex.contains { item in
+                item.isHittable && item.frame.intersects(editor.frame)
+            }
+        }
+        guard hasOverlay() else { return }
+
+        let customDismiss = app.buttons["SidebarDismissButton"]
+        if customDismiss.exists, customDismiss.isHittable {
+            try tap(customDismiss)
+        } else {
+            // Native NavigationSplitView control; plans pin English. The system
+            // can retain "Show Sidebar" as its label while the overlay is shown.
+            let nativeToggles = app.buttons.matching(NSPredicate(
+                format: "label == %@ OR label == %@", "Hide Sidebar", "Show Sidebar"
+            ))
+            /// The detail and overlaid sidebar each expose a native toggle. The
+            /// detail's first match can be covered; select the reachable control.
+            func hittableNativeToggle() -> XCUIElement? {
+                nativeToggles.allElementsBoundByIndex.first { $0.exists && $0.isHittable }
+            }
+            let reachable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                hittableNativeToggle() != nil
+            }, object: nil)
+            guard XCTWaiter.wait(for: [reachable], timeout: 5) == .completed,
+                  let nativeToggle = hittableNativeToggle() else
+            {
+                XCTFail("Sidebar overlay is present, but no native sidebar toggle is reachable")
+                throw HarnessError.missingElement
+            }
+            try tap(nativeToggle)
+        }
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            !hasOverlay()
+        }, object: nil)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [closed], timeout: 5),
+            .completed,
+            "Sidebar overlay must close before activating the inspector toolbar"
+        )
     }
 
     func attachGeometry(_ name: String) {

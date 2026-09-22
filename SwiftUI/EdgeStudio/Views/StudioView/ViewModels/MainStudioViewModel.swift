@@ -39,6 +39,10 @@ extension MainStudioView {
         var attachmentVM: AttachmentViewModel
         var subObsVM: SubscriptionObserverViewModel
 
+        /// One accumulator per database session, retained across detail navigation.
+        /// ContentView creates a fresh ViewModel when the selected database changes.
+        let systemMetricsService: SystemMetricsService
+
         // MARK: - Direct Dependencies (parent-only orchestration)
 
         @ObservationIgnored
@@ -119,7 +123,8 @@ extension MainStudioView {
             historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
             favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
             observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
-            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
+            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared,
+            systemMetricsService: SystemMetricsService? = nil
         ) {
             self.dittoManager = dittoManager
             self.systemRepository = systemRepository
@@ -128,6 +133,7 @@ extension MainStudioView {
             self.favoritesRepository = favoritesRepository
             self.observableRepository = observableRepository
             self.subscriptionsRepository = subscriptionsRepository
+            self.systemMetricsService = systemMetricsService ?? SystemMetricsService()
 
             selectedApp = dittoAppConfig
 
@@ -173,6 +179,7 @@ extension MainStudioView {
             // `isolated deinit` keeps this on the MainActor so we can read
             // the actor-isolated `loadTask`.
             loadTask?.cancel()
+            systemMetricsService.endSession()
             Log.debug("MainStudioView.ViewModel deinit")
         }
 
@@ -319,6 +326,7 @@ extension MainStudioView {
             //    don't race with the cleanup pass below.
             loadTask?.cancel()
             loadTask = nil
+            systemMetricsService.endSession()
 
             // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
             await systemRepository.invalidateSession()

@@ -49,6 +49,17 @@ class LogPatternEngineTest {
         source = source,
     )
 
+    @Test
+    fun `editor preview rejects unsafe message and tag patterns even on matching input`() {
+        val engine = LogPatternEngine(emptyMap())
+        val unsafeMessage = LogPatternBody("(a+)+$", 3, "fix it")
+        val unsafeTag = LogPatternBody("a", 3, "fix it", tagFilter = "(a+)+$")
+        // These tiny matching inputs are safe even before the regression is fixed.
+        assertFalse(engine.matches(unsafeMessage, DittoLogLevel.Info, "a", "a"))
+        assertFalse(engine.matches(unsafeTag, DittoLogLevel.Info, "a", "a"))
+        assertTrue(engine.matches(LogPatternBody("a+", 3, "fix it"), DittoLogLevel.Info, "Sync", "aaa"))
+    }
+
     // ── Level filter token parsing ──────────────────────────────────────────
 
     @Test

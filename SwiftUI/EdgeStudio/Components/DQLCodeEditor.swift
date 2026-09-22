@@ -231,12 +231,14 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
         // toolbar, and "generate DQL". Those writes were silently dropped, and the next
         // keystroke pushed the stale editor text back over the model, losing them for good.
         //
-        // `lastPushedText` is the value this view last sent UP to the binding. If `text`
-        // still equals it, the binding has not changed and this is just a lagging render —
-        // skip. If it differs, something else changed the model and the write must land,
-        // focused or not.
-        let isLaggingRender = uiView.isFirstResponder && text == context.coordinator.lastPushedText
-        if uiView.text != text, !isLaggingRender {
+        // Track synchronization in BOTH directions. A programmatic History/Favorites
+        // selection advances the baseline too, so typing A then selecting B then A
+        // cannot leave B displayed while the model executes A.
+        if context.coordinator.textReconciliation.shouldApply(
+            modelText: text,
+            editorText: uiView.text,
+            isFocused: uiView.isFirstResponder
+        ) {
             let selected = uiView.selectedRange
             context.coordinator.isApplyingHighlight = true
             uiView.text = text
@@ -251,12 +253,7 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
-        /// The last value this view pushed UP to the binding.
-        ///
-        /// Lets `updateUIView` tell a stale re-render (binding unchanged since our own last
-        /// push — skip, or in-flight typing gets truncated) from a real programmatic write
-        /// (binding changed elsewhere — must be applied even while focused).
-        var lastPushedText: String?
+        var textReconciliation = DQLTextReconciliation()
 
         static let editorFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
 
@@ -279,7 +276,7 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isApplyingHighlight else { return }
-            lastPushedText = textView.text
+            textReconciliation.recordEditorChange(textView.text)
             parent.text = textView.text
             scheduleHighlight()
         }

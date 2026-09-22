@@ -50,7 +50,7 @@ struct SystemMetricsDetailView: View {
     /// Database the pins belong to (`DittoConfigForDatabase._id`).
     let databaseId: String
 
-    @State private var service = SystemMetricsService()
+    let service: SystemMetricsService
     @State private var namespaceFilter = SystemMetricsNamespaceFilter.all
     /// Free-text filter over the master list, composed with `namespaceFilter`.
     @State private var query = ""
@@ -107,6 +107,7 @@ struct SystemMetricsDetailView: View {
                 Text("Updated \(polledAt.formatted(date: .omitted, time: .standard))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("SystemMetricsLastUpdated")
             }
             Button {
                 Task { await service.refreshNow() }
@@ -225,6 +226,7 @@ struct SystemMetricsDetailView: View {
             .foregroundStyle(isError ? Color.red : .secondary)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("SystemMetricsStatusNote")
     }
 
     /// `LazyVStack`, not `VStack`: the SDK reports hundreds of series and every

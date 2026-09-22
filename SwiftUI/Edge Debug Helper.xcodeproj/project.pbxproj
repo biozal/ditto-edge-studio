@@ -623,6 +623,7 @@
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
 				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) testDatabaseConfig.plist";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Ditto-Edge-Studio-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Ditto Edge Studio";

@@ -1,8 +1,9 @@
 package com.costoda.dittoedgestudio.ui.mainstudio.presence
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.espresso.Espresso.pressBack
 import com.costoda.dittoedgestudio.domain.model.MeshEdge
 import com.costoda.dittoedgestudio.domain.model.MeshPeer
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
@@ -294,13 +296,18 @@ class PresenceGraphViewTest {
         composeRule.onNodeWithContentDescription("Details for Device 2").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
 
-        // Accordion: tapping a different peer swaps the card rather than stacking.
+        // The centered card covers the focused peer. Dismiss it through the
+        // production BackHandler before physically tapping that peer again.
+        pressBack()
+        composeRule.onNodeWithContentDescription("Details for Device 2").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Device 1").performClick()
         composeRule.onNodeWithContentDescription("Details for Device 1").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Details for Device 2").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
 
-        // Tapping the same peer again closes it.
-        composeRule.onNodeWithContentDescription("Device 1").performClick()
+        // The ordinary card tap gesture closes it without leaving focus.
+        composeRule.onNodeWithContentDescription("Details for Device 1").performClick()
         composeRule.onNodeWithContentDescription("Details for Device 1").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
     }
@@ -421,22 +428,24 @@ class PresenceGraphViewTest {
             EdgeStudioTheme {
                 val focusState = remember { mutableStateOf<String?>(null) }
                 val graphVisible = remember { mutableStateOf(true) }
-                Box(
-                    Modifier.semantics { contentDescription = "Toggle graph host" }
-                        .clickable { graphVisible.value = !graphVisible.value },
-                )
-                if (graphVisible.value) {
-                    PresenceGraphView(
-                        peersUiState = PeersUiState.Active(
-                            localPeer = localPeer(),
-                            remotePeers = listOf(remotePeer("p1", "Device 1")),
-                        ),
-                        showDirectConnectedOnly = false,
-                        onToggleDirectConnectedOnly = {},
-                        focusedPeerId = focusState.value,
-                        onFocusedPeerChange = { focusState.value = it },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                Column(Modifier.fillMaxSize()) {
+                    Button(
+                        onClick = { graphVisible.value = !graphVisible.value },
+                        modifier = Modifier.semantics { contentDescription = "Toggle graph host" },
+                    ) { Text("Toggle graph host") }
+                    if (graphVisible.value) {
+                        PresenceGraphView(
+                            peersUiState = PeersUiState.Active(
+                                localPeer = localPeer(),
+                                remotePeers = listOf(remotePeer("p1", "Device 1")),
+                            ),
+                            showDirectConnectedOnly = false,
+                            onToggleDirectConnectedOnly = {},
+                            focusedPeerId = focusState.value,
+                            onFocusedPeerChange = { focusState.value = it },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -446,11 +455,13 @@ class PresenceGraphViewTest {
 
         // Tab away: the subtree (banner included) leaves composition.
         composeRule.onNodeWithContentDescription("Toggle graph host").performClick()
+        composeRule.onNodeWithContentDescription("Device 1").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Focused on Device 1").assertDoesNotExist()
 
         // Tab back: the hoisted id survived, so focus re-enters and the banner
         // returns. If re-entry dropped the id instead, this would not reappear.
         composeRule.onNodeWithContentDescription("Toggle graph host").performClick()
+        composeRule.onNodeWithContentDescription("Device 1").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Focused on Device 1").assertIsDisplayed()
 
         // Focus is functional after re-entry — the exit affordance still works.

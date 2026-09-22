@@ -1,7 +1,7 @@
 # Makefile for Edge Debug Helper / Edge Studio
 # Simplifies common development tasks
 
-.PHONY: help test test-unit test-ui test-swiftui build-swiftui clean clean-swiftui
+.PHONY: help test test-unit test-integration test-ui test-swiftui test-syntax build-swiftui clean clean-swiftui
 
 # Detect platform and architecture
 UNAME_S := $(shell uname -s)
@@ -29,8 +29,9 @@ help:
 	@echo "Testing:"
 	@echo "  make test              - Run unit tests"
 	@echo "  make test-unit         - Run unit tests only"
+	@echo "  make test-integration  - Run integration tests only"
 	@echo "  make test-ui           - Run UI tests (requires proper code signing)"
-	@echo "  make test-swiftui      - Run all SwiftUI tests (unit + UI)"
+	@echo "  make test-swiftui      - Run all SwiftUI tests (unit + integration + UI)"
 	@echo "  make test-syntax       - Validate Swift syntax without running tests"
 	@echo ""
 	@echo "Building:"
@@ -49,12 +50,15 @@ test-unit:
 	xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 		-scheme "Edge Studio" \
 		-destination $(DESTINATION) \
-		-only-testing:"Edge Debug HelperTests" \
-		CODE_SIGN_IDENTITY="-" \
-		CODE_SIGNING_REQUIRED=NO \
-		CODE_SIGNING_ALLOWED=NO \
-		TEST_HOST="" \
-		BUNDLE_LOADER="" \
+		-only-testing:EdgeStudioUnitTests \
+		test
+
+test-integration:
+	@echo "Running integration tests on $(PLATFORM) ($(ARCH))..."
+	xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" \
+		-scheme "Edge Studio" \
+		-destination $(DESTINATION) \
+		-only-testing:EdgeStudioIntegrationTests \
 		test
 
 test-ui:
@@ -62,18 +66,19 @@ test-ui:
 	xcodebuild -project "SwiftUI/Edge Debug Helper.xcodeproj" \
 		-scheme "Edge Studio" \
 		-destination $(DESTINATION) \
-		-only-testing:"Edge Debug HelperUITests" \
-		CODE_SIGN_IDENTITY="-" \
-		CODE_SIGNING_REQUIRED=NO \
-		CODE_SIGNING_ALLOWED=NO \
+		-only-testing:EdgeStudioUITests \
 		test
 
-test-swiftui: test-unit test-ui
+test-swiftui: test-unit test-integration test-ui
 	@echo "All SwiftUI tests completed"
 
 test-syntax:
 	@echo "Validating Swift syntax..."
-	@find "SwiftUI/Edge Debug Helper Tests" -name "*.swift" -exec echo "Checking {}" \; -exec xcrun swiftc -parse {} \;
+	@set -e; test_files="$$(rg --files --glob '*.swift' SwiftUI/EdgeStudioUnitTests SwiftUI/EdgeStudioIntegrationTests SwiftUI/EdgeStudioUITests)"; \
+		printf '%s\n' "$$test_files" | while IFS= read -r file; do \
+			echo "Checking $$file"; \
+			xcrun swiftc -swift-version 6 -enable-bare-slash-regex -parse "$$file"; \
+		done
 	@echo "All Swift test files have valid syntax"
 
 # Build targets

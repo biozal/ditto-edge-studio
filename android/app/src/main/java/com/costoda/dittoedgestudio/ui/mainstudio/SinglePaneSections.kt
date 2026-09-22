@@ -2,6 +2,8 @@ package com.costoda.dittoedgestudio.ui.mainstudio
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.AppMetricsScreen
 import com.costoda.dittoedgestudio.ui.mainstudio.metrics.DiskUsageScreen
@@ -36,10 +38,12 @@ fun LoggingSection(
     viewModel: MainStudioViewModel,
     modifier: Modifier = Modifier,
 ) {
+    val database by viewModel.session.databaseConfig.collectAsStateWithLifecycle()
     LoggingScreen(
         captureService = viewModel.loggingCaptureService,
+        onLogLevelChange = viewModel.session::saveLogLevel,
         modifier = modifier.fillMaxSize(),
-        activeDatabase = viewModel.session.currentDatabase(),
+        activeDatabase = database,
     )
 }
 

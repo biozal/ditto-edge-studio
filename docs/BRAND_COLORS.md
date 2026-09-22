@@ -19,7 +19,7 @@ Reference guide for the Edge Debug Helper brand color system.
 
 ## Semantic Tokens
 
-All tokens are defined in `SwiftUI/Edge Debug Helper/Utilities/BrandColors.swift`.
+All tokens are defined in `SwiftUI/EdgeStudio/Utilities/BrandColors.swift`.
 
 | Token                     | Light Mode          | Dark Mode           | Usage                                  |
 |---------------------------|---------------------|---------------------|----------------------------------------|
@@ -60,15 +60,16 @@ MyCardContent()
 
 ## Accent Color
 
-The Xcode `AccentColor` asset is set to **RAL 1016 Sulfur Yellow** (`#F0D830`, RGB 0.941/0.847/0.188).
+The Xcode `AccentColor` asset is **white** (`#FFFFFF`) in both default and dark
+appearances. It supplies the app-wide accent unless a view overrides its tint.
+This asset is separate from the explicit `Color.dittoAccent` / `Color.dittoYellow`
+semantic tokens, which are RAL 1016 Sulfur Yellow.
 
-This applies to:
-- Toggle switches
-- Focused text fields / buttons
-- Links and interactive controls
-- Progress indicators
-
-The accent is consistent in both light and dark mode.
+`DittoSegmentedPicker` supplies a contrast pair explicitly: dark mode uses
+`Color.dittoYellow` fill with black selected text; light mode uses `Color.primary`
+fill with white selected text. Using the white app accent as the light-mode fill
+made the white selected label disappear. The component fix leaves the global
+asset unchanged and preserves the dark-mode brand colours.
 
 ---
 
@@ -107,4 +108,5 @@ Sulfur Yellow on light backgrounds has insufficient WCAG contrast (~1.2:1), henc
 | `Components/DatabaseCard.swift` | Uses `.dittoGradientCard()`, conditional icon color |
 | `Components/SubscriptionCard.swift` | Uses `.dittoGradientCard()` |
 | `Views/ContentView.swift` | Root `.background(Color.dittoAppBackground)` |
-| `Assets.xcassets/AccentColor.colorset` | Sulfur Yellow accent |
+| `Assets.xcassets/AccentColor.colorset` | White app-wide accent in both appearances |
+| `Components/DittoSegmentedPicker.swift` | Explicit selected fill/text contrast pairs by appearance |

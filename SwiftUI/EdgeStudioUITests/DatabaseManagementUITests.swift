@@ -14,29 +14,15 @@ final class DatabaseManagementUITests: UITestBase {
     /// Tapping AddDatabaseButton opens the editor sheet exposing NameTextField.
     ///
     /// This does NOT require the plist — it only drives the UI to open the sheet,
-    /// then cancels. It still requires the app to reach ContentView, so it
-    /// XCTSkips if the ContentView indicator never appears (likely missing
-    /// Accessibility permission).
+    /// then cancels. A restored studio is closed first; only an unavailable app
+    /// skips (for example, when Accessibility permission is missing).
     @MainActor
     func testAddDatabaseSheetOpens() throws {
         // ARRANGE
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not present ContentView — Accessibility permissions may be missing.")
-        }
-
-        let addButton = app.buttons["AddDatabaseButton"].firstMatch
-        guard addButton.waitForExistence(timeout: 10) else {
-            // If we're already in MainStudioView from a prior session, this test
-            // is not applicable in this state.
-            if app.buttons["CloseButton"].firstMatch.exists {
-                throw XCTSkip("App opened directly into MainStudioView — not on ContentView to add a database.")
-            }
-            captureScreenshot(named: "FAIL-no-add-button", lifetime: .keepAlways)
-            throw XCTSkip("AddDatabaseButton not found — cannot open editor sheet.")
-        }
+        let addButton = try requireDatabasePicker()
 
         // ACT
-        addButton.tap()
+        addButton.click()
         sleep(2) // sheet animation (Pattern 4)
 
         // ASSERT — form is present (validate via NameTextField, not a picker).
@@ -57,7 +43,7 @@ final class DatabaseManagementUITests: UITestBase {
         // CLEANUP — cancel out of the sheet so we leave a clean state.
         let cancelButton = app.buttons["CancelButton"].firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
-            cancelButton.tap()
+            cancelButton.click()
             sleep(1)
         }
     }
@@ -68,9 +54,7 @@ final class DatabaseManagementUITests: UITestBase {
     @MainActor
     func testAddDatabasesFromPlistCreatesCards() throws {
         // ARRANGE
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not present ContentView — Accessibility permissions may be missing.")
-        }
+        _ = try requireDatabasePicker()
 
         // ACT — drives the full form flow; throws XCTSkip if plist is missing.
         try addDatabasesFromPlist()

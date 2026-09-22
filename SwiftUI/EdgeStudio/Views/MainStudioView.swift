@@ -255,7 +255,10 @@ struct MainStudioView: View {
                             .toolbar { passiveDetailToolbar() }
                         #endif
                     case .systemMetrics:
-                        SystemMetricsDetailView(databaseId: viewModel.selectedApp._id)
+                        SystemMetricsDetailView(
+                            databaseId: viewModel.selectedApp._id,
+                            service: viewModel.systemMetricsService
+                        )
                         #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
                         #endif

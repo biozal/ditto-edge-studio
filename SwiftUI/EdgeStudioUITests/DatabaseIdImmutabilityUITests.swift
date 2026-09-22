@@ -49,17 +49,10 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
     }
 
     func testDatabaseIdIsEditableWhenRegisteringAndLockedWhenEditing() throws {
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not present ContentView — Accessibility permissions may be missing.")
-        }
-
-        let addButton = app.buttons["AddDatabaseButton"].firstMatch
-        guard addButton.waitForExistence(timeout: 10) else {
-            throw XCTSkip("AddDatabaseButton not found — cannot open the editor sheet.")
-        }
+        let addButton = try requireDatabasePicker()
 
         // ── ARRANGE / ACT 1: the REGISTER case ────────────────────────────────────
-        addButton.tap()
+        addButton.click()
         sleep(2) // sheet animation
 
         let idField = app.textFields["DatabaseIdTextField"].firstMatch
@@ -80,16 +73,16 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         )
 
         // Fill the three fields the harness has verified identifiers for.
-        app.textFields["NameTextField"].firstMatch.tap()
+        app.textFields["NameTextField"].firstMatch.click()
         app.textFields["NameTextField"].firstMatch.typeText(dummyName)
-        idField.tap()
+        idField.click()
         idField.typeText(dummyDatabaseId)
-        app.textFields["TokenTextField"].firstMatch.tap()
+        app.textFields["TokenTextField"].firstMatch.click()
         app.textFields["TokenTextField"].firstMatch.typeText("uitest-token")
 
         let saveButton = app.buttons["SaveButton"].firstMatch
         XCTAssertTrue(saveButton.isEnabled, "Save must enable once name, id and token are filled.")
-        saveButton.tap()
+        saveButton.click()
         reactivateAfterTransition()
 
         // The card must appear, otherwise there is nothing to edit and the rest of the
@@ -110,9 +103,9 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         let editItem = app.menuItems["EditDatabaseMenuItem"].firstMatch
         let editButton = app.buttons["EditDatabaseMenuItem"].firstMatch
         if editItem.waitForExistence(timeout: 5) {
-            editItem.tap()
+            editItem.click()
         } else if editButton.waitForExistence(timeout: 2) {
-            editButton.tap()
+            editButton.click()
         } else {
             captureScreenshot(named: "FAIL-no-edit-menu-item", lifetime: .keepAlways)
             logAccessibilityDiagnostics(reason: "EditDatabaseMenuItem not addressable")
@@ -139,11 +132,11 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         // Leave the sheet without saving.
         let cancelButton = app.buttons["CancelButton"].firstMatch
         if cancelButton.isHittable {
-            cancelButton.tap()
+            cancelButton.click()
             sleep(1)
             let discard = app.buttons["Discard Changes"].firstMatch
             if discard.waitForExistence(timeout: 2) {
-                discard.tap()
+                discard.click()
             }
         }
         reactivateAfterTransition()
@@ -171,10 +164,10 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         // Dismiss a sheet if one is still open, or the card underneath is unreachable.
         let cancelButton = app.buttons["CancelButton"].firstMatch
         if cancelButton.exists, cancelButton.isHittable {
-            cancelButton.tap()
+            cancelButton.click()
             let discard = app.buttons["Discard Changes"].firstMatch
             if discard.waitForExistence(timeout: 2) {
-                discard.tap()
+                discard.click()
             }
         }
 
@@ -187,15 +180,18 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         let deleteItem = app.menuItems["DeleteDatabaseMenuItem"].firstMatch
         let deleteButton = app.buttons["DeleteDatabaseMenuItem"].firstMatch
         if deleteItem.waitForExistence(timeout: 3) {
-            deleteItem.tap()
+            deleteItem.click()
         } else if deleteButton.waitForExistence(timeout: 2) {
-            deleteButton.tap()
+            deleteButton.click()
         }
-        // A confirmation dialog is not currently presented for delete; dismiss one if a
-        // future change adds it, so cleanup keeps working.
-        let confirm = app.buttons["Delete"].firstMatch
-        if confirm.waitForExistence(timeout: 2), confirm.isHittable {
-            confirm.tap()
+        // The database deletion gate is a confirmation dialog. Scope to dialogs
+        // so the Touch Bar's identically titled Delete button cannot match.
+        for dialogs in [app.alerts, app.sheets] {
+            let confirm = dialogs.buttons["Delete"].firstMatch
+            if confirm.waitForExistence(timeout: 2), confirm.isHittable {
+                confirm.click()
+                break
+            }
         }
         sleep(1)
     }

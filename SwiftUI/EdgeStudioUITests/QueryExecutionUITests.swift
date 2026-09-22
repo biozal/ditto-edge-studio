@@ -43,7 +43,7 @@ final class QueryExecutionUITests: UITestBase {
         guard queryNav.waitForExistence(timeout: 10) else {
             throw XCTSkip("NavItem_query not reachable — sidebar navigation not exposed in this environment.")
         }
-        queryNav.tap()
+        queryNav.click()
         reactivateAfterTransition()
 
         // Target the editable TEXT VIEW, not the enclosing scroll view (whose
@@ -84,10 +84,14 @@ final class QueryExecutionUITests: UITestBase {
             in: editor
         )
 
-        // ASSERT: the actual inserted document — field name AND our token value —
-        // is rendered in the results.
-        let resultDoc = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "marker", token))
+        // macOS can expose the rendered JSON as StaticText.value rather than
+        // label. Require field and token in the same property, inside results,
+        // so the editor's SELECT text cannot satisfy this assertion.
+        let resultDoc = app.scrollViews["QueryResultsView"].firstMatch.staticTexts
+            .matching(NSPredicate(
+                format: "(label CONTAINS %@ AND label CONTAINS %@) OR (value CONTAINS %@ AND value CONTAINS %@)",
+                "marker", token, "marker", token
+            ))
             .firstMatch
         if !resultDoc.waitForExistence(timeout: 15) {
             // XCUIElementQuery is not a Collection (no isEmpty member).
@@ -109,15 +113,15 @@ final class QueryExecutionUITests: UITestBase {
     /// Replaces the editor's contents with `dql` and runs it. Clears via
     /// select-all + delete (macOS NSTextView), then types and taps Execute.
     private func executeDQL(_ dql: String, in editor: XCUIElement) {
-        editor.tap()
+        editor.click()
         usleep(300_000) // let focus register (macOS quirk)
         app.typeKey("a", modifierFlags: .command) // select all
-        app.typeKey(.delete, modifierFlags: [])   // clear
+        app.typeKey(.delete, modifierFlags: []) // clear
         editor.typeText(dql)
 
         let execute = app.buttons["ExecuteQueryButton"].firstMatch
         if execute.waitForExistence(timeout: 5) {
-            execute.tap()
+            execute.click()
         }
         // Re-assert focus + give the local write/query a beat to settle before
         // the next statement reads it back.

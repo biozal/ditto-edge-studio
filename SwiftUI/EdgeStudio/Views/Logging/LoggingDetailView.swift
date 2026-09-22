@@ -89,9 +89,8 @@ struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: Toolb
     /// Freezes the *display* only. Ingestion keeps running into the capture
     /// service's (capped) buffers, exactly as the VS Code analyzer's pause
     /// does, so nothing is lost while paused and resuming shows the full
-    /// picture rather than a gap. Included in both task ids so toggling it
-    /// re-fires them: resuming has to recompute immediately, not wait for the
-    /// next log line.
+    /// picture rather than a gap. The list refreshes on toggles; the analyzer's
+    /// lifecycle-owned cadence picks up resume even if no new log line arrives.
     @State private var isPaused = false
 
     // MARK: - Row Expansion
@@ -175,50 +174,11 @@ struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: Toolb
             cachedFilteredEntries = filtered
             refreshExpandedContext(visible: filtered, source: source)
         }
-        .task(id: patternScanInputs) {
-            // Throttled pattern scan: at most ~2 passes/sec, off-main actor,
-            // window capped at LogPatternEngine.maxScanEntries. Mirrored from
-            // the Android sample(1000) scan loop.
-            //
-            // The analytics snapshot is produced in the same detached pass and
-            // over the *same* window as the scan. Computing it over the full
-            // buffer instead would report a line total the problem counts were
-            // never measured against.
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled, !isPaused else { return }
-            let engine = LogPatternEngine(patterns: patternStore.patterns)
-            let entries = activeSourceEntries
-            let result = await Task.detached(priority: .utility) { () -> LogScanResult in
-                let window = entries.count > LogPatternEngine.maxScanEntries
-                    ? Array(entries.suffix(LogPatternEngine.maxScanEntries))
-                    : entries
-                let matches = engine.scanAll(window)
-                var problemIDs = Set<UUID>()
-                var criticalIDs = Set<UUID>()
-                var tags: [UUID: Set<String>] = [:]
-                for match in matches {
-                    problemIDs.insert(match.entry.id)
-                    if match.pattern.severity >= 5 {
-                        criticalIDs.insert(match.entry.id)
-                    }
-                    if let tag = match.pattern.userTag {
-                        tags[match.entry.id, default: []].insert(tag)
-                    }
-                }
-                return LogScanResult(
-                    matches: matches,
-                    analytics: LogAnalytics.compute(entries: window, matches: matches),
-                    problemIDs: problemIDs,
-                    criticalIDs: criticalIDs,
-                    userTags: tags.mapValues { $0.sorted() }
-                )
-            }.value
-            guard !Task.isCancelled else { return }
-            patternProblems = result.matches
-            analytics = result.analytics
-            problemEntryIDs = result.problemIDs
-            criticalEntryIDs = result.criticalIDs
-            userTagsByID = result.userTags
+        .task {
+            await LogScanScheduler.run(
+                input: { isPaused ? nil : patternScanInputs },
+                scan: { inputs in await scanPatterns(for: inputs) }
+            )
         }
         .sheet(isPresented: $isShowingPatternManager) {
             LogPatternManagerView(store: patternStore)
@@ -868,10 +828,23 @@ struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: Toolb
         }
     }
 
-    /// Inputs that trigger a pattern rescan: source, buffer size, catalog revision.
+    /// A rolling buffer can replace its contents without changing its count.
+    /// Include its newest identity so a cadence tick still sees fresh batches.
+    private var activeSourceNewestEntryID: UUID? {
+        switch capture.selectedSource {
+        case .dittoSDK: return capture.liveEntries.last?.id ?? capture.historicalEntries.last?.id
+        case .application: return capture.appEntries.last?.id
+        case .imported: return capture.importedEntries.last?.id
+        case .transportConditions: return capture.transportEntries.last?.id
+        case .connectionRequests: return capture.connectionRequestEntries.last?.id
+        }
+    }
+
+    /// Inputs sampled by the scan cadence: source, buffer size, catalog revision.
     private struct PatternScanInputs: Equatable {
         let selectedSource: LoggingSourceTab
         let entryCount: Int
+        let newestEntryID: UUID?
         let patternRevision: Int
         let isPaused: Bool
     }
@@ -880,9 +853,51 @@ struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: Toolb
         PatternScanInputs(
             selectedSource: capture.selectedSource,
             entryCount: activeSourceEntryCount,
+            newestEntryID: activeSourceNewestEntryID,
             patternRevision: patternStore.revision,
             isPaused: isPaused
         )
+    }
+
+    /// Scans one latest snapshot off-main. The lifecycle-owned scheduler bounds
+    /// the cadence without restarting on each 250 ms capture batch.
+    private func scanPatterns(for inputs: PatternScanInputs) async -> Bool {
+        let engine = LogPatternEngine(patterns: patternStore.patterns)
+        let entries = activeSourceEntries
+        let result = await Task.detached(priority: .utility) { () -> LogScanResult in
+            let window = entries.count > LogPatternEngine.maxScanEntries
+                ? Array(entries.suffix(LogPatternEngine.maxScanEntries))
+                : entries
+            let matches = engine.scanAll(window)
+            var problemIDs = Set<UUID>()
+            var criticalIDs = Set<UUID>()
+            var tags: [UUID: Set<String>] = [:]
+            for match in matches {
+                problemIDs.insert(match.entry.id)
+                if match.pattern.severity >= 5 {
+                    criticalIDs.insert(match.entry.id)
+                }
+                if let tag = match.pattern.userTag {
+                    tags[match.entry.id, default: []].insert(tag)
+                }
+            }
+            return LogScanResult(
+                matches: matches,
+                analytics: LogAnalytics.compute(entries: window, matches: matches),
+                problemIDs: problemIDs,
+                criticalIDs: criticalIDs,
+                userTags: tags.mapValues { $0.sorted() }
+            )
+        }.value
+        guard !Task.isCancelled, !isPaused,
+              inputs.selectedSource == capture.selectedSource,
+              inputs.patternRevision == patternStore.revision else { return false }
+        patternProblems = result.matches
+        analytics = result.analytics
+        problemEntryIDs = result.problemIDs
+        criticalEntryIDs = result.criticalIDs
+        userTagsByID = result.userTags
+        return true
     }
 
     /// All inputs that affect the filtered output. When this changes,

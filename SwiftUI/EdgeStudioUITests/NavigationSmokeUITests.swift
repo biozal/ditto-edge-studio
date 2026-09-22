@@ -27,7 +27,7 @@ final class NavigationSmokeUITests: UITestBase {
         guard waitForAppToFinishLoading(timeout: 20) else {
             throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
         }
-        try addDatabasesFromPlist()      // XCTSkip if no plist/credentials
+        try addDatabasesFromPlist() // XCTSkip if no plist/credentials
         try ensureMainStudioViewIsOpen() // XCTSkip if no databases
 
         // ASSERT
@@ -54,7 +54,7 @@ final class NavigationSmokeUITests: UITestBase {
         guard closeButton.waitForExistence(timeout: 10) else {
             throw XCTSkip("CloseButton not present — cannot exercise close flow.")
         }
-        closeButton.tap()
+        closeButton.click()
         reactivateAfterTransition()
 
         // ASSERT — ContentView indicator should reappear.
@@ -95,7 +95,9 @@ final class NavigationSmokeUITests: UITestBase {
         // happens to be queryable; otherwise skip the segment-level check.
         let picker = app.descendants(matching: .any)["NavigationSegmentedPicker"].firstMatch
         guard picker.waitForExistence(timeout: 3) else {
-            throw XCTSkip("NavigationSegmentedPicker is not exposed to XCUITest (SwiftUI segmented Picker limitation — see docs/TESTING.md Pattern 2).")
+            throw XCTSkip(
+                "NavigationSegmentedPicker is not exposed to XCUITest (SwiftUI segmented Picker limitation — see docs/TESTING.md Pattern 2)."
+            )
         }
 
         XCTAssertTrue(picker.exists, "Sidebar navigation picker element is present in the hierarchy.")

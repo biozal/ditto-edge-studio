@@ -77,8 +77,11 @@ struct LogPatternEngine: Sendable {
         tag: String,
         message: String
     ) -> Bool {
+        // Draft previews must obey the same safety boundary as saved user patterns.
+        // Compilation alone accepts rejected nested quantifiers and oversized regexes.
+        guard rejectReason(key: "preview", body: body, source: .user) == nil else { return false }
         let pattern = LogPattern(
-            key: "",
+            key: "preview",
             body: body,
             levelFilter: parseLogLevelFilter(body.levelFilter),
             source: .user

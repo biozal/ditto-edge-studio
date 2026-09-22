@@ -43,12 +43,7 @@ struct DatabaseEditorView: View {
                 Form {
                     HStack {
                         Spacer()
-                        DittoSegmentedPicker(
-                            options: AuthMode.allCases,
-                            selection: $viewModel.mode
-                        ) { $0.displayName }
-                            .frame(maxWidth: 300)
-                            .accessibilityIdentifier("AuthModePicker")
+                        authModePicker
                         Spacer()
                     }
                     #if os(macOS)
@@ -205,6 +200,42 @@ struct DatabaseEditorView: View {
     }
 
     // MARK: - View Builders
+
+    private var authModePicker: some View {
+        ViewThatFits(in: .horizontal) {
+            DittoSegmentedPicker(
+                options: AuthMode.allCases,
+                selection: $viewModel.mode
+            ) { $0.displayName }
+
+            // Keep every mode readable and reachable when large text cannot
+            // fit two equal-width segments. Labels can wrap without shrinking.
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(AuthMode.allCases, id: \.self) { mode in
+                    Button {
+                        viewModel.mode = mode
+                    } label: {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(mode.displayName)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            if viewModel.mode == mode {
+                                Image(systemName: "checkmark")
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(viewModel.mode == mode ? .isSelected : [])
+                }
+            }
+        }
+        .frame(maxWidth: 300)
+        .accessibilityIdentifier("AuthModePicker")
+    }
 
     @ViewBuilder
     private func authTokenField(for mode: AuthMode) -> some View {

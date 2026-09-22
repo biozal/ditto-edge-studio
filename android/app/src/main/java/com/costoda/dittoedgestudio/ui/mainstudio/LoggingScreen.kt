@@ -68,7 +68,6 @@ import com.costoda.dittoedgestudio.data.logging.LogAnalytics
 import com.costoda.dittoedgestudio.data.logging.LogEntryContext
 import com.costoda.dittoedgestudio.data.logging.LogPatternEngine
 import com.costoda.dittoedgestudio.data.logging.LogPatternStore
-import com.costoda.dittoedgestudio.data.repository.DatabaseRepository
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
 import com.costoda.dittoedgestudio.ui.components.DittoConnectedButtonGroup
 import com.costoda.dittoedgestudio.domain.model.LogComponent
@@ -113,6 +112,7 @@ private data class LogScanPass(
 @Composable
 fun LoggingScreen(
     captureService: DittoLogCaptureService,
+    onLogLevelChange: suspend (DittoLogLevel) -> Unit,
     modifier: Modifier = Modifier,
     activeDatabase: DittoDatabase? = null,
 ) {
@@ -160,16 +160,15 @@ fun LoggingScreen(
     // previously ignored, setting only the in-process
     // `DittoLogger.minimumLogLevel` and losing the choice on the next launch.
     //
-    // The stored value is also applied to the live SDK on first composition:
-    // `DittoManager.hydrate` currently forces Info, so without this the config
-    // would be written and never read back.
-    val databaseRepository: DatabaseRepository = koinInject()
-    var sdkLogLevel by remember(activeDatabase?.id) {
+    // The session publishes the latest config after a save, including changes
+    // made while this section is hidden. Re-entry therefore uses the current
+    // choice rather than the immutable config originally used at hydration.
+    var sdkLogLevel by remember(activeDatabase?.id, activeDatabase?.logLevel) {
         mutableStateOf(
             sdkLogLevelFromConfigValue(activeDatabase?.logLevel) ?: DittoLogger.minimumLogLevel,
         )
     }
-    LaunchedEffect(activeDatabase?.id) {
+    LaunchedEffect(activeDatabase?.id, activeDatabase?.logLevel) {
         val stored = sdkLogLevelFromConfigValue(activeDatabase?.logLevel) ?: return@LaunchedEffect
         if (DittoLogger.minimumLogLevel != stored) {
             runCatching { DittoLogger.minimumLogLevel = stored }
@@ -525,17 +524,12 @@ fun LoggingScreen(
                                 // Best-effort: a failed write must not take the
                                 // Logs screen down, and the level the user just
                                 // picked is already in effect either way.
-                                activeDatabase?.let { database ->
-                                    scope.launch {
-                                        runCatching {
-                                            databaseRepository.save(
-                                                database.copy(logLevel = sdkLogLevelConfigValue(level)),
-                                            )
-                                        }.onFailure { error ->
+                                scope.launch {
+                                    runCatching { onLogLevelChange(level) }
+                                        .onFailure { error ->
                                             exportError =
                                                 "Log level applied but not saved: ${error.message}"
                                         }
-                                    }
                                 }
                             },
                         )

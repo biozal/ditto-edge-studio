@@ -76,6 +76,28 @@ struct DittoManagerStoreDirectoryTests {
     }
 
     @Test(.tags(.service, .fast))
+    func `Rename recovery preserves the newest matching candidate over alphabetical order`() {
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "New",
+            databaseId: "abc",
+            existingEntries: ["unrelated-xyz", "zebra-abc", "alpha-abc"]
+        )
+
+        #expect(resolved == "zebra-abc")
+    }
+
+    @Test(.tags(.service, .fast))
+    func `An existing current-name store wins even when another candidate is newer`() {
+        let resolved = DittoManager.storeDirectoryName(
+            currentName: "Alpha",
+            databaseId: "abc",
+            existingEntries: ["zebra-abc", "alpha-abc"]
+        )
+
+        #expect(resolved == "alpha-abc")
+    }
+
+    @Test(.tags(.service, .fast))
     func `A brand-new database gets a directory named for its current name`() {
         let resolved = DittoManager.storeDirectoryName(
             currentName: "Brand New",

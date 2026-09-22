@@ -4,10 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performScrollTo
@@ -113,6 +116,7 @@ class SystemMetricsScreenTest {
                     snapshot = snap(
                         listOf(
                             sample("ditto.network.dsoq.connection.opened", 12.0, 1.0),
+                            sample("ditto.network.dsoq.connection.closed", 12.0),
                             sample("ditto.backend.sqlite3.fsync_total", 340.0),
                         ),
                     ),
@@ -120,9 +124,9 @@ class SystemMetricsScreenTest {
             }
         }
         composeTestRule.onNodeWithText("network.dsoq.connection.opened").assertIsDisplayed()
-        composeTestRule.onNodeWithText("12").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("12").assertCountEquals(2)
         composeTestRule.onNodeWithText("▲ +1").assertIsDisplayed()
-        // No divergence: opened present without closed → no banner.
+        // No divergence: opened and closed totals are equal.
         composeTestRule.onNodeWithText("possible connection leak", substring = true).assertDoesNotExist()
     }
 
@@ -390,10 +394,13 @@ class SystemMetricsScreenTest {
         setTwoPins()
         composeTestRule.onNodeWithText("Reorder").performClick()
 
-        // Only the moves that can actually happen are offered.
-        composeTestRule.onNodeWithContentDescription("Reorder $first")
-            .performCustomAccessibilityActionWithLabel("Move $first down")
-        composeTestRule.onNodeWithContentDescription("Reorder $second")
-            .performCustomAccessibilityActionWithLabel("Move $second up")
+        // Inspect the original boundaries without moving either row. Moving the
+        // first down would make the second first, where "up" is correctly absent.
+        val firstActions = composeTestRule.onNodeWithContentDescription("Reorder $first")
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions].map { it.label }
+        val secondActions = composeTestRule.onNodeWithContentDescription("Reorder $second")
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions].map { it.label }
+        assertEquals(listOf("Move $first down"), firstActions)
+        assertEquals(listOf("Move $second up"), secondActions)
     }
 }
