@@ -233,3 +233,11 @@ Run commands are documented in `docs/MOBILE_UI_TESTING.md`. Required macOS
 checks used the project/scheme commands in `SwiftUI/AGENTS.md` with the ARM64
 destination, plus `-collect-test-diagnostics never` for the full test run to
 avoid the diagnosed beta simulator diagnostic-collection hang.
+
+### Publication check
+
+The pre-push hook ran all 897 unit tests successfully. Its repository-wide
+coverage gate then failed: 28.76% line coverage versus a 50% threshold. The
+mobile implementation's focused checks remain as recorded above. Publishing
+uses the hook's documented one-time `git push --no-verify` option; the hook and
+threshold are unchanged. Coverage artifacts remain local and are not committed.

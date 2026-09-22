@@ -139,6 +139,7 @@ simulator 27.0. These results do not establish compatibility with the 26.0 floor
 | Accessibility | Duo: 0/4 executions passed; iPad: 1/4. Audits expose text clipping, Dynamic Type, and contrast findings. |
 | Isolation unit tests | 12 methods / 19 parameterized executions passed. |
 | Runner / build / lint | 5 runner tests, macOS ARM64 build, mobile build, and strict lint on all 35 changed/new Swift files passed. |
+| Pre-push unit coverage gate | 897 tests passed; repository-wide line coverage 28.76% is below the hook's 50% threshold. The hook blocks publishing despite passing unit tests. |
 | Full macOS suite | 1062 passed, 9 UI failures, 5 skipped. Failure causality is unresolved; no pre-change baseline comparison was made. |
 
 The failing assertions remain enabled. See the implementation record for
