@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  NavigationSmokeUITests.swift
 //  EdgeStudioUITests
@@ -100,3 +101,5 @@ final class NavigationSmokeUITests: UITestBase {
         XCTAssertTrue(picker.exists, "Sidebar navigation picker element is present in the hierarchy.")
     }
 }
+
+#endif

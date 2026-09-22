@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  DatabaseManagementUITests.swift
 //  EdgeStudioUITests
@@ -92,3 +93,5 @@ final class DatabaseManagementUITests: UITestBase {
         captureScreenshot(named: "01-database-cards", lifetime: .deleteOnSuccess)
     }
 }
+
+#endif

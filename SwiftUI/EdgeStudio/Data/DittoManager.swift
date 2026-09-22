@@ -172,7 +172,7 @@ actor DittoManager {
             // is read once at Ditto construction (runtime ALTER SYSTEM is ignored), so
             // the env var must be set BEFORE Ditto.open. When the setting is off we
             // actively unset it — a stale "true" must not survive within this process.
-            if UserDefaults.standard.object(forKey: "collectSystemMetrics") as? Bool ?? true {
+            if StudioPreferences.store.object(forKey: "collectSystemMetrics") as? Bool ?? true {
                 setenv(Self.systemMetricsEnvVar, "true", 1)
             } else {
                 unsetenv(Self.systemMetricsEnvVar)
@@ -629,9 +629,7 @@ actor DittoManager {
     nonisolated static func localDirectoryPath(
         for databaseConfig: DittoConfigForDatabase
     ) -> URL {
-        let isUITesting = isRunningUITests()
-        let baseComponent =
-            isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
+        let baseComponent = UITestConfiguration.current.storageDirectoryName
         let root = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask

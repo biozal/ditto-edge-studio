@@ -183,7 +183,9 @@ struct DatabaseEditorView: View {
                 hasUnsavedChanges = false
                 isPresented = false
             }
+            .accessibilityIdentifier("DiscardDatabaseChangesButton")
             Button("Keep Editing", role: .cancel) {}
+                .accessibilityIdentifier("KeepEditingDatabaseButton")
         } message: {
             Text("Your edits to this database configuration will be lost.")
         }

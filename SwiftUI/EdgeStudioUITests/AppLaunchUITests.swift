@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  AppLaunchUITests.swift
 //  EdgeStudioUITests
@@ -56,3 +57,5 @@ final class AppLaunchUITests: UITestBase {
         XCTAssertTrue(window.exists, "Edge Studio should present a main window after launch.")
     }
 }
+
+#endif

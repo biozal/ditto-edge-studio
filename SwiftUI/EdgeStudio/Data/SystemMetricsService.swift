@@ -46,7 +46,7 @@ final class SystemMetricsService {
     func start() {
         guard pollTask == nil else { return }
 
-        guard UserDefaults.standard.object(forKey: "collectSystemMetrics") as? Bool ?? true else {
+        guard StudioPreferences.store.object(forKey: "collectSystemMetrics") as? Bool ?? true else {
             snapshot = Snapshot(status: .settingDisabled)
             return
         }

@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  UITestBase.swift
 //  EdgeStudioUITests
@@ -34,12 +35,7 @@ import XCTest
 /// main actor, so the whole test case (lifecycle + helpers + subclass test
 /// methods, which inherit this isolation) runs on the main actor.
 @MainActor
-class UITestBase: XCTestCase {
-    // MARK: - Stored State
-
-    /// The application under test. Launched fresh in `setUpWithError()`.
-    var app: XCUIApplication!
-
+class UITestBase: UITestCase {
     // MARK: - Lifecycle
 
     // Launch the app fresh for each test. `@MainActor` because the whole class is
@@ -70,15 +66,9 @@ class UITestBase: XCTestCase {
             return false
         }
 
-        app = XCUIApplication()
-        // CRITICAL: pass test mode via the launch ENVIRONMENT, NOT a launch
-        // argument. On macOS, launching a SwiftUI app with ANY command-line
-        // argument is treated as a non-default launch, and the `WindowGroup` then
-        // does NOT auto-open its window — so the app comes up active but
-        // window-less and XCUITest finds nothing to drive. Keeping
-        // `launchArguments` empty + signalling via an env var means a normal
-        // default launch where the window opens. The app reads `UI_TESTING` to
-        // route to its isolated `ditto_edge_studio_test` sandbox and seed data.
+        app = makeApplication()
+        // Use an environment signal for test mode; makeApplication removes the
+        // shared scheme's unit-test argument so macOS opens its normal window.
         app.launchEnvironment["UI_TESTING"] = "1"
         app.launch()
 
@@ -205,29 +195,6 @@ class UITestBase: XCTestCase {
         // structure XCUITest classifies differently?).
         logAccessibilityDiagnostics(reason: "waitForAppToFinishLoading timed out after \(timeout)s")
         return false
-    }
-
-    /// Prints the live accessibility hierarchy + element counts and attaches a
-    /// screenshot. Used when an expected element never appears, to diagnose
-    /// element-not-found vs. window-activation vs. wrong-query issues.
-    func logAccessibilityDiagnostics(reason: String) {
-        // no_print_statements: write via FileHandle so the dump still lands in the
-        // test log without tripping the repo's lint gate.
-        FileHandle.standardOutput.write(Data("""
-        ===== UITest accessibility diagnostics =====
-        reason: \(reason)
-        app.state: \(app.state.rawValue)   (3=runningForeground, 4=runningBackground)
-        windows: \(app.windows.count)  buttons: \(app.buttons.count)  \
-        staticTexts: \(app.staticTexts.count)  textViews: \(app.textViews.count)  \
-        otherElements: \(app.otherElements.count)  progressIndicators: \(app.progressIndicators.count)
-        --- app.debugDescription ---
-        \(app.debugDescription)
-        ============================================
-        """.utf8))
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = "accessibility-diagnostics"
-        shot.lifetime = .keepAlways
-        add(shot)
     }
 
     // MARK: - Database Setup From Plist
@@ -451,20 +418,6 @@ class UITestBase: XCTestCase {
 
     // MARK: - Screenshots
 
-    /// Captures a full-app screenshot and attaches it to the test result.
-    ///
-    /// - Parameters:
-    ///   - name: Descriptive, sequential name (e.g. "01-initial-state").
-    ///   - lifetime: Defaults to `.deleteOnSuccess` (ideal for CI — keeps only
-    ///     failing-test artifacts). Use `.keepAlways` when debugging.
-    func captureScreenshot(named name: String, lifetime: XCTAttachment.Lifetime = .deleteOnSuccess) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = lifetime
-        add(attachment)
-    }
-
     // MARK: - Private Helpers
 
     /// Types text into a field, tapping first to register focus (macOS quirk).
@@ -493,3 +446,5 @@ class UITestBase: XCTestCase {
         return XCTSkip(message)
     }
 }
+
+#endif

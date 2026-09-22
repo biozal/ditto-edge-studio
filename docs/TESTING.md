@@ -1138,6 +1138,13 @@ struct EdgeCaseTests {
 
 ## Writing UI Tests
 
+For iPhone Duo and iPadOS, use the shared mobile test plans and the
+[mobile UI testing guide](MOBILE_UI_TESTING.md). It documents credential-free
+smoke tests, isolated offline workspace fixtures, accessibility audits,
+destination selection, and result-based CI gates. The legacy examples below
+describe the desktop harness; new required mobile tests fail when expected
+controls are missing and use condition-based waits instead of sleeps/skips.
+
 **UI tests use XCTest framework (NOT Swift Testing)** because XCUITest has no Swift Testing alternative.
 
 UI tests validate user workflows, visual layouts, and end-to-end functionality that unit tests cannot cover:

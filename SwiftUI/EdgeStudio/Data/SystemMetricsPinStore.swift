@@ -54,7 +54,7 @@ enum SystemMetricsPinStore {
 
     /// Pinned series for one database, in pin order. A stored value that no
     /// longer decodes is treated as "no pins" rather than failing the screen.
-    static func read(databaseId: String, defaults: UserDefaults = .standard) -> [SystemMetricSeriesRef] {
+    static func read(databaseId: String, defaults: UserDefaults = StudioPreferences.store) -> [SystemMetricSeriesRef] {
         guard let data = defaults.data(forKey: defaultsKey(databaseId: databaseId)),
               let pins = try? JSONDecoder().decode([SystemMetricSeriesRef].self, from: data) else
         {
@@ -68,7 +68,7 @@ enum SystemMetricsPinStore {
     static func write(
         _ pins: [SystemMetricSeriesRef],
         databaseId: String,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = StudioPreferences.store
     ) {
         let key = defaultsKey(databaseId: databaseId)
         let unique = dedupe(pins)

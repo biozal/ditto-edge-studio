@@ -14,10 +14,10 @@ import SwiftUI
 /// Triggers:
 ///   - Help menu → Welcome (always shows)
 ///   - Auto-shown by `MainStudioViewModel.performLoad` when the active
-///     database is fresh and `@AppStorage("showWelcomeOnNewDatabase")`
+///     database is fresh and `@AppStorage("showWelcomeOnNewDatabase", store: StudioPreferences.store)`
 ///     is true (the default).
 struct WelcomeView: View {
-    @AppStorage("showWelcomeOnNewDatabase") private var showWelcomeOnNewDatabase = true
+    @AppStorage("showWelcomeOnNewDatabase", store: StudioPreferences.store) private var showWelcomeOnNewDatabase = true
 
     // Scale the hero badge with the user's Dynamic Type setting so the icon
     // never feels cramped relative to the surrounding scaled text.

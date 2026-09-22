@@ -369,7 +369,7 @@ actor MCPServerService {
     private(set) var isRunning = false
 
     var port: UInt16 {
-        let p = UserDefaults.standard.integer(forKey: "mcpServerPort")
+        let p = StudioPreferences.store.integer(forKey: "mcpServerPort")
         // Clamp instead of trapping: `UInt16(p)` preconditions on
         // p <= 65535, and a corrupt UserDefaults value must not crash the
         // app — fall back to the default port.

@@ -409,6 +409,7 @@ extension ContentView {
                         Text("No Databases")
                             .font(.title2)
                             .foregroundStyle(.primary)
+                            .accessibilityIdentifier("EmptyDatabaseList")
                         Text("Use Add Database to create a database configuration.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -710,7 +711,7 @@ extension ContentView {
                 // testDatabaseConfig.plist BEFORE loading. The XCUITest runner is
                 // a separate process and can't read the app bundle, so the app
                 // (which can) loads its own test config here.
-                await seedTestDatabasesIfNeeded()
+                try await seedTestDatabasesIfNeeded()
 
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
@@ -741,7 +742,21 @@ extension ContentView {
         /// the out-of-process XCUITest runner cannot access app-bundle resources.
         /// Idempotent: skips databases whose `databaseId` is already stored, so
         /// re-launches against the persisted test sandbox don't duplicate cards.
-        private func seedTestDatabasesIfNeeded() async {
+        private func seedTestDatabasesIfNeeded() async throws {
+            let testing = UITestConfiguration.current
+            if testing.fixture == .empty {
+                return
+            }
+            if testing.fixture == .workspace {
+                let config = try testing.workspaceConfiguration(
+                    encodedFixture: ProcessInfo.processInfo.environment["UI_TEST_FIXTURE_BASE64"]
+                )
+                let existing = try await databaseRepository.loadDatabaseConfigs()
+                if !existing.contains(where: { $0._id == config._id }) {
+                    try await databaseRepository.addDittoAppConfig(config)
+                }
+                return
+            }
             guard isRunningUITests() else { return }
             guard let path = Bundle.main.path(forResource: "testDatabaseConfig", ofType: "plist"),
                   let data = try? Data(contentsOf: URL(fileURLWithPath: path)),

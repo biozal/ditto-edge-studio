@@ -16,7 +16,7 @@ struct MainStudioView: View {
     /// `.sheet(isPresented:)` modifiers driven by independent `Bool` flags.
     @State var activeSheet: ActiveSheet?
     /// Persists the sync detail's sub-tab (Peers List / Presence Viewer) across app launches.
-    @AppStorage("selectedSyncTab") var selectedSyncTab = 0
+    @AppStorage("selectedSyncTab", store: StudioPreferences.store) var selectedSyncTab = 0
     /// Shared VM for the Presence Viewer. Lives at MainStudioView level so the
     /// `syncTabsDetailView` body can BOTH host the viewer AND inject its controls
     /// into the native trailing Viewer Controls menu on iOS (or the floating
@@ -44,7 +44,7 @@ struct MainStudioView: View {
 
     /// Mirrors the UserDefaults "metricsEnabled" key; drives sidebar visibility.
     /// Updated by the macOS Settings window or iOS Settings app via @AppStorage KVO.
-    @AppStorage("metricsEnabled") var metricsEnabled = true
+    @AppStorage("metricsEnabled", store: StudioPreferences.store) var metricsEnabled = true
 
     /// Inspector state
     @State var showInspector = false

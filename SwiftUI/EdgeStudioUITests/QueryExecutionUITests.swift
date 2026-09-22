@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  QueryExecutionUITests.swift
 //  EdgeStudioUITests
@@ -123,3 +124,5 @@ final class QueryExecutionUITests: UITestBase {
         reactivateAfterTransition()
     }
 }
+
+#endif

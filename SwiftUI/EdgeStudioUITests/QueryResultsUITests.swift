@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  QueryResultsUITests.swift
 //  EdgeStudioUITests
@@ -189,3 +190,5 @@ final class QueryResultsUITests: UITestBase {
         add(attachment)
     }
 }
+
+#endif

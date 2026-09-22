@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  DatabaseIdImmutabilityUITests.swift
 //  EdgeStudioUITests
@@ -199,3 +200,5 @@ final class DatabaseIdImmutabilityUITests: UITestBase {
         sleep(1)
     }
 }
+
+#endif

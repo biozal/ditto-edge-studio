@@ -22,10 +22,10 @@ struct AppPreferencesView: View {
 // MARK: - General Tab
 
 private struct GeneralPreferencesTab: View {
-    @AppStorage("metricsEnabled") private var metricsEnabled = true
-    @AppStorage("collectSystemMetrics") private var collectSystemMetrics = true
-    @AppStorage("mcpServerEnabled") private var mcpServerEnabled = false
-    @AppStorage("mcpServerPort") private var mcpServerPort = 65269
+    @AppStorage("metricsEnabled", store: StudioPreferences.store) private var metricsEnabled = true
+    @AppStorage("collectSystemMetrics", store: StudioPreferences.store) private var collectSystemMetrics = true
+    @AppStorage("mcpServerEnabled", store: StudioPreferences.store) private var mcpServerEnabled = false
+    @AppStorage("mcpServerPort", store: StudioPreferences.store) private var mcpServerPort = 65269
     @State private var isServerActuallyRunning = false
 
     var body: some View {

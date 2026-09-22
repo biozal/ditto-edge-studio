@@ -557,7 +557,7 @@ enum MCPToolHandlers {
     // MARK: get_query_metrics
 
     private static func getQueryMetrics() async throws -> String {
-        let isEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+        let isEnabled = StudioPreferences.store.bool(forKey: "metricsEnabled")
         guard isEnabled else {
             return "Query metrics are disabled. Enable them in Settings → General → Metrics."
         }

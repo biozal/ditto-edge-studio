@@ -55,6 +55,12 @@
             reference = "container:Edge Debug Helper.xcodeproj/xcshareddata/xctestplans/Edge Studio.xctestplan"
             default = "YES">
          </TestPlanReference>
+         <TestPlanReference reference = "container:Edge Debug Helper.xcodeproj/xcshareddata/xctestplans/Edge Studio Mobile Smoke.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference reference = "container:Edge Debug Helper.xcodeproj/xcshareddata/xctestplans/Edge Studio Mobile Regression.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference reference = "container:Edge Debug Helper.xcodeproj/xcshareddata/xctestplans/Edge Studio Mobile Accessibility.xctestplan">
+         </TestPlanReference>
       </TestPlans>
    </TestAction>
    <LaunchAction

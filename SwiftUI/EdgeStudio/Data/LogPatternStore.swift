@@ -47,7 +47,7 @@ final class LogPatternStore {
                 in: .userDomainMask
             )[0]
             self.userPatternsFileURL = appSupport
-                .appendingPathComponent("ditto_edge_studio", isDirectory: true)
+                .appendingPathComponent(UITestConfiguration.current.storageDirectoryName, isDirectory: true)
                 .appendingPathComponent("log-analyzer", isDirectory: true)
                 .appendingPathComponent("user_patterns.json")
         }

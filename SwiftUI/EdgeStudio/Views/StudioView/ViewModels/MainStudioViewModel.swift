@@ -80,7 +80,7 @@ extension MainStudioView {
                     suppressDestinationPersistence = false
                     return
                 }
-                UserDefaults.standard.set(
+                StudioPreferences.store.set(
                     selectedSidebarDestination.rawValue,
                     forKey: Self.sidebarDestinationKey
                 )
@@ -137,7 +137,7 @@ extension MainStudioView {
             // gates metrics destinations on `metricsEnabled` so a stale
             // persisted metrics tab can't strand the user on a hidden
             // destination.
-            let storedDestination = UserDefaults.standard
+            let storedDestination = StudioPreferences.store
                 .string(forKey: Self.sidebarDestinationKey)
                 .flatMap(SidebarDestination.init(rawValue:))
             selectedSidebarDestination = storedDestination ?? .subscriptions
@@ -289,7 +289,7 @@ extension MainStudioView {
                 // no separate-window presentation for it. Posting regardless
                 // asked SwiftUI to open a scene that does not exist there.
                 #if os(macOS)
-                let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
+                let showWelcome = StudioPreferences.store.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
                 // Never auto-open the welcome window under UI tests — it spawns a
                 // second window that steals focus and blocks element queries.
                 if showWelcome, !isRunningUITests() {

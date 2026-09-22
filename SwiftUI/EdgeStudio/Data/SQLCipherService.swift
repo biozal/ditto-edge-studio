@@ -235,7 +235,7 @@ actor SQLCipherService {
             "ditto_edge_studio_unit_test"
         } else if isUITesting {
             // UI tests
-            "ditto_edge_studio_test"
+            UITestConfiguration.current.storageDirectoryName
         } else {
             // Normal app usage
             "ditto_edge_studio"

@@ -1,0 +1,42 @@
+{
+  "configurations": [
+    {
+      "id": "B82073FA-44B6-482D-81C5-A2D1090F952D",
+      "name": "Default",
+      "options": {}
+    },
+    {
+      "id": "F4AB246A-C5E3-4D42-976E-DFA570E7B4E5",
+      "name": "Dark Large Text",
+      "options": {
+        "environmentVariableEntries": [
+          {
+            "key": "EDGE_UI_TEST_DARK_LARGE_TEXT",
+            "value": "1",
+            "enabled": true
+          }
+        ]
+      }
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "testExecutionOrdering": "random",
+    "language": "en",
+    "region": "US"
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "MobileAccessibilityUITests"
+      ],
+      "target": {
+        "containerPath": "container:Edge Debug Helper.xcodeproj",
+        "identifier": "0DD95EBB2F4585430063C203",
+        "name": "EdgeStudioUITests"
+      }
+    }
+  ],
+  "version": 1
+}

@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  NavigationLifecycleUITests.swift
 //  EdgeStudioUITests
@@ -151,3 +152,5 @@ final class NavigationLifecycleUITests: UITestBase {
 
     // `openStudio()` and `navItem(_:)` are inherited from UITestBase.
 }
+
+#endif

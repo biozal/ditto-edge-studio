@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  AdvancedConfigurationUITests.swift
 //  EdgeStudioUITests
@@ -114,3 +115,5 @@ final class AdvancedConfigurationUITests: UITestBase {
         }
     }
 }
+
+#endif
