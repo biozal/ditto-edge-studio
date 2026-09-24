@@ -3,7 +3,6 @@ import Testing
 
 @Suite("StorageRepository Tests", .serialized)
 struct StorageRepositoryTests {
-
     @Suite("Error Paths")
     struct ErrorPathTests {
         @Test("fetchStorageSnapshot throws when no database selected", .tags(.repository, .storage))
@@ -16,11 +15,10 @@ struct StorageRepositoryTests {
 
     @Suite("File Categorization")
     struct CategorizationTests {
-
         @Test("ditto_store/ files go to storeBytes", .tags(.storage))
         func testStoreDirectory() {
             let files: [(path: String, sizeInBytes: Int)] = [
-                ("/data/ditto_store/db.sql", 5_000_000),
+                ("/data/ditto_store/db.sql", 5_000_000)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.storeBytes == 5_000_000)
@@ -30,7 +28,7 @@ struct StorageRepositoryTests {
         @Test("ditto_replication/ files go to replicationBytes", .tags(.storage))
         func testReplicationDirectory() {
             let files: [(path: String, sizeInBytes: Int)] = [
-                ("/data/ditto_replication/peerA/peerB/db.sql", 1_000_000),
+                ("/data/ditto_replication/peerA/peerB/db.sql", 1_000_000)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.replicationBytes == 1_000_000)
@@ -40,7 +38,7 @@ struct StorageRepositoryTests {
         @Test("ditto_attachments/ files go to attachmentsBytes", .tags(.storage))
         func testAttachmentsDirectory() {
             let files: [(path: String, sizeInBytes: Int)] = [
-                ("/data/ditto_attachments/db.sql", 2_000_000),
+                ("/data/ditto_attachments/db.sql", 2_000_000)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.attachmentsBytes == 2_000_000)
@@ -50,7 +48,7 @@ struct StorageRepositoryTests {
         func testAuthDirectory() {
             let files: [(path: String, sizeInBytes: Int)] = [
                 ("/data/ditto_auth/site.cbor", 1_024),
-                ("/data/ditto_auth_tmp/scratch", 512),
+                ("/data/ditto_auth_tmp/scratch", 512)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.authBytes == 1_536)
@@ -60,7 +58,7 @@ struct StorageRepositoryTests {
         func testLogsDirectory() {
             let files: [(path: String, sizeInBytes: Int)] = [
                 ("/data/ditto_logs/ditto-2026.log", 400_000),
-                ("/data/ditto_logs/ditto-2025.log.gz", 200_000),
+                ("/data/ditto_logs/ditto-2025.log.gz", 200_000)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.logsBytes == 600_000)
@@ -77,7 +75,7 @@ struct StorageRepositoryTests {
         func testWalShmPriority() {
             let files: [(path: String, sizeInBytes: Int)] = [
                 ("/data/ditto_store/db.sql-wal", 10_000_000),
-                ("/data/ditto_replication/peer/db.sql-shm", 4_096),
+                ("/data/ditto_replication/peer/db.sql-shm", 4_096)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.walShmBytes == 10_004_096)
@@ -90,7 +88,7 @@ struct StorageRepositoryTests {
             let files: [(path: String, sizeInBytes: Int)] = [
                 ("/data/ditto_system_info/db.sql", 50_000),
                 ("/data/__ditto_lock_file", 0),
-                ("/data/ditto_metrics/some.dat", 1_000),
+                ("/data/ditto_metrics/some.dat", 1_000)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.otherBytes == 51_000)
@@ -113,7 +111,7 @@ struct StorageRepositoryTests {
         func testWalPriorityOverLog() {
             // A file ending in -wal goes to walShmBytes even inside ditto_logs/
             let files: [(path: String, sizeInBytes: Int)] = [
-                ("/data/ditto_logs/app-wal", 100),
+                ("/data/ditto_logs/app-wal", 100)
             ]
             let b = StorageRepository.categorizeFiles(files)
             #expect(b.walShmBytes == 100)

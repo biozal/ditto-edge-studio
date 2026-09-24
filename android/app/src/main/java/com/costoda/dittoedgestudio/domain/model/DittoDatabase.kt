@@ -16,6 +16,12 @@ data class DittoDatabase(
     val isLanEnabled: Boolean = true,
     val isAwdlEnabled: Boolean = false,
     val isCloudSyncEnabled: Boolean = true,
+    // Reliable UDP multicast transport (beta, Ditto SDK 5.1.0). Default OFF — unlike
+    // the other p2p transports it requires all peers on the same L2 segment.
+    val isMulticastEnabled: Boolean = false,
+    val multicastGroupAddress: String = MulticastConfig.DEFAULT_GROUP_ADDRESS,
+    val multicastPort: Int = MulticastConfig.DEFAULT_PORT,
+    val multicastInterfaceName: String? = null,
     val logLevel: String = "info",
     val isStrictModeEnabled: Boolean = false,
     val collectionSyncScopes: List<CollectionSyncScope> = emptyList(),
@@ -28,6 +34,15 @@ data class DittoDatabase(
      */
     val hasCorruptSyncScopes: Boolean = false,
 ) {
+    /** The multicast columns viewed as one config object (SDK boundary shape). */
+    val multicastConfig: MulticastConfig
+        get() = MulticastConfig(
+            enabled = isMulticastEnabled,
+            groupAddress = multicastGroupAddress,
+            port = multicastPort,
+            interfaceName = multicastInterfaceName,
+        )
+
     companion object {
         fun empty(): DittoDatabase = DittoDatabase()
     }

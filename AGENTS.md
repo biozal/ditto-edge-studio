@@ -8,7 +8,6 @@ do not assume that every agent loads it automatically.
 
 - `SwiftUI/`: primary macOS/iPadOS app (Swift and SwiftUI)
 - `android/`: Android companion app (Kotlin and Jetpack Compose)
-- `dotnet/`: archived Avalonia implementation; reference only, no new features
 - `docs/`: approved technical and user documentation
 - `plans/`: implementation plans and research awaiting implementation
 - `screens/`: screenshots and design references
@@ -56,7 +55,6 @@ In short:
 
 Determine the target platform from the requested files or feature. Do not make
 parallel changes across SwiftUI and Android unless the user asks for parity.
-Do not implement new work in `dotnet/`.
 
 ## Verification
 
@@ -87,4 +85,3 @@ ones (e.g. `navigation-3`, `styles`, `testing-setup`) with
 - Flag use of transitive presence peers where direct connections are required;
   follow `docs/PRESENCE_GRAPH.md`.
 - Flag new production code without proportionate tests.
-- Flag feature work added to the archived `dotnet/` implementation.

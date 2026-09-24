@@ -56,7 +56,7 @@ struct MCPServerLifecycleTests {
         try await MCPTestHelpers.withServer {
             // ACT — POST a MUTATING tool call (set_sync) referencing a session
             // that was never established via GET /mcp
-            var request = URLRequest(url: URL(string: "\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist")!)
+            var request = URLRequest(url: try MCPTestHelpers.requireURL("\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist"))
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = Data(
@@ -81,7 +81,7 @@ struct MCPServerLifecycleTests {
             // with 404 BEFORE the JSON-RPC handler runs at all. This ordering
             // proof is what guarantees the mutating-tool test above never
             // executes its tool either.
-            var request = URLRequest(url: URL(string: "\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist")!)
+            var request = URLRequest(url: try MCPTestHelpers.requireURL("\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist"))
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = Data(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#.utf8)
@@ -96,7 +96,7 @@ struct MCPServerLifecycleTests {
     func `POST with unknown sessionId still 404s for the stateless tools/list path`() async throws {
         try await MCPTestHelpers.withServer {
             // ACT — read-only method, same guard applies
-            var request = URLRequest(url: URL(string: "\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist")!)
+            var request = URLRequest(url: try MCPTestHelpers.requireURL("\(MCPTestHelpers.baseURL)/mcp?sessionId=does-not-exist"))
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = Data(#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"#.utf8)
@@ -113,7 +113,7 @@ struct MCPServerLifecycleTests {
             try await MCPTestHelpers.withSSESession { sessionId in
                 // ACT — POST a mutating tool call against the live session
                 var request = URLRequest(
-                    url: URL(string: "\(MCPTestHelpers.baseURL)/mcp?sessionId=\(sessionId)")!
+                    url: try MCPTestHelpers.requireURL("\(MCPTestHelpers.baseURL)/mcp?sessionId=\(sessionId)")
                 )
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -208,7 +208,7 @@ struct MCPServerLifecycleTests {
             // silently accepted (202) with the response going into a dead
             // connection. Uses a mutating tool to mirror the retry hazard.
             var request = URLRequest(
-                url: URL(string: "\(MCPTestHelpers.baseURL)/mcp?sessionId=\(sessionId)")!
+                url: try MCPTestHelpers.requireURL("\(MCPTestHelpers.baseURL)/mcp?sessionId=\(sessionId)")
             )
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

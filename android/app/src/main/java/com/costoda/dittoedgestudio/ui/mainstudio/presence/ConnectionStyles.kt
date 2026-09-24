@@ -33,11 +33,13 @@ import com.costoda.dittoedgestudio.domain.model.ConnectionType
 //   accessPoint -> [20, 6]             long bars              ━━━━━ ━━━━━ ━━━━━
 //   p2pWiFi     -> [6, 6]              equal dash + gap       ━━ ━━ ━━ ━━ ━━
 //   webSocket   -> [12, 5, 2, 5]       dash-dot               ━━━━ • ━━━━ • ━━━━
+//   multicast   -> [2, 3]              dotted                 · · · · · · ·
 //   cloud       -> [10, 5] + circles   short dash + glyphs    ━━ ● ━━ ● ━━ ● ━━
 internal val DashBluetoothDp: FloatArray = floatArrayOf(2f, 7f)
 internal val DashLanDp: FloatArray = floatArrayOf(20f, 6f)
 internal val DashP2pWifiDp: FloatArray = floatArrayOf(6f, 6f)
 internal val DashWebSocketDp: FloatArray = floatArrayOf(12f, 5f, 2f, 5f)
+internal val DashMulticastDp: FloatArray = floatArrayOf(2f, 3f)
 internal val DashCloudDp: FloatArray = floatArrayOf(10f, 5f)
 
 // Light/dark hex pairs per the plan table.
@@ -49,6 +51,12 @@ private val P2pWifiLight = Color(0xFFC71A38)
 private val P2pWifiDark = Color(0xFFE04657)
 private val WebSocketLight = Color(0xFFD97A00)
 private val WebSocketDark = Color(0xFFF09518)
+
+// Multicast golden-yellow (#FFD60A) from the VS Code extension's legend; the light
+// variant is darkened (the extension's gradient end rgb(170,125,0)) to keep contrast
+// on light surfaces.
+private val MulticastLight = Color(0xFFAA7D00)
+private val MulticastDark = Color(0xFFFFD60A)
 private val CloudLight = Color(0xFF7326B8)
 private val CloudDark = Color(0xFF9445D6)
 private val FallbackLight = Color(0xFF666666)
@@ -78,6 +86,7 @@ internal fun resolveColor(type: ConnectionType, isCloud: Boolean, dark: Boolean)
         ConnectionType.LAN -> if (dark) LanDark else LanLight
         ConnectionType.P2PWiFi -> if (dark) P2pWifiDark else P2pWifiLight
         ConnectionType.WebSocket -> if (dark) WebSocketDark else WebSocketLight
+        ConnectionType.Multicast -> if (dark) MulticastDark else MulticastLight
         ConnectionType.Unknown -> if (dark) FallbackDark else FallbackLight
     }
 }
@@ -92,6 +101,7 @@ internal fun dashIntervalsDp(type: ConnectionType, isCloud: Boolean): FloatArray
     type == ConnectionType.LAN -> DashLanDp
     type == ConnectionType.P2PWiFi -> DashP2pWifiDp
     type == ConnectionType.WebSocket -> DashWebSocketDp
+    type == ConnectionType.Multicast -> DashMulticastDp
     else -> DashP2pWifiDp
 }
 

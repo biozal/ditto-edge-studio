@@ -242,6 +242,19 @@ The app uses a custom RAL color palette defined in `ui/theme/Color.kt`:
 
 Always use these named tokens — never hardcode hex values in UI code.
 
+## Drag-to-reorder (Pinned metrics)
+
+Before touching drag-to-reorder in the Pinned accordion on the System Metrics
+screen, read [`../docs/PINNED_REORDER.md`](../docs/PINNED_REORDER.md) in full.
+The algorithm is shared with SwiftUI, function for function
+(`SystemMetricsPinOrdering.dropIndex` / `.gapOffset`), and the two must stay in
+step.
+
+Key rule: **never reorder the list while a drag is in flight.** It moves the
+dragged row's composable to a new slot and tears down the `pointerInput` that
+owns the gesture — the defect fixed in `0bda9c3`. The list stays still; only the
+offsets change, and the order is committed once on release.
+
 ## Testing
 
 - **Unit tests:** `app/src/test/` — JUnit4, run with `./gradlew test`
@@ -280,7 +293,13 @@ The app supports cross-platform QR code sharing of database configs, compatible 
 - **zlib:** `Deflater(DEFAULT_COMPRESSION, nowrap=false)` / `Inflater(nowrap=false)` — RFC 1950 standard format, matches Apple's `.zlib` compression
 - **Max payload:** 2200 characters. Favorites are dropped if payload would exceed this limit with them included.
 - **`_id` field on import:** Ignored — Room generates a new auto-increment `Long` id for each imported config
-- **Duplicate handling:** `OnConflictStrategy.REPLACE` in the DAO; scanning the same QR twice upserts silently
+- **Duplicate handling:** scanning a QR for an already-registered `databaseId` **updates the
+  existing row in place**, preserving its subscriptions, observers, favorites and history.
+  The DAO insert is `OnConflictStrategy.ABORT`, deliberately — it used to be `REPLACE`, and
+  SQLite REPLACE resolves a conflict by *deleting* the conflicting parent row, which
+  cascade-wiped every child row for that database with no warning and no undo. Re-sharing a
+  config is the feature's main use, so this destroyed exactly the people who used it as
+  intended. `DatabaseRepositoryImpl.save` resolves the duplicate before inserting.
 
 ### Key Files
 

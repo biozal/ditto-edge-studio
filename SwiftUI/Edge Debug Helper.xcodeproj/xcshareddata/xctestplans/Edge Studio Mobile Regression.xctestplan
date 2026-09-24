@@ -1,0 +1,30 @@
+{
+  "configurations": [
+    {
+      "id": "6F4EB66F-4F6C-4E70-841D-1D526C0778BA",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "testExecutionOrdering": "random",
+    "language": "en",
+    "region": "US"
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "MobileSmokeUITests",
+        "MobileWorkspaceUITests"
+      ],
+      "target": {
+        "containerPath": "container:Edge Debug Helper.xcodeproj",
+        "identifier": "0DD95EBB2F4585430063C203",
+        "name": "EdgeStudioUITests"
+      }
+    }
+  ],
+  "version": 1
+}

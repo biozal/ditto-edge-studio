@@ -96,7 +96,24 @@ val dataModule = module {
     single { AppPreferences(androidContext().appPreferencesDataStore) }
     single<AppPreferencesGateway> { get<AppPreferences>() }
     single { DittoLogCaptureService(get<LoggingService>(), get<CoroutineScope>()) }
-    single { DittoManager(get<CoroutineScope>(), get<DittoLogCaptureService>()) }
+    single {
+        com.costoda.dittoedgestudio.data.logging.LogPatternStore(
+            userPatternsFile = java.io.File(androidContext().filesDir, "log-analyzer/user_patterns.json"),
+            bundledJsonLoader = {
+                runCatching {
+                    androidContext().assets.open("problem_patterns.json").bufferedReader().use { it.readText() }
+                }.getOrNull()
+            },
+        )
+    }
+    single {
+        DittoManager(
+            get<CoroutineScope>(),
+            get<DittoLogCaptureService>(),
+            get<AppPreferencesGateway>(),
+            com.costoda.dittoedgestudio.data.ditto.MulticastLockController(androidContext()),
+        )
+    }
     single<SystemRepository> {
         SystemRepositoryImpl(
             get<CoroutineScope>(),
@@ -108,6 +125,7 @@ val dataModule = module {
     single { okhttp3.OkHttpClient() }
     single { kotlinx.serialization.json.Json { ignoreUnknownKeys = true } }
     single { LocalQueryExecutionService(get<com.costoda.dittoedgestudio.data.ditto.DittoManager>()) }
+    single { com.costoda.dittoedgestudio.data.repository.JsonImportService(get<com.costoda.dittoedgestudio.data.ditto.DittoManager>()) }
     single {
         com.costoda.dittoedgestudio.data.repository.HttpQueryExecutionService(
             client = get(),
@@ -230,6 +248,9 @@ val dataModule = module {
                 collectionsRepository = get(),
                 loggingCaptureService = get(),
                 observableRepository = get(),
+                historyRepository = get(),
+                appPreferences = get(),
+                context = androidContext(),
             )
         } onClose { it?.close() }
     }

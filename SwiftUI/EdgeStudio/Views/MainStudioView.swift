@@ -16,10 +16,11 @@ struct MainStudioView: View {
     /// `.sheet(isPresented:)` modifiers driven by independent `Bool` flags.
     @State var activeSheet: ActiveSheet?
     /// Persists the sync detail's sub-tab (Peers List / Presence Viewer) across app launches.
-    @AppStorage("selectedSyncTab") var selectedSyncTab = 0
+    @AppStorage("selectedSyncTab", store: StudioPreferences.store) var selectedSyncTab = 0
     /// Shared VM for the Presence Viewer. Lives at MainStudioView level so the
     /// `syncTabsDetailView` body can BOTH host the viewer AND inject its controls
-    /// (Direct toggle, reset, ± zoom) as `DetailBottomBar` middle-content.
+    /// into the native trailing Viewer Controls menu on iOS (or the floating
+    /// `DetailBottomBar` on macOS).
     @State var presenceViewerVM = PresenceViewerSK.ViewModel()
     @State var queryCurrentPage = 1
     @State var queryPageSize = 10
@@ -43,7 +44,7 @@ struct MainStudioView: View {
 
     /// Mirrors the UserDefaults "metricsEnabled" key; drives sidebar visibility.
     /// Updated by the macOS Settings window or iOS Settings app via @AppStorage KVO.
-    @AppStorage("metricsEnabled") var metricsEnabled = true
+    @AppStorage("metricsEnabled", store: StudioPreferences.store) var metricsEnabled = true
 
     /// Inspector state
     @State var showInspector = false
@@ -211,92 +212,28 @@ struct MainStudioView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading) {
-                #if os(iOS)
-                if horizontalSizeClass == .compact {
-                    HStack {
-                        Spacer()
-                        Button {
-                            preferredCompactColumn = .detail
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss sidebar")
-                        .accessibilityIdentifier("SidebarDismissButton")
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                }
-                #endif
                 unifiedSidebarView()
-
-                // Bottom Toolbar in Sidebar
-                HStack {
-                    Menu {
-                        Button(
-                            "Add Subscription",
-                            systemImage: "arrow.trianglehead.2.clockwise"
-                        ) {
-                            viewModel.subObsVM.stageNewSubscription()
-                            activeSheet = .editSubscription
-                        }
-                        Button("Add Observer", systemImage: "eye") {
-                            viewModel.subObsVM.stageNewObservable()
-                            activeSheet = .editObserver
-                        }
-                        Button("Add Index", systemImage: "plus.magnifyingglass") {
-                            activeSheet = .addIndex
-                        }
-
-                        Divider()
-
-                        Button("Import Subscriptions → QR Code", systemImage: "qrcode.viewfinder") {
-                            activeSheet = .subscriptionQRScanner
-                        }
-
-                        // Only show Import from Server when HTTP API is configured
-                        if !viewModel.selectedApp.httpApiUrl.isEmpty &&
-                            !viewModel.selectedApp.httpApiKey.isEmpty
-                        {
-                            Button("Import Subscriptions → Server", systemImage: "arrow.down.circle") {
-                                activeSheet = .importSubscriptions
-                            }
-                        }
-
-                        Divider()
-
-                        Button("Import JSON Data", systemImage: "arrow.up") {
-                            activeSheet = .importJSON
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(.black)
-                            .frame(width: 56, height: 56)
-                            .background(Color.dittoYellow)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, 12)
-                #if os(iOS)
-                    .padding(.bottom, 28)
-                #else
-                    .padding(.bottom, 12)
-                #endif
             }
             .padding(.leading, 16)
             .padding(.trailing, 16)
             .padding(.top, 12)
             .padding(.bottom, 16) // Add padding for status bar height
-            .navigationSplitViewColumnWidth(
-                min: 200,
-                ideal: 260,
-                max: 320
-            )
+            #if os(iOS)
+                .toolbar {
+                    // This toolbar belongs to the sidebar, so it is visible only
+                    // while the compact split view presents that column. Native
+                    // toolbar chrome supplies Liquid Glass and adapts the action
+                    // into iPhone Duo's vertical control rail.
+                    if horizontalSizeClass == .compact {
+                        sidebarDismissToolbarButton()
+                    }
+                }
+            #endif
+                .navigationSplitViewColumnWidth(
+                    min: 200,
+                    ideal: 260,
+                    max: 320
+                )
         } detail: {
             Group {
                 if viewModel.isLoading {
@@ -317,15 +254,45 @@ struct MainStudioView: View {
                         #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
                         #endif
+                    case .systemMetrics:
+                        SystemMetricsDetailView(
+                            databaseId: viewModel.selectedApp._id,
+                            service: viewModel.systemMetricsService
+                        )
+                        #if os(iOS)
+                            .toolbar { passiveDetailToolbar() }
+                        #endif
                     case .queryMetrics:
                         QueryMetricsDetailView()
                         #if os(iOS)
                             .toolbar { passiveDetailToolbar() }
                         #endif
                     case .logging:
-                        LoggingDetailView()
                         #if os(iOS)
-                            .toolbar { passiveDetailToolbar() }
+                        LoggingDetailView(
+                            leadingToolbar: {
+                                if showsLeadingSidebarToggle {
+                                    sidebarToggleButton()
+                                }
+                                studioActionsToolbarMenu()
+                            },
+                            trailingWorkspaceToolbar: {
+                                workspaceToolbarActions()
+                            }
+                        )
+                        #else
+                        // macOS does not render these injected iOS toolbar
+                        // slots. Keep its existing Logs header/footer and root
+                        // window toolbar unchanged while supplying concrete
+                        // toolbar-content types for this generic view.
+                        LoggingDetailView(
+                            leadingToolbar: {
+                                ToolbarItem(placement: .automatic) { EmptyView() }
+                            },
+                            trailingWorkspaceToolbar: {
+                                ToolbarItem(placement: .automatic) { EmptyView() }
+                            }
+                        )
                         #endif
                     }
                 }
@@ -334,6 +301,19 @@ struct MainStudioView: View {
             .transition(.blurReplace)
             .animation(.smooth(duration: 0.35), value: viewModel.selectedSidebarDestination)
             .animation(.smooth(duration: 0.35), value: viewModel.isLoading)
+            #if os(iOS)
+                // The detail toolbars own the compact Sidebar action. Hide
+                // NavigationSplitView's automatic back affordance so passive detail
+                // screens do not render a second control that opens the same sidebar.
+                .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+            #endif
+            #if os(iOS)
+            .toolbar {
+                if viewModel.selectedSidebarDestination != .logging {
+                    studioActionsToolbarMenu()
+                }
+            }
+            #endif
         }
         .navigationTitle(viewModel.selectedApp.name)
         #if os(macOS)
@@ -351,18 +331,8 @@ struct MainStudioView: View {
             }
         #if os(macOS)
             .toolbar {
-                syncCloseToolbarGroup() // Sync + Close grouped
-                inspectorToggleButton() // Inspector visually separate
-            }
-        #else
-            .toolbar {
-                // Compact-only: NavigationSplitView in regular size class already
-                // exposes a system column toggle; avoid duplicating it.
-                if horizontalSizeClass == .compact {
-                    sidebarToggleButton() // Leading: open sidebar on iPhone / iPad Slide Over
-                }
-                syncToolbarButton() // Trailing: sync on/off
-                closeToolbarButton() // Trailing: back to database picker
+                studioActionsToolbarMenu()
+                workspaceToolbarActions()
             }
         #endif
             // Sync inspector items on first render (picks up the UserDefaults value after registerDefaults)
@@ -405,17 +375,80 @@ struct MainStudioView: View {
         }
     }
 
+    /// Creation and import actions belong to native toolbar chrome instead of a
+    /// custom floating sidebar control. This lets iPhone Duo keep the menu in
+    /// its trailing action rail and lets macOS present it in the window toolbar.
+    private var studioActionsMenu: some View {
+        Menu {
+            Button("Add Subscription", systemImage: "arrow.trianglehead.2.clockwise") {
+                viewModel.subObsVM.stageNewSubscription()
+                activeSheet = .editSubscription
+            }
+            Button("Add Observer", systemImage: "eye") {
+                viewModel.subObsVM.stageNewObservable()
+                activeSheet = .editObserver
+            }
+            Button("Add Index", systemImage: "plus.magnifyingglass") {
+                activeSheet = .addIndex
+            }
+
+            Divider()
+
+            Button("Import Subscriptions → QR Code", systemImage: "qrcode.viewfinder") {
+                activeSheet = .subscriptionQRScanner
+            }
+            if !viewModel.selectedApp.httpApiUrl.isEmpty &&
+                !viewModel.selectedApp.httpApiKey.isEmpty
+            {
+                Button("Import Subscriptions → Server", systemImage: "arrow.down.circle") {
+                    activeSheet = .importSubscriptions
+                }
+            }
+
+            Divider()
+
+            Button("Import JSON Data", systemImage: "arrow.up") {
+                activeSheet = .importJSON
+            }
+        } label: {
+            Label("Add", systemImage: "plus")
+        }
+        .accessibilityIdentifier("StudioActionsMenu")
+    }
+
+    @ToolbarContentBuilder
+    func studioActionsToolbarMenu() -> some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "studioActions", placement: .primaryAction) {
+                studioActionsMenu
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "studioActions", placement: .primaryAction) {
+                studioActionsMenu
+            }
+        }
+        #else
+        ToolbarItem(id: "studioActions", placement: .primaryAction) {
+            studioActionsMenu
+        }
+        #endif
+    }
+
+    /// Label(title + symbol) instead of a bare Image: iPhone Duo presents bar
+    /// items vertically and drops any item that has neither a title nor a
+    /// symbol; the title also feeds the system overflow menu. See
+    /// "Preparing your app for iPhone Duo" — Organize items in your bars.
     private var syncButtonContent: some View {
         Button {
             Task {
                 do { try await viewModel.syncVM.toggleSync() } catch { appState.setError(error) }
             }
         } label: {
-            Image(systemName: "arrow.2.circlepath")
+            Label("Sync", systemImage: "arrow.2.circlepath")
                 .foregroundStyle(viewModel.syncVM.isSyncEnabled ? Color.green : Color.red)
         }
-        .buttonStyle(.glass)
-        .clipShape(Circle())
         .help(viewModel.syncVM.isSyncEnabled ? "Disable Sync" : "Enable Sync")
         // Distinct from the three bottom-bar sync buttons, which all use "SyncButton" —
         // a shared identifier makes an XCUITest query ambiguous. The value exposes the
@@ -434,20 +467,40 @@ struct MainStudioView: View {
                 isMainStudioViewPresented = false
             }
         } label: {
-            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+            Label("Close", systemImage: "xmark.circle.fill").foregroundStyle(.red)
         }
-        .buttonStyle(.glass)
-        .clipShape(Circle())
         .help("Close App")
         .accessibilityIdentifier("CloseButton")
     }
 
+    @ToolbarContentBuilder
     func syncToolbarButton() -> some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "syncButton", placement: .primaryAction) { syncButtonContent }
+                .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "syncButton", placement: .primaryAction) { syncButtonContent }
+        }
+        #else
         ToolbarItem(id: "syncButton", placement: .primaryAction) { syncButtonContent }
+        #endif
     }
 
+    @ToolbarContentBuilder
     func closeToolbarButton() -> some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) { closeButtonContent }
+        #if os(iOS)
+        // Closing a database changes the workspace; it is not cancellation of
+        // transient UI. Keep it with the other workspace actions on Duo.
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "closeDatabase", placement: .primaryAction) { closeButtonContent }
+                .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "closeDatabase", placement: .primaryAction) { closeButtonContent }
+        }
+        #else
+        ToolbarItem(placement: .cancellationAction) { closeButtonContent }
+        #endif
     }
 
     func syncCloseToolbarGroup() -> some ToolbarContent {
@@ -457,22 +510,63 @@ struct MainStudioView: View {
         }
     }
 
+    @ToolbarContentBuilder
     func inspectorToggleButton() -> some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                showInspector.toggle()
-            } label: {
-                Image(systemName: "sidebar.right")
-                    .foregroundStyle(showInspector ? .primary : .secondary)
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            // Inspector is a frequent workspace action. Keep it in Duo's trailing
+            // rail; the system can still overflow it only when space is constrained.
+            ToolbarItem(id: "inspector", placement: .primaryAction) {
+                inspectorToggleContent
             }
-            .buttonStyle(.glass)
-            .clipShape(Circle())
-            .help("Toggle Inspector")
-            .accessibilityIdentifier("Toggle Inspector")
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "inspector", placement: .primaryAction) {
+                inspectorToggleContent
+            }
         }
+        #else
+        ToolbarItem(placement: .primaryAction) {
+            inspectorToggleContent
+        }
+        #endif
+    }
+
+    private var inspectorToggleContent: some View {
+        Button {
+            showInspector.toggle()
+        } label: {
+            Label("Inspector", systemImage: "sidebar.right")
+                .foregroundStyle(showInspector ? .primary : .secondary)
+        }
+        .help("Toggle Inspector")
+        .accessibilityIdentifier("Toggle Inspector")
+    }
+
+    /// The persistent workspace controls are always declared after a screen's
+    /// contextual actions. This keeps the trailing order stable across the
+    /// Studio: Sync, Close, then Inspector.
+    @ToolbarContentBuilder
+    func workspaceToolbarActions() -> some ToolbarContent {
+        #if os(macOS)
+        syncCloseToolbarGroup()
+        inspectorToggleButton()
+        #else
+        syncToolbarButton()
+        closeToolbarButton()
+        inspectorToggleButton()
+        #endif
     }
 
     #if os(iOS)
+    /// Detail toolbars provide a sidebar toggle only while split-view navigation
+    /// is collapsed. On iPhone Duo’s open display the sidebar is already visible,
+    /// so a second toggle would duplicate both the navigation affordance and the
+    /// system’s vertical action rail.
+    var showsLeadingSidebarToggle: Bool {
+        horizontalSizeClass == .compact
+    }
+
     /// iOS-only toolbar bundle used by passive detail views (App Metrics,
     /// Query Metrics, Logging) that have no domain-specific toolbar of their
     /// own. NavigationSplitView's parent toolbar items don't surface in the
@@ -480,12 +574,26 @@ struct MainStudioView: View {
     /// declares its own.
     @ToolbarContentBuilder
     func passiveDetailToolbar() -> some ToolbarContent {
-        if horizontalSizeClass == .compact {
+        if showsLeadingSidebarToggle {
             sidebarToggleButton()
         }
-        syncToolbarButton()
-        closeToolbarButton()
-        inspectorToggleButton()
+        workspaceToolbarActions()
+    }
+
+    /// Native Presence action so iPhone Duo can place it in the shared detail
+    /// toolbar instead of leaving a custom gear button in the content header.
+    @ToolbarContentBuilder
+    func transportSettingsToolbarButton() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "transportSettings", placement: .primaryAction) {
+                TransportSettingsButton()
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "transportSettings", placement: .primaryAction) {
+                TransportSettingsButton()
+            }
+        }
     }
 
     func sidebarToggleButton() -> some ToolbarContent {
@@ -493,9 +601,36 @@ struct MainStudioView: View {
             Button {
                 preferredCompactColumn = .sidebar
             } label: {
-                Image(systemName: "sidebar.left")
+                Label("Sidebar", systemImage: "sidebar.left")
             }
             .accessibilityIdentifier("SidebarToggleButton")
+        }
+    }
+
+    /// Dismisses a compact sidebar without changing its selected destination.
+    /// As a native primary action, the system renders this as a Liquid Glass
+    /// control in the standard top bar on iPhone and iPad, and moves it into
+    /// iPhone Duo's trailing vertical action rail when supported.
+    private var sidebarDismissButtonContent: some View {
+        Button {
+            preferredCompactColumn = .detail
+        } label: {
+            Label("Dismiss Sidebar", systemImage: "xmark")
+        }
+        .accessibilityIdentifier("SidebarDismissButton")
+    }
+
+    @ToolbarContentBuilder
+    func sidebarDismissToolbarButton() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "dismissSidebar", placement: .primaryAction) {
+                sidebarDismissButtonContent
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "dismissSidebar", placement: .primaryAction) {
+                sidebarDismissButtonContent
+            }
         }
     }
     #endif
@@ -639,6 +774,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
     case observers
     case appMetrics
     case queryMetrics
+    case systemMetrics
     case logging
 
     var id: String {
@@ -654,6 +790,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
         case .observers: "Observation"
         case .appMetrics: "App Metrics"
         case .queryMetrics: "Query Metrics"
+        case .systemMetrics: "System Metrics"
         case .logging: "Log Analyzer"
         }
     }
@@ -666,12 +803,13 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Codable {
         case .observers: "eye"
         case .appMetrics: "cpu"
         case .queryMetrics: "text.magnifyingglass"
+        case .systemMetrics: "waveform.path.ecg"
         case .logging: "doc.plaintext.fill"
         }
     }
 
     /// True when this destination should only appear when telemetry is enabled.
     var isMetricsDestination: Bool {
-        self == .appMetrics || self == .queryMetrics
+        self == .appMetrics || self == .queryMetrics || self == .systemMetrics
     }
 }

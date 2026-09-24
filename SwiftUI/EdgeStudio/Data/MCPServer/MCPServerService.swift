@@ -166,7 +166,47 @@ final class MCPHTTPConnectionHandler: @unchecked Sendable {
 
     // MARK: Request Routing
 
+    /// Rejects requests that a browser could have been tricked into sending.
+    ///
+    /// The server binds to localhost and emits no CORS headers, and `docs/MCP_SERVER.md`
+    /// used to claim that was the defence. It is not. A page the user merely visits can
+    /// `fetch('http://localhost:65269/mcp', {method:'POST', body:'…'})`; the default
+    /// `Content-Type: text/plain` makes that a CORS *simple request*, so no preflight is
+    /// issued and the browser sends it. Absent CORS response headers only stop the page
+    /// from *reading* the reply — `execute_dql`, `set_sync`, `drop_index` and
+    /// `configure_transport` have already run against the developer's live database.
+    ///
+    /// Two checks close it, both from the MCP local-server guidance:
+    ///
+    /// - **`Origin` must be absent.** Browsers attach `Origin` to every cross-origin
+    ///   fetch/XHR and cannot forge its absence. CLI agents (the only supported clients)
+    ///   don't send one. So any request carrying `Origin` came from a web page.
+    /// - **`Host` must be loopback.** Blocks DNS rebinding, where an attacker-controlled
+    ///   name resolves to 127.0.0.1 so the page's own origin *is* the server.
+    private func rejectIfBrowserOriginated(_ request: HTTPRequest) -> Bool {
+        if let origin = request.headers["origin"], !origin.isEmpty {
+            Log.warning("MCP: rejected request carrying Origin '\(origin)' — browser clients are not supported")
+            sendTextResponse(status: 403, body: "Forbidden: browser-originated requests are not accepted")
+            return true
+        }
+        if let host = request.headers["host"] {
+            // Strip the port; IPv6 literals arrive bracketed as `[::1]:65269`.
+            let hostname = host.hasPrefix("[")
+                ? String(host.dropFirst().prefix(while: { $0 != "]" }))
+                : String(host.prefix(while: { $0 != ":" }))
+            let allowed = ["localhost", "127.0.0.1", "::1"]
+            if !allowed.contains(hostname.lowercased()) {
+                Log.warning("MCP: rejected request for non-loopback Host '\(host)' — possible DNS rebinding")
+                sendTextResponse(status: 403, body: "Forbidden: unrecognized Host")
+                return true
+            }
+        }
+        return false
+    }
+
     private func handleRequest(_ request: HTTPRequest) async {
+        guard !rejectIfBrowserOriginated(request) else { return }
+
         switch (request.method, request.path) {
         case ("GET", "/health"):
             sendTextResponse(status: 200, body: "OK")
@@ -329,7 +369,7 @@ actor MCPServerService {
     private(set) var isRunning = false
 
     var port: UInt16 {
-        let p = UserDefaults.standard.integer(forKey: "mcpServerPort")
+        let p = StudioPreferences.store.integer(forKey: "mcpServerPort")
         // Clamp instead of trapping: `UInt16(p)` preconditions on
         // p <= 65535, and a corrupt UserDefaults value must not crash the
         // app — fall back to the default port.

@@ -57,7 +57,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
         // MARK: Private
 
         private func restoreFrame(in window: NSWindow) {
-            guard let saved = UserDefaults.standard.string(forKey: WindowFrameRestorer.frameKey) else {
+            guard let saved = StudioPreferences.store.string(forKey: WindowFrameRestorer.frameKey) else {
                 // No saved frame — enforce minimum size if the window is too small
                 enforceMinimum(in: window)
                 return
@@ -131,7 +131,7 @@ struct WindowFrameRestorer: NSViewRepresentable {
 
         private func saveFrame() {
             guard let window else { return }
-            UserDefaults.standard.set(
+            StudioPreferences.store.set(
                 NSStringFromRect(window.frame),
                 forKey: WindowFrameRestorer.frameKey
             )

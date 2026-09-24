@@ -1,5 +1,6 @@
 package com.costoda.dittoedgestudio.ui.components
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -28,8 +29,9 @@ import com.costoda.dittoedgestudio.ui.theme.TrafficWhite
  * (https://m3.material.io/components/button-groups/guidelines), and the Android counterpart
  * of the segmented controls used in the SwiftUI app and the VS Code plugin.
  *
- * Selected segment: SulfurYellow container, JetBlack content, leading checkmark, M3 shape morph.
- * Unselected segments: JetBlack container with TrafficWhite content.
+ * Selected segment (dark mode): SulfurYellow container, JetBlack content, leading checkmark,
+ * M3 shape morph. Unselected segments: JetBlack container with TrafficWhite content.
+ * In light mode the group uses the Material 3 default colours — see [dittoToggleButtonColors].
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -56,12 +58,7 @@ fun DittoConnectedButtonGroup(
                     options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
-                colors = ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = JetBlack,
-                    contentColor = TrafficWhite,
-                    checkedContainerColor = SulfurYellow,
-                    checkedContentColor = JetBlack,
-                ),
+                colors = dittoToggleButtonColors(),
             ) {
                 if (index == selectedIndex) {
                     Icon(
@@ -116,12 +113,7 @@ fun DittoConnectedIconButtonGroup(
                     icons.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                     else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
-                colors = ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = JetBlack,
-                    contentColor = TrafficWhite,
-                    checkedContainerColor = SulfurYellow,
-                    checkedContentColor = JetBlack,
-                ),
+                colors = dittoToggleButtonColors(),
             ) {
                 Icon(
                     imageVector = icon,
@@ -131,4 +123,30 @@ fun DittoConnectedIconButtonGroup(
             }
         }
     }
+}
+
+/**
+ * Segment colours for the connected button groups.
+ *
+ * The brand palette is applied **only in dark mode**. SulfurYellow reads as a
+ * bright accent against dark chrome, but in light mode a yellow fill with black
+ * text — sitting next to JetBlack *unselected* segments on a light surface — is
+ * heavy and muddy, and looks nothing like the rest of the system UI. In light
+ * mode the group therefore falls back to the Material 3 defaults, so it matches
+ * whatever colour scheme the app is already using.
+ *
+ * Mirrors `DittoSegmentedPicker` in the SwiftUI app, which makes the same
+ * dark-only choice for the same reason.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun dittoToggleButtonColors() = if (isSystemInDarkTheme()) {
+    ToggleButtonDefaults.toggleButtonColors(
+        containerColor = JetBlack,
+        contentColor = TrafficWhite,
+        checkedContainerColor = SulfurYellow,
+        checkedContentColor = JetBlack,
+    )
+} else {
+    ToggleButtonDefaults.toggleButtonColors()
 }

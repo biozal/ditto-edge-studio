@@ -92,7 +92,35 @@ final class SubscriptionObserverViewModel {
     func installCallbacks() async {
         await observableRepository.setOnObservablesUpdate { [weak self] observables in
             Task { @MainActor [weak self] in
-                self?.observerables = observables
+                guard let self else { return }
+                // Carry the LIVE `storeObserver` handles across the replacement.
+                //
+                // The repository's cache never holds one — `loadObservers` rebuilds each row
+                // with `storeObserver` nil ("must be re-registered by caller") — and
+                // `DittoObservable` is a struct, so assigning the repository's array
+                // wholesale silently dropped every live `DittoStoreObserver` without
+                // cancelling it. The handle exists only here (set in `startObserver`), so
+                // once overwritten nothing could ever stop those observers: they kept
+                // firing against a closed session and leaked one per save/remove.
+                let liveHandles = Dictionary(
+                    observerables.compactMap { row in
+                        row.storeObserver.map { (row.id, $0) }
+                    },
+                    uniquingKeysWith: { first, _ in first }
+                )
+                observerables = observables.map { incoming in
+                    var row = incoming
+                    if row.storeObserver == nil, let live = liveHandles[row.id] {
+                        row.storeObserver = live
+                    }
+                    return row
+                }
+                // Anything that vanished from the repository is genuinely gone — stop its
+                // observer rather than leaking it.
+                let survivingIds = Set(observables.map(\.id))
+                for (id, handle) in liveHandles where !survivingIds.contains(id) {
+                    handle.cancel()
+                }
             }
         }
         await subscriptionsRepository.setOnSubscriptionsUpdate { [weak self] newSubscriptions in

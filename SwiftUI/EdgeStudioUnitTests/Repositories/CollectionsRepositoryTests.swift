@@ -14,7 +14,7 @@ import Testing
 /// - Pure DQL builders: CREATE INDEX quoting/sanitisation, document-count
 ///   query quoting, system:indexes parsing and index-definition matching
 ///
-/// TODO: Integration tests needed
+/// Note: Integration tests planned
 /// Full integration tests (hydrateCollections with a real Ditto instance,
 /// refreshDocumentCounts accuracy, real-time observer updates) should be
 /// added to EdgeStudioIntegrationTests once a live Ditto test instance is
@@ -335,7 +335,7 @@ struct CollectionsRepositoryTests {
 
 // MARK: - Integration Test Stub
 
-// TODO: Integration tests needed
+// Note: Integration tests planned
 // The following tests require a live Ditto instance and belong in EdgeStudioIntegrationTests.
 // Add them when a Ditto test instance is available:
 //

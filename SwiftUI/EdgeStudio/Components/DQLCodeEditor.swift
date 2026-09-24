@@ -218,7 +218,27 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         context.coordinator.parent = self
-        if uiView.text != text {
+        // Distinguish a LAGGING re-render from a genuine programmatic write.
+        //
+        // The problem being solved: this editor's host re-renders often (the same body reads
+        // live sync/presence state), so `text` can arrive stale mid-typing; writing it back
+        // truncates in-flight input.
+        //
+        // But a plain `!uiView.isFirstResponder` guard — the shape the macOS branch uses —
+        // is wrong here, because on iPadOS plenty of things write the query while the
+        // keyboard is still up: tapping a collection in the sidebar, an inspector
+        // History/Favorites row (a side column on iPad, so nothing resigns focus), the query
+        // toolbar, and "generate DQL". Those writes were silently dropped, and the next
+        // keystroke pushed the stale editor text back over the model, losing them for good.
+        //
+        // Track synchronization in BOTH directions. A programmatic History/Favorites
+        // selection advances the baseline too, so typing A then selecting B then A
+        // cannot leave B displayed while the model executes A.
+        if context.coordinator.textReconciliation.shouldApply(
+            modelText: text,
+            editorText: uiView.text,
+            isFocused: uiView.isFirstResponder
+        ) {
             let selected = uiView.selectedRange
             context.coordinator.isApplyingHighlight = true
             uiView.text = text
@@ -233,6 +253,8 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
+        var textReconciliation = DQLTextReconciliation()
+
         static let editorFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
 
         var parent: DQLCodeEditorRepresentable
@@ -254,6 +276,7 @@ private struct DQLCodeEditorRepresentable: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isApplyingHighlight else { return }
+            textReconciliation.recordEditorChange(textView.text)
             parent.text = textView.text
             scheduleHighlight()
         }

@@ -38,6 +38,7 @@ fun SettingsScreen(
 ) {
     val metricsEnabled by viewModel.metricsEnabled.collectAsStateWithLifecycle()
     val presenceSplitView by viewModel.presenceSplitView.collectAsStateWithLifecycle()
+    val collectSystemMetrics by viewModel.collectSystemMetrics.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -78,6 +79,22 @@ fun SettingsScreen(
                     Switch(
                         checked = metricsEnabled,
                         onCheckedChange = { viewModel.setMetricsEnabled(it) },
+                    )
+                },
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("Collect system metrics") },
+                supportingContent = {
+                    Text(
+                        "Enables the SDK's system:metrics exporter for the Database " +
+                            "Metrics section. Takes effect the next time you open a database.",
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = collectSystemMetrics,
+                        onCheckedChange = { viewModel.setCollectSystemMetrics(it) },
                     )
                 },
             )

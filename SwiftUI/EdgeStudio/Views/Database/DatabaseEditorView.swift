@@ -43,15 +43,7 @@ struct DatabaseEditorView: View {
                 Form {
                     HStack {
                         Spacer()
-                        Picker("", selection: $viewModel.mode) {
-                            ForEach(AuthMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-                        .accessibilityIdentifier("AuthModePicker")
+                        authModePicker
                         Spacer()
                     }
                     #if os(macOS)
@@ -186,7 +178,9 @@ struct DatabaseEditorView: View {
                 hasUnsavedChanges = false
                 isPresented = false
             }
+            .accessibilityIdentifier("DiscardDatabaseChangesButton")
             Button("Keep Editing", role: .cancel) {}
+                .accessibilityIdentifier("KeepEditingDatabaseButton")
         } message: {
             Text("Your edits to this database configuration will be lost.")
         }
@@ -206,6 +200,42 @@ struct DatabaseEditorView: View {
     }
 
     // MARK: - View Builders
+
+    private var authModePicker: some View {
+        ViewThatFits(in: .horizontal) {
+            DittoSegmentedPicker(
+                options: AuthMode.allCases,
+                selection: $viewModel.mode
+            ) { $0.displayName }
+
+            // Keep every mode readable and reachable when large text cannot
+            // fit two equal-width segments. Labels can wrap without shrinking.
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(AuthMode.allCases, id: \.self) { mode in
+                    Button {
+                        viewModel.mode = mode
+                    } label: {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(mode.displayName)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            if viewModel.mode == mode {
+                                Image(systemName: "checkmark")
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(viewModel.mode == mode ? .isSelected : [])
+                }
+            }
+        }
+        .frame(maxWidth: 300)
+        .accessibilityIdentifier("AuthModePicker")
+    }
 
     @ViewBuilder
     private func authTokenField(for mode: AuthMode) -> some View {
@@ -823,6 +853,10 @@ extension DatabaseEditorView {
         var isLanEnabled = true
         var isAwdlEnabled = true
         var isCloudSyncEnabled = true
+        var isMulticastEnabled = false
+        var multicastGroupAddress = MulticastConfig.defaultGroupAddress
+        var multicastPort = MulticastConfig.defaultPort
+        var multicastInterfaceName: String?
 
         // MARK: Advanced Configuration
 
@@ -879,6 +913,10 @@ extension DatabaseEditorView {
             isLanEnabled = appConfig.isLanEnabled
             isAwdlEnabled = appConfig.isAwdlEnabled
             isCloudSyncEnabled = appConfig.isCloudSyncEnabled
+            isMulticastEnabled = appConfig.isMulticastEnabled
+            multicastGroupAddress = appConfig.multicastGroupAddress
+            multicastPort = appConfig.multicastPort
+            multicastInterfaceName = appConfig.multicastInterfaceName
             collectionSyncScopes = appConfig.collectionSyncScopes
             // Canonicalised on the way in: a stored `.boolean` row spelled `true`/`FALSE`
             // is valid but unrenderable — the value picker tags are exactly
@@ -1216,6 +1254,10 @@ extension DatabaseEditorView {
                     isLanEnabled: isLanEnabled,
                     isAwdlEnabled: isAwdlEnabled,
                     isCloudSyncEnabled: isCloudSyncEnabled,
+                    isMulticastEnabled: isMulticastEnabled,
+                    multicastGroupAddress: multicastGroupAddress,
+                    multicastPort: multicastPort,
+                    multicastInterfaceName: multicastInterfaceName,
                     logLevel: logLevel,
                     isStrictModeEnabled: isStrictModeEnabled,
                     collectionSyncScopes: normalizedSyncScopes(),

@@ -80,7 +80,7 @@ struct Ditto_Edge_StudioApp: App {
         // Register UserDefaults defaults so preference values are correct before the user
         // has ever opened the macOS Settings window or the iOS Settings app.
         // Without this, UserDefaults.bool(forKey:) returns false (not true) for absent keys.
-        UserDefaults.standard.register(defaults: [
+        StudioPreferences.store.register(defaults: [
             "metricsEnabled": true,
             "mcpServerEnabled": false,
             "mcpServerPort": 65269
@@ -93,7 +93,7 @@ struct Ditto_Edge_StudioApp: App {
         #endif
     }
 
-    @AppStorage("mcpServerEnabled") private var mcpServerEnabled = false
+    @AppStorage("mcpServerEnabled", store: StudioPreferences.store) private var mcpServerEnabled = false
 
     #if os(macOS)
     @State private var quickstartBrowserProjects: [QuickstartProject] = []
@@ -129,6 +129,13 @@ struct Ditto_Edge_StudioApp: App {
                     }
                 }
                 .environment(appState)
+            // The three utility windows below are declared inside the
+            // `#if os(macOS)` scene block, so these receivers have to be
+            // guarded too. Unguarded, iPadOS posted the notification (from
+            // `MainStudioViewModel`'s fresh-database path) and then asked
+            // SwiftUI to open a scene that does not exist on that platform:
+            // "No Scene with id 'welcome-window' is defined".
+            #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenFontDebugWindow"))) { _ in
                     openWindow(id: "font-debug-window")
                 }
@@ -138,7 +145,6 @@ struct Ditto_Edge_StudioApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenWelcomeWindow"))) { _ in
                     openWindow(id: "welcome-window")
                 }
-            #if os(macOS)
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowQuickstartBrowser"))) { notification in
                     if let userInfo = notification.userInfo,
                        let projects = userInfo["projects"] as? [QuickstartProject],
@@ -204,7 +210,7 @@ struct Ditto_Edge_StudioApp: App {
         // Welcome Window — first-run onboarding for fresh databases.
         // Opens automatically from MainStudioViewModel when a database
         // is selected with no subscriptions and no query history (gated
-        // on @AppStorage("showWelcomeOnNewDatabase") = true), or on
+        // on @AppStorage("showWelcomeOnNewDatabase", store: StudioPreferences.store) = true), or on
         // demand from the Help menu.
         WindowGroup(id: "welcome-window") {
             WelcomeWindow()

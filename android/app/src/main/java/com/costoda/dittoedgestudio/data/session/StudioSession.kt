@@ -19,7 +19,9 @@ import com.costoda.dittoedgestudio.domain.model.DittoSubscription
 import com.costoda.dittoedgestudio.domain.model.IndexField
 import com.costoda.dittoedgestudio.domain.model.LocalPeerInfo
 import com.costoda.dittoedgestudio.domain.model.MeshTopology
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.NetworkInterfaceInfo
+import com.costoda.dittoedgestudio.domain.model.ObserveEventStore
 import com.costoda.dittoedgestudio.domain.model.P2PTransportInfo
 import com.costoda.dittoedgestudio.domain.model.SyncStatusInfo
 import com.ditto.kotlin.DittoStoreObserver
@@ -34,15 +36,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -68,6 +74,9 @@ class StudioSession(
     val collectionsRepository: CollectionsRepository,
     val loggingCaptureService: DittoLogCaptureService,
     private val observableRepository: ObservableRepository,
+    private val historyRepository: com.costoda.dittoedgestudio.data.repository.HistoryRepository,
+    private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway,
+    private val context: android.content.Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val teardownDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -100,8 +109,30 @@ class StudioSession(
     val currentDittoIdFlow: StateFlow<String?> = _currentDittoId.asStateFlow()
     val currentDittoId: String? get() = _currentDittoId.value
 
-    private var currentDatabase: DittoDatabase? = null
+    private val _databaseConfig = MutableStateFlow<DittoDatabase?>(null)
+    val databaseConfig: StateFlow<DittoDatabase?> = _databaseConfig.asStateFlow()
+    private var currentDatabase: DittoDatabase?
+        get() = _databaseConfig.value
+        set(value) { _databaseConfig.value = value }
     fun currentDatabase(): DittoDatabase? = currentDatabase
+
+    // Whole-row config writes must copy the latest committed state, including
+    // when a Logs change overlaps a suspended transport save.
+    private val configMutationMutex = Mutex()
+
+    /** Persists the Logs toolbar choice in every active configuration copy. */
+    suspend fun saveLogLevel(level: com.ditto.kotlin.DittoLogLevel) =
+        withContext(sessionScope.coroutineContext) {
+            configMutationMutex.withLock {
+                val database = currentDatabase ?: error("No active database")
+                val updated = database.copy(
+                    logLevel = com.costoda.dittoedgestudio.data.logging.sdkLogLevelConfigValue(level),
+                )
+                databaseRepository.save(updated)
+                currentDatabase = updated
+                dittoManager.refreshActiveConfigIfMatching(updated)
+            }
+        }
 
     // ── Sync / transport state ────────────────────────────────────────────────
     private val _syncEnabled = MutableStateFlow(false)
@@ -119,23 +150,283 @@ class StudioSession(
     private val _transportCloudSyncEnabled = MutableStateFlow(true)
     val transportCloudSyncEnabled: StateFlow<Boolean> = _transportCloudSyncEnabled.asStateFlow()
 
+    private val _transportMulticastConfig = MutableStateFlow(MulticastConfig())
+    val transportMulticastConfig: StateFlow<MulticastConfig> = _transportMulticastConfig.asStateFlow()
+
     private val _isApplyingTransport = MutableStateFlow(false)
     val isApplyingTransport: StateFlow<Boolean> = _isApplyingTransport.asStateFlow()
+
+    /**
+     * Last transport-apply failure (apply itself, or the sync restart after it),
+     * or null when the last apply fully succeeded. The apply path never throws
+     * to the caller — the sheet dismisses immediately — so this flow is the
+     * only surface for failures such as the SDK rejecting a multicast config
+     * at `sync.start()` (prerequisite/validation errors that
+     * `updateTransportConfig` cannot catch, because the Kotlin SDK sets the
+     * config without validating).
+     */
+    private val _transportApplyError = MutableStateFlow<String?>(null)
+    val transportApplyError: StateFlow<String?> = _transportApplyError.asStateFlow()
 
     // ── Subscriptions ─────────────────────────────────────────────────────────
     private val _subscriptions = MutableStateFlow<List<DittoSubscription>>(emptyList())
     val subscriptions: StateFlow<List<DittoSubscription>> = _subscriptions.asStateFlow()
 
-    private val activeHandles = mutableMapOf<Long, DittoSyncSubscription>()
+    // ConcurrentHashMap, not mutableMapOf. These handle maps are written from BOTH the main
+    // thread — `activateObserver`/`deactivateObserver` are plain non-suspend functions called
+    // straight from Compose click handlers, and Koin's `onClose` — and from `sessionScope`
+    // coroutines on Dispatchers.IO (addSubscriptionSuspend, updateSubscription,
+    // removeSubscription, updateObserver, removeObserver). `close()` then iterates them while
+    // those coroutines may still be live, so an unsynchronized LinkedHashMap could throw
+    // ConcurrentModificationException out of Compose disposal, or lose a write and leak an
+    // SDK handle that is never closed. Iteration here is weakly consistent, which is what
+    // close() wants: it closes whatever is present and clears.
+    private val activeHandles = java.util.concurrent.ConcurrentHashMap<Long, DittoSyncSubscription>()
 
     // ── Observers ─────────────────────────────────────────────────────────────
     private val _observers = MutableStateFlow<List<DittoObservable>>(emptyList())
     val observers: StateFlow<List<DittoObservable>> = _observers.asStateFlow()
 
-    private val activeObserverHandles = mutableMapOf<Long, DittoStoreObserver>()
+    /** Concurrent for the same reason as [activeHandles]. */
+    private val activeObserverHandles = java.util.concurrent.ConcurrentHashMap<Long, DittoStoreObserver>()
 
     private val _observerEvents = MutableStateFlow<List<DittoObserveEvent>>(emptyList())
     val observerEvents: StateFlow<List<DittoObserveEvent>> = _observerEvents.asStateFlow()
+
+    // ── Welcome screen auto-show ─────────────────────────────────────────────
+    /**
+     * True after hydration when the database looks fresh (no subscriptions, no
+     * query history) — the scaffold may then offer the Welcome tour, subject to
+     * the user's "show on new database" preference. Set once per session.
+     */
+    private val _welcomeCandidate = MutableStateFlow(false)
+    val welcomeCandidate: StateFlow<Boolean> = _welcomeCandidate.asStateFlow()
+    private val welcomeAutoShown = AtomicBoolean(false)
+
+    /**
+     * Returns true exactly once per session when [welcomeCandidate] is set —
+     * the caller then navigates to the Welcome screen. Prevents re-triggering
+     * on rail-section switches or list/detail recomposition.
+     */
+    fun consumeWelcomeTrigger(): Boolean =
+        _welcomeCandidate.value && welcomeAutoShown.compareAndSet(false, true)
+
+    // ── system:metrics (SDK 5.1) dashboard ────────────────────────────────────
+    // Parity port of the extension's SystemMetricsService: the virtual collection
+    // flushes the registry per read, so samples accumulate deltas since connect.
+    private val systemMetricSamples =
+        java.util.Collections.synchronizedMap(mutableMapOf<String, com.costoda.dittoedgestudio.domain.model.SystemMetricSample>())
+
+    private val _systemMetrics = MutableStateFlow(
+        com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+            samples = emptyList(),
+            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
+        ),
+    )
+    val systemMetrics: StateFlow<com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot> =
+        _systemMetrics.asStateFlow()
+
+    private var systemMetricsJob: Job? = null
+    // The zero point belongs to the connection/session, not an individual visit
+    // to the dashboard. Read and reset under the samples lock.
+    private var systemMetricsSinceMs: Long? = null
+
+    /**
+     * Manual-refresh signal for the poll loop. Extra buffer capacity with
+     * DROP_OLDEST so a tap while a poll is in flight is never lost and repeated
+     * taps collapse into one pending wake-up.
+     */
+    private val systemMetricsRefreshRequests =
+        kotlinx.coroutines.flow.MutableSharedFlow<Unit>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+        )
+
+    /**
+     * Starts 5-second polling of `SELECT * FROM system:metrics`. Idempotent; call from
+     * the dashboard's on-visible and [stopSystemMetricsPolling] on-hidden. When the
+     * "Collect system metrics" setting is off, reports SETTING_DISABLED and stays idle
+     * (the exporter is startup-gated — nothing to poll until the next open).
+     */
+    fun startSystemMetricsPolling() {
+        if (closed.get() || systemMetricsJob?.isActive == true) return
+        systemMetricsJob = sessionScope.launch {
+            if (!appPreferences.collectSystemMetrics.first()) {
+                _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                    samples = emptyList(),
+                    status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.SETTING_DISABLED,
+                )
+                return@launch
+            }
+            while (true) {
+                // Re-check per iteration (extension + Swift parity): hydrate() is async, so
+                // arriving at the dashboard before it completes must recover automatically.
+                val ditto = dittoManager.currentInstance()
+                if (ditto == null) {
+                    _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                        samples = emptyList(),
+                        status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.NO_CONNECTION,
+                    )
+                    awaitNextSystemMetricsPoll()
+                    continue
+                }
+                val sinceMs = synchronized(systemMetricSamples) {
+                    if (closed.get()) return@launch
+                    systemMetricsSinceMs ?: System.currentTimeMillis().also { systemMetricsSinceMs = it }
+                }
+                try {
+                    val rows = ditto.store.execute(SYSTEM_METRICS_QUERY) { result ->
+                        result.items.mapNotNull { item ->
+                            runCatching {
+                                com.costoda.dittoedgestudio.data.repository.parseJsonToMap(
+                                    org.json.JSONObject(item.jsonString()),
+                                )
+                            }.getOrNull()
+                        }
+                    }
+                    // A disposed poll may finish its SDK read later; it must not
+                    // publish into a closed session or race a replacement poll.
+                    currentCoroutineContext().ensureActive()
+                    if (com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.isExporterDisabled(rows)) {
+                        _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                            samples = emptyList(),
+                            status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.EXPORTER_DISABLED,
+                        )
+                    } else {
+                        synchronized(systemMetricSamples) {
+                            if (closed.get()) return@launch
+                            com.costoda.dittoedgestudio.domain.model.SystemMetricsAccumulator.accumulate(
+                                rows,
+                                samples = systemMetricSamples,
+                            )
+                            _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                                samples = systemMetricSamples.values.toList().sortedBy { it.key },
+                                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.READY,
+                                sinceMs = sinceMs,
+                                polledAtMs = System.currentTimeMillis(),
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    if (closed.get()) return@launch
+                    _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                        samples = emptyList(),
+                        status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.ERROR,
+                        errorMessage = e.message,
+                    )
+                }
+                awaitNextSystemMetricsPoll()
+            }
+        }
+    }
+
+    /** Sleeps until the cadence elapses OR a manual refresh arrives, whichever
+     *  comes first — the poll loop's only wait. */
+    private suspend fun awaitNextSystemMetricsPoll() {
+        withTimeoutOrNull(SYSTEM_METRICS_POLL_INTERVAL_MS) {
+            systemMetricsRefreshRequests.first()
+        }
+    }
+
+    /**
+     * Wakes the poll loop for one immediate read ahead of the cadence. Safe while
+     * a poll is in flight: reads flush Ditto's registry, so an extra read only
+     * moves activity from the next poll's delta into this one — the accumulated
+     * totals stay correct. A no-op when nothing is polling.
+     */
+    fun refreshSystemMetricsNow() {
+        systemMetricsRefreshRequests.tryEmit(Unit)
+    }
+
+    fun stopSystemMetricsPolling() {
+        systemMetricsJob?.cancel()
+        systemMetricsJob = null
+    }
+
+    /**
+     * Pinned system-metrics series for THIS database, in pin order. Session-scoped
+     * so the list survives rail-section switches; the underlying DataStore write
+     * makes it survive process death too.
+     */
+    val systemMetricPins: StateFlow<List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>> =
+        appPreferences.systemMetricPins(databaseId)
+            .stateIn(sessionScope, SharingStarted.Eagerly, emptyList())
+
+    /** Wholesale replacement of the pinned list — the screen owns edits. */
+    fun setSystemMetricPins(
+        pins: List<com.costoda.dittoedgestudio.domain.model.SystemMetricSeriesRef>,
+    ) {
+        sessionScope.launch { appPreferences.setSystemMetricPins(databaseId, pins) }
+    }
+    /**
+     * Bounded capture buffer (SwiftUI `ObservableEventStore` parity): events are
+     * in-memory only and hard-capped at [ObserveEventStore.DEFAULT_CAPACITY] with
+     * FIFO eviction so a hot observed query can't grow memory without bound.
+     *
+     * Threading: Ditto invokes observer callbacks on SDK-owned threads, the flush
+     * job ticks on the multi-threaded session IO dispatcher, and purge paths run on
+     * the caller's thread (main for deactivate). Every access to the store and the
+     * pending deque therefore goes through [observerEventPipelineLock], and
+     * drain-append-publish and pending-remove-store-remove-publish are each atomic
+     * under it — otherwise a flush racing a purge could resurrect events for a
+     * deactivated observer.
+     */
+    private val observeEventStore = ObserveEventStore()
+    private val pendingObserverEvents = ArrayDeque<DittoObserveEvent>()
+    private val observerEventPipelineLock = Any()
+
+    /**
+     * Coalescing flush (SwiftUI 100 ms `observedEventFlushInterval` parity): SDK
+     * callbacks land in [pendingObserverEvents] and a single job drains them into
+     * the store / StateFlow every [OBSERVER_EVENT_FLUSH_INTERVAL_MS] so a burst of
+     * emissions produces one recomposition batch instead of one per event.
+     * Runs only while at least one observer is active.
+     */
+    private var observerEventFlushJob: Job? = null
+
+    private fun enqueueObserverEvent(event: DittoObserveEvent) {
+        synchronized(observerEventPipelineLock) { pendingObserverEvents.addLast(event) }
+    }
+
+    private fun ensureObserverEventFlushRunning() {
+        if (observerEventFlushJob?.isActive == true) return
+        observerEventFlushJob = sessionScope.launch {
+            while (true) {
+                delay(OBSERVER_EVENT_FLUSH_INTERVAL_MS)
+                flushPendingObserverEvents()
+            }
+        }
+    }
+
+    /** Stops the flush loop when no observer is active; drops nothing. */
+    private fun stopObserverEventFlush() {
+        observerEventFlushJob?.cancel()
+        observerEventFlushJob = null
+        flushPendingObserverEvents()
+    }
+
+    private fun flushPendingObserverEvents() {
+        synchronized(observerEventPipelineLock) {
+            if (pendingObserverEvents.isEmpty()) return
+            observeEventStore.appendAll(pendingObserverEvents.toList())
+            pendingObserverEvents.clear()
+            _observerEvents.value = observeEventStore.events
+        }
+    }
+
+    /** Removes [observeId]'s events from both the pending deque and the store. */
+    private fun purgeObserverEvents(observeId: String) {
+        synchronized(observerEventPipelineLock) {
+            pendingObserverEvents.removeAll { it.observeId == observeId }
+            observeEventStore.removeEventsForObserver(observeId)
+            _observerEvents.value = observeEventStore.events
+        }
+    }
+
+    private fun stopFlushWhenNoObserversActive() {
+        if (activeObserverHandles.isEmpty()) stopObserverEventFlush()
+    }
 
     // ── Collections / peers / connections ─────────────────────────────────────
     val collections: StateFlow<List<DittoCollection>> = collectionsRepository.collections
@@ -194,6 +485,7 @@ class StudioSession(
             }
             try {
                 _hydrateError.value = null
+                _transportApplyError.value = null
                 runCatching {
                     // If a previous session for this databaseId is still closing Ditto on the
                     // teardown scope, wait for it to finish before opening the same persistence
@@ -224,11 +516,27 @@ class StudioSession(
                     _transportLanEnabled.value = database.isLanEnabled
                     _transportWifiAwareEnabled.value = database.isAwdlEnabled
                     _transportCloudSyncEnabled.value = database.isCloudSyncEnabled
+                    _transportMulticastConfig.value = database.multicastConfig
 
                     val ditto = dittoManager.hydrate(database)
+                    // Set IMMEDIATELY after hydrate, before the observers below.
+                    //
+                    // `hydrate` starts sync internally (runOpenSequence -> sync.start()), so
+                    // from this line on the SDK really is replicating. Setting the flag only
+                    // after the four `startObserving`/`start*` calls meant that if any of
+                    // them threw — they all run inside this runCatching — the SDK was syncing
+                    // while `_syncEnabled` stayed false. That used to be self-correcting,
+                    // because applying transport settings restarted sync unconditionally;
+                    // now that the restart is gated on this flag, a stale false would leave
+                    // replication permanently off for the session with the toolbar already
+                    // showing it off, and no way for the user to tell.
+                    _syncEnabled.value = true
                     systemRepository.startObserving(ditto)
                     collectionsRepository.startObserving(ditto)
-                    _syncEnabled.value = true
+                    // SwiftUI parity: DittoManager starts the log-only transport-condition
+                    // collector and the (auto-allow) connection-request handler on open.
+                    loggingCaptureService.startTransportConditionObservation(ditto)
+                    loggingCaptureService.startConnectionRequestHandler(ditto)
                     val saved = subscriptionsRepository.loadSubscriptions(database.databaseId)
 
                     saved.forEach { sub ->
@@ -240,6 +548,12 @@ class StudioSession(
                     _subscriptions.value = saved
                     val savedObservers = observableRepository.loadObservables(database.databaseId)
                     _observers.value = savedObservers
+
+                    // Welcome auto-show eligibility (SwiftUI MainStudioViewModel.performLoad
+                    // parity): a fresh database has no subscriptions and no query history.
+                    // The UI layer still gates on the "show on new database" preference.
+                    _welcomeCandidate.value =
+                        saved.isEmpty() && historyRepository.loadHistory(database.databaseId).isEmpty()
                 }.onFailure { e ->
                     _hydrateError.value = e.message
                 }
@@ -370,7 +684,8 @@ class StudioSession(
         sessionScope.launch {
             runCatching {
                 activeObserverHandles.remove(observer.id)?.close()
-                _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+                purgeObserverEvents(observer.id.toString())
+                stopFlushWhenNoObserversActive()
                 val updated = observer.copy(name = name, query = query, isActive = false)
                 withContext(NonCancellable) {
                     observableRepository.updateObservable(updated)
@@ -393,7 +708,8 @@ class StudioSession(
             withContext(NonCancellable) {
                 observableRepository.removeObservable(observer.id)
             }
-            _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+            purgeObserverEvents(observer.id.toString())
+            stopFlushWhenNoObserversActive()
             _observers.value = observableRepository.loadObservables(db.databaseId)
         }
     }
@@ -406,7 +722,11 @@ class StudioSession(
         if (activeObserverHandles.containsKey(observer.id)) return
 
         val handle = ditto.store.registerObserver(observer.query) { queryResult, diff ->
-            val docs = queryResult.items.map { it.jsonString() }
+            // Serialize defensively per document (SwiftUI parity: skip a bad doc
+            // rather than let one failure kill the observer callback).
+            val docs = queryResult.items.mapNotNull { item ->
+                runCatching { item.jsonString() }.getOrNull()
+            }
 
             val event = DittoObserveEvent(
                 observeId = observer.id.toString(),
@@ -418,10 +738,11 @@ class StudioSession(
                 eventTime = java.time.Instant.now().toString(),
             )
 
-            _observerEvents.update { it + event }
+            enqueueObserverEvent(event)
         }
 
         activeObserverHandles[observer.id] = handle
+        ensureObserverEventFlushRunning()
         sessionScope.launch {
             val updated = observer.copy(isActive = true, lastUpdated = System.currentTimeMillis())
             observableRepository.updateObservable(updated)
@@ -432,7 +753,8 @@ class StudioSession(
     fun deactivateObserver(observer: DittoObservable) {
         val db = currentDatabase ?: return
         activeObserverHandles.remove(observer.id)?.close()
-        _observerEvents.update { events -> events.filter { it.observeId != observer.id.toString() } }
+        purgeObserverEvents(observer.id.toString())
+        stopFlushWhenNoObserversActive()
 
         sessionScope.launch {
             val updated = observer.copy(isActive = false)
@@ -470,45 +792,108 @@ class StudioSession(
             }
         }
 
-    fun applyTransportSettings(bt: Boolean, lan: Boolean, wifiAware: Boolean) {
+    fun applyTransportSettings(
+        bt: Boolean,
+        lan: Boolean,
+        wifiAware: Boolean,
+        multicast: MulticastConfig = _transportMulticastConfig.value,
+    ) {
         val ditto = dittoManager.currentInstance() ?: return
-        val db = currentDatabase ?: return
         sessionScope.launch {
-            _isApplyingTransport.value = true
-            runCatching {
-                // 1. Stop sync and observers
-                ditto.sync.stop()
-                systemRepository.stopObserving()
+            configMutationMutex.withLock {
+                val db = currentDatabase ?: return@withLock
+                _isApplyingTransport.value = true
+                // Remember whether the user actually had sync on. The transport sheet is
+                // reachable with sync stopped (PresenceSection shows it with no sync gate), and
+                // the finally block below used to restart sync unconditionally — silently
+                // resuming replication the user had deliberately stopped, while the toolbar
+                // indicator kept reading `_syncEnabled` and still showed sync as off.
+                val wasSyncEnabled = _syncEnabled.value
+                var applyError: Throwable? = null
+                var restartError: Throwable? = null
+                val applied = try {
+                    // 1. Stop sync and observers. This also satisfies the SDK's
+                    //    multicast constraint: multicastBeta changes are deferred while
+                    //    sync is active, so every apply happens with sync stopped.
+                    ditto.sync.stop()
+                    systemRepository.stopObserving()
 
-                // 2. Apply new transport config to live Ditto instance
-                val updatedDb = db.copy(
-                    isBluetoothLeEnabled = bt,
-                    isLanEnabled = lan,
-                    isAwdlEnabled = wifiAware,
-                )
-                dittoManager.applyTransportConfig(ditto, updatedDb)
+                    // 2. Apply new transport config to live Ditto instance
+                    val updatedDb = db.copy(
+                        isBluetoothLeEnabled = bt,
+                        isLanEnabled = lan,
+                        isAwdlEnabled = wifiAware,
+                        isMulticastEnabled = multicast.enabled,
+                        multicastGroupAddress = multicast.groupAddress,
+                        multicastPort = multicast.port,
+                        multicastInterfaceName = multicast.interfaceName,
+                    )
+                    dittoManager.applyTransportConfig(ditto, updatedDb)
 
-                // 3. Persist to Room so settings survive app restart, and keep the
-                // manager's active config current so the restart re-applies the new
-                // transports rather than the ones the database was opened with.
-                databaseRepository.save(updatedDb)
-                currentDatabase = updatedDb
-                dittoManager.refreshActiveConfigIfMatching(updatedDb)
-
-                // 4. Restart sync through the DittoManager funnel — every sync start
-                // re-applies and re-verifies the advanced configuration — then
-                // re-register observers.
-                dittoManager.startSync()
-                systemRepository.startObserving(ditto)
-            }.onFailure { e ->
-                if (BuildConfig.DEBUG) {
-                    Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                    // 3. Persist to Room so settings survive app restart, and keep the
+                    // manager's active config current so the restart re-applies the new
+                    // transports rather than the ones the database was opened with.
+                    databaseRepository.save(updatedDb)
+                    currentDatabase = updatedDb
+                    dittoManager.refreshActiveConfigIfMatching(updatedDb)
+                    true
+                } catch (e: Exception) {
+                    applyError = e
+                    if (BuildConfig.DEBUG) {
+                        Log.w(TAG, "applyTransportSettings failed: ${e.message}", e)
+                    }
+                    false
+                } finally {
+                    // 4. Restart sync through the DittoManager funnel — every sync start
+                    // re-applies and re-verifies the advanced configuration — then
+                    // re-register observers. Under finally so a throw above can never
+                    // leave sync stopped on a live database — but only restore the state
+                    // the user chose. Restarting unconditionally turned "sync off" into
+                    // "sync on" behind their back. A restart failure (e.g. the SDK
+                    // rejecting a multicast prerequisite or config at sync start) is
+                    // captured, never swallowed: sync state is re-derived from the live
+                    // instance below and the failure surfaces via transportApplyError.
+                    if (wasSyncEnabled) {
+                        runCatching { dittoManager.startSync() }
+                            .onFailure {
+                                restartError = it
+                                Log.w(TAG, "sync restart after transport apply failed: ${it.message}", it)
+                            }
+                    }
+                    runCatching { systemRepository.startObserving(ditto) }
+                        .onFailure { Log.w(TAG, "observer restart after transport apply failed: ${it.message}", it) }
                 }
+                // Sync state always mirrors the live instance, never the request —
+                // the restart above may have failed (leaving sync stopped).
+                runCatching { _syncEnabled.value = ditto.sync.isActive }
+                    .onFailure { Log.w(TAG, "failed to read sync state after transport apply: ${it.message}", it) }
+                // Publish the requested values only when they were actually applied AND
+                // the restart succeeded. Otherwise re-publish the persisted config so the
+                // UI shows the live state, not a requested state the SDK never took.
+                if (applied && restartError == null) {
+                    _transportBluetoothEnabled.value = bt
+                    _transportLanEnabled.value = lan
+                    _transportWifiAwareEnabled.value = wifiAware
+                    _transportMulticastConfig.value = multicast
+                    _transportApplyError.value = null
+                } else {
+                    val persisted = currentDatabase ?: db
+                    _transportBluetoothEnabled.value = persisted.isBluetoothLeEnabled
+                    _transportLanEnabled.value = persisted.isLanEnabled
+                    _transportWifiAwareEnabled.value = persisted.isAwdlEnabled
+                    _transportMulticastConfig.value = persisted.multicastConfig
+                    _transportApplyError.value = when {
+                        restartError != null ->
+                            "Transport settings saved, but sync failed to restart: " +
+                                (restartError?.message ?: restartError?.javaClass?.simpleName)
+                        applyError != null ->
+                            "Failed to apply transport settings: " +
+                                (applyError?.message ?: applyError?.javaClass?.simpleName)
+                        else -> null
+                    }
+                }
+                _isApplyingTransport.value = false
             }
-            _transportBluetoothEnabled.value = bt
-            _transportLanEnabled.value = lan
-            _transportWifiAwareEnabled.value = wifiAware
-            _isApplyingTransport.value = false
         }
     }
 
@@ -518,7 +903,7 @@ class StudioSession(
      *
      * Safe to call from the main thread (e.g. Koin's `onClose` fired from
      * `DisposableEffect.onDispose`): the fast synchronous portion (handle releases,
-     * StateFlow resets) runs inline, but the suspending `dittoManager.close()` is dispatched
+     * StateFlow resets) runs inline, but the suspending `dittoManager.closeIfCurrent()` is dispatched
      * to [DittoTeardownRegistry] on [teardownDispatcher] — a process-wide supervisor scope
      * that survives this session's own scope cancellation. The resulting [Job] is registered
      * by [databaseId] so that a subsequent `hydrate()` for the same database can `join()` it
@@ -526,11 +911,25 @@ class StudioSession(
      */
     fun close() {
         if (!closed.compareAndSet(false, true)) return
+        // Capture ownership now, before dispatching. A different database may
+        // hydrate while this teardown waits on the IO queue.
+        val instanceToClose = dittoManager.currentInstanceForDatabase(databaseId)
 
         // Stop observer subscriptions on the underlying repositories so any background work
         // they spawned can terminate before we cancel our own scope.
         runCatching { systemRepository.stopObserving() }
         runCatching { collectionsRepository.stopObserving() }
+        runCatching { loggingCaptureService.stopTransportConditionObservation() }
+        runCatching { loggingCaptureService.stopConnectionRequestHandler() }
+        stopSystemMetricsPolling()
+        synchronized(systemMetricSamples) {
+            systemMetricSamples.clear()
+            systemMetricsSinceMs = null
+            _systemMetrics.value = com.costoda.dittoedgestudio.domain.model.SystemMetricsSnapshot(
+                samples = emptyList(),
+                status = com.costoda.dittoedgestudio.domain.model.SystemMetricsStatus.IDLE,
+            )
+        }
 
         // Release SDK handles synchronously — these are just resource releases, not suspending.
         activeHandles.values.forEach { runCatching { it.close() } }
@@ -539,7 +938,13 @@ class StudioSession(
         activeObserverHandles.values.forEach { runCatching { it.close() } }
         activeObserverHandles.clear()
         _observers.value = emptyList()
-        _observerEvents.value = emptyList()
+        observerEventFlushJob?.cancel()
+        observerEventFlushJob = null
+        synchronized(observerEventPipelineLock) {
+            pendingObserverEvents.clear()
+            observeEventStore.clear()
+            _observerEvents.value = emptyList()
+        }
 
         // Dispatch the suspending Ditto close to the teardown registry. We MUST NOT run it on
         // `sessionScope` (cancelled below) or block the calling (main) thread (ANR risk).
@@ -550,12 +955,12 @@ class StudioSession(
             // NonCancellable: even if the registry's job is cancelled by something exotic, the
             // native Ditto release must complete to free the persistence-directory lock.
             withContext(NonCancellable) {
-                // dittoManager.close() must be invoked exactly ONCE — a timed-out native close
+                // dittoManager.closeIfCurrent() must be invoked exactly ONCE — a timed-out native close
                 // keeps running, so retrying would race two concurrent closes on one handle.
                 // The timeout therefore wraps a join() on a child job (cancelling a join never
                 // cancels the job), giving us the slow-close warning without a second close.
                 val closeJob = launch {
-                    runCatching { dittoManager.close() }
+                    runCatching { dittoManager.closeIfCurrent(instanceToClose) }
                         .onFailure { e ->
                             if (BuildConfig.DEBUG) {
                                 Log.w(TAG, "Error closing Ditto on session close: ${e.message}")
@@ -586,6 +991,13 @@ class StudioSession(
 
     companion object {
         private const val TAG = "StudioSession"
+
+        /** SwiftUI `observedEventFlushInterval` parity (100 ms event coalescing). */
+        private const val OBSERVER_EVENT_FLUSH_INTERVAL_MS = 100L
+
+        /** `system:metrics` poll cadence (extension parity: 5 s while visible). */
+        private const val SYSTEM_METRICS_POLL_INTERVAL_MS = 5_000L
+        private const val SYSTEM_METRICS_QUERY = "SELECT * FROM system:metrics"
 
         /** WARN threshold for slow Ditto teardown; we still wait for completion past this. */
         private const val CLOSE_WARN_TIMEOUT_MS: Long = 5_000L
@@ -635,10 +1047,33 @@ internal object DittoTeardownRegistry {
         return job
     }
 
-    /** Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise. */
+    /**
+     * Suspend until any in-flight teardown for [databaseId] completes; no-op otherwise.
+     *
+     * Bounded by [AWAIT_CLOSE_TIMEOUT_MS]. An unbounded join here is a single point of failure
+     * for the whole studio: `Ditto.close()` blocks while any read transaction is still open, so
+     * one leaked transaction would hang this join forever and every later `hydrate()` for the
+     * database with it — no collections, no subscriptions, a permanent spinner on the Query
+     * Workbench, surviving back-out-and-re-enter. Proceeding after the timeout is strictly
+     * better: if the native handle really does still hold the persistence-directory lock, the
+     * open fails with a real error that lands in `hydrateError` and the user can retry.
+     */
     suspend fun awaitCloseFor(databaseId: Long) {
-        inFlight[databaseId]?.join()
+        val job = inFlight[databaseId] ?: return
+        val completed = withTimeoutOrNull(AWAIT_CLOSE_TIMEOUT_MS) { job.join() }
+        if (completed == null && BuildConfig.DEBUG) {
+            Log.w(
+                TAG,
+                "Previous Ditto close for databaseId=$databaseId still running after " +
+                    "${AWAIT_CLOSE_TIMEOUT_MS}ms; opening anyway rather than hanging hydrate.",
+            )
+        }
     }
+
+    /** Upper bound on how long a fresh hydrate waits for a previous session's close. */
+    internal const val AWAIT_CLOSE_TIMEOUT_MS: Long = 10_000L
+
+    private const val TAG = "DittoTeardownRegistry"
 
     /** Visible for tests — exposes the in-flight job for direct assertions. */
     internal fun inFlightJob(databaseId: Long): Job? = inFlight[databaseId]

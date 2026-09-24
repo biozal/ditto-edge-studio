@@ -22,7 +22,6 @@ import Testing
 
 @Suite("ProfileTimeFormatter Tests")
 struct ProfileTimeFormatterTests {
-
     // MARK: - format(ns:)
 
     @Suite("format(ns:)")

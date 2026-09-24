@@ -14,10 +14,10 @@ import SwiftUI
 /// Triggers:
 ///   - Help menu → Welcome (always shows)
 ///   - Auto-shown by `MainStudioViewModel.performLoad` when the active
-///     database is fresh and `@AppStorage("showWelcomeOnNewDatabase")`
+///     database is fresh and `@AppStorage("showWelcomeOnNewDatabase", store: StudioPreferences.store)`
 ///     is true (the default).
 struct WelcomeView: View {
-    @AppStorage("showWelcomeOnNewDatabase") private var showWelcomeOnNewDatabase = true
+    @AppStorage("showWelcomeOnNewDatabase", store: StudioPreferences.store) private var showWelcomeOnNewDatabase = true
 
     // Scale the hero badge with the user's Dynamic Type setting so the icon
     // never feels cramped relative to the surrounding scaled text.
@@ -66,7 +66,7 @@ struct WelcomeView: View {
                         .accessibilityHidden(true)
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Welcome to Ditto Edge Studio")
+                    Text("Welcome to Edge Studio")
                         .font(.largeTitle.weight(.semibold))
                     Text("A quick tour of what this app does and how to get the most out of your Ditto database.")
                         .font(.body)
@@ -114,7 +114,7 @@ struct WelcomeView: View {
             Text("What this app does")
                 .font(.title2.weight(.semibold))
             Text(
-                "Ditto Edge Studio is a control panel for your Ditto databases — inspect their live state, " +
+                "Edge Studio is a control panel for your Ditto databases — inspect their live state, " +
                     "manage subscriptions, run DQL queries, and move data in and out without ever leaving the app."
             )
             .font(.body)
@@ -131,8 +131,8 @@ struct WelcomeView: View {
             body: "Register every Ditto database you work with — dev, staging, prod — and switch between them with one click."
         ),
         WelcomeFeature(
-            title: "DQL Query Editor",
-            body: "Run Ditto Query Language statements with history, favorites, and EXPLAIN plans. Page through large result sets without locking up the UI."
+            title: "Query Editor",
+            body: "Run Ditto Query Language (DQL) statements with history, favorites, and EXPLAIN plans. Page through large result sets without locking up the UI."
         ),
         WelcomeFeature(
             title: "Subscriptions",

@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  AdvancedConfigurationUITests.swift
 //  EdgeStudioUITests
@@ -23,15 +24,8 @@ final class AdvancedConfigurationUITests: UITestBase {
     @MainActor
     func testAdvancedSectionKeepsChromePinned() throws {
         // ARRANGE
-        guard waitForAppToFinishLoading(timeout: 20) else {
-            throw XCTSkip("App did not present ContentView — Accessibility permissions may be missing.")
-        }
-
-        let addButton = app.buttons["AddDatabaseButton"].firstMatch
-        guard addButton.waitForExistence(timeout: 10) else {
-            throw XCTSkip("AddDatabaseButton not found — cannot open the editor sheet.")
-        }
-        addButton.tap()
+        let addButton = try requireDatabasePicker()
+        addButton.click()
         sleep(2) // sheet animation
 
         guard app.textFields["NameTextField"].firstMatch.waitForExistence(timeout: 10) else {
@@ -57,13 +51,13 @@ final class AdvancedConfigurationUITests: UITestBase {
             "Expanding Advanced Configuration must reveal AddSyncScopeButton."
         )
         for _ in 0 ..< 6 {
-            addScope.tap()
+            addScope.click()
         }
 
         let addSetting = app.buttons["AddStartupSettingButton"].firstMatch
         XCTAssertTrue(addSetting.waitForExistence(timeout: 5))
         for _ in 0 ..< 6 {
-            addSetting.tap()
+            addSetting.click()
         }
         captureScreenshot(named: "01-advanced-expanded", lifetime: .keepAlways)
 
@@ -103,14 +97,16 @@ final class AdvancedConfigurationUITests: UITestBase {
 
         // CLEANUP
         if cancelButton.isHittable {
-            cancelButton.tap()
+            cancelButton.click()
             sleep(1)
             // Blank rows count as no change, so no discard dialog is expected; dismiss
             // one if the platform presents it anyway.
             let discard = app.buttons["Discard Changes"].firstMatch
             if discard.waitForExistence(timeout: 2) {
-                discard.tap()
+                discard.click()
             }
         }
     }
 }
+
+#endif

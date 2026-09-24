@@ -12,12 +12,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import kotlin.math.max
 import kotlin.math.sqrt
 
 /**
@@ -38,8 +40,15 @@ import kotlin.math.sqrt
  *                    is true: the Bézier control point is pushed radially outward
  *                    from this point so remote↔remote arcs bend around the cluster
  *                    instead of cutting through it.
- * @param parallelOffsetPx perpendicular shift in pixels for parallel-edge separation
- *                         (matches `ConnectionLine.lineOffset` in iOS).
+ * @param parallelOffsetPx perpendicular shift for parallel-edge separation, in
+ *                         DESIGN pixels at 1x zoom (matches `ConnectionLine.lineOffset`
+ *                         in iOS). Scaled by [zoom] here — see below.
+ * @param zoom camera zoom. [fromPos] / [toPos] arrive already in canvas space, but
+ *             every *thickness* in this function is a design-space constant, so each
+ *             one is scaled here. That matters most for [parallelOffsetPx]: an
+ *             unscaled 10 dp perpendicular shift is a fifth of a pill's height at
+ *             100% but nearly three times it at 34%, which walks the endpoint clear
+ *             out of the pill the edge is supposed to terminate in.
  * @param path reusable [Path] buffer; reset and refilled in place.
  */
 @Suppress("LongParameterList")
@@ -55,6 +64,7 @@ internal fun DrawScope.drawPresenceEdge(
     arcOutward: Boolean,
     parallelOffsetPx: Float,
     cloudCircleSpacingPx: Float,
+    zoom: Float,
     path: Path,
     /** Reusable PathMeasure for cloud-edge decorative circles. Allocating one per
      *  frame on a cloud-heavy graph was a measurable hotspot; the caller pools one
@@ -64,6 +74,8 @@ internal fun DrawScope.drawPresenceEdge(
     val dx = toPos.x - fromPos.x
     val dy = toPos.y - fromPos.y
     val distance = sqrt(dx * dx + dy * dy)
+
+    val strokePx = edgeStrokeWidthPx(strokeWidthPx, zoom, MIN_EDGE_STROKE_DP.dp.toPx())
 
     path.reset()
     if (distance < 0.1f) {
@@ -76,7 +88,7 @@ internal fun DrawScope.drawPresenceEdge(
             color = color,
             alpha = alpha,
             style = Stroke(
-                width = strokeWidthPx,
+                width = strokePx,
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round,
                 pathEffect = dashEffect,
@@ -85,19 +97,24 @@ internal fun DrawScope.drawPresenceEdge(
         return
     }
 
-    val (from, to) = if (parallelOffsetPx == 0f) {
+    // Scale the separation with the camera so both endpoints stay inside their pills.
+    val offsetPx = parallelEdgeOffsetPx(parallelOffsetPx, zoom)
+    val (from, to) = if (offsetPx == 0f) {
         fromPos to toPos
     } else {
-        val ox = -dy / distance * parallelOffsetPx
-        val oy = dx / distance * parallelOffsetPx
+        val ox = -dy / distance * offsetPx
+        val oy = dx / distance * offsetPx
         Offset(fromPos.x + ox, fromPos.y + oy) to Offset(toPos.x + ox, toPos.y + oy)
     }
 
     val midX = (from.x + to.x) * 0.5f
     val midY = (from.y + to.y) * 0.5f
 
-    val arcAmount90Px = 90.dp.toPx()
-    val arcAmount60Px = 60.dp.toPx()
+    // Arc-height ceilings are design-space too: unscaled, they stop clamping as the
+    // camera zooms out and start over-clamping as it zooms in, so the same topology
+    // bows by a different amount at different zooms.
+    val arcAmount90Px = 90.dp.toPx() * zoom
+    val arcAmount60Px = 60.dp.toPx() * zoom
 
     val control: Offset = if (arcOutward) {
         val rx = midX - sceneCenter.x
@@ -123,7 +140,7 @@ internal fun DrawScope.drawPresenceEdge(
         color = color,
         alpha = alpha,
         style = Stroke(
-            width = strokeWidthPx,
+            width = strokePx,
             cap = StrokeCap.Round,
             join = StrokeJoin.Round,
             pathEffect = dashEffect,
@@ -136,19 +153,50 @@ internal fun DrawScope.drawPresenceEdge(
             pathMeasure = pathMeasure,
             color = color,
             alpha = alpha * 0.8f,
-            radiusPx = 3.dp.toPx(),
-            spacingPx = cloudCircleSpacingPx,
+            radiusPx = 3.dp.toPx() * zoom,
+            spacingPx = cloudCircleSpacingPx * zoom,
         )
     }
 }
 
 /**
+ * Minimum on-screen edge thickness, in dp. Edge strokes scale with the camera so a
+ * line never looks heavy against a zoomed-out pill, but a hairline that vanishes at
+ * 25% would hide a connection — and a missing connection is exactly what this view
+ * is used to diagnose.
+ */
+internal const val MIN_EDGE_STROKE_DP = 1f
+
+/**
+ * Perpendicular separation between parallel edges (same peer pair, several
+ * transports) at the current camera [zoom].
+ *
+ * Design-space constants have to be scaled to canvas space, or the separation stops
+ * being a property of the drawing and becomes a property of the zoom level. At 34%
+ * an unscaled 10 dp shift exceeds a pill's half-height and the edge terminates in
+ * empty space beside the peer instead of under it.
+ */
+internal fun parallelEdgeOffsetPx(designOffsetPx: Float, zoom: Float): Float =
+    designOffsetPx * zoom
+
+/** Edge thickness at the current camera [zoom], never thinner than [minWidthPx]. */
+internal fun edgeStrokeWidthPx(designWidthPx: Float, zoom: Float, minWidthPx: Float): Float =
+    max(designWidthPx * zoom, minWidthPx)
+
+/**
  * Render a single peer pill (rounded rectangle) with the text label centered inside.
  *
  * @param center  pixel position where the pill is centered.
- * @param widthPx measured pill width including horizontal padding.
- * @param heightPx pill height (= text height + vertical padding).
+ * @param widthPx measured pill width including horizontal padding, ALREADY multiplied
+ *                by the camera zoom by the caller.
+ * @param heightPx pill height (= text height + vertical padding), likewise zoomed.
  * @param scale animation scale factor (1.0 = neutral, 1.1 = highlighted).
+ * @param zoom  camera zoom the caller baked into [widthPx] / [heightPx]. The label is
+ *              a pre-measured [TextLayoutResult] at 1x, so it must be re-scaled by the
+ *              same factor here — otherwise a zoomed-out pill shrinks while its text
+ *              stays full size and the device name spills outside its pill. Peer names
+ *              are the whole point of this view when debugging a mesh, so they have to
+ *              track their container exactly.
  * @param alpha animation alpha (0..1).
  */
 @Suppress("LongParameterList")
@@ -161,6 +209,7 @@ internal fun DrawScope.drawPresencePeerPill(
     textColor: Color,
     textLayout: TextLayoutResult,
     scale: Float,
+    zoom: Float,
     alpha: Float,
 ) {
     val w = widthPx * scale
@@ -184,15 +233,23 @@ internal fun DrawScope.drawPresencePeerPill(
         style = Stroke(width = 2f),
     )
 
-    val textW = textLayout.size.width.toFloat() * scale
-    val textH = textLayout.size.height.toFloat() * scale
-    val textTopLeft = Offset(center.x - textW * 0.5f, center.y - textH * 0.5f)
-    drawText(
-        textLayoutResult = textLayout,
-        color = textColor,
-        topLeft = textTopLeft,
-        alpha = alpha,
+    // Draw the 1x-measured label centred on the pill, then scale the whole draw about
+    // that centre by the same factor the pill rect got (camera zoom x highlight pop).
+    // Scaling the draw beats re-measuring at a zoomed font size: measurement is the
+    // expensive part and it is cached per label string across frames.
+    val textScale = zoom * scale
+    val textTopLeft = Offset(
+        center.x - textLayout.size.width * 0.5f,
+        center.y - textLayout.size.height * 0.5f,
     )
+    withTransform({ scale(scaleX = textScale, scaleY = textScale, pivot = center) }) {
+        drawText(
+            textLayoutResult = textLayout,
+            color = textColor,
+            topLeft = textTopLeft,
+            alpha = alpha,
+        )
+    }
 }
 
 private fun DrawScope.drawCloudCirclesAlongPath(

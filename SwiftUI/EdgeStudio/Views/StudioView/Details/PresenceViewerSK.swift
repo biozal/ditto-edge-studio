@@ -26,39 +26,99 @@ struct PresenceViewerSK: View {
                 .focusable() // Allow view to receive keyboard and scroll events
 
             // Only the connection-types legend stays inside this view as a corner
-            // overlay. The Direct toggle, reset button, and zoom controls used to
-            // live here too but were hoisted to the parent's DetailBottomBar so they
-            // sit on the floating toolbar — see `presenceViewerToolbarControls(vm:)`
-            // in MainStudioView.
+            // overlay. The Direct toggle, reset button, and zoom controls live in
+            // the parent's toolbar (individual native toolbar items on iOS,
+            // floating `DetailBottomBar` on macOS).
             //
-            // Bottom padding clears the DetailBottomBar floating-toolbar overlay
-            // below this view. The bar's own footprint is ~56pt (HStack contents +
-            // 12pt vertical padding × 2 + glass-effect spread) plus the 12pt
-            // .padding(.bottom, 12) the overlay anchor applies. 100pt leaves a
-            // comfortable ~24pt visual gap between the legend's bottom edge and
-            // the toolbar's top edge.
-            connectionLegend
-                .padding(.leading, 16)
-                .padding(.bottom, 100)
+            // macOS bottom padding clears the floating-toolbar overlay below this
+            // view (~56pt bar + 12pt overlay anchor + comfortable gap). iOS uses a
+            // native bottom toolbar, which insets the safe area itself.
+            if viewModel.controlsVisible {
+                connectionLegend
+                    .padding(.leading, 16)
+                #if os(macOS)
+                    .padding(.bottom, 100)
+                #else
+                    .padding(.bottom, 16)
+                #endif
+                    .transition(.opacity)
+            }
+
+            // Focus banner (top-center) — mirrors the VS Code extension's
+            // "Focused on <label>" pill with an exit button. Focus mode is only
+            // reachable in the full-mesh (Direct OFF) view.
+            if let focusedName = viewModel.focusedPeerName {
+                VStack {
+                    HStack(spacing: 8) {
+                        Text("Focused on **\(focusedName)**")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                        Button {
+                            viewModel.exitFocusMode()
+                        } label: {
+                            FontAwesomeText(icon: ActionIcon.circleXmark, size: 13, color: .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Exit focus")
+                        .accessibilityIdentifier("FocusModeExitButton")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // Detail card — centred in the viewport, above the SpriteKit scene rather
+            // than inside it, so it is never scaled by the camera and never reaches the
+            // layout engine's peerFootprints. Anchoring it to its peer would put it
+            // wherever that peer happened to be, including hard against an edge where
+            // the bottom rows — the sync rows the card exists for — are clipped.
+            if let detail = viewModel.openPeerDetail {
+                PeerDetailCardView(
+                    detail: detail,
+                    onFocusPeer: viewModel.canFocusOpenPeer ? { viewModel.focusOpenPeer() } : nil
+                )
+                // Tap-to-close is attached BEFORE the centring frame, so the gesture
+                // covers the card's own bounds only. Attaching it after would make the
+                // full-size frame swallow taps beside the card, which must still reach
+                // the scene as canvas taps (dismiss, or exit focus when no card is open).
+                .onTapGesture { viewModel.dismissDetail() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
         }
-        .onAppear {
-            createScene()
-        }
-        .task {
-            // Start presence observation tied to the view's lifetime via
-            // structured concurrency, rather than an untracked Task in the
-            // ViewModel's init that can race view teardown on rapid tab switches.
-            await viewModel.startProductionMode()
-        }
-        .onDisappear {
-            // Stop the presence observer here rather than relying on
-            // ViewModel ARC dealloc. The VM holds a DittoObserver that
-            // (via ditto.presence) retains the Ditto instance — leaving
-            // it alive after database close blocks the SDK's own deinit
-            // shutdown and prevents SQLite WAL from being flushed.
-            viewModel.stopProductionMode()
-            cleanupScene()
-        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
+        #if os(macOS)
+            // Escape with focus on the canvas (a mouse pick moves focus onto a
+            // results row, and an open detail card never had an Escape route at all).
+            // The search box carries its own `.onKeyPress(.escape)` for the
+            // still-typing case; both land on the same unwind order.
+            .onExitCommand { viewModel.handleEscape() }
+        #endif
+            .onAppear {
+                createScene()
+            }
+            .task {
+                // Start presence observation tied to the view's lifetime via
+                // structured concurrency, rather than an untracked Task in the
+                // ViewModel's init that can race view teardown on rapid tab switches.
+                await viewModel.startProductionMode()
+            }
+            .onDisappear {
+                // Stop the presence observer here rather than relying on
+                // ViewModel ARC dealloc. The VM holds a DittoObserver that
+                // (via ditto.presence) retains the Ditto instance — leaving
+                // it alive after database close blocks the SDK's own deinit
+                // shutdown and prevents SQLite WAL from being flushed.
+                viewModel.stopProductionMode()
+                cleanupScene()
+            }
     }
 
     // MARK: - Connection Legend
@@ -74,7 +134,7 @@ struct PresenceViewerSK: View {
             LegendRow(color: ConnectionType.accessPoint.cardColor, pattern: "████ ████", label: "LAN")
             LegendRow(color: ConnectionType.p2pWiFi.cardColor, pattern: "██ ██ ██", label: "P2P WiFi")
             LegendRow(color: ConnectionType.webSocket.cardColor, pattern: "███·███·", label: "WebSocket")
-            LegendRow(color: ConnectionType.multicast.cardColor, pattern: "██ ██ ██", label: "Multicast")
+            LegendRow(color: ConnectionType.multicast.cardColor, pattern: "· · · · · ·", label: "Multicast")
             LegendRow(color: SyncStatusInfo.cloudCardColor, pattern: "████ ○ ████", label: "Cloud")
         }
         .padding(12)
@@ -95,13 +155,48 @@ struct PresenceViewerSK: View {
         // Configure initial zoom level
         newScene.initialZoomLevel = viewModel.zoomLevel
 
+        // Apply persisted VM-level display preferences to the fresh scene
+        newScene.backgroundEffectsEnabled = viewModel.backgroundEffectsEnabled
+
         // Set up zoom change callback
         newScene.onZoomChanged = { [weak viewModel] newZoom in
             viewModel?.updateZoomLevel(newZoom)
         }
 
+        // Focus-mode banner state (fires on the main actor from the scene's
+        // @MainActor tap/refresh paths). Both hoisted fields update together so
+        // the banner and the post-rebuild focus restore never disagree.
+        newScene.onFocusChanged = { [weak viewModel] key, name in
+            viewModel?.focusedPeerKey = key
+            viewModel?.focusedPeerName = name
+            // Focus ending takes any open card with it — the card belongs to a focus
+            // session, and a card anchored to one that has ended is stale.
+            if key == nil {
+                viewModel?.dismissDetail()
+            }
+        }
+
+        // In focus mode a tap means "show me this peer".
+        newScene.onPeerDetailRequested = { [weak viewModel] key in
+            viewModel?.toggleDetail(for: key)
+        }
+
+        // Empty-canvas tap while a card is open dismisses the card and keeps focus.
+        newScene.onDetailDismissRequested = { [weak viewModel] in
+            viewModel?.dismissDetail()
+        }
+
+        // A rebuilt scene starts with no card; keep its flag in step with the VM.
+        newScene.hasOpenDetailCard = viewModel.detailPeerKey != nil
+
         scene = newScene
         viewModel.scene = newScene
+
+        // A rebuilt scene starts with no search dim, while the view model keeps the
+        // query across the Peers ↔ Viewer switch. Re-apply it now rather than
+        // waiting on the next presence push — that is up to 250 ms of undimmed
+        // graph on every tab hop.
+        viewModel.reapplySearchMatchesToScene()
 
         // Note: Camera zoom will be applied after scene is presented (in didMove(to:))
     }
@@ -266,8 +361,192 @@ extension PresenceViewerSK {
             }
         }
 
-        /// Current zoom level (0.5 = 50%, 1.0 = 100%, 2.0 = 200%)
+        /// Current SpriteKit camera **scale**, which is the INVERSE of magnification:
+        /// a larger scale shows more of the scene. Range 0.5 … 4.0, i.e. 200% … 25%.
+        /// Use ``zoomPercent`` for anything shown to the user.
         var zoomLevel: CGFloat = 1.0
+
+        /// Magnification as a whole percentage, for display.
+        ///
+        /// `scale = 1 / magnification` (the same relationship `PresenceFocusPlanner`
+        /// `focusCameraScale` documents), so camera scale 0.5 is 200% and 4.0 is 25%.
+        /// docs/PRESENCE_GRAPH.md specifies the user-facing range as 0.25×–2.0×.
+        var zoomPercent: Int {
+            guard zoomLevel > 0 else { return 100 }
+            return Int((100 / zoomLevel).rounded())
+        }
+
+        /// Display name of the focused peer (focus mode, full-mesh view only).
+        /// Drives the top banner; nil when no peer is focused.
+        var focusedPeerName: String?
+
+        /// Key of the focused peer, hoisted so an active focus session survives
+        /// the Peers ↔ Viewer tab switch (the scene is recreated on return; this
+        /// VM is not — MainStudioView holds it as @State). Mirrors Android's
+        /// `MainStudioViewModel.presenceFocusedPeerId`. Always updated together
+        /// with `focusedPeerName` via the scene's `onFocusChanged`.
+        var focusedPeerKey: String?
+
+        /// The peer whose detail card is open, or nil. Accordion semantics: opening one
+        /// closes the other, because two centred overlays would occlude each other.
+        /// Hoisted like `focusedPeerKey` so a card survives a scene rebuild.
+        var detailPeerKey: String?
+
+        /// Sync rows for the open card, keyed by peer key. Refreshed alongside each
+        /// presence push. Only directly connected peers ever appear:
+        /// `system:data_sync_info` is a local table computed from where this device
+        /// actually receives data, so it has no row for an indirect peer or for
+        /// ourselves — which is exactly what the card's three-way sync section reports.
+        private(set) var syncStatusByPeerKey: [String: SyncStatusInfo] = [:]
+
+        /// Detail for the open card, or nil when no card is open (or its peer has left
+        /// the mesh — a card anchored to a peer that is gone must not survive).
+        var openPeerDetail: PresencePeerDetail? {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return nil }
+            let isLocal = key == localPeer.peerKeyString
+            guard let peer = isLocal ? localPeer : rawRemotePeers.first(where: { $0.peerKeyString == key }) else {
+                return nil
+            }
+            let directKeys = PresenceEdgeAggregator.directVisiblePeerKeys(
+                localPeer: localPeer,
+                remotePeers: rawRemotePeers
+            )
+            return PresencePeerDetail(
+                peer: peer,
+                isLocal: isLocal,
+                isDirectlyConnected: directKeys.contains(key),
+                syncStatus: syncStatusByPeerKey[key]
+            )
+        }
+
+        /// Whether the open card's peer can be focused from here — not already focused,
+        /// and not the local device (which is never a valid focus target).
+        var canFocusOpenPeer: Bool {
+            guard let key = detailPeerKey, let localPeer = rawLocalPeer else { return false }
+            return key != focusedPeerKey && key != localPeer.peerKeyString
+        }
+
+        // MARK: - Peer Search
+
+        /// Query typed into the search box in the Presence tab bar.
+        ///
+        /// Owned here rather than in the view so it survives the Peers ↔ Viewer
+        /// tab switch — that switch tears the scene down and builds a fresh one,
+        /// and the query has to be re-applied to it (extension parity: the box is
+        /// parent-owned for exactly this reason).
+        var searchQuery = "" {
+            didSet {
+                guard searchQuery != oldValue else { return }
+                pushSearchMatchesToScene()
+            }
+        }
+
+        /// Whether the box holds a real query (whitespace alone does not count).
+        var searchIsActive: Bool {
+            PresencePeerSearch.isActive(query: searchQuery)
+        }
+
+        /// Rows for the results card. Empty while `searchIsActive` is true means
+        /// "no peers match" — a distinct state from "not searching".
+        var searchMatches: [PresencePeerSearchMatch] {
+            PresencePeerSearch.matches(in: searchCandidates, query: searchQuery)
+        }
+
+        /// Rebuilt on each (throttled) presence push rather than per keystroke:
+        /// at 100+ peers this is the only part of matching worth not repeating.
+        private var searchCandidates: [PresencePeerSearchMatch] = []
+
+        /// Armed by a search pick made while Direct is ON — the peer is not in the
+        /// scene yet, so the focus has to wait for the rebuilt full-mesh push
+        /// (extension `pendingFocusKey`).
+        private var pendingFocusPeerKey: String?
+
+        /// Focus a search hit exactly as clicking its pill in the full mesh would.
+        ///
+        /// With Direct ON the peer may not be in the scene at all (that is the
+        /// whole point of searching for it), so this flips Direct off and defers
+        /// the focus to the rebuilt graph.
+        func focusSearchResult(_ key: String) {
+            // The local peer is listed in the card but never focusable.
+            guard key != rawLocalPeer?.peerKeyString else { return }
+            if showDirectConnectedOnly {
+                pendingFocusPeerKey = key
+                showDirectConnectedOnly = false // didSet → updateSceneWithCurrentFilter()
+                return
+            }
+            // A card belongs to the focus session that was open when it was
+            // raised; changing (or leaving) focus takes it along. `focusPeer`
+            // toggles focus OFF when the pick is the already-focused peer, so
+            // this cleanup has to run on both branches.
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+            scene?.focusPeer(key)
+        }
+
+        /// Enter/Return in the box focuses the first focusable hit — the
+        /// "find a peer without touching the mouse" path.
+        func focusFirstSearchResult() {
+            guard let first = searchMatches.first(where: { !$0.isLocal }) else { return }
+            focusSearchResult(first.key)
+        }
+
+        /// Clear the query and restore full opacity. The focus view (if any) is
+        /// deliberately left alone.
+        func clearSearch() {
+            searchQuery = ""
+        }
+
+        /// Escape unwinds the **innermost** context first: an open detail card,
+        /// then the search query. The focus view survives both — backing out of a
+        /// card is not backing out of the peer you are investigating.
+        ///
+        /// Returns whether anything was consumed, so a key handler can report
+        /// `.ignored` and let Escape do its normal job when there is nothing to
+        /// unwind.
+        @discardableResult
+        func handleEscape() -> Bool {
+            if detailPeerKey != nil {
+                dismissDetail()
+                return true
+            }
+            if searchIsActive {
+                clearSearch()
+                return true
+            }
+            return false
+        }
+
+        /// Push the current match set to the scene.
+        ///
+        /// `nil` when the box is empty; an **empty set** when the query has no
+        /// hits, which dims the whole graph. Those two are different states and
+        /// conflating them is the defect this method exists to avoid.
+        /// Re-apply the live query to a freshly built scene. Same push, exposed for
+        /// the view's `createScene()` — the scene dies on every tab switch, the
+        /// query does not.
+        func reapplySearchMatchesToScene() {
+            pushSearchMatchesToScene()
+        }
+
+        private func pushSearchMatchesToScene() {
+            scene?.setSearchMatches(
+                searchIsActive ? Set(searchMatches.map(\.key)) : nil
+            )
+        }
+
+        /// Whether the graph controls (legend, Direct toggle, zoom cluster) are
+        /// visible. The eye button and reset control always remain — the VS Code
+        /// extension's controls-visibility toggle. Lives on the VM so it survives
+        /// tab switches (the VM is hoisted to MainStudioView).
+        var controlsVisible = true
+
+        /// Whether the floating-squares background renders + animates. SwiftUI-only
+        /// (the Android viewer has no background particles by design).
+        var backgroundEffectsEnabled = true {
+            didSet {
+                scene?.backgroundEffectsEnabled = backgroundEffectsEnabled
+            }
+        }
 
         // MARK: - Scene Reference
 
@@ -278,6 +557,13 @@ extension PresenceViewerSK {
 
         /// Presence observer for real-time updates
         private var presenceObserver: DittoObserver?
+
+        /// Pending throttled scene update. Presence pushes are throttled to one
+        /// scene update per 250 ms fixed window (the VS Code extension's
+        /// presence coalesce) so connect/disconnect flapping can't thrash
+        /// layout animations. The Direct toggle path
+        /// (`updateSceneWithCurrentFilter` from `didSet`) stays immediate.
+        private var presencePushTask: Task<Void, Never>?
 
         /// Raw local peer from the presence graph
         private var rawLocalPeer: PeerProtocol?
@@ -312,7 +598,26 @@ extension PresenceViewerSK {
                     guard let self else { return }
                     rawLocalPeer = localPeer
                     rawRemotePeers = remotePeers
-                    updateSceneWithCurrentFilter()
+                    // Fixed-window throttle (the extension's presence coalesce,
+                    // DittoManager.ts): the first push in a window arms a 250 ms
+                    // flush; later pushes only replace the stored graph above;
+                    // the flush applies the latest at window end. A
+                    // cancel-and-re-sleep debounce would starve the graph under
+                    // sustained <250 ms churn. The scene's own topology
+                    // snapshots still gate rebuilds on actual changes.
+                    if presencePushTask == nil {
+                        presencePushTask = Task { @MainActor [weak self] in
+                            try? await Task.sleep(for: .milliseconds(250))
+                            guard let self else { return }
+                            presencePushTask = nil
+                            guard !Task.isCancelled else { return }
+                            updateSceneWithCurrentFilter()
+                            // Sync rows ride the same 250 ms window as the graph push,
+                            // so an open card's commit id stays current without adding a
+                            // second cadence. Only ever populated for direct peers.
+                            await refreshSyncStatus()
+                        }
+                    }
                 }
             }
         }
@@ -321,38 +626,93 @@ extension PresenceViewerSK {
         func stopProductionMode() {
             presenceObserver?.stop()
             presenceObserver = nil
+            presencePushTask?.cancel()
+            presencePushTask = nil
         }
 
         // MARK: - Filtering
 
-        /// Returns only peers directly connected to the local peer
-        private func directlyConnectedPeers(
-            from peers: [PeerProtocol],
-            localPeerKey: String
-        ) -> [PeerProtocol] {
-            peers.filter { peer in
-                peer.connectionProtocols.contains {
-                    $0.peerKeyString1 == localPeerKey || $0.peerKeyString2 == localPeerKey
-                }
-            }
-        }
-
         /// Push the current filtered graph state to the scene
         func updateSceneWithCurrentFilter() {
-            guard let localPeer = rawLocalPeer, let scene else { return }
-
-            let peersToShow: [PeerProtocol] = if showDirectConnectedOnly {
-                directlyConnectedPeers(
-                    from: rawRemotePeers,
-                    localPeerKey: localPeer.peerKeyString
+            // Rebuilt before the guard below, so a query typed before the scene
+            // exists still has candidates.
+            //
+            // The set is the FULL MESH, never the Direct-mode projection: a
+            // multi-hop peer has to be findable while Direct is on, because picking
+            // it is exactly how the user jumps the graph over to it.
+            //
+            // But it is the full mesh *as the scene will actually render it* —
+            // `meshVisiblePeerKeys`, the same filter `peersToShow` uses below — not
+            // the raw peer list. `PresenceEdgeAggregator` drops edgeless "orphan"
+            // peers (a peer discovered over BLE/mDNS before a session exists, or
+            // caught in the sync stop→start window), and they never become nodes.
+            // Listing them made rows that flip Direct off and then silently fail to
+            // focus, because the peer is not in the scene at all.
+            searchCandidates = if let localPeer = rawLocalPeer {
+                PresencePeerSearch.candidates(
+                    localPeer: localPeer,
+                    remotePeers: {
+                        let visible = PresenceEdgeAggregator.meshVisiblePeerKeys(
+                            localPeer: localPeer,
+                            remotePeers: rawRemotePeers
+                        )
+                        return rawRemotePeers.filter { visible.contains($0.peerKeyString) }
+                    }()
                 )
             } else {
-                rawRemotePeers
+                []
             }
+
+            guard let localPeer = rawLocalPeer, let scene else { return }
+
+            // Both modes derive the visible set from the aggregated edges, which
+            // include the local peer's own advertised connections — never from
+            // each remote peer's connection list alone, which would hide a peer
+            // whose edge only the local side advertises (the multicast
+            // asymmetry). Expanded mode additionally drops orphan peers (those
+            // in no edge at all) so the sync stop→start window doesn't render
+            // floating pills (extension peer-info.ts pass 2). The local peer is
+            // always shown.
+            let visibleKeys: Set<String> = if showDirectConnectedOnly {
+                PresenceEdgeAggregator.directVisiblePeerKeys(
+                    localPeer: localPeer,
+                    remotePeers: rawRemotePeers
+                )
+            } else {
+                PresenceEdgeAggregator.meshVisiblePeerKeys(
+                    localPeer: localPeer,
+                    remotePeers: rawRemotePeers
+                )
+            }
+            let peersToShow = rawRemotePeers.filter { visibleKeys.contains($0.peerKeyString) }
 
             // Sync the filter flag to the scene so it can suppress remote-to-remote edges
             scene.showDirectConnectedOnly = showDirectConnectedOnly
             scene.updatePresenceGraph(localPeer: localPeer, remotePeers: peersToShow)
+
+            // Focus survives the Peers ↔ Viewer tab switch: the scene was torn
+            // down and recreated, so re-enter the hoisted focus once the fresh
+            // scene has graph state — or clear the hoist (via onFocusChanged)
+            // when the peer is gone / Direct mode is on (Android A4 parity).
+            if let focusedKey = focusedPeerKey, scene.focusedPeerKey == nil {
+                scene.restoreFocusAfterRebuild(for: focusedKey)
+            }
+
+            // A search pick that had to flip Direct off lands here, once the
+            // rebuilt full-mesh push guarantees the peer is in the scene. Cleared
+            // unconditionally: a peer that left the mesh in the meantime must not
+            // leave the request armed for the next unrelated push.
+            if let pending = pendingFocusPeerKey {
+                pendingFocusPeerKey = nil
+                detailPeerKey = nil
+                scene.hasOpenDetailCard = false
+                scene.focusPeer(pending)
+            }
+
+            // The scene is rebuilt on every Peers ↔ Viewer switch while this view
+            // model is not — re-apply the live query to the fresh scene, or its
+            // dimming would silently disappear on the round trip.
+            pushSearchMatchesToScene()
         }
 
         // MARK: - Zoom Control
@@ -365,12 +725,14 @@ extension PresenceViewerSK {
 
         /// Zoom out (increase scale value)
         func zoomOut() {
-            let newZoom = min(2.0, zoomLevel + 0.1)
+            // 4.0 camera scale = the VS Code extension's 0.25 minimum magnification —
+            // the deep zoom-out a large full-mesh layout needs.
+            let newZoom = min(4.0, zoomLevel + 0.1)
             updateZoomLevel(newZoom)
         }
 
-        /// Update zoom level and apply to scene camera
-        /// - Parameter level: New zoom level (0.5 to 2.0)
+        /// Update the camera scale and apply it to the scene camera.
+        /// - Parameter level: New camera **scale** (0.5 … 4.0 = 200% … 25% magnification).
         func updateZoomLevel(_ level: CGFloat) {
             zoomLevel = level
             scene?.camera?.setScale(level)
@@ -385,6 +747,58 @@ extension PresenceViewerSK {
             zoomLevel = 1.0
         }
 
+        /// Exit focus mode (the banner's ✕ button). Any open card goes with it — it is
+        /// anchored to a focus session that no longer exists.
+        func exitFocusMode() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+            scene?.exitFocusMode()
+        }
+
+        /// Toggle the detail card for `key` (accordion: same peer closes, another swaps).
+        func toggleDetail(for key: String) {
+            detailPeerKey = (detailPeerKey == key) ? nil : key
+            scene?.hasOpenDetailCard = detailPeerKey != nil
+        }
+
+        /// Dismiss the open card without leaving focus.
+        func dismissDetail() {
+            detailPeerKey = nil
+            scene?.hasOpenDetailCard = false
+        }
+
+        /// Focus the peer whose card is open (the card's labelled action), replacing the
+        /// traversal that tapping an orbit peer used to provide.
+        func focusOpenPeer() {
+            guard let key = detailPeerKey else { return }
+            dismissDetail()
+            // `focusPeer`, NOT `restoreFocusAfterRebuild`. The latter's first guard is
+            // `focusedPeerKey == nil`, and this card can only be open while a focus is
+            // active (`handlePeerTap` raises it only inside `if focusedPeerKey != nil`)
+            // — so that guard could never pass and this labelled action closed the card
+            // without ever focusing anything. `focusPeer` is the path that can replace
+            // an active focus.
+            scene?.focusPeer(key)
+        }
+
+        /// Refresh the sync rows. Degrades to an empty lookup rather than failing the
+        /// card: the presence-graph half is still worth showing when sync is stopped.
+        func refreshSyncStatus() async {
+            guard let ditto = await DittoManager.shared.dittoSelectedApp else { return }
+            var lookup: [String: SyncStatusInfo] = [:]
+            do {
+                let results = try await ditto.store.execute(query: "SELECT * FROM system:data_sync_info")
+                for item in results.items {
+                    let dict = item.value.compactMapValues { $0 }
+                    guard let peerKey = dict["_id"] as? String else { continue }
+                    lookup[peerKey] = SyncStatusInfo(from: dict)
+                }
+            } catch {
+                Log.debug("Presence detail card: system:data_sync_info unavailable — \(error.localizedDescription)")
+            }
+            syncStatusByPeerKey = lookup
+        }
+
         // MARK: - Cleanup
 
         // Note: Cleanup happens automatically when ViewModel is deallocated
@@ -392,36 +806,42 @@ extension PresenceViewerSK {
     }
 }
 
-// MARK: - Floating Toolbar Controls
+// MARK: - Toolbar Controls
 
-/// Drop-in middle-content for `DetailBottomBar` when the Presence Viewer tab is active.
-/// Houses what used to be the bottom-right overlay (Direct toggle, reset, ± zoom)
-/// inline with the rest of the toolbar so the canvas is unobstructed.
-///
-/// Caller pattern (inside `MainStudioView.syncTabsDetailView`):
-/// ```
-/// DetailBottomBar(connections: ...) {
-///     if selectedSyncTab == 1 {
-///         PresenceViewerToolbarControls(viewModel: presenceViewerVM)
-///     }
-/// }
-/// ```
+// macOS middle-content for the Presence detail toolbar when the Viewer tab is active.
+// Houses what used to be the bottom-right overlay (Direct toggle, reset, ± zoom)
+// inline with the rest of the toolbar so the canvas is unobstructed. Rendered in
+// the floating `DetailBottomBar` on macOS. iOS uses
+// `PresenceViewerToolbarItems`, whose individual native controls can move to
+// iPhone Duo's vertical bar.
+//
+// Caller pattern (inside `MainStudioView.syncTabsDetailView`):
+// ```
+// DetailBottomBar(connections: ...) {
+//     if selectedSyncTab == 1 {
+//         PresenceViewerToolbarControls(viewModel: presenceViewerVM)
+//     }
+// }
+// ```
+#if os(macOS)
 struct PresenceViewerToolbarControls: View {
     @Bindable var viewModel: PresenceViewerSK.ViewModel
 
     var body: some View {
         HStack(spacing: 12) {
-            // Direct toggle — same short label as Android.
-            Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
-                .toggleStyle(.switch)
-                .font(.caption)
-                .fixedSize()
-                .help("Show only peers directly connected to this device")
+            if viewModel.controlsVisible {
+                // Direct toggle — same short label as Android.
+                Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+                    .fixedSize()
+                    .help("Show only peers directly connected to this device")
 
-            Divider()
-                .frame(height: 18)
+                Divider()
+                    .frame(height: 18)
+            }
 
-            // Reset (recenter + 100% zoom).
+            // Reset (recenter + 100% zoom) — always visible (extension parity).
             Button(action: { viewModel.recenterView() }, label: {
                 Image(systemName: "scope")
                     .font(.system(size: 14))
@@ -432,38 +852,163 @@ struct PresenceViewerToolbarControls: View {
             .accessibilityLabel("Reset view")
             .help("Reset view — recenter and zoom to 100%")
 
-            // Zoom out.
-            Button(action: { viewModel.zoomOut() }, label: {
-                Image(systemName: "minus")
+            if viewModel.controlsVisible {
+                // Zoom out.
+                Button(action: { viewModel.zoomOut() }, label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 14))
+                        .frame(minWidth: 32, minHeight: 32)
+                        .contentShape(Rectangle())
+                })
+                .buttonStyle(.plain)
+                .disabled(viewModel.zoomLevel >= 4.0)
+                .accessibilityLabel("Zoom out")
+                .help("Zoom out (or use scroll wheel)")
+
+                // Zoom level readout.
+                //
+                // `zoomLevel` is the SKCameraNode SCALE, and magnification is its inverse —
+                // a larger scale shows MORE of the scene. Printing the scale directly meant
+                // pressing "+" made the number go DOWN and fully zoomed out read "400%".
+                // docs/PRESENCE_GRAPH.md specifies the user-facing range as 0.25×–2.0×
+                // magnification (camera scale 0.5–4.0), i.e. 25%–200% — which is what
+                // dividing gives. `focusCameraScale` states the same relationship:
+                // "scale = 1/magnification".
+                Text("\(viewModel.zoomPercent)%")
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(width: 40, alignment: .center)
+                    .accessibilityLabel("Zoom level \(viewModel.zoomPercent) percent")
+
+                // Zoom in.
+                Button(action: { viewModel.zoomIn() }, label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14))
+                        .frame(minWidth: 32, minHeight: 32)
+                        .contentShape(Rectangle())
+                })
+                .buttonStyle(.plain)
+                .disabled(viewModel.zoomLevel <= 0.5)
+                .accessibilityLabel("Zoom in")
+                .help("Zoom in (or use scroll wheel)")
+            }
+
+            Divider()
+                .frame(height: 18)
+
+            // Background effects toggle (SwiftUI-only — the Android viewer has no
+            // particles by design).
+            Button(action: { viewModel.backgroundEffectsEnabled.toggle() }, label: {
+                Image(systemName: viewModel.backgroundEffectsEnabled ? "sparkles" : "sparkle")
                     .font(.system(size: 14))
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             })
             .buttonStyle(.plain)
-            .disabled(viewModel.zoomLevel >= 2.0)
-            .accessibilityLabel("Zoom out")
-            .help("Zoom out (or use scroll wheel)")
+            .accessibilityLabel("Toggle background effects")
+            .help(viewModel.backgroundEffectsEnabled ? "Hide background effects" : "Show background effects")
 
-            // Zoom level readout.
-            Text("\(Int(viewModel.zoomLevel * 100))%")
-                .font(.system(size: 12, design: .monospaced))
-                .frame(width: 40, alignment: .center)
-                .accessibilityLabel("Zoom level \(Int(viewModel.zoomLevel * 100)) percent")
-
-            // Zoom in.
-            Button(action: { viewModel.zoomIn() }, label: {
-                Image(systemName: "plus")
+            // Controls-visibility (eye) toggle — always visible (extension parity):
+            // hides/shows the legend + Direct toggle + zoom cluster.
+            Button(action: { viewModel.controlsVisible.toggle() }, label: {
+                Image(systemName: viewModel.controlsVisible ? "eye" : "eye.slash")
                     .font(.system(size: 14))
                     .frame(minWidth: 32, minHeight: 32)
                     .contentShape(Rectangle())
             })
             .buttonStyle(.plain)
-            .disabled(viewModel.zoomLevel <= 0.5)
-            .accessibilityLabel("Zoom in")
-            .help("Zoom in (or use scroll wheel)")
+            .accessibilityLabel("Toggle controls visibility")
+            .help(viewModel.controlsVisible ? "Hide graph controls" : "Show graph controls")
         }
     }
 }
+#endif
+
+#if os(iOS)
+/// Semantic Presence Viewer controls for iOS toolbars. The low-frequency actions
+/// are one native menu, letting iPhone Duo keep a coherent trailing action rail
+/// and place individual commands in the system menu instead of a second rail.
+struct PresenceViewerToolbarItems: ToolbarContent {
+    @Bindable var viewModel: PresenceViewerSK.ViewModel
+
+    var body: some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "presenceViewerControls", placement: .primaryAction) {
+                viewerControlsMenu
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "presenceViewerControls", placement: .primaryAction) {
+                viewerControlsMenu
+            }
+        }
+    }
+
+    private var viewerControlsMenu: some View {
+        Menu {
+            if viewModel.controlsVisible {
+                Button {
+                    viewModel.showDirectConnectedOnly.toggle()
+                } label: {
+                    Label(
+                        viewModel.showDirectConnectedOnly
+                            ? "Show Full Network"
+                            : "Show Direct Connections",
+                        systemImage: "link"
+                    )
+                }
+                .accessibilityIdentifier("PresenceDirectConnectionsButton")
+                .accessibilityValue(viewModel.showDirectConnectedOnly ? "Direct connections" : "Full network")
+
+                Divider()
+                Text("Current zoom: \(viewModel.zoomPercent)%")
+                Button("Zoom Out", systemImage: "minus.magnifyingglass") {
+                    viewModel.zoomOut()
+                }
+                .disabled(viewModel.zoomLevel >= 4.0)
+                Button("Zoom In", systemImage: "plus.magnifyingglass") {
+                    viewModel.zoomIn()
+                }
+                .disabled(viewModel.zoomLevel <= 0.5)
+                .accessibilityIdentifier("PresenceZoomMenu")
+            }
+
+            Divider()
+
+            Button {
+                viewModel.recenterView()
+            } label: {
+                Label("Reset View", systemImage: "scope")
+            }
+            .accessibilityIdentifier("PresenceResetViewButton")
+
+            Button {
+                viewModel.backgroundEffectsEnabled.toggle()
+            } label: {
+                Label(
+                    viewModel.backgroundEffectsEnabled
+                        ? "Hide Background Effects"
+                        : "Show Background Effects",
+                    systemImage: viewModel.backgroundEffectsEnabled ? "sparkles" : "sparkle"
+                )
+            }
+            .accessibilityIdentifier("PresenceBackgroundEffectsButton")
+
+            Button {
+                viewModel.controlsVisible.toggle()
+            } label: {
+                Label(
+                    viewModel.controlsVisible ? "Hide Graph Controls" : "Show Graph Controls",
+                    systemImage: viewModel.controlsVisible ? "eye" : "eye.slash"
+                )
+            }
+            .accessibilityIdentifier("PresenceControlsVisibilityButton")
+        } label: {
+            Label("Viewer Controls", systemImage: "slider.horizontal.3")
+        }
+        .accessibilityIdentifier("PresenceViewerControlsMenu")
+    }
+}
+#endif
 
 // MARK: - Preview
 

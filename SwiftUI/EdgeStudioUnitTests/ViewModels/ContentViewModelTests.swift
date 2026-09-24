@@ -50,7 +50,7 @@ struct ContentViewModelTests {
 
     @Test(.tags(.fast))
     @MainActor
-    func `confirmPendingAppDeletion deletes the staged app and clears staging`() async {
+    func `confirmAppDeletion deletes the confirmed app and clears staging`() async {
         // ARRANGE
         let mocks = MockSet()
         let appState = AppState()
@@ -59,7 +59,7 @@ struct ContentViewModelTests {
         await viewModel.deleteApp(app, appState: appState)
 
         // ACT — the confirmation dialog's destructive button.
-        await viewModel.confirmPendingAppDeletion(appState: appState)
+        await viewModel.confirmAppDeletion(app, appState: appState)
 
         // ASSERT
         #expect(await mocks.databaseRepository.deletedConfigs.map(\._id) == [app._id])
@@ -69,17 +69,45 @@ struct ContentViewModelTests {
 
     @Test(.tags(.fast))
     @MainActor
-    func `confirmPendingAppDeletion with nothing staged is a no-op`() async {
-        // ARRANGE
+    func `confirmAppDeletion still deletes when the dialog already cleared staging`() async {
+        // The regression this signature exists for. Dismissing a confirmationDialog
+        // drives `isPresented` to false, whose setter clears `appPendingDeletion` — and
+        // that runs BEFORE the button action's Task. The previous
+        // `confirmPendingAppDeletion(appState:)` re-read the staged value, hit its
+        // `guard let … else { return }`, and returned silently, so Delete did nothing at
+        // all and left no log line to explain itself. Passing the config through
+        // `presenting:` is what makes the action immune to that ordering.
         let mocks = MockSet()
         let appState = AppState()
         let viewModel = Self.makeViewModel(mocks: mocks)
+        let app = DittoConfigForDatabase.new()
+        await viewModel.deleteApp(app, appState: appState)
 
-        // ACT
-        await viewModel.confirmPendingAppDeletion(appState: appState)
+        // ACT — simulate the dismissal landing first.
+        viewModel.appPendingDeletion = nil
+        await viewModel.confirmAppDeletion(app, appState: appState)
+
+        // ASSERT — the deletion still happens.
+        #expect(await mocks.databaseRepository.deletedConfigs.map(\._id) == [app._id])
+        #expect(appState.error == nil)
+    }
+
+    @Test(.tags(.fast))
+    @MainActor
+    func `staging alone never deletes — only an explicit confirm does`() async {
+        // Replaces the old "nothing staged is a no-op" case, which only proved the
+        // guard fired. The property that matters is that staging is inert.
+        let mocks = MockSet()
+        let appState = AppState()
+        let viewModel = Self.makeViewModel(mocks: mocks)
+        let app = DittoConfigForDatabase.new()
+
+        // ACT — trigger the menu item but never confirm.
+        await viewModel.deleteApp(app, appState: appState)
 
         // ASSERT
         #expect(await mocks.databaseRepository.deletedConfigs.isEmpty)
+        #expect(viewModel.appPendingDeletion?._id == app._id)
         #expect(appState.error == nil)
     }
 

@@ -43,7 +43,7 @@ actor QueryService {
         let elapsedMs = Date.now.timeIntervalSince(startDate) * 1000.0
 
         // Record metrics only when collection is enabled (reads UserDefaults synchronously)
-        let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+        let isMetricsEnabled = StudioPreferences.store.bool(forKey: "metricsEnabled")
         if isMetricsEnabled {
             queryCounter.increment()
             queryTimer.recordMilliseconds(elapsedMs)
@@ -124,7 +124,7 @@ actor QueryService {
             return QueryExecutionResult(items: ["No Ditto app selected"], profile: nil)
         }
 
-        let isMetricsEnabled = UserDefaults.standard.bool(forKey: "metricsEnabled")
+        let isMetricsEnabled = StudioPreferences.store.bool(forKey: "metricsEnabled")
         let shouldProfile = isMetricsEnabled
             && Self.isSelectStatement(query)
             && !Self.alreadyHasProfilePrefix(query)
@@ -201,7 +201,13 @@ actor QueryService {
         // and prepending both would re-trigger profiling unnecessarily.
         if isMetricsEnabled {
             let resultCount = userItems.count + results.mutatedDocumentIDs().count
-            let explainOutput = await runExplain(ditto: ditto, query: query)
+            // EXPLAIN ADVISE is invalid syntax (extension skips the metrics EXPLAIN
+            // side-trip for ADVISE) — record the capture without an explain payload.
+            let explainOutput = if DqlStatements.isAdviseStatement(query) {
+                "EXPLAIN skipped: EXPLAIN ADVISE is not valid syntax"
+            } else {
+                await runExplain(ditto: ditto, query: query)
+            }
             await QueryMetricsRepository.shared.capture(
                 dql: query,
                 executionTimeMs: elapsedMs,

@@ -79,11 +79,22 @@ Updates the Ditto transport config based on database settings:
 | Setting | Transport |
 |---------|-----------|
 | `isBluetoothLeEnabled` | `peerToPeer.bluetoothLe.enabled` |
-| `isLanEnabled` | `peerToPeer.lan.enabled` |
+| `isLanEnabled` | `peerToPeer.lan.enabled` (+ `lan.mdnsEnabled` / `lan.multicastEnabled` discovery, VS Code extension parity) |
 | `isAwdlEnabled` | `peerToPeer.wifiAware.enabled` |
+| `isMulticastEnabled`, `multicastGroupAddress`, `multicastPort`, `multicastInterfaceName` | `peerToPeer.multicastBeta.{enabled, groupAddress, port, interfaceName}` (beta, SDK 5.1.0) |
 | `isCloudSyncEnabled` + `websocketUrl` | `connect.websocketUrls` |
 
 Called during `hydrate()` (inside the open sequence) and from `StudioSession.applyTransportSettings()` when the user changes transport settings at runtime.
+
+**Multicast constraints (beta):** the SDK defers `multicastBeta` changes while sync
+is active, so every apply path stops sync first (the open sequence and the live
+apply both do). The manifest declares `CHANGE_WIFI_MULTICAST_STATE` unconditionally
+— `sync.start` throws if multicast is enabled without it. While enabled, the app
+holds a process-level `WifiManager.MulticastLock` (`MulticastLockController`,
+acquired/released at this single chokepoint and on session close) in addition to
+the SDK's own engine-level lock. Defaults: disabled, group `224.1.2.3`, port `6003`
+(port `0` is rejected by validation — the SDK reads it as "any port" and group
+rendezvous silently breaks).
 
 ---
 

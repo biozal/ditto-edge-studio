@@ -4,7 +4,6 @@ import Testing
 
 @Suite("QueryMetricsRepository Tests")
 struct QueryMetricsRepositoryTests {
-
     // Each test uses its own fresh repository instance to avoid shared state
     private func makeRepository() -> QueryMetricsRepository {
         QueryMetricsRepository()
@@ -108,7 +107,7 @@ struct QueryMetricsRepositoryTests {
 
         // ASSERT
         let records = await repo.allRecords()
-        #expect(records[0].id != UUID.init()) // UUID is not the zero UUID
+        #expect(records[0].id != UUID()) // UUID is not the zero UUID
         #expect(records.count == 1)
     }
 

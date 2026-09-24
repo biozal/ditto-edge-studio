@@ -106,8 +106,16 @@ enum MCPHTTPParser {
 
             // Compare as a subtraction: a hostile chunk-size line (e.g.
             // "7FFFFFFFFFFFFFFF" → Int.max) would trap on overflow in
-            // `size + crlf.count`. A negative rhs simply fails the guard —
-            // the body is treated as incomplete, same as any short read.
+            // `size + crlf.count`.
+            //
+            // `size` must be rejected as negative FIRST. `Int(_:radix:)` accepts a
+            // leading minus, so the chunk-size line "-1" parses to -1 — and -1 satisfies
+            // `size <= remaining - crlf.count` for any non-trivial buffer, sailing past
+            // the guard below into `data[offset ..< data.index(offset, offsetBy: -1)]`,
+            // a reversed Range whose construction traps and kills the whole process.
+            // (The note about "a negative rhs" below concerns `remaining - crlf.count`,
+            // which is a different quantity and never protected against this.)
+            guard size >= 0 else { return nil }
             let remaining = data.distance(from: offset, to: data.endIndex)
             guard size <= remaining - crlf.count else { return nil }
             decoded.append(data[offset ..< data.index(offset, offsetBy: size)])

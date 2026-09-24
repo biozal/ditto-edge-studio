@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  NavigationSmokeUITests.swift
 //  EdgeStudioUITests
@@ -17,7 +18,6 @@
 import XCTest
 
 final class NavigationSmokeUITests: UITestBase {
-
     /// Opening a database lands the user in MainStudioView (CloseButton present).
     ///
     /// XCTSkips when no databases are configured.
@@ -27,7 +27,7 @@ final class NavigationSmokeUITests: UITestBase {
         guard waitForAppToFinishLoading(timeout: 20) else {
             throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
         }
-        try addDatabasesFromPlist()      // XCTSkip if no plist/credentials
+        try addDatabasesFromPlist() // XCTSkip if no plist/credentials
         try ensureMainStudioViewIsOpen() // XCTSkip if no databases
 
         // ASSERT
@@ -54,13 +54,15 @@ final class NavigationSmokeUITests: UITestBase {
         guard closeButton.waitForExistence(timeout: 10) else {
             throw XCTSkip("CloseButton not present — cannot exercise close flow.")
         }
-        closeButton.tap()
+        closeButton.click()
         reactivateAfterTransition()
 
         // ASSERT — ContentView indicator should reappear.
         let addButton = app.buttons["AddDatabaseButton"].firstMatch
         guard addButton.waitForExistence(timeout: 15) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("Did not return to ContentView — Alert: \(app.alerts.firstMatch.label)")
             }
             captureScreenshot(named: "FAIL-no-return-to-contentview", lifetime: .keepAlways)
@@ -93,9 +95,13 @@ final class NavigationSmokeUITests: UITestBase {
         // happens to be queryable; otherwise skip the segment-level check.
         let picker = app.descendants(matching: .any)["NavigationSegmentedPicker"].firstMatch
         guard picker.waitForExistence(timeout: 3) else {
-            throw XCTSkip("NavigationSegmentedPicker is not exposed to XCUITest (SwiftUI segmented Picker limitation — see docs/TESTING.md Pattern 2).")
+            throw XCTSkip(
+                "NavigationSegmentedPicker is not exposed to XCUITest (SwiftUI segmented Picker limitation — see docs/TESTING.md Pattern 2)."
+            )
         }
 
         XCTAssertTrue(picker.exists, "Sidebar navigation picker element is present in the hierarchy.")
     }
 }
+
+#endif

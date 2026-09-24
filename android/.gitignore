@@ -19,3 +19,6 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+# PoC fixture for DebugSocketPocTest — never commit real tokens
+app/src/androidTest/assets/debugSocketTestConfig.properties

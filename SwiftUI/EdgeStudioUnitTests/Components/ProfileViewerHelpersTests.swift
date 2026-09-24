@@ -22,12 +22,10 @@ import Testing
 
 @Suite("ProfileViewer Helpers")
 struct ProfileViewerHelpersTests {
-
     // MARK: - ProfileFormat.documents(_:)
 
     @Suite("ProfileFormat.documents")
     struct DocumentsTests {
-
         /// Strips any non-digit grouping separators so we can compare
         /// the significant digits independent of the host locale.
         private func digitsOnly(_ s: String) -> String {

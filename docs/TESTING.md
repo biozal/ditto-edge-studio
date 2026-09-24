@@ -776,7 +776,7 @@ func testInitialization() async throws {
         try await service.initialize()  // Test the initialization itself
 
         let version = try await service.getSchemaVersion()
-        #expect(version == 5)  // current schema version
+        #expect(version == 6)  // current schema version
     }
 }
 ```
@@ -1138,6 +1138,13 @@ struct EdgeCaseTests {
 
 ## Writing UI Tests
 
+For iPhone Duo and iPadOS, use the shared mobile test plans and the
+[mobile UI testing guide](MOBILE_UI_TESTING.md). It documents credential-free
+smoke tests, isolated offline workspace fixtures, accessibility audits,
+destination selection, and result-based CI gates. The legacy examples below
+describe the desktop harness; new required mobile tests fail when expected
+controls are missing and use condition-based waits instead of sleeps/skips.
+
 **UI tests use XCTest framework (NOT Swift Testing)** because XCUITest has no Swift Testing alternative.
 
 UI tests validate user workflows, visual layouts, and end-to-end functionality that unit tests cannot cover:
@@ -1192,6 +1199,41 @@ UI tests use a separate database directory (`ditto_appconfig_test`) to avoid con
 - Loads all databases from `testDatabaseConfig.plist`
 - Databases saved to sandboxed test storage via `DatabaseRepository`
 
+#### Keep Local Test Credentials out of Release Bundles
+
+`SwiftUI/EdgeStudio/testDatabaseConfig.plist` is a local, ignored fixture. Xcode's
+filesystem-synchronized source group can copy ignored files into the app; Git's
+ignore rules do not control resource membership. The app target's **Release**
+configuration excludes `testDatabaseConfig.plist` with
+`EXCLUDED_SOURCE_FILE_NAMES`. Debug keeps the fixture available to existing tests.
+Do not override that Release setting when building or archiving.
+
+After a Release build/archive with a local fixture present, verify the actual app
+bundle, including nested resources, without printing or reading fixture contents:
+
+```bash
+rtk proxy python3 - '/path/to/Release/Ditto Edge Studio.app' <<'PY'
+from pathlib import Path
+import sys
+
+bundle = Path(sys.argv[1])
+assert bundle.is_dir(), "Expected a built app bundle"
+assert not any(bundle.rglob("testDatabaseConfig.plist")), "Release contains a local test fixture"
+print("Release bundle excludes the local test fixture")
+PY
+```
+
+Run this check on each distributed platform's final app bundle. For an archive,
+use `Products/Applications/Ditto Edge Studio.app` inside the `.xcarchive`. A
+successful Debug test run does not verify Release resource exclusion. Keep real
+credentials out of committed fixtures and validation output.
+
+#### Native macOS Input
+
+Use `XCUIElement.click()` for desktop controls and text fields. `tap()` sends
+touch-style events and can leave macOS controls unchanged even when the element
+exists and has valid coordinates. The iOS harness continues to use `tap()`.
+
 #### macOS Window Activation
 
 **Known macOS Bug (macOS 11+):** `NSRunningApplication.activate()` doesn't reliably bring windows to foreground.
@@ -1203,9 +1245,9 @@ UI tests use a separate database directory (`ditto_appconfig_test`) to avoid con
 4. Click the window element to force focus
 5. Retry activation up to 5 times if needed
 
-**After any `tap()` that transitions views:**
+**After any `click()` that transitions views:**
 ```swift
-firstAppCard.tap()
+firstAppCard.click()
 app.activate()  // Reactivate to maintain focus
 sleep(1)
 let window = app.windows.firstMatch
@@ -1292,7 +1334,7 @@ private func addSingleDatabase(config: [String: Any]) throws {
         XCTFail("Add Database button not found")
         return
     }
-    addButton.tap()
+    addButton.click()
     sleep(2)  // Wait for sheet animation
 
     // Wait for form using text field (NOT picker - see Pattern 2)
@@ -1302,13 +1344,13 @@ private func addSingleDatabase(config: [String: Any]) throws {
         return
     }
 
-    nameField.tap()
+    nameField.click()
     sleep(1)  // Allow focus to register
     nameField.typeText(name)
 
     // Fill other fields, then save
     let saveButton = app.buttons["SaveButton"]
-    saveButton.tap()
+    saveButton.click()
     sleep(2)
 
     // Monitor sheet dismissal
@@ -1355,7 +1397,7 @@ let button = app.buttons["AddDatabaseButton"].firstMatch
 
 | Situation | Approach |
 |-----------|----------|
-| After `tap()` for animations | `sleep(1)` |
+| After `click()` for animations | `sleep(1)` |
 | Waiting for async content | `waitForExistence(timeout:)` |
 | After sheet-opening button | `sleep(2)` |
 | After database save | `sleep(2)` + monitor sheet dismissal |
@@ -1382,7 +1424,7 @@ private func ensureMainStudioViewIsOpen() throws {
         throw XCTSkip("No databases found")
     }
 
-    firstCard.tap()
+    firstCard.click()
     sleep(2)
 
     // Validate with CloseButton, NOT navigationPicker
@@ -1437,7 +1479,7 @@ func testNavigationToView() throws {
     guard navigationButton.waitForExistence(timeout: 5) else {
         throw XCTSkip("Navigation not accessible - picker may use SF Symbol images")
     }
-    navigationButton.tap()
+    navigationButton.click()
     sleep(2)
 
     // ASSERT
@@ -1680,6 +1722,21 @@ New Code Coverage: XX.XX%
 ```
 
 ---
+
+## Release review validation (2026-09-22)
+
+The adversarial release pass ran the full macOS plan with 1104 test IDs passing,
+zero failures and three documented skips (1177 executions including parameters).
+The live System Metrics UI test opens the real SDK-backed dashboard, observes a
+metric row, activates Refresh and returns after navigating away. Together with
+lifecycle tests, measured SystemMetricsService line coverage is 99/99 (100%);
+no additional SDK-boundary exemption is claimed for this service.
+
+Other focused production coverage: DQLTextReconciliation 16/16 (100%),
+LogScanScheduler 19/21 (90.48%), PersistenceDirectoryPreparation 57/70 (81.43%)
+and LogPatternEngine 137/137 (100%). Line coverage does not prove every branch.
+See the [release review ledger](../plans/2026-09-22-release-adversarial-review.md)
+for independent confirmations, final mobile results and remaining release gates.
 
 ## Additional Resources
 

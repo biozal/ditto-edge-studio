@@ -64,10 +64,6 @@
 - `MainStudioView.ViewModel` split into four sub-VMs (Phase 10a–10b).
 - Protocol-based DI introduced so view models can be instantiated with mocked services in unit tests.
 
-### .NET / Avalonia
-- **Initial attachments support** added before the platform was archived: attachment viewer in the Document Viewer, Add Attachment context menu, and Delete Attachment dialog with field selection.
-- **Archived going forward.** The `dotnet/` Avalonia implementation is no longer maintained. The Ditto Visual Studio Code extension and JetBrains IDE plugin replace it for the .NET community. The `dotnet/` tree remains in git history for reference only and is no longer included in the help-doc sync script.
-
 ### Android
 - **Attachments**: long-press a row to Add/Delete attachments; attachments shown inline in the JSON inspector with image preview.
 - **Profile tab** (Card mode) with visual parity to the SwiftUI execution-plan viewer.
@@ -93,14 +89,6 @@
 **Observers (new)**
 - Full observer support: create/edit observers, activate and deactivate them, and capture live events with list and detail screens integrated into the main studio screen.
 - Disk usage screen updates.
-
-### .NET / Avalonia
-
-- **Presence Viewer**: SkiaSharp-rendered presence graph with BFS ring-based layout, zoom/pan, node fade-in/fade-out animations, and live connection counts.
-- **Embedded MCP server** with 15 tools matching the SwiftUI version, plus a new Settings window with an MCP server toggle.
-- **Download Quickstarts** and **JSON data import** (batch DQL insertion with validation).
-- Observer detail panes gained pagination and a Raw/Table view-mode toggle.
-- Help menu wired with a documentation window.
 
 ---
 
@@ -130,9 +118,6 @@
 - Peer list cards updated to better match the SwiftUI layout.
 - Query editor added.
 - Multiple tablet UI fixes.
-
-**.NET / Avalonia**
-- Initial .NET check-in with query editor (multiple fixes), logging screen, and Peer List aligned to SwiftUI.
 
 ---
 

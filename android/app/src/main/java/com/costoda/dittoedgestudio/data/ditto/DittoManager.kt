@@ -14,13 +14,22 @@ import com.ditto.kotlin.DittoLogLevel
 import com.ditto.kotlin.DittoLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import com.costoda.dittoedgestudio.data.logging.sdkLogLevelFromConfigValue
 
 class DittoManager(
     private val coroutineScope: CoroutineScope,
     private val logCaptureService: DittoLogCaptureService? = null,
+    private val appPreferences: com.costoda.dittoedgestudio.data.preferences.AppPreferencesGateway? = null,
+    private val multicastLockController: MulticastLockController? = null,
 ) {
 
+    // Publication and conditional teardown must be one atomic ownership change.
+    // Native close remains outside this monitor because it can block.
+    private val instanceLock = Any()
+
+    @Volatile
     private var ditto: Ditto? = null
 
     @Volatile
@@ -39,12 +48,17 @@ class DittoManager(
      * silently reverting the scope the user just changed.
      */
     fun refreshActiveConfigIfMatching(database: DittoDatabase) {
-        if (activeDatabase?.id == database.id && database.id != 0L) {
-            activeDatabase = database
+        synchronized(instanceLock) {
+            if (activeDatabase?.id == database.id && database.id != 0L) {
+                activeDatabase = database
+            }
         }
     }
 
     companion object {
+        /** Env var the SDK maps to `metrics_exporter_virtual_collection_enabled`. */
+        internal const val SYSTEM_METRICS_ENV_VAR = "DITTO_METRICS_EXPORTER_VIRTUAL_COLLECTION_ENABLED"
+
         private const val TAG = "DittoManager"
     }
 
@@ -64,10 +78,23 @@ class DittoManager(
 
         closeCurrentInstance()
 
-        // Set Ditto SDK log level to Info by default (can be changed in the Logging UI)
+        // Apply the log level this database was configured with, rather than
+        // forcing Info. Hardcoding Info here meant the level chosen in the Logs
+        // toolbar (or the Database Editor) was persisted but then overwritten on
+        // every open, so everything logged between opening a database and first
+        // visiting the Logs screen was filtered at Info regardless. Falls back to
+        // Info when the stored value is absent or unrecognised.
         if (logCaptureService != null) {
-            runCatching { DittoLogger.minimumLogLevel = DittoLogLevel.Info }
+            val level = sdkLogLevelFromConfigValue(database.logLevel) ?: DittoLogLevel.Info
+            runCatching { DittoLogger.minimumLogLevel = level }
         }
+
+        // Startup-gated SDK 5.1 knob: `metrics_exporter_virtual_collection_enabled` is
+        // read once at Ditto construction (runtime ALTER SYSTEM is ignored), so the
+        // env var must be flipped BEFORE DittoFactory.create. When the setting is off
+        // we actively unset it — a stale "true" from an earlier toggle-on must not
+        // survive within the same process.
+        applySystemMetricsEnv()
 
         val config = buildConfig(database)
         val newDitto = withContext(Dispatchers.IO) {
@@ -89,8 +116,10 @@ class DittoManager(
         // (user settings → transports → DQL_STRICT_MODE → sync scopes → startSync).
         runOpenSequence(newDitto, database)
 
-        ditto = newDitto
-        activeDatabase = database
+        synchronized(instanceLock) {
+            ditto = newDitto
+            activeDatabase = database
+        }
         return newDitto
     }
 
@@ -104,8 +133,10 @@ class DittoManager(
      * [refreshActiveConfigIfMatching] keeps current across edit-saves.
      */
     suspend fun startSync() {
-        val instance = ditto ?: error("No active Ditto instance")
-        val database = activeDatabase ?: error("No active database")
+        val (instance, database) = synchronized(instanceLock) {
+            val current = ditto ?: error("No active Ditto instance")
+            current to (activeDatabase ?: error("No active database"))
+        }
         runOpenSequence(instance, database)
     }
 
@@ -119,17 +150,23 @@ class DittoManager(
      * open already starts from SDK defaults.
      */
     suspend fun resetSystemSettingsToDefaults(database: DittoDatabase) {
-        val instance = ditto
-        if (instance == null || activeDatabase?.id != database.id) {
+        val instance = synchronized(instanceLock) {
+            val current = ditto
+            if (current == null || activeDatabase?.id != database.id) {
+                null
+            } else {
+                // Adopt the saved config together with the matching handle; a
+                // concurrent replacement must never inherit this old config.
+                activeDatabase = database
+                current
+            }
+        }
+        if (instance == null) {
             if (BuildConfig.DEBUG) {
                 Log.i(TAG, "[Advanced] Reset requested for a database that is not open — no action needed")
             }
             return
         }
-        // Adopt the saved config first: everything below re-applies from it, and the
-        // manager's copy must not keep pointing at the pre-reset object.
-        activeDatabase = database
-
         // STOP SYNC FIRST. `RESET ALL` clears the collection sync scopes, so running it
         // against a syncing instance leaves every collection replicable at the SDK
         // default `AllPeers` for the whole re-apply window — including ones the user
@@ -197,12 +234,30 @@ class DittoManager(
 
     fun currentInstance(): Ditto? = ditto
 
+    /** Capture a session's handle before its asynchronous teardown is enqueued. */
+    fun currentInstanceForDatabase(databaseId: Long): Ditto? = synchronized(instanceLock) {
+        ditto.takeIf { activeDatabase?.id == databaseId }
+    }
+
     fun applyTransportConfig(ditto: Ditto, database: DittoDatabase) {
         ditto.updateTransportConfig { builder ->
             builder.peerToPeer {
                 bluetoothLe { enabled = database.isBluetoothLeEnabled }
-                lan { enabled = database.isLanEnabled }
+                lan {
+                    enabled = database.isLanEnabled
+                    // VS Code extension parity: mDNS + multicast peer *discovery*
+                    // ride the single LAN preference.
+                    mdnsEnabled = database.isLanEnabled
+                    multicastEnabled = database.isLanEnabled
+                }
                 wifiAware { enabled = database.isAwdlEnabled }
+                val spec = database.toMulticastBetaSpec()
+                multicastBeta {
+                    enabled = spec.enabled
+                    groupAddress = spec.groupAddress
+                    port = spec.port
+                    interfaceName = spec.interfaceName
+                }
             }
             if (database.isCloudSyncEnabled && database.websocketUrl.isNotBlank()) {
                 builder.connect {
@@ -210,13 +265,45 @@ class DittoManager(
                 }
             }
         }
+        // The SDK holds its own engine-level multicast lock; this app-level lock
+        // covers the process for the whole enabled period (Zava Retail pattern).
+        // applyTransportConfig is the single chokepoint — it runs at open, at every
+        // sync-start funnel, and at live apply — so the lock always tracks the flag.
+        // NOTE: the SDK defers multicast changes while sync is active; every caller
+        // reaches this function with sync stopped (open sequence / live apply both
+        // stop sync first).
+        if (database.isMulticastEnabled) {
+            multicastLockController?.acquire()
+        } else {
+            multicastLockController?.release()
+        }
     }
 
     private suspend fun closeCurrentInstance() {
-        val current = ditto ?: return
-        // Null out first so any concurrent calls to currentInstance() see null immediately
+        val current = synchronized(instanceLock) { detachInstanceLocked() } ?: return
+        closeDetachedInstance(current)
+    }
+
+    /** A delayed session close may release only the handle it captured, once. */
+    suspend fun closeIfCurrent(expectedInstance: Ditto?) {
+        val current = synchronized(instanceLock) {
+            if (expectedInstance == null || ditto !== expectedInstance) return
+            detachInstanceLocked()
+        } ?: return
+        closeDetachedInstance(current)
+    }
+
+    /** Caller must hold [instanceLock]. Each detached handle has one close owner. */
+    private fun detachInstanceLocked(): Ditto? {
+        val current = ditto ?: return null
         ditto = null
         activeDatabase = null
+        // A stale close must not release the replacement database's lock.
+        multicastLockController?.release()
+        return current
+    }
+
+    private suspend fun closeDetachedInstance(current: Ditto) {
         withContext(Dispatchers.IO) {
             // close() cancels the Ditto coroutine scope and calls implementation.close(),
             // which releases the persistence-directory lock. Stopping sync alone is not
@@ -225,6 +312,23 @@ class DittoManager(
             // subscriptions to never be loaded.
             runCatching { current.close() }
                 .onFailure { e -> Log.w(TAG, "Error closing Ditto instance: ${e.message}") }
+        }
+    }
+
+    /**
+     * Applies the "Collect system metrics" preference to the process env the native
+     * SDK reads at Ditto construction. No-op when preferences weren't injected
+     * (unit tests construct DittoManager without them).
+     */
+    private suspend fun applySystemMetricsEnv() {
+        val prefs = appPreferences ?: return
+        val enabled = prefs.collectSystemMetrics.first()
+        runCatching {
+            if (enabled) {
+                android.system.Os.setenv(SYSTEM_METRICS_ENV_VAR, "true", true)
+            } else {
+                android.system.Os.unsetenv(SYSTEM_METRICS_ENV_VAR)
+            }
         }
     }
 
@@ -239,3 +343,30 @@ class DittoManager(
         )
     }
 }
+
+/**
+ * The SDK `multicastBeta` builder fields derived from a persisted [DittoDatabase].
+ * Pure mapping, extracted from [DittoManager.applyTransportConfig] so the
+ * flag/group/port/interface wiring — including the UShort port coercion — is
+ * unit-testable without a live Ditto instance.
+ */
+internal data class MulticastBetaSpec(
+    val enabled: Boolean,
+    val groupAddress: String,
+    val port: UShort,
+    val interfaceName: String?,
+)
+
+/**
+ * Maps the persisted multicast columns to the SDK boundary. The port is coerced
+ * with [Int.toUShort] exactly as the SDK field requires; out-of-range values
+ * truncate (70000 → 4464) or hit the broken "any port" sentinel (0), which is
+ * why the QR decode boundary and the Transport Settings UI both validate
+ * 1..65535 before a config can reach this mapping.
+ */
+internal fun DittoDatabase.toMulticastBetaSpec(): MulticastBetaSpec = MulticastBetaSpec(
+    enabled = isMulticastEnabled,
+    groupAddress = multicastGroupAddress,
+    port = multicastPort.toUShort(),
+    interfaceName = multicastInterfaceName,
+)

@@ -278,6 +278,8 @@ class QueryEditorViewModel(
             }
             workbench.isExecuting.value = true
             workbench.executionError.value = null
+            // A fresh execution supersedes any prior advice for this draft.
+            workbench.queryAdvice.value = null
             try {
                 val result = try {
                     queryExecutionService.execute(effectiveQuery, mode = mode)
@@ -311,8 +313,14 @@ class QueryEditorViewModel(
                     if (captureProfile && workbench.captureQueryMetrics.value && mode == "Local") {
                         // Run EXPLAIN against the ORIGINAL query text (no PROFILE prefix) —
                         // mirrors SwiftUI's QueryService, which captures explain output
-                        // separately from execution.
-                        val explainOutput = queryExecutionService.explainPlan(rawQuery)
+                        // separately from execution. EXPLAIN ADVISE is invalid syntax
+                        // (extension skips the metrics side-trip for ADVISE), so record the
+                        // capture with a note instead of a failing EXPLAIN.
+                        val explainOutput = if (com.costoda.dittoedgestudio.domain.model.DqlStatements.isAdviseStatement(rawQuery)) {
+                            "EXPLAIN skipped: EXPLAIN ADVISE is not valid syntax"
+                        } else {
+                            queryExecutionService.explainPlan(rawQuery)
+                        }
                         val metrics = QueryMetrics(
                             historyId = historyId,
                             databaseId = databaseId,
@@ -360,19 +368,91 @@ class QueryEditorViewModel(
         }
     }
 
-    private fun isSelectStatement(q: String): Boolean {
-        val upper = q.trimStart().uppercase()
-        if (!upper.startsWith("SELECT")) return false
-        // SwiftUI QueryService.isSelectStatement parity: the keyword must be followed by
-        // ANY whitespace boundary (space, newline, tab, …) or be the entire statement —
-        // a literal space is not required ("SELECT\n* FROM c" is a SELECT).
-        val next = upper.getOrNull("SELECT".length) ?: return true
-        return next.isWhitespace()
+    // SwiftUI QueryService.isSelectStatement parity — the single shared
+    // implementation lives in domain/model/DqlStatements (avoid drift).
+    private fun isSelectStatement(q: String): Boolean =
+        com.costoda.dittoedgestudio.domain.model.DqlStatements.isSelectStatement(q)
+
+    // ── ADVISE (SDK 5.1) ─────────────────────────────────────────────────────
+
+    val queryAdvice: StateFlow<com.costoda.dittoedgestudio.domain.model.QueryAdvice?> =
+        workbench.queryAdvice.asStateFlow()
+
+    fun dismissAdvice() {
+        workbench.queryAdvice.value = null
+    }
+
+    /** True when the editor draft is a SELECT (ADVISE only advises SELECTs). */
+    fun canRunAdvise(): Boolean =
+        com.costoda.dittoedgestudio.domain.model.DqlStatements.isSelectStatement(workbench.queryText.value) &&
+            !workbench.isExecuting.value
+
+    /**
+     * Runs `ADVISE <current query>` through the selected execution mode and stores the
+     * parsed advice (parity with the VS Code extension; apply-with-confirm happens in
+     * the UI). Errors land in [QueryWorkbenchState.executionError] like other runs.
+     */
+    fun adviseQuery() {
+        val query = workbench.queryText.value.trim()
+        if (!com.costoda.dittoedgestudio.domain.model.DqlStatements.isSelectStatement(query)) {
+            workbench.executionError.value = "ADVISE works on SELECT statements only."
+            return
+        }
+        val mode = workbench.executeMode.value
+        viewModelScope.launch {
+            workbench.isExecuting.value = true
+            workbench.executionError.value = null
+            workbench.queryAdvice.value = null
+            try {
+                val result = try {
+                    queryExecutionService.execute("ADVISE $query", mode = mode)
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (e: Exception) {
+                    workbench.executionError.value = e.message ?: "Unknown error"
+                    return@launch
+                }
+                workbench.queryAdvice.value =
+                    com.costoda.dittoedgestudio.domain.model.QueryAdviceExtractor.extract(result.documents)
+                try {
+                    historyRepository.addToHistory(databaseId, "ADVISE $query")
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (_: Exception) { /* history write must not break the run (see executeQuery) */ }
+            } finally {
+                workbench.isExecuting.value = false
+            }
+        }
+    }
+
+    /**
+     * Executes a suggestion's CREATE INDEX statement verbatim (called only from the
+     * confirmation dialog). Returns true on success; failures surface via
+     * [QueryWorkbenchState.executionError].
+     */
+    suspend fun applyAdviceSuggestion(
+        suggestion: com.costoda.dittoedgestudio.domain.model.QueryIndexSuggestion,
+    ): Boolean {
+        return try {
+            queryExecutionService.execute(suggestion.statement, mode = workbench.executeMode.value)
+            true
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            workbench.executionError.value = e.message ?: "Unknown error"
+            false
+        }
     }
 
     fun explainQuery() {
         val query = workbench.queryText.value.trim()
         if (query.isBlank()) return
+        // `EXPLAIN ADVISE …` is not valid syntax (extension parity: EXPLAIN is
+        // skipped for ADVISE statements).
+        if (com.costoda.dittoedgestudio.domain.model.DqlStatements.isAdviseStatement(query)) {
+            workbench.executionError.value = "EXPLAIN ADVISE is not valid syntax."
+            return
+        }
         viewModelScope.launch {
             val metricsEnabled = appPreferences.metricsEnabled.first()
             workbench.isExecuting.value = true
@@ -466,6 +546,44 @@ class QueryEditorViewModel(
         workbench.pageSize.value = size
         workbench.currentPage.value = 0
     }
+
+    // ── DQL statement generator (SwiftUI queryGenerateAndInsert parity) ───────
+
+    /**
+     * Generates a [kind] statement template from the current query's collection and
+     * the first result row's fields, and replaces the editor draft with it.
+     * Returns an error message or null on success.
+     */
+    fun insertGeneratedStatement(kind: com.costoda.dittoedgestudio.domain.model.DqlStatementKind): String? {
+        val query = workbench.queryText.value
+        if (query.isBlank()) return "No query available"
+        val collection = com.costoda.dittoedgestudio.domain.model.DqlGenerator.collectionName(query)
+            ?: return "Could not extract collection name from query"
+        val sample = workbench.queryResult.value?.documents?.firstOrNull()
+        val fields = com.costoda.dittoedgestudio.domain.model.DqlGenerator.fieldNames(sample)
+        val gen = com.costoda.dittoedgestudio.domain.model.DqlGenerator
+        val statement = when (kind) {
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.SELECT ->
+                gen.generateSelect(collection, fields)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.INSERT ->
+                gen.generateInsert(collection, fields, sample)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.UPDATE ->
+                gen.generateUpdate(collection, fields, sample)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.DELETE ->
+                gen.generateDelete(collection)
+            com.costoda.dittoedgestudio.domain.model.DqlStatementKind.EVICT ->
+                gen.generateEvict(collection)
+        }
+        workbench.queryText.value = statement
+        return null
+    }
+
+    /** Full result set as a JSON array string for export (not just the visible page). */
+    fun resultsJsonForExport(): String? =
+        workbench.queryResult.value?.documents?.let {
+            if (it.isEmpty()) null
+            else com.costoda.dittoedgestudio.domain.model.queryDocumentsToJson(it)
+        }
 
     fun selectDocument(doc: Map<String, Any?>) {
         workbench.selectedDocument.value = doc

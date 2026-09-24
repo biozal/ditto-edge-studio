@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  NavigationLifecycleUITests.swift
 //  EdgeStudioUITests
@@ -25,7 +26,6 @@ import XCTest
 
 @MainActor
 final class NavigationLifecycleUITests: UITestBase {
-
     // MARK: - Sidebar navigation
 
     /// Proves sidebar navigation actually swaps the detail view. The Query
@@ -48,7 +48,7 @@ final class NavigationLifecycleUITests: UITestBase {
         }
 
         // Query destination → editor present.
-        queryNav.tap()
+        queryNav.click()
         reactivateAfterTransition()
         let editor = app.descendants(matching: .any)["QueryEditorTextView"].firstMatch
         guard editor.waitForExistence(timeout: 10) else {
@@ -58,7 +58,7 @@ final class NavigationLifecycleUITests: UITestBase {
         captureScreenshot(named: "01-query-destination", lifetime: .deleteOnSuccess)
 
         // Subscriptions destination → editor must go away.
-        subsNav.tap()
+        subsNav.click()
         reactivateAfterTransition()
         XCTAssertTrue(
             waitForDisappearance(editor, timeout: 10),
@@ -67,13 +67,13 @@ final class NavigationLifecycleUITests: UITestBase {
         captureScreenshot(named: "02-subscriptions-destination", lifetime: .deleteOnSuccess)
 
         // Observers destination → still no editor.
-        obsNav.tap()
+        obsNav.click()
         reactivateAfterTransition()
         XCTAssertFalse(editor.exists, "Query editor should not be present on the Observers destination.")
         captureScreenshot(named: "03-observers-destination", lifetime: .deleteOnSuccess)
 
         // Back to Query → editor reappears.
-        queryNav.tap()
+        queryNav.click()
         reactivateAfterTransition()
         XCTAssertTrue(
             editor.waitForExistence(timeout: 10),
@@ -96,7 +96,7 @@ final class NavigationLifecycleUITests: UITestBase {
         guard queryNav.waitForExistence(timeout: 10) else {
             throw XCTSkip("NavItem_query not reachable.")
         }
-        queryNav.tap()
+        queryNav.click()
         reactivateAfterTransition()
 
         let toggle = app.buttons["Toggle Inspector"].firstMatch
@@ -108,7 +108,7 @@ final class NavigationLifecycleUITests: UITestBase {
 
         // Open it if it isn't already.
         if !inspector.exists {
-            toggle.tap()
+            toggle.click()
             reactivateAfterTransition()
         }
         guard inspector.waitForExistence(timeout: 5) else {
@@ -118,7 +118,7 @@ final class NavigationLifecycleUITests: UITestBase {
         captureScreenshot(named: "01-inspector-open", lifetime: .deleteOnSuccess)
 
         // Close it → container must go away.
-        toggle.tap()
+        toggle.click()
         reactivateAfterTransition()
         XCTAssertTrue(
             waitForDisappearance(inspector, timeout: 5),
@@ -139,7 +139,7 @@ final class NavigationLifecycleUITests: UITestBase {
         guard close.waitForExistence(timeout: 10) else {
             throw XCTSkip("CloseButton not reachable — MainStudioView not open in this environment.")
         }
-        close.tap()
+        close.click()
         reactivateAfterTransition()
 
         let addButton = app.buttons["AddDatabaseButton"].firstMatch
@@ -152,3 +152,5 @@ final class NavigationLifecycleUITests: UITestBase {
 
     // `openStudio()` and `navItem(_:)` are inherited from UITestBase.
 }
+
+#endif

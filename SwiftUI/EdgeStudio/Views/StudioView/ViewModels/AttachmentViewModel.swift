@@ -20,6 +20,29 @@ import UIKit
 @Observable
 @MainActor
 final class AttachmentViewModel {
+    /// Reduces a peer-supplied attachment name to a single safe path component.
+    ///
+    /// Attachment metadata is synced document data — any peer in the mesh chooses it — and
+    /// `URL.appendingPathComponent` happily accepts `../`. Taking only the last path
+    /// component drops every traversal segment, and the remaining guards reject the names
+    /// that survive that step (`..`, `.`, empty, or a leftover separator).
+    static func sanitizedFileName(_ raw: String?) -> String {
+        let fallback = "attachment"
+        guard let raw, !raw.isEmpty else { return fallback }
+
+        // Strips any directory prefix, including `../../` chains.
+        var name = (raw as NSString).lastPathComponent
+        name = name.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: "\0", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if name.isEmpty || name == ".." || name == "." || name.hasPrefix(".") {
+            return fallback
+        }
+        return name
+    }
+
     // MARK: - Injected Dependencies
 
     @ObservationIgnored
@@ -297,10 +320,20 @@ final class AttachmentViewModel {
             if attachment.isImage {
                 attachmentLoadedImages[attachment.id] = fileData
             } else {
-                // Save to temp and open in OS default app
+                // Save to temp and open in OS default app.
+                //
+                // The file name is SANITISED because it is peer-supplied, not ours:
+                // `attachment.fileName` comes from the attachment token's metadata
+                // (`AttachmentInfo.detectTokens`), i.e. whatever any peer in the mesh wrote
+                // into the synced document. `appendingPathComponent` performs no `..`
+                // stripping, so a crafted name like `../../Library/Preferences/x.plist`
+                // escaped the temp directory and `fileData.write(to:)` would overwrite that
+                // path inside the app container. The delete path in this same file already
+                // validates its inputs for exactly this reason.
                 let tempDir = FileManager.default.temporaryDirectory
-                let fileName = attachment.fileName ?? "attachment"
-                let tempURL = tempDir.appendingPathComponent(fileName)
+                let tempURL = tempDir.appendingPathComponent(
+                    Self.sanitizedFileName(attachment.fileName)
+                )
                 try fileData.write(to: tempURL)
                 #if os(macOS)
                 NSWorkspace.shared.open(tempURL)

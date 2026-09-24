@@ -199,6 +199,16 @@ private fun DittoQueryHistory.toEntity() = HistoryEntity(
 
 ---
 
+The open studio's configuration is exposed as `StudioSession.databaseConfig`.
+The Logs toolbar saves its level through `StudioSession.saveLogLevel`, which
+updates Room, the session snapshot, and DittoManager's active configuration.
+Log-level and transport changes serialize their whole-row writes so a transport
+apply cannot overwrite a log-level choice made in the same session.
+
+Transport counts union the local and remote presence advertisements and count
+one remote endpoint per transport type. The same edge advertised at both ends
+counts once; multiple local-only peers on the same transport each count once.
+
 ## Coroutines and Flow Conventions
 
 | Context | Pattern |

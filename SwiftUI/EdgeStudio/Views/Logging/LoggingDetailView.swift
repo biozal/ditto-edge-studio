@@ -3,9 +3,24 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The main logging detail view, accessible from the Logging sidebar item.
-struct LoggingDetailView: View {
+struct LoggingDetailView<LeadingToolbar: ToolbarContent, WorkspaceToolbar: ToolbarContent>: View {
     @Environment(AppState.self) var appState
     @State private var capture = DittoLogCaptureService.shared
+
+    /// The Logging detail owns its stateful Info and Log Actions items. The
+    /// surrounding Studio injects Add / Sidebar before them and the persistent
+    /// workspace actions after them, so iPhone Duo receives one ordered toolbar
+    /// declaration rather than three independently merged toolbars.
+    private let leadingToolbar: () -> LeadingToolbar
+    private let trailingWorkspaceToolbar: () -> WorkspaceToolbar
+
+    init(
+        @ToolbarContentBuilder leadingToolbar: @escaping () -> LeadingToolbar,
+        @ToolbarContentBuilder trailingWorkspaceToolbar: @escaping () -> WorkspaceToolbar
+    ) {
+        self.leadingToolbar = leadingToolbar
+        self.trailingWorkspaceToolbar = trailingWorkspaceToolbar
+    }
 
     // MARK: - Filter State
 
@@ -32,21 +47,59 @@ struct LoggingDetailView: View {
     /// Source tabs visible in the current platform.
     /// The Imported tab is macOS-only because log file import uses a macOS file picker.
     /// Platform-constant — computed once rather than rebuilt on every body render.
-    private static let visibleSourceTabs: [LoggingSourceTab] = {
+    private static var visibleSourceTabs: [LoggingSourceTab] {
         #if os(macOS)
         return LoggingSourceTab.allCases
         #else
         return [.dittoSDK, .connectionRequests, .transportConditions, .application]
         #endif
-    }()
+    }
 
     // MARK: - Footer State
 
+    #if os(macOS)
     @State private var isFooterCollapsed = false
+    #endif
 
     // MARK: - Toolbar State
 
     @State private var activeLogLevel = "info"
+    #if os(iOS)
+    @State private var isShowingLogDisplayInfo = false
+    #endif
+
+    // MARK: - Log Pattern Analysis (VS Code extension log-analyzer parity)
+
+    @State private var patternStore = LogPatternStore()
+    @State private var isShowingPatternManager = false
+    @State private var patternProblems: [LogPatternEngine.Match] = []
+    @State private var analytics = LogAnalytics()
+    /// Entry ids the Problems / Critical filter tabs can list. Derived off the
+    /// main actor alongside the pattern scan rather than rebuilt per body pass.
+    @State private var problemEntryIDs: Set<UUID> = []
+    @State private var criticalEntryIDs: Set<UUID> = []
+    @State private var userTagsByID: [UUID: [String]] = [:]
+
+    // MARK: - Analyzer Filter Tab
+
+    @State private var selectedFilterTab: LogFilterTab = .all
+
+    // MARK: - Pause
+
+    /// Freezes the *display* only. Ingestion keeps running into the capture
+    /// service's (capped) buffers, exactly as the VS Code analyzer's pause
+    /// does, so nothing is lost while paused and resuming shows the full
+    /// picture rather than a gap. The list refreshes on toggles; the analyzer's
+    /// lifecycle-owned cadence picks up resume even if no new log line arrives.
+    @State private var isPaused = false
+
+    // MARK: - Row Expansion
+
+    /// The one open row, if any. Owned here rather than in `LogEntryRowView`
+    /// because the row cannot reach the unfiltered buffer that context comes
+    /// from, and because one drawer at a time keeps the list readable.
+    @State private var expandedEntryID: UUID?
+    @State private var expandedContext: LogEntryContext = .empty
 
     // MARK: - Filtered Entry Cache (debounced)
 
@@ -54,9 +107,11 @@ struct LoggingDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             toolbarRow
 
             Divider()
+            #endif
 
             sourceRow
 
@@ -70,12 +125,33 @@ struct LoggingDetailView: View {
 
             Divider()
 
+            LogAnalyticsSection(analytics: analytics)
+
+            Divider()
+
+            LogProblemsSection(problems: patternProblems) { entry in
+                // Jump the table to the matched line via the search filter.
+                searchText = entry.message
+            }
+
+            Divider()
+
+            LogFilterTabs(selection: $selectedFilterTab, counts: analytics.counts)
+
+            // The list is the only child that should absorb slack height. The
+            // priority keeps it from being squeezed by the analytics section,
+            // and — with that section now internally scrollable — keeps the
+            // detail column's own minimum height small, which matters because
+            // the window is sized by `.windowResizability(.contentSize)`.
             logList
+                .layoutPriority(1)
         }
+        #if os(macOS)
         .overlay(alignment: .bottom) {
             footerRow
                 .padding(.bottom, 12)
         }
+        #endif
         .task {
             // Load active config log level
             if let config = await DittoManager.shared.dittoSelectedAppConfig {
@@ -92,16 +168,170 @@ struct LoggingDetailView: View {
             // Debounce filter recompute by 150ms — coalesces fast keystrokes
             // and bursty live-log appends into one filter pass.
             try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled else { return }
-            cachedFilteredEntries = computeFilteredEntries()
+            guard !Task.isCancelled, !isPaused else { return }
+            let source = activeSourceEntries
+            let filtered = computeFilteredEntries(from: source)
+            cachedFilteredEntries = filtered
+            refreshExpandedContext(visible: filtered, source: source)
         }
+        .task {
+            await LogScanScheduler.run(
+                input: { isPaused ? nil : patternScanInputs },
+                scan: { inputs in await scanPatterns(for: inputs) }
+            )
+        }
+        .sheet(isPresented: $isShowingPatternManager) {
+            LogPatternManagerView(store: patternStore)
+        }
+        #if os(iOS)
+        .navigationTitle("Logs")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            leadingToolbar()
+            logToolbarItems()
+            trailingWorkspaceToolbar()
+        }
+        .alert("Log Display", isPresented: $isShowingLogDisplayInfo) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(footerLabel)
+        }
+        #endif
         .onDisappear {
             capture.stopLiveCapture()
         }
     }
 
+    private var footerLabel: String {
+        let displayed = cachedFilteredEntries.count
+        let total = activeSourceEntryCount
+        let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
+        if isFiltered {
+            return "\(displayed) entries"
+        } else if displayed < total {
+            return "Showing \(displayed) of \(total) (most recent)"
+        } else {
+            return "\(displayed) entries"
+        }
+    }
+
+    private func updateSDKLogLevel(_ newLevel: String) {
+        Task {
+            do {
+                if let config = await DittoManager.shared.dittoSelectedAppConfig {
+                    config.logLevel = newLevel
+                    try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
+                }
+            } catch {
+                Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
+                appState.setError(error)
+            }
+        }
+    }
+
+    private func reloadLogs() {
+        Task {
+            if let dir = await DittoManager.shared.activePersistenceDirectory {
+                await capture.loadHistoricalLogs(from: dir)
+            }
+            await capture.loadAppLogs()
+        }
+    }
+
+    private func clearSelectedLogs() {
+        switch capture.selectedSource {
+        case .dittoSDK:
+            capture.clearLive()
+            capture.clearHistorical()
+        case .application:
+            LoggingService.shared.clearAllLogs()
+            Task { await capture.loadAppLogs() }
+        case .imported:
+            capture.clearImported()
+        case .transportConditions:
+            capture.clearTransportEntries()
+        case .connectionRequests:
+            capture.clearConnectionRequestEntries()
+        }
+    }
+
+    #if os(iOS)
+    @ToolbarContentBuilder
+    private func logToolbarItems() -> some ToolbarContent {
+        if #available(iOS 27.1, *) {
+            ToolbarItem(id: "logDisplayInfo", placement: .primaryAction) {
+                Button {
+                    isShowingLogDisplayInfo = true
+                } label: {
+                    Label("Log Display Info", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("LogDisplayInfoButton")
+            }
+            .axisBehavior(.verticalPreferred)
+
+            ToolbarItem(id: "logActions", placement: .primaryAction) {
+                logActionsMenu
+            }
+            .axisBehavior(.verticalPreferred)
+        } else {
+            ToolbarItem(id: "logDisplayInfo", placement: .primaryAction) {
+                Button {
+                    isShowingLogDisplayInfo = true
+                } label: {
+                    Label("Log Display Info", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("LogDisplayInfoButton")
+            }
+
+            ToolbarItem(id: "logActions", placement: .primaryAction) {
+                logActionsMenu
+            }
+        }
+    }
+
+    private var logActionsMenu: some View {
+        Menu {
+            Section("SDK Log Level") {
+                Picker("SDK Log Level", selection: $activeLogLevel) {
+                    Text("Error").tag("error")
+                    Text("Warning").tag("warning")
+                    Text("Info").tag("info")
+                    Text("Debug").tag("debug")
+                    Text("Verbose").tag("verbose")
+                }
+                .onChange(of: activeLogLevel) { _, newLevel in
+                    updateSDKLogLevel(newLevel)
+                }
+            }
+
+            Button("Refresh", systemImage: "arrow.clockwise") {
+                reloadLogs()
+            }
+            Button(isPaused ? "Resume" : "Pause", systemImage: isPaused ? "play.fill" : "pause.fill") {
+                isPaused.toggle()
+            }
+            .accessibilityIdentifier("LogPauseToolbarButton")
+            Button("Patterns", systemImage: "slider.horizontal.3") {
+                isShowingPatternManager = true
+            }
+            .accessibilityIdentifier("LogPatternsToolbarButton")
+
+            Divider()
+
+            Button("Clear Logs", systemImage: "trash", role: .destructive) {
+                clearSelectedLogs()
+            }
+            .accessibilityIdentifier("LogClearToolbarButton")
+        } label: {
+            Label("Log Actions", systemImage: "slider.horizontal.3")
+        }
+        .accessibilityIdentifier("LogActionsToolbarMenu")
+    }
+    #endif
+
     // MARK: - Toolbar
 
+    #if os(macOS)
     private var toolbarRow: some View {
         HStack(spacing: 12) {
             Text("Logs")
@@ -125,20 +355,7 @@ struct LoggingDetailView: View {
                 .labelsHidden()
                 .frame(maxWidth: 100)
                 .onChange(of: activeLogLevel) { _, newLevel in
-                    Task {
-                        do {
-                            if let config = await DittoManager.shared.dittoSelectedAppConfig {
-                                // Mutate the shared config on the MainActor (this
-                                // onChange runs on the MainActor), then hand it to
-                                // the actor only for persistence + live apply.
-                                config.logLevel = newLevel
-                                try await DittoManager.shared.changeDittoLogLevel(newLevel, for: config)
-                            }
-                        } catch {
-                            Log.error("Failed to change log level to '\(newLevel)': \(error.localizedDescription)")
-                            appState.setError(error)
-                        }
-                    }
+                    updateSDKLogLevel(newLevel)
                 }
             }
 
@@ -155,10 +372,31 @@ struct LoggingDetailView: View {
             }
             .buttonStyle(.borderless)
             .help("Reload log files from disk")
+
+            Button {
+                isPaused.toggle()
+            } label: {
+                Label(isPaused ? "Resume" : "Pause", systemImage: isPaused ? "play.fill" : "pause.fill")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .help(isPaused ? "Resume live log updates" : "Freeze the view; capture continues in the background")
+            .accessibilityIdentifier("LogPauseToolbarButton")
+
+            Button {
+                isShowingPatternManager = true
+            } label: {
+                Label("Patterns", systemImage: "slider.horizontal.3")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .help("Manage log patterns (problem matching)")
+            .accessibilityIdentifier("LogPatternsToolbarButton")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
+    #endif
 
     // MARK: - Source Row
 
@@ -217,9 +455,18 @@ struct LoggingDetailView: View {
     private var filterRow: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                // Level chips
-                ForEach([DittoLogLevel.error, .warning, .info, .debug, .verbose], id: \.self) { level in
-                    levelChip(level)
+                // Level chips. Hidden while a filter tab already constrains the
+                // level — an Errors tab with the ERR chip deselected would show
+                // nothing and read as a broken filter rather than two filters
+                // contradicting each other.
+                if !selectedFilterTab.overridesLevelChips {
+                    ForEach([DittoLogLevel.error, .warning, .info, .debug, .verbose], id: \.self) { level in
+                        levelChip(level)
+                    }
+                } else {
+                    Text("Level filtered by the \(selectedFilterTab.label) tab")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -387,7 +634,15 @@ struct LoggingDetailView: View {
             } else {
                 List {
                     ForEach(cachedFilteredEntries) { entry in
-                        LogEntryRowView(entry: entry)
+                        LogEntryRowView(
+                            entry: entry,
+                            userTags: userTagsByID[entry.id] ?? [],
+                            isExpanded: expandedEntryID == entry.id,
+                            // Only the open row carries context; the rest cost
+                            // nothing to render.
+                            context: expandedEntryID == entry.id ? expandedContext : .empty,
+                            onToggleExpanded: { toggleExpansion(for: entry) }
+                        )
                     }
                 }
                 .listStyle(.plain)
@@ -398,6 +653,8 @@ struct LoggingDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    #if os(macOS)
 
     // MARK: - Footer
 
@@ -424,18 +681,6 @@ struct LoggingDetailView: View {
             } else {
                 GlassEffectContainer {
                     HStack(spacing: 12) {
-                        let displayed = cachedFilteredEntries.count
-                        let total = activeSourceEntryCount
-                        let isFiltered = isDateFilterEnabled || !searchText.isEmpty || selectedComponent != .all
-                        let footerLabel: String = {
-                            if isFiltered {
-                                return "\(displayed) entries"
-                            } else if displayed < total {
-                                return "Showing \(displayed) of \(total) (most recent)"
-                            } else {
-                                return "\(displayed) entries"
-                            }
-                        }()
                         Text(footerLabel)
                             .font(.system(size: 14, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -515,20 +760,7 @@ struct LoggingDetailView: View {
 
                         // Clear — icon only, red tint
                         Button {
-                            switch capture.selectedSource {
-                            case .dittoSDK:
-                                capture.clearLive()
-                                capture.clearHistorical()
-                            case .application:
-                                LoggingService.shared.clearAllLogs()
-                                Task { await capture.loadAppLogs() }
-                            case .imported:
-                                capture.clearImported()
-                            case .transportConditions:
-                                capture.clearTransportEntries()
-                            case .connectionRequests:
-                                capture.clearConnectionRequestEntries()
-                            }
+                            clearSelectedLogs()
                         } label: {
                             Image(systemName: "trash")
                                 .font(.system(size: 14))
@@ -559,6 +791,7 @@ struct LoggingDetailView: View {
         .frame(maxWidth: .infinity)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFooterCollapsed)
     }
+    #endif
 
     // MARK: - Filtered Entries
 
@@ -595,6 +828,78 @@ struct LoggingDetailView: View {
         }
     }
 
+    /// A rolling buffer can replace its contents without changing its count.
+    /// Include its newest identity so a cadence tick still sees fresh batches.
+    private var activeSourceNewestEntryID: UUID? {
+        switch capture.selectedSource {
+        case .dittoSDK: return capture.liveEntries.last?.id ?? capture.historicalEntries.last?.id
+        case .application: return capture.appEntries.last?.id
+        case .imported: return capture.importedEntries.last?.id
+        case .transportConditions: return capture.transportEntries.last?.id
+        case .connectionRequests: return capture.connectionRequestEntries.last?.id
+        }
+    }
+
+    /// Inputs sampled by the scan cadence: source, buffer size, catalog revision.
+    private struct PatternScanInputs: Equatable {
+        let selectedSource: LoggingSourceTab
+        let entryCount: Int
+        let newestEntryID: UUID?
+        let patternRevision: Int
+        let isPaused: Bool
+    }
+
+    private var patternScanInputs: PatternScanInputs {
+        PatternScanInputs(
+            selectedSource: capture.selectedSource,
+            entryCount: activeSourceEntryCount,
+            newestEntryID: activeSourceNewestEntryID,
+            patternRevision: patternStore.revision,
+            isPaused: isPaused
+        )
+    }
+
+    /// Scans one latest snapshot off-main. The lifecycle-owned scheduler bounds
+    /// the cadence without restarting on each 250 ms capture batch.
+    private func scanPatterns(for inputs: PatternScanInputs) async -> Bool {
+        let engine = LogPatternEngine(patterns: patternStore.patterns)
+        let entries = activeSourceEntries
+        let result = await Task.detached(priority: .utility) { () -> LogScanResult in
+            let window = entries.count > LogPatternEngine.maxScanEntries
+                ? Array(entries.suffix(LogPatternEngine.maxScanEntries))
+                : entries
+            let matches = engine.scanAll(window)
+            var problemIDs = Set<UUID>()
+            var criticalIDs = Set<UUID>()
+            var tags: [UUID: Set<String>] = [:]
+            for match in matches {
+                problemIDs.insert(match.entry.id)
+                if match.pattern.severity >= 5 {
+                    criticalIDs.insert(match.entry.id)
+                }
+                if let tag = match.pattern.userTag {
+                    tags[match.entry.id, default: []].insert(tag)
+                }
+            }
+            return LogScanResult(
+                matches: matches,
+                analytics: LogAnalytics.compute(entries: window, matches: matches),
+                problemIDs: problemIDs,
+                criticalIDs: criticalIDs,
+                userTags: tags.mapValues { $0.sorted() }
+            )
+        }.value
+        guard !Task.isCancelled, !isPaused,
+              inputs.selectedSource == capture.selectedSource,
+              inputs.patternRevision == patternStore.revision else { return false }
+        patternProblems = result.matches
+        analytics = result.analytics
+        problemEntryIDs = result.problemIDs
+        criticalEntryIDs = result.criticalIDs
+        userTagsByID = result.userTags
+        return true
+    }
+
     /// All inputs that affect the filtered output. When this changes,
     /// `.task(id:)` cancels any in-flight debounce and schedules a fresh one.
     private struct FilterInputs: Equatable {
@@ -606,6 +911,12 @@ struct LoggingDetailView: View {
         let dateEnabled: Bool
         let dateStart: Date
         let dateEnd: Date
+        let filterTab: LogFilterTab
+        let isPaused: Bool
+        /// Proxy for "the scan produced new results" — the tab predicates read
+        /// the id sets, so the filtered list has to be rebuilt when they change.
+        let problemCount: Int
+        let criticalCount: Int
     }
 
     private var currentFilterInputs: FilterInputs {
@@ -617,16 +928,64 @@ struct LoggingDetailView: View {
             searchText: searchText,
             dateEnabled: isDateFilterEnabled,
             dateStart: dateFilterStart,
-            dateEnd: dateFilterEnd
+            dateEnd: dateFilterEnd,
+            filterTab: selectedFilterTab,
+            isPaused: isPaused,
+            problemCount: problemEntryIDs.count,
+            criticalCount: criticalEntryIDs.count
         )
     }
 
-    private func computeFilteredEntries() -> [LogEntry] {
-        let filtered = activeSourceEntries.filter { entry in
+    /// Opens `entry`'s drawer (closing any other), or closes it if it is
+    /// already open. Context is resolved against the **unfiltered** source
+    /// buffer — see `LogEntryContext` for why the filtered list would be
+    /// useless here.
+    private func toggleExpansion(for entry: LogEntry) {
+        if expandedEntryID == entry.id {
+            expandedEntryID = nil
+            expandedContext = .empty
+        } else {
+            expandedEntryID = entry.id
+            expandedContext = LogEntryContext.around(entry.id, in: activeSourceEntries)
+        }
+    }
+
+    /// Keeps the open drawer honest as the buffer moves underneath it.
+    ///
+    /// Two things go wrong without this. Expanding the newest row captures an
+    /// empty `after` context, and it would stay empty forever even as new lines
+    /// arrived. And when a filter change drops the open row from the list,
+    /// `expandedEntryID` would dangle — harmless on screen, but it would
+    /// silently re-open the row if the filter later let it back in.
+    private func refreshExpandedContext(visible: [LogEntry], source: [LogEntry]) {
+        guard let expandedEntryID else { return }
+        guard visible.contains(where: { $0.id == expandedEntryID }) else {
+            self.expandedEntryID = nil
+            expandedContext = .empty
+            return
+        }
+        expandedContext = LogEntryContext.around(expandedEntryID, in: source)
+    }
+
+    /// - Parameter source: the active source buffer. Passed in rather than
+    ///   read from `activeSourceEntries` so one debounce pass materialises it
+    ///   once — for the Ditto SDK source that property concatenates the
+    ///   historical and live arrays, which is up to 20k entries of copying and
+    ///   ARC traffic per call.
+    private func computeFilteredEntries(from source: [LogEntry]) -> [LogEntry] {
+        let filtered = source.filter { entry in
             if isDateFilterEnabled {
                 guard LogEntry.isWithinDateRange(entry, start: dateFilterStart, end: dateFilterEnd) else { return false }
             }
-            guard selectedLevels.contains(entry.level) else { return false }
+            guard selectedFilterTab.accepts(
+                entry, problemIDs: problemEntryIDs, criticalIDs: criticalEntryIDs
+            ) else { return false }
+            // The level chips are hidden while a tab constrains the level, so
+            // they must not also filter — a stale chip selection would silently
+            // subtract rows from a tab the user just picked.
+            if !selectedFilterTab.overridesLevelChips {
+                guard selectedLevels.contains(entry.level) else { return false }
+            }
             if capture.selectedSource == .dittoSDK || capture.selectedSource == .imported,
                selectedComponent != .all,
                entry.component != selectedComponent
@@ -635,8 +994,14 @@ struct LoggingDetailView: View {
             }
             if !searchText.isEmpty {
                 // Case-insensitive substring match without the per-entry
-                // `lowercased()` allocation.
-                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil else { return false }
+                // `lowercased()` allocation. User tags are part of the search
+                // haystack (parity with the VS Code analyzer's webview search).
+                let inTags = userTagsByID[entry.id]?.contains {
+                    $0.range(of: searchText, options: .caseInsensitive) != nil
+                } ?? false
+                guard entry.message.range(of: searchText, options: .caseInsensitive) != nil || inTags else {
+                    return false
+                }
             }
             return true
         }

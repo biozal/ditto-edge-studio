@@ -128,6 +128,10 @@ actor DatabaseRepository {
                 isLanEnabled: row.isLanEnabled,
                 isAwdlEnabled: row.isAwdlEnabled,
                 isCloudSyncEnabled: row.isCloudSyncEnabled,
+                isMulticastEnabled: row.isMulticastEnabled,
+                multicastGroupAddress: row.multicastGroupAddress,
+                multicastPort: row.multicastPort,
+                multicastInterfaceName: row.multicastInterfaceName,
                 logLevel: row.logLevel,
                 isStrictModeEnabled: row.isStrictModeEnabled,
                 collectionSyncScopes: decodedScopes.scopes,
@@ -137,6 +141,11 @@ actor DatabaseRepository {
             // reach the editor and fix it) but `hydrate` refuses to open it, because a
             // dropped `LocalPeerOnly` scope would otherwise start syncing.
             config.hasCorruptSyncScopes = decodedScopes.isCorrupt
+            // The memberwise init bypasses the JSON-decode boundary's multicast
+            // sanitization, and the port column is nullable (NULL reads as 0 — the
+            // SDK's "any port" sentinel). Sanitize here so a hand-edited or corrupted
+            // row can never push an invalid multicast config into the SDK at open.
+            config.sanitizeMulticastSettings()
             return config
         }
 
@@ -170,7 +179,11 @@ actor DatabaseRepository {
                 logLevel: appConfig.logLevel,
                 isStrictModeEnabled: appConfig.isStrictModeEnabled,
                 collectionSyncScopes: Self.encodeJSON(appConfig.collectionSyncScopes),
-                startupSettings: Self.encodeJSON(appConfig.startupSettings)
+                startupSettings: Self.encodeJSON(appConfig.startupSettings),
+                isMulticastEnabled: appConfig.isMulticastEnabled,
+                multicastGroupAddress: appConfig.multicastGroupAddress,
+                multicastPort: appConfig.multicastPort,
+                multicastInterfaceName: appConfig.multicastInterfaceName
             )
             try await sqlCipher.insertDatabaseConfig(row)
 
@@ -212,7 +225,11 @@ actor DatabaseRepository {
                 logLevel: appConfig.logLevel,
                 isStrictModeEnabled: appConfig.isStrictModeEnabled,
                 collectionSyncScopes: Self.encodeJSON(appConfig.collectionSyncScopes),
-                startupSettings: Self.encodeJSON(appConfig.startupSettings)
+                startupSettings: Self.encodeJSON(appConfig.startupSettings),
+                isMulticastEnabled: appConfig.isMulticastEnabled,
+                multicastGroupAddress: appConfig.multicastGroupAddress,
+                multicastPort: appConfig.multicastPort,
+                multicastInterfaceName: appConfig.multicastInterfaceName
             )
             try await sqlCipher.updateDatabaseConfig(row)
 

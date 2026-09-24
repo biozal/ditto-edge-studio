@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,7 +85,10 @@ fun DatabaseListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val expandedLayout = studioWindowSizeClass().showsRail
     var tabletEditorId by remember { mutableStateOf<Long?>(null) }
-    var tabletEditorSession by remember { mutableStateOf(0) }
+    // rememberSaveable: the ViewModels this counter keys live in the NavEntry store, which
+    // survives configuration changes and this screen leaving the composition. A plain
+    // `remember` reset the counter back to 0 while those ViewModels were still alive.
+    var tabletEditorSession by rememberSaveable { mutableStateOf(0) }
     var showQrDialogFor by remember { mutableStateOf<DittoDatabase?>(null) }
 
     if (expandedLayout) {
@@ -112,7 +116,16 @@ fun DatabaseListScreen(
                 ) {
                     DatabaseEditorScreen(
                         databaseId = id,
-                        instanceKey = "tablet_editor_$tabletEditorSession",
+                        // The row id is part of the key, not just the session counter.
+                        // `editId` is baked into the ViewModel at construction, and
+                        // ViewModelProvider returns a stored instance for a matching key
+                        // without re-invoking Koin's factory — so `parametersOf(databaseId)`
+                        // is ignored on a collision. The counter alone could collide: it is
+                        // plain `remember`, so it resets to 0 whenever this screen leaves
+                        // the composition, while the ViewModels live in the DatabaseList
+                        // NavEntry store, which outlives it. The editor then opened with a
+                        // retained ViewModel built for a DIFFERENT row and saved over it.
+                        instanceKey = "tablet_editor_${id}_$tabletEditorSession",
                         onDismiss = { tabletEditorId = null },
                     )
                 }

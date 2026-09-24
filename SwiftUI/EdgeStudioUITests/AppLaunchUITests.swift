@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  AppLaunchUITests.swift
 //  EdgeStudioUITests
@@ -11,7 +12,6 @@
 import XCTest
 
 final class AppLaunchUITests: UITestBase {
-
     /// The app launches and ContentView shows the Add-Database affordance.
     ///
     /// PASSES without credentials. If the ContentView indicator never appears,
@@ -57,3 +57,5 @@ final class AppLaunchUITests: UITestBase {
         XCTAssertTrue(window.exists, "Edge Studio should present a main window after launch.")
     }
 }
+
+#endif

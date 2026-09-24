@@ -394,4 +394,117 @@ struct DatabaseRepositoryTests {
             }
         }
     }
+
+    // MARK: - Multicast Sanitization (SQL load path)
+
+    /// The SQLite load path builds `DittoConfigForDatabase` via the memberwise
+    /// initializer from raw columns, so the JSON-decode boundary's multicast
+    /// sanitization never runs for SQL rows. Out-of-band edits (hand-edited or
+    /// corrupted row: invalid group, port 0 — the SDK's "any port" sentinel —
+    /// or a NULL port column, which `sqlite3_column_int` reads as 0) must be
+    /// sanitized at load, exactly as QR/plist decodes are.
+    @Suite("Multicast Sanitization (SQL load path)")
+    struct MulticastSqlSanitizationTests {
+        private func insertMulticastConfig(
+            _ repo: DatabaseRepository,
+            databaseId: String
+        ) async throws -> DittoConfigForDatabase {
+            let id = UUID().uuidString
+            let config = DittoConfigForDatabase(
+                id,
+                name: "Corrupt Row DB \(databaseId)",
+                databaseId: databaseId,
+                developmentToken: "token-\(databaseId)",
+                url: "https://auth-\(databaseId).test.ditto.live",
+                httpApiUrl: "https://api-\(databaseId).test.ditto.live",
+                httpApiKey: "key-\(databaseId)",
+                mode: .development,
+                isMulticastEnabled: true,
+                multicastGroupAddress: "239.1.2.3",
+                multicastPort: 7000,
+                multicastInterfaceName: "en0",
+                collectionSyncScopes: [],
+                startupSettings: []
+            )
+            try await repo.addDittoAppConfig(config)
+            return config
+        }
+
+        @Test(.tags(.repository, .database))
+        func `An out-of-band invalid group and port is sanitized at load`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                // ARRANGE
+                let repo = DatabaseRepository.shared
+                let config = try await insertMulticastConfig(repo, databaseId: "sanitize-invalid")
+                let service = SQLCipherContext.current
+                try await service.executeRawForTesting(
+                    """
+                    UPDATE databaseConfigs
+                    SET isMulticastEnabled = 1, multicastGroupAddress = '224.01.2.3',
+                        multicastPort = 0, multicastInterfaceName = 'en0'
+                    WHERE databaseId = ?
+                    """,
+                    [config.databaseId]
+                )
+                await repo.clearCacheForTesting()
+
+                // ACT
+                let loaded = try await repo.loadDatabaseConfigs()
+
+                // ASSERT — reset to SDK defaults and flipped off: an unusable
+                // transport must not stay enabled.
+                let row = loaded.first(where: { $0._id == config._id })
+                #expect(row != nil)
+                #expect(row?.isMulticastEnabled == false)
+                #expect(row?.multicastGroupAddress == "224.1.2.3")
+                #expect(row?.multicastPort == 6003)
+                #expect(row?.multicastInterfaceName == nil)
+            }
+        }
+
+        @Test(.tags(.repository, .database))
+        func `A NULL port column reads as zero and is sanitized at load`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                // ARRANGE — the port column is nullable; sqlite3_column_int(NULL) = 0.
+                let repo = DatabaseRepository.shared
+                let config = try await insertMulticastConfig(repo, databaseId: "sanitize-null-port")
+                let service = SQLCipherContext.current
+                try await service.executeRawForTesting(
+                    "UPDATE databaseConfigs SET multicastPort = NULL WHERE databaseId = ?",
+                    [config.databaseId]
+                )
+                await repo.clearCacheForTesting()
+
+                // ACT
+                let loaded = try await repo.loadDatabaseConfigs()
+
+                // ASSERT
+                let row = loaded.first(where: { $0._id == config._id })
+                #expect(row != nil)
+                #expect(row?.isMulticastEnabled == false)
+                #expect(row?.multicastGroupAddress == "224.1.2.3")
+                #expect(row?.multicastPort == 6003)
+                #expect(row?.multicastInterfaceName == nil)
+            }
+        }
+
+        @Test(.tags(.repository, .database))
+        func `A valid multicast config loads unchanged`() async throws {
+            try await TestHelpers.withFreshDatabase {
+                // ARRANGE — no behavior change for valid data.
+                let repo = DatabaseRepository.shared
+                let config = try await insertMulticastConfig(repo, databaseId: "sanitize-valid")
+
+                // ACT
+                let loaded = try await repo.loadDatabaseConfigs()
+
+                // ASSERT
+                let row = loaded.first(where: { $0._id == config._id })
+                #expect(row?.isMulticastEnabled == true)
+                #expect(row?.multicastGroupAddress == "239.1.2.3")
+                #expect(row?.multicastPort == 7000)
+                #expect(row?.multicastInterfaceName == "en0")
+            }
+        }
+    }
 }

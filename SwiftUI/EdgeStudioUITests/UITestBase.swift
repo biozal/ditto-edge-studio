@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  UITestBase.swift
 //  EdgeStudioUITests
@@ -14,6 +15,7 @@
 //  All patterns below mirror docs/TESTING.md → "Writing UI Tests" and encode
 //  hard-won macOS XCUITest lessons:
 //    - macOS window-activation workaround (NSRunningApplication.activate bug)
+//    - Native mouse clicks for macOS controls; touch taps do not activate them.
 //    - Verified accessibility identifiers only
 //      (AddDatabaseButton, DatabaseList, AppCard_{name}, CloseButton, ...)
 //    - SwiftUI `.pickerStyle(.segmented)` is NOT exposed to XCUITest,
@@ -34,17 +36,11 @@ import XCTest
 /// main actor, so the whole test case (lifecycle + helpers + subclass test
 /// methods, which inherit this isolation) runs on the main actor.
 @MainActor
-class UITestBase: XCTestCase {
-
-    // MARK: - Stored State
-
-    /// The application under test. Launched fresh in `setUpWithError()`.
-    var app: XCUIApplication!
-
+class UITestBase: UITestCase {
     // MARK: - Lifecycle
 
-    // Launch the app fresh for each test. `@MainActor` because the whole class is
-    // main-actor isolated and these touch the `@MainActor` XCUITest APIs.
+    /// Launch the app fresh for each test. `@MainActor` because the whole class is
+    /// main-actor isolated and these touch the `@MainActor` XCUITest APIs.
     @MainActor
     override func setUp() async throws {
         try await super.setUp()
@@ -64,22 +60,16 @@ class UITestBase: XCTestCase {
             for label in ["Allow", "OK", "Continue", "Don’t Allow", "Don't Allow"] {
                 let button = element.buttons[label]
                 if button.exists {
-                    button.tap()
+                    button.click()
                     return true
                 }
             }
             return false
         }
 
-        app = XCUIApplication()
-        // CRITICAL: pass test mode via the launch ENVIRONMENT, NOT a launch
-        // argument. On macOS, launching a SwiftUI app with ANY command-line
-        // argument is treated as a non-default launch, and the `WindowGroup` then
-        // does NOT auto-open its window — so the app comes up active but
-        // window-less and XCUITest finds nothing to drive. Keeping
-        // `launchArguments` empty + signalling via an env var means a normal
-        // default launch where the window opens. The app reads `UI_TESTING` to
-        // route to its isolated `ditto_edge_studio_test` sandbox and seed data.
+        app = makeApplication()
+        // Use an environment signal for test mode; makeApplication removes the
+        // shared scheme's unit-test argument so macOS opens its normal window.
         app.launchEnvironment["UI_TESTING"] = "1"
         app.launch()
 
@@ -115,7 +105,7 @@ class UITestBase: XCTestCase {
     /// window can't be brought forward (e.g. missing Accessibility permission),
     /// downstream `waitForExistence` checks will surface a clean `XCTSkip`.
     func activateAppWindow() {
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             app.activate()
             let window = app.windows.firstMatch
             if window.waitForExistence(timeout: 2) {
@@ -139,19 +129,15 @@ class UITestBase: XCTestCase {
     func dismissWelcomeWindowIfPresent() {
         let closeButton = app.buttons["WelcomeCloseButton"].firstMatch
         if closeButton.waitForExistence(timeout: 1) {
-            if closeButton.isHittable {
-                closeButton.click()
-            } else {
-                closeButton.tap()
-            }
+            closeButton.click()
             // Give the window-close animation a beat, then refocus the studio.
             usleep(500_000) // 0.5s
             activateAppWindow()
         }
     }
 
-    /// Re-asserts focus after a `tap()` that transitions views. macOS frequently
-    /// drops window focus on view transitions; call this after taps that swap the
+    /// Re-asserts focus after a `click()` that transitions views. macOS frequently
+    /// drops window focus on view transitions; call this after clicks that swap the
     /// root view (e.g. opening MainStudioView).
     func reactivateAfterTransition() {
         app.activate()
@@ -208,25 +194,27 @@ class UITestBase: XCTestCase {
         return false
     }
 
-    /// Prints the live accessibility hierarchy + element counts and attaches a
-    /// screenshot. Used when an expected element never appears, to diagnose
-    /// element-not-found vs. window-activation vs. wrong-query issues.
-    func logAccessibilityDiagnostics(reason: String) {
-        print("""
-        ===== UITest accessibility diagnostics =====
-        reason: \(reason)
-        app.state: \(app.state.rawValue)   (3=runningForeground, 4=runningBackground)
-        windows: \(app.windows.count)  buttons: \(app.buttons.count)  \
-        staticTexts: \(app.staticTexts.count)  textViews: \(app.textViews.count)  \
-        otherElements: \(app.otherElements.count)  progressIndicators: \(app.progressIndicators.count)
-        --- app.debugDescription ---
-        \(app.debugDescription)
-        ============================================
-        """)
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = "accessibility-diagnostics"
-        shot.lifetime = .keepAlways
-        add(shot)
+    /// Establishes the picker precondition without changing production scene restoration.
+    /// An unavailable app can skip; a loaded app that cannot return to its picker fails.
+    func requireDatabasePicker() throws -> XCUIElement {
+        guard waitForAppToFinishLoading(timeout: 20) else {
+            throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
+        }
+
+        let closeButton = app.buttons["CloseButton"].firstMatch
+        if closeButton.exists {
+            closeButton.click()
+        }
+
+        let addButton = app.buttons["AddDatabaseButton"].firstMatch
+        let pickerAppeared = addButton.waitForExistence(timeout: 20)
+        if !pickerAppeared {
+            logAccessibilityDiagnostics(reason: "Loaded app did not return to the database picker")
+        }
+        return try XCTUnwrap(
+            pickerAppeared ? addButton : nil,
+            "A loaded app must show the database picker after closing any restored studio."
+        )
     }
 
     // MARK: - Database Setup From Plist
@@ -249,7 +237,9 @@ class UITestBase: XCTestCase {
         }
 
         // Already in MainStudioView (a restored prior session) — nothing to do.
-        if app.buttons["CloseButton"].firstMatch.exists { return }
+        if app.buttons["CloseButton"].firstMatch.exists {
+            return
+        }
 
         // Confirm the app seeded at least one database card.
         let anyCard = app.descendants(matching: .any)
@@ -277,7 +267,7 @@ class UITestBase: XCTestCase {
         guard addButton.waitForExistence(timeout: 5) else {
             throw failOrSkip("AddDatabaseButton not found while adding database '\(name)'.")
         }
-        addButton.tap()
+        addButton.click()
         sleep(2) // sheet animation (Pattern 4)
 
         // Validate the form via a text field, NOT a picker (Pattern 2 — SwiftUI
@@ -299,12 +289,14 @@ class UITestBase: XCTestCase {
         guard saveButton.waitForExistence(timeout: 5) else {
             throw failOrSkip("SaveButton not found in Add-Database form for '\(name)'.")
         }
-        saveButton.tap()
+        saveButton.click()
         sleep(2)
 
         // Monitor sheet dismissal (Pattern 1).
-        for _ in 0..<10 {
-            if !app.sheets.firstMatch.exists { break }
+        for _ in 0 ..< 10 {
+            if !app.sheets.firstMatch.exists {
+                break
+            }
             usleep(500_000) // 0.5s
         }
         sleep(2) // database save + UI update
@@ -324,7 +316,9 @@ class UITestBase: XCTestCase {
         let closeButton = app.buttons["CloseButton"].firstMatch
 
         // Already in MainStudioView.
-        if closeButton.exists { return }
+        if closeButton.exists {
+            return
+        }
 
         let addDatabaseButton = app.buttons["AddDatabaseButton"].firstMatch
         guard addDatabaseButton.waitForExistence(timeout: 5) else {
@@ -339,12 +333,14 @@ class UITestBase: XCTestCase {
             throw XCTSkip("No databases configured (no AppCard_* found) — add databases via testDatabaseConfig.plist to run this test.")
         }
 
-        firstCard.tap()
+        firstCard.click()
         reactivateAfterTransition()
 
         // MainStudioView init can be slow (Ditto startup) — wait generously.
         guard closeButton.waitForExistence(timeout: 60) else {
-            if app.alerts.count > 0 {
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
                 XCTFail("MainStudioView did not open — Alert: \(app.alerts.firstMatch.label)")
             } else {
                 XCTFail("MainStudioView did not open (CloseButton never appeared) after tapping a database card.")
@@ -361,8 +357,8 @@ class UITestBase: XCTestCase {
         guard waitForAppToFinishLoading(timeout: 20) else {
             throw XCTSkip("App did not finish loading — Accessibility permissions may be missing.")
         }
-        try addDatabasesFromPlist()       // XCTSkip if no plist/credentials
-        try ensureMainStudioViewIsOpen()  // XCTSkip if no databases
+        try addDatabasesFromPlist() // XCTSkip if no plist/credentials
+        try ensureMainStudioViewIsOpen() // XCTSkip if no databases
     }
 
     /// Sidebar destination button for a `SidebarDestination` raw value
@@ -381,7 +377,9 @@ class UITestBase: XCTestCase {
         // database button and closed the database).
         for modal in [app.alerts.firstMatch, app.dialogs.firstMatch, app.sheets.firstMatch] where modal.exists {
             let ok = modal.buttons["OK"].firstMatch
-            if ok.exists { ok.tap() }
+            if ok.exists {
+                ok.click()
+            }
             break
         }
 
@@ -389,7 +387,7 @@ class UITestBase: XCTestCase {
         guard queryNav.waitForExistence(timeout: 10) else {
             throw XCTSkip("NavItem_query not reachable — sidebar navigation not exposed.")
         }
-        queryNav.tap()
+        queryNav.click()
         reactivateAfterTransition()
 
         // Target the TEXT VIEW specifically. The id is on both the NSTextView and
@@ -402,7 +400,7 @@ class UITestBase: XCTestCase {
         guard editor.waitForExistence(timeout: 10) else {
             throw XCTSkip("QueryEditorTextView (text view) not reachable.")
         }
-        editor.tap()
+        editor.click()
         usleep(300_000) // let focus register (macOS quirk)
         // Clear by selecting all in the editor, then typing — the new text
         // REPLACES the selection. Sent to the editor element (not app-wide) so
@@ -419,7 +417,8 @@ class UITestBase: XCTestCase {
             ?? (editor.value as? String)
             ?? ""
         if !landed.contains(String(dql.prefix(15))) {
-            let snapshot = XCTAttachment(string: "EXPECTED query:\n\(dql)\n\nEDITOR ACTUALLY CONTAINS:\n\(landed.isEmpty ? "<empty / unreadable>" : landed)")
+            let snapshot =
+                XCTAttachment(string: "EXPECTED query:\n\(dql)\n\nEDITOR ACTUALLY CONTAINS:\n\(landed.isEmpty ? "<empty / unreadable>" : landed)")
             snapshot.name = "editor-content-mismatch"
             snapshot.lifetime = .keepAlways
             add(snapshot)
@@ -427,7 +426,7 @@ class UITestBase: XCTestCase {
 
         let execute = app.buttons["ExecuteQueryButton"].firstMatch
         if execute.waitForExistence(timeout: 5) {
-            execute.tap()
+            execute.click()
         }
         // Re-assert focus + let the local write/query settle before the next read.
         reactivateAfterTransition()
@@ -440,7 +439,9 @@ class UITestBase: XCTestCase {
         let query = app.descendants(matching: .any).matching(identifier: identifier)
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if query.count > baseline { return true }
+            if query.count > baseline {
+                return true
+            }
             usleep(300_000) // 0.3s poll
         }
         return false
@@ -448,26 +449,12 @@ class UITestBase: XCTestCase {
 
     // MARK: - Screenshots
 
-    /// Captures a full-app screenshot and attaches it to the test result.
-    ///
-    /// - Parameters:
-    ///   - name: Descriptive, sequential name (e.g. "01-initial-state").
-    ///   - lifetime: Defaults to `.deleteOnSuccess` (ideal for CI — keeps only
-    ///     failing-test artifacts). Use `.keepAlways` when debugging.
-    func captureScreenshot(named name: String, lifetime: XCTAttachment.Lifetime = .deleteOnSuccess) {
-        let screenshot = app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = name
-        attachment.lifetime = lifetime
-        add(attachment)
-    }
-
     // MARK: - Private Helpers
 
-    /// Types text into a field, tapping first to register focus (macOS quirk).
+    /// Types text into a field, clicking first to register focus (macOS quirk).
     private func typeInto(_ field: XCUIElement, text: String) {
         guard !text.isEmpty else { return }
-        field.tap()
+        field.click()
         usleep(500_000) // allow focus to register
         field.typeText(text)
     }
@@ -490,3 +477,5 @@ class UITestBase: XCTestCase {
         return XCTSkip(message)
     }
 }
+
+#endif

@@ -64,6 +64,11 @@ fun QueryHistoryInspector(
                 text = "History",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // A weighted title next to a "Clear All" button in the narrow
+                // inspector: without a line limit it wraps per character once
+                // the button leaves it too little room.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = { viewModel.clearHistory() }) {

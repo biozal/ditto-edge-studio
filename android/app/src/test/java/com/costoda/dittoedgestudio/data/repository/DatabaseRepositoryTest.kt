@@ -71,6 +71,11 @@ class DatabaseRepositoryTest {
     @Test
     fun `save inserts when id is zero`() = runTest {
         val database = DittoDatabase(id = 0L, name = "New", databaseId = "new-db")
+        // save() now resolves a duplicate databaseId before inserting — REPLACE-on-conflict
+        // used to cascade-delete the existing database's subscriptions, observers, favorites
+        // and history. `null` here means "genuinely new", which is what this test is about;
+        // the duplicate path is covered in DatabaseRepositoryImplTest.
+        coEvery { dao.getByDatabaseId("new-db") } returns null
         coEvery { dao.insert(any()) } returns 42L
 
         val id = repository.save(database)

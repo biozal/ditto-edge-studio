@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- iOS-only entitlements (replaces the macOS-oriented Edge_Studio.entitlements
+	     for iphoneos/iphonesimulator builds via the sdk-scoped
+	     CODE_SIGN_ENTITLEMENTS build settings; CODE_SIGN_ENTITLEMENTS takes a
+	     single file path, so this file must be self-contained).
+	     Required by the Ditto 5.1.0 beta reliable-UDP multicast transport:
+	     sync.start() with multicast enabled fails platform validation without
+	     it — the SDK checks the entitlement even in the Simulator so a
+	     configuration that fails on a device fails early. iOS device signing
+	     additionally requires the Multicast Networking capability enabled on
+	     the App ID in the developer portal. -->
+	<key>com.apple.developer.networking.multicast</key>
+	<true/>
+</dict>
+</plist>

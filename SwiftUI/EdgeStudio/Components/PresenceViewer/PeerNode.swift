@@ -6,7 +6,9 @@ class PeerNode: SKNode {
     // MARK: - Properties
 
     let peerKey: String
-    let deviceName: String
+    /// Current device name. `var` so a rename reaches the focus banner (which
+    /// reads `focusedNode.deviceName`), not just the pill label.
+    private(set) var deviceName: String
     let isLocal: Bool
     let deviceType: DeviceType
 
@@ -152,8 +154,10 @@ class PeerNode: SKNode {
         }
     }
 
-    /// Update the device name label
+    /// Update the device name — the stored value (read by the focus banner)
+    /// and, for remote peers, the pill label.
     func updateDeviceName(_ newName: String) {
+        deviceName = newName
         if !isLocal {
             labelNode.text = newName
 

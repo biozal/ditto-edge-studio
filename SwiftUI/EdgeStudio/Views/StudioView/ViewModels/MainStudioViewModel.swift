@@ -39,6 +39,10 @@ extension MainStudioView {
         var attachmentVM: AttachmentViewModel
         var subObsVM: SubscriptionObserverViewModel
 
+        /// One accumulator per database session, retained across detail navigation.
+        /// ContentView creates a fresh ViewModel when the selected database changes.
+        let systemMetricsService: SystemMetricsService
+
         // MARK: - Direct Dependencies (parent-only orchestration)
 
         @ObservationIgnored
@@ -80,7 +84,7 @@ extension MainStudioView {
                     suppressDestinationPersistence = false
                     return
                 }
-                UserDefaults.standard.set(
+                StudioPreferences.store.set(
                     selectedSidebarDestination.rawValue,
                     forKey: Self.sidebarDestinationKey
                 )
@@ -99,12 +103,6 @@ extension MainStudioView {
 
         var metricsInspectorMenuItems: [MenuItem] = []
         var selectedMetricsInspectorMenuItem: MenuItem
-
-        // Metrics Inspector – Prometheus export form state (ephemeral UI)
-        var metricsPrometheusURLText = ""
-        var metricsPrometheusIntervalText = "60"
-        var metricsPrometheusStatusMessage = ""
-        var metricsPrometheusIsConfigured = false
 
         // MARK: - Load Task
 
@@ -125,7 +123,8 @@ extension MainStudioView {
             historyRepository: any HistoryRepositoryProtocol = HistoryRepository.shared,
             favoritesRepository: any FavoritesRepositoryProtocol = FavoritesRepository.shared,
             observableRepository: any ObservableRepositoryProtocol = ObservableRepository.shared,
-            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared
+            collectionsRepository: any CollectionsRepositoryProtocol = CollectionsRepository.shared,
+            systemMetricsService: SystemMetricsService? = nil
         ) {
             self.dittoManager = dittoManager
             self.systemRepository = systemRepository
@@ -134,6 +133,7 @@ extension MainStudioView {
             self.favoritesRepository = favoritesRepository
             self.observableRepository = observableRepository
             self.subscriptionsRepository = subscriptionsRepository
+            self.systemMetricsService = systemMetricsService ?? SystemMetricsService()
 
             selectedApp = dittoAppConfig
 
@@ -143,7 +143,7 @@ extension MainStudioView {
             // gates metrics destinations on `metricsEnabled` so a stale
             // persisted metrics tab can't strand the user on a hidden
             // destination.
-            let storedDestination = UserDefaults.standard
+            let storedDestination = StudioPreferences.store
                 .string(forKey: Self.sidebarDestinationKey)
                 .flatMap(SidebarDestination.init(rawValue:))
             selectedSidebarDestination = storedDestination ?? .subscriptions
@@ -169,10 +169,7 @@ extension MainStudioView {
 
             // Metrics Inspector toolbar
             let metricsDocsItem = MenuItem(id: 11, name: "Docs", systemIcon: "book.closed")
-            metricsInspectorMenuItems = [
-                metricsDocsItem,
-                MenuItem(id: 12, name: "Export", systemIcon: "arrow.up.to.line")
-            ]
+            metricsInspectorMenuItems = [metricsDocsItem]
             selectedMetricsInspectorMenuItem = metricsDocsItem
         }
 
@@ -182,6 +179,7 @@ extension MainStudioView {
             // `isolated deinit` keeps this on the MainActor so we can read
             // the actor-isolated `loadTask`.
             loadTask?.cancel()
+            systemMetricsService.endSession()
             Log.debug("MainStudioView.ViewModel deinit")
         }
 
@@ -293,7 +291,12 @@ extension MainStudioView {
                     selectedSidebarDestination = .subscriptions
                 }
 
-                let showWelcome = UserDefaults.standard.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
+                // macOS only: the Welcome window is a `WindowGroup` declared
+                // inside the app's `#if os(macOS)` scene block, and iPadOS has
+                // no separate-window presentation for it. Posting regardless
+                // asked SwiftUI to open a scene that does not exist there.
+                #if os(macOS)
+                let showWelcome = StudioPreferences.store.object(forKey: "showWelcomeOnNewDatabase") as? Bool ?? true
                 // Never auto-open the welcome window under UI tests — it spawns a
                 // second window that steals focus and blocks element queries.
                 if showWelcome, !isRunningUITests() {
@@ -309,6 +312,7 @@ extension MainStudioView {
                         )
                     }
                 }
+                #endif
             }
         }
 
@@ -322,6 +326,7 @@ extension MainStudioView {
             //    don't race with the cleanup pass below.
             loadTask?.cancel()
             loadTask = nil
+            systemMetricsService.endSession()
 
             // 1. Invalidate observer sessions FIRST so in-flight callbacks bail early
             await systemRepository.invalidateSession()

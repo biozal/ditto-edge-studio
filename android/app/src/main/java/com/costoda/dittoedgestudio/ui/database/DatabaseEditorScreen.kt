@@ -157,17 +157,42 @@ fun DatabaseEditorScreen(
 
                 // --- Authorization Information ---
                 FormSectionHeader("Authorization Information")
+                // Read-only once registered, matching the SwiftUI editor.
+                //
+                // `databaseId` is the parent key four child tables reference with
+                // `ON DELETE CASCADE` and no `ON UPDATE`, so changing it raised
+                // `FOREIGN KEY constraint failed` out of `dao.update` for any database that
+                // had ever run a query. Nothing caught it: the exception escaped
+                // `DatabaseEditorViewModel.save()` into the screen's `rememberCoroutineScope`
+                // launch and took the app down when the user tapped Save. A new ID that
+                // collides with another config failed the same way on the UNIQUE index.
+                // Delete and re-register to change it.
                 OutlinedTextField(
                     value = dbId,
                     onValueChange = { viewModel.databaseId.value = it },
                     label = { Text("Database ID") },
                     singleLine = true,
+                    // readOnly, NOT `enabled = false`. Material3 renders a disabled field
+                    // non-focusable and non-selectable, which would take away the user's
+                    // ability to select and COPY their own Database ID out of the editor —
+                    // there is no other copy affordance in the app. `readOnly` blocks typing
+                    // while keeping the text selectable.
+                    readOnly = !viewModel.isNewItem,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("DatabaseIdField"),
                 )
+                if (!viewModel.isNewItem) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "The Database ID cannot be changed after registration. " +
+                            "To use a different ID, delete this database and register it again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = token,

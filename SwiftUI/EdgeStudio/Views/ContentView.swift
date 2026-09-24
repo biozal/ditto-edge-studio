@@ -57,8 +57,8 @@ struct ContentView: View {
                 // Xcode-launch-style fixed-size, non-resizable window.
                 // The Scene uses `.windowResizability(.contentSize)`, so
                 // declaring a fixed `.frame(width:height:)` here locks
-                // the window to that exact size — guarantees all 3 CTA
-                // buttons (Database Config, Ditto Portal, Import from
+                // the window to that exact size — guarantees both CTA
+                // buttons (Ditto Portal, Import from
                 // QR Code) and the database list panel are always
                 // fully drawn regardless of which screen the user is
                 // on. Once a database is opened MainStudioView's
@@ -100,62 +100,41 @@ struct ContentView: View {
                 storedDatabaseId = nil
             }
         }
-        // Destructive-delete gate: every delete trigger (the context menu on
-        // both platforms) only stages `appPendingDeletion` via
-        // `viewModel.deleteApp`; this dialog is the single path that actually
-        // deletes. `confirmationDialog` renders as a dialog on macOS and an
-        // action sheet on iOS, so one modifier covers both pickers.
-        .confirmationDialog(
-            "Delete \(viewModel.appPendingDeletion?.name ?? "Database")?",
-            isPresented: Binding(
-                get: { viewModel.appPendingDeletion != nil },
-                set: {
-                    if !$0 {
-                        viewModel.appPendingDeletion = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await viewModel.confirmPendingAppDeletion(appState: appState) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the local database and all its Edge Studio data. This cannot be undone.")
-        }
+        // Destructive-delete gate. Shared with DatabaseListPanel so a host that offers
+        // Delete cannot forget it — see DatabaseDeletionConfirmation.
+        .databaseDeletionConfirmation(viewModel: viewModel, appState: appState)
         #if os(macOS)
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
-            Task { await viewModel.startQuickstartDownload() }
-        }
-        .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
-            Button("Continue Anyway") {
-                Task { await viewModel.continueDownloadWithoutConfig() }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenQuickstartBrowserWindow"))) { _ in
+                Task { await viewModel.startQuickstartDownload() }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
-        }
-        .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
-            Button("Replace", role: .destructive) {
-                Task { await viewModel.replaceExistingFolderAndDownload() }
+            .alert("No Database Connection", isPresented: $viewModel.showNoConnectionAlert) {
+                Button("Continue Anyway") {
+                    Task { await viewModel.continueDownloadWithoutConfig() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You are not connected to a database. Quickstart projects will be downloaded but .env files will not be auto-configured.")
             }
-            Button("Choose Different Location") {
-                Task { await viewModel.chooseDifferentLocationAndDownload() }
+            .alert("Quickstarts Folder Exists", isPresented: $viewModel.showExistingFolderAlert) {
+                Button("Replace", role: .destructive) {
+                    Task { await viewModel.replaceExistingFolderAndDownload() }
+                }
+                Button("Choose Different Location") {
+                    Task { await viewModel.chooseDifferentLocationAndDownload() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A quickstart-main folder already exists at this location. Would you like to replace it or choose a different location?")
-        }
-        .sheet(isPresented: $viewModel.showProgressSheet) {
-            QuickstartProgressWindow(
-                service: viewModel.quickstartService,
-                onCancel: { viewModel.showProgressSheet = false }
-            )
-            // Lock the sheet during an in-flight download, but allow dismissal
-            // when an error has been surfaced so the user can recover.
-            .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
-        }
+            .sheet(isPresented: $viewModel.showProgressSheet) {
+                QuickstartProgressWindow(
+                    service: viewModel.quickstartService,
+                    onCancel: { viewModel.showProgressSheet = false }
+                )
+                // Lock the sheet during an in-flight download, but allow dismissal
+                // when an error has been surfaced so the user can recover.
+                .interactiveDismissDisabled(viewModel.quickstartService.isDownloading && !viewModel.quickstartService.hasError)
+            }
         #endif
     }
 
@@ -168,6 +147,21 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The primary database-creation action stays in native toolbar chrome on
+    /// every platform. iPhone Duo can then place it in its trailing action rail
+    /// instead of leaving a custom floating button over the database list.
+    @ToolbarContentBuilder
+    func addDatabaseToolbarItem() -> some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                viewModel.showAppEditor(DittoConfigForDatabase.new())
+            } label: {
+                Label("Add Database", systemImage: "plus")
+            }
+            .accessibilityIdentifier("AddDatabaseButton")
+        }
     }
 }
 
@@ -258,25 +252,6 @@ extension ContentView {
 
                     VStack(spacing: 14) {
                         Button {
-                            viewModel.showAppEditor(DittoConfigForDatabase.new())
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "plus")
-                                    .foregroundStyle(.black)
-                                Text("Database Config")
-                                    .foregroundStyle(.black)
-                                    .fontWeight(.medium)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .tint(.dittoYellow)
-                        .focusEffectDisabled()
-                        .accessibilityIdentifier("AddDatabaseButton")
-
-                        Button {
                             if let url = URL(string: "https://portal.ditto.live") {
                                 NSWorkspace.shared.open(url)
                             }
@@ -324,6 +299,9 @@ extension ContentView {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+            addDatabaseToolbarItem()
+        }
         .sheet(
             isPresented: $viewModel.isPresented,
             onDismiss: { databaseEditorHasUnsavedChanges = false },
@@ -357,7 +335,9 @@ extension ContentView {
         .sheet(isPresented: $viewModel.isShowingQRCode) {
             if let config = viewModel.qrCodeConfig {
                 QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
-                    .frame(minWidth: 360, minHeight: 420)
+                #if os(macOS)
+                    .frame(minWidth: 620, minHeight: 800)
+                #endif
             }
         }
         .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -397,6 +377,9 @@ extension ContentView {
             .sheet(isPresented: $viewModel.isShowingQRCode) {
                 if let config = viewModel.qrCodeConfig {
                     QRCodeDisplayView(config: config, favorites: viewModel.qrCodeFavorites)
+                    #if os(macOS)
+                        .frame(minWidth: 620, minHeight: 800)
+                    #endif
                 }
             }
             .sheet(isPresented: $viewModel.isShowingQRScanner) {
@@ -406,10 +389,11 @@ extension ContentView {
             }
     }
 
-    /// Compact mode: < 650pt wide — HIG-compliant NavigationStack with yellow FAB
+    /// The database listing uses a NavigationStack so native toolbar actions adapt
+    /// to each Apple platform, including iPhone Duo's trailing action rail.
     var compactPickerContent: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack {
                 Color(uiColor: .systemBackground).ignoresSafeArea()
 
                 if viewModel.isLoading {
@@ -420,18 +404,26 @@ extension ContentView {
                 } else if let loadError = viewModel.loadAppsError {
                     loadAppsErrorView(loadError)
                 } else if viewModel.dittoApps.isEmpty {
-                    VStack(spacing: 20) {
-                        FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
-                        Text("No Databases")
-                            .font(.title2)
-                            .foregroundStyle(.primary)
-                        Text("Tap + to add a database configuration.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            FontAwesomeText(icon: DataIcon.databaseThin, size: 48, color: .secondary)
+                            Text("No Databases")
+                                .font(.title2)
+                                .foregroundStyle(.primary)
+                                .accessibilityIdentifier("EmptyDatabaseList")
+                            Text("Use Add Database to create a database configuration.")
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Center when it fits; larger accessibility text can scroll
+                    // instead of truncating the instructions to the viewport.
+                    .defaultScrollAnchor(.center, for: .alignment)
                 } else {
                     ScrollView {
                         LazyVGrid(
@@ -480,30 +472,18 @@ extension ContentView {
                         .padding(.horizontal)
                         .accessibilityIdentifier("DatabaseList")
                     }
-                    .safeAreaInset(edge: .bottom) {
-                        Color.clear.frame(height: 88)
-                    }
                 }
-
-                // Floating Action Button — HIG: primary creation action, bottom-right, thumb-accessible
-                Button {
-                    viewModel.showAppEditor(DittoConfigForDatabase.new())
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.black)
-                        .frame(width: 56, height: 56)
-                        .background(Color.dittoYellow)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
-                }
-                .padding(.bottom, 24)
-                .padding(.trailing, 24)
-                .accessibilityIdentifier("AddDatabaseButton")
             }
             .navigationTitle("Edge Studio")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                if #available(iOS 27.1, *) {
+                    addDatabaseToolbarItem()
+                        .axisBehavior(.verticalPreferred)
+                } else {
+                    addDatabaseToolbarItem()
+                }
+
                 // HIG: secondary/utility actions in navigation bar trailing
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -690,14 +670,20 @@ extension ContentView {
         }
 
         /// Performs the actual deletion after explicit user confirmation.
-        /// No-op when nothing is staged.
-        func confirmPendingAppDeletion(appState: AppState) async {
-            guard let dittoApp = appPendingDeletion else { return }
+        ///
+        /// Takes the configuration explicitly rather than re-reading
+        /// `appPendingDeletion`. Dismissing the confirmation dialog clears that staged
+        /// value, and the dismissal runs *before* this action's `Task` does — so the
+        /// previous `guard let … else { return }` form returned silently every time,
+        /// making Delete a no-op that left nothing in the logs to explain itself.
+        func confirmAppDeletion(_ dittoApp: DittoConfigForDatabase, appState: AppState) async {
             appPendingDeletion = nil
+            Log.info("Deleting database configuration '\(dittoApp.name)' (confirmed)")
             do {
                 // Now requires await since DatabaseRepository is an actor
                 try await databaseRepository.deleteDittoAppConfig(dittoApp)
             } catch {
+                Log.error("Delete failed for '\(dittoApp.name)': \(error.localizedDescription)")
                 appState.setError(error)
             }
         }
@@ -732,7 +718,7 @@ extension ContentView {
                 // testDatabaseConfig.plist BEFORE loading. The XCUITest runner is
                 // a separate process and can't read the app bundle, so the app
                 // (which can) loads its own test config here.
-                await seedTestDatabasesIfNeeded()
+                try await seedTestDatabasesIfNeeded()
 
                 let configs = try await databaseRepository.loadDatabaseConfigs()
                 dittoApps = configs
@@ -763,7 +749,21 @@ extension ContentView {
         /// the out-of-process XCUITest runner cannot access app-bundle resources.
         /// Idempotent: skips databases whose `databaseId` is already stored, so
         /// re-launches against the persisted test sandbox don't duplicate cards.
-        private func seedTestDatabasesIfNeeded() async {
+        private func seedTestDatabasesIfNeeded() async throws {
+            let testing = UITestConfiguration.current
+            if testing.fixture == .empty {
+                return
+            }
+            if testing.fixture == .workspace {
+                let config = try testing.workspaceConfiguration(
+                    encodedFixture: ProcessInfo.processInfo.environment["UI_TEST_FIXTURE_BASE64"]
+                )
+                let existing = try await databaseRepository.loadDatabaseConfigs()
+                if !existing.contains(where: { $0._id == config._id }) {
+                    try await databaseRepository.addDittoAppConfig(config)
+                }
+                return
+            }
             guard isRunningUITests() else { return }
             guard let path = Bundle.main.path(forResource: "testDatabaseConfig", ofType: "plist"),
                   let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
@@ -833,6 +833,18 @@ extension ContentView {
 
         func importFromQRCode(_ config: DittoConfigForDatabase, favorites: [FavoriteQueryItem], appState: AppState) async {
             do {
+                // `_id` is the SENDER's local row identifier and carries no meaning here, so
+                // an empty one gets a fresh identity rather than being inserted as-is.
+                // Android hardcodes `_id = ""` on every payload it encodes; with that key
+                // now actually reaching us (it used to be dropped, which made the whole code
+                // undecodable), the first import would insert a row with an empty primary
+                // key and the SECOND would fail on `UNIQUE constraint failed:
+                // databaseConfigs._id` — no two Android databases could ever be imported.
+                // Only the empty case is regenerated, so an Apple-to-Apple re-scan still
+                // collides loudly instead of silently duplicating a config.
+                if config._id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    config._id = UUID().uuidString
+                }
                 try await databaseRepository.addDittoAppConfig(config)
                 if !favorites.isEmpty {
                     for item in favorites {

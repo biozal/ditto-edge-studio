@@ -1,6 +1,8 @@
 # Test Coverage Scripts
 
 This directory contains scripts for automated test coverage reporting and enforcement.
+Both coverage scripts resolve the repository root from their own location, so
+reports and test results belong to that checkout even when invoked from elsewhere.
 
 ## Scripts
 

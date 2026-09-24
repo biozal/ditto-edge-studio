@@ -43,7 +43,7 @@ struct QueryResultsView: View {
     /// Mirrors the global "Collect Metrics" setting so the Profile
     /// tab can render the "Profiling is turned off" empty state with
     /// a one-tap "Open Settings…" CTA when it's false.
-    @AppStorage("metricsEnabled") private var metricsEnabled = true
+    @AppStorage("metricsEnabled", store: StudioPreferences.store) private var metricsEnabled = true
 
     private var pageSizes: [Int] {
         switch resultCount {

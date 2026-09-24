@@ -22,6 +22,10 @@ actor DittoManager {
 
     static let shared = DittoManager()
 
+    /// Env var the SDK maps to `metrics_exporter_virtual_collection_enabled`
+    /// (startup-gated — see `hydrateDittoSelectedDatabase`).
+    static let systemMetricsEnvVar = "DITTO_METRICS_EXPORTER_VIRTUAL_COLLECTION_ENABLED"
+
     func closeDittoSelectedDatabase() async {
         let closeStart = CFAbsoluteTimeGetCurrent()
 
@@ -59,15 +63,25 @@ actor DittoManager {
     ) throws -> DittoConfig {
         switch appConfig.mode {
         case .smallPeerOnly:
+            // `persistenceDirectory` must be passed here too. It defaults to nil, and
+            // omitting it made the SDK write to its own default location while the rest of
+            // the app went on believing the store lived at `localDirectoryPath`. Three
+            // things broke, all silently and only in this mode: "Delete database" removed
+            // the app's empty directory and reported success while the real store — every
+            // document, attachment and the offline license state — stayed on disk forever;
+            // the Log Analyzer found no `ditto_logs/` and showed zero SDK entries; and the
+            // MCP `get_ditto_logs` tool returned nothing for the same reason.
             if !appConfig.secretKey.isEmpty {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
-                    connect: .smallPeersOnly(privateKey: appConfig.secretKey)
+                    connect: .smallPeersOnly(privateKey: appConfig.secretKey),
+                    persistenceDirectory: persistenceDirectory
                 )
             } else {
                 return DittoConfig(
                     databaseID: appConfig.databaseId,
-                    connect: .smallPeersOnly()
+                    connect: .smallPeersOnly(),
+                    persistenceDirectory: persistenceDirectory
                 )
             }
         case .development:
@@ -114,16 +128,6 @@ actor DittoManager {
             )
             .appendingPathComponent("database")
 
-            // Ensure directory exists
-            if !FileManager.default.fileExists(atPath: localDirectoryPath.path) {
-                try FileManager.default.createDirectory(
-                    at: localDirectoryPath,
-                    withIntermediateDirectories: true
-                )
-            }
-
-            Log.info("Ditto database path: \(localDirectoryPath.path)")
-
             // Refuse to open a database whose stored sync scopes could not be read:
             // proceeding would sync collections the user may have marked device-local.
             if databaseConfig.hasCorruptSyncScopes {
@@ -144,6 +148,17 @@ actor DittoManager {
                 )
             }
 
+            // Older small-peer configurations used the SDK default directory.
+            // Adopt that store before opening at the explicit app-owned path.
+            try PersistenceDirectoryPreparation.prepare(
+                mode: databaseConfig.mode,
+                databaseID: databaseConfig.databaseId,
+                isUITesting: UITestConfiguration.current.isEnabled,
+                destination: localDirectoryPath,
+                legacyRoot: Ditto.defaultRootDirectory
+            )
+            Log.info("Ditto database path: \(localDirectoryPath.path)")
+
             // Apply stored log level BEFORE Ditto.init() — required by SDK
             DittoLogger.minimumLogLevel = Self.dittoLogLevel(
                 from: databaseConfig.logLevel
@@ -153,6 +168,16 @@ actor DittoManager {
 
             // Store the persistence directory for log capture
             activePersistenceDirectory = localDirectoryPath
+
+            // Startup-gated SDK 5.1 knob: `metrics_exporter_virtual_collection_enabled`
+            // is read once at Ditto construction (runtime ALTER SYSTEM is ignored), so
+            // the env var must be set BEFORE Ditto.open. When the setting is off we
+            // actively unset it — a stale "true" must not survive within this process.
+            if StudioPreferences.store.object(forKey: "collectSystemMetrics") as? Bool ?? true {
+                setenv(Self.systemMetricsEnvVar, "true", 1)
+            } else {
+                unsetenv(Self.systemMetricsEnvVar)
+            }
 
             var dittoInstance: Ditto?
             let config = try Self.createDatabaseConfig(
@@ -204,6 +229,7 @@ actor DittoManager {
                     "bluetoothLE=\(databaseConfig.isBluetoothLeEnabled) " +
                     "lan=\(databaseConfig.isLanEnabled) " +
                     "awdl=\(databaseConfig.isAwdlEnabled) " +
+                    "multicast=\(databaseConfig.isMulticastEnabled) " +
                     "cloudSync=\(databaseConfig.isCloudSyncEnabled)"
             )
 
@@ -220,6 +246,7 @@ actor DittoManager {
             let bluetoothEnabled = transports.bluetoothLE
             let lanEnabled = transports.lan
             let awdlEnabled = transports.awdl
+            let multicastEnabled = transports.multicast
 
             // The whole ordered sequence — user settings, transports, app-managed
             // parameters, sync scopes, then sync — lives in `OpenSequence` so the
@@ -231,7 +258,15 @@ actor DittoManager {
                     ditto.updateTransportConfig { config in
                         config.peerToPeer.bluetoothLE.isEnabled = bluetoothEnabled
                         config.peerToPeer.lan.isEnabled = lanEnabled
+                        // VS Code extension parity: mDNS + multicast peer *discovery*
+                        // ride the single LAN preference.
+                        config.peerToPeer.lan.isMDNSEnabled = lanEnabled
+                        config.peerToPeer.lan.isMulticastEnabled = lanEnabled
                         config.peerToPeer.awdl.isEnabled = awdlEnabled
+                        config.peerToPeer.multicastBeta.isEnabled = multicastEnabled
+                        config.peerToPeer.multicastBeta.groupAddress = databaseConfig.multicastGroupAddress
+                        config.peerToPeer.multicastBeta.port = UInt16(clamping: databaseConfig.multicastPort)
+                        config.peerToPeer.multicastBeta.interfaceName = databaseConfig.multicastInterfaceName
 
                         // Cloud sync (Big Peer / WebSocket) is established automatically
                         // by the SDK from the server URL passed at Ditto.open() — no
@@ -361,11 +396,17 @@ actor DittoManager {
                     ditto.updateTransportConfig { transportConfig in
                         transportConfig.peerToPeer.bluetoothLE.isEnabled = transports.bluetoothLE
                         transportConfig.peerToPeer.lan.isEnabled = transports.lan
+                        transportConfig.peerToPeer.lan.isMDNSEnabled = transports.lan
+                        transportConfig.peerToPeer.lan.isMulticastEnabled = transports.lan
                         transportConfig.peerToPeer.awdl.isEnabled = transports.awdl
+                        transportConfig.peerToPeer.multicastBeta.isEnabled = transports.multicast
+                        transportConfig.peerToPeer.multicastBeta.groupAddress = config.multicastGroupAddress
+                        transportConfig.peerToPeer.multicastBeta.port = UInt16(clamping: config.multicastPort)
+                        transportConfig.peerToPeer.multicastBeta.interfaceName = config.multicastInterfaceName
                     }
                     Log.info(
                         "[Transport] Re-applied after RESET ALL: bluetoothLE=\(transports.bluetoothLE) " +
-                            "lan=\(transports.lan) awdl=\(transports.awdl)"
+                            "lan=\(transports.lan) awdl=\(transports.awdl) multicast=\(transports.multicast)"
                     )
                 },
                 isStrictModeEnabled: config.isStrictModeEnabled,
@@ -520,17 +561,20 @@ actor DittoManager {
         return TransportFlags(
             bluetoothLE: config.isBluetoothLeEnabled && p2pEnabled,
             lan: config.isLanEnabled && p2pEnabled,
-            awdl: config.isAwdlEnabled && p2pEnabled
+            awdl: config.isAwdlEnabled && p2pEnabled,
+            multicast: config.isMulticastEnabled && p2pEnabled
         )
     }
 
-    /// The three peer-to-peer transport switches, as a named type rather than a tuple:
-    /// three same-typed `Bool`s positionally is exactly the shape a caller can transpose
+    /// The peer-to-peer transport switches, as a named type rather than a tuple:
+    /// same-typed `Bool`s positionally is exactly the shape a caller can transpose
     /// silently, and `large_tuple` flags it for that reason.
     struct TransportFlags: Sendable, Equatable {
         let bluetoothLE: Bool
         let lan: Bool
         let awdl: Bool
+        /// Reliable UDP multicast transport (beta, SDK 5.1.0 `peerToPeer.multicastBeta`).
+        let multicast: Bool
     }
 
     /// The macOS-only mesh client cap, nil elsewhere. Shared by every path that
@@ -567,21 +611,92 @@ actor DittoManager {
 
     /// Returns the root directory for a database configuration's local storage.
     /// The Ditto data files live in a `database/` subdirectory within this path.
+    /// The directory is keyed on the **databaseId**, which is immutable; the name only
+    /// decides what a *new* directory is called.
+    ///
+    /// The name is user-editable, so keying the resolved path on it meant renaming a
+    /// database silently abandoned its store: the next open resolved to
+    /// `<newname>-<id>`, `Ditto.open` created an empty store there, every collection
+    /// looked empty, and deleting the config afterwards removed the new empty directory
+    /// while the real one stayed on disk forever, unreachable from the app. For a
+    /// `.smallPeerOnly` database, with no cloud copy, that is unrecoverable.
+    ///
+    /// Resolution is discovery-only — it never moves or deletes anything, so an existing
+    /// install keeps using exactly the directory it already has:
+    ///  1. the directory for the current name, if it already exists;
+    ///  2. otherwise any existing directory ending in `-<databaseId>`, whatever name it
+    ///     was created under (this is what makes a rename harmless);
+    ///  3. otherwise the current-name path, for a genuinely new database.
     nonisolated static func localDirectoryPath(
         for databaseConfig: DittoConfigForDatabase
     ) -> URL {
-        let isUITesting = isRunningUITests()
-        let baseComponent =
-            isUITesting ? "ditto_edge_studio_test" : "ditto_edge_studio"
-        let dbname = databaseConfig.name.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ).lowercased()
-        return FileManager.default.urls(
+        let baseComponent = UITestConfiguration.current.storageDirectoryName
+        let root = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
             .appendingPathComponent(baseComponent)
-            .appendingPathComponent("\(dbname)-\(databaseConfig.databaseId)")
+
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        // Candidates are ordered MOST-RECENTLY-MODIFIED FIRST, never alphabetically.
+        //
+        // The only installs holding two `-<databaseId>` directories are the ones this
+        // adoption exists to rescue — already bitten by the rename bug, or left behind by a
+        // delete whose file removal failed (that path only logs a warning). Picking
+        // alphabetically could hand back the STALE store: "alpha-abc" sorts before
+        // "zebra-abc", so a database renamed Alpha → Zebra → New would adopt the empty
+        // directory abandoned weeks earlier and every document written since would vanish
+        // from the UI. Modification time picks the store actually in use.
+        let byRecency = entries.sorted { lhs, rhs in
+            let lhsDate = modificationDate(of: root.appendingPathComponent(lhs))
+            let rhsDate = modificationDate(of: root.appendingPathComponent(rhs))
+            if lhsDate == rhsDate {
+                return lhs < rhs
+            } // stable tiebreak
+            return lhsDate > rhsDate
+        }
+        let resolved = storeDirectoryName(
+            currentName: databaseConfig.name,
+            databaseId: databaseConfig.databaseId,
+            existingEntries: byRecency
+        )
+        return root.appendingPathComponent(resolved)
+    }
+
+    /// Content-modification date, or `.distantPast` when it cannot be read.
+    private nonisolated static func modificationDate(of url: URL) -> Date {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+        return values?.contentModificationDate ?? .distantPast
+    }
+
+    /// The directory-name decision behind `localDirectoryPath`, extracted so it is
+    /// testable without touching Application Support.
+    ///
+    /// - Parameter existingEntries: directory names in the store root, ordered newest first.
+    nonisolated static func storeDirectoryName(
+        currentName: String,
+        databaseId: String,
+        existingEntries: [String]
+    ) -> String {
+        let dbname = currentName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let currentNameDirectory = "\(dbname)-\(databaseId)"
+
+        if existingEntries.contains(currentNameDirectory) {
+            return currentNameDirectory
+        }
+
+        // Preserve the recency ordering supplied by `localDirectoryPath`. Alphabetical
+        // sorting here would select an older store after multiple renames.
+        let suffix = "-\(databaseId)"
+        if let adopted = existingEntries.first(where: { $0.hasSuffix(suffix) }) {
+            Log.info(
+                "Adopting existing store directory '\(adopted)' for database "
+                    + "'\(currentName)' (id: \(databaseId)) — renamed since it was created."
+            )
+            return adopted
+        }
+
+        return currentNameDirectory
     }
 
     /// Shuts down all Ditto instances and cleans up resources
@@ -658,6 +773,8 @@ extension DittoManager {
     ///   - isBluetoothLeEnabled: Enable/disable Bluetooth LE transport
     ///   - isLanEnabled: Enable/disable LAN transport
     ///   - isAwdlEnabled: Enable/disable AWDL transport
+    ///   - multicast: Reliable UDP multicast (beta) settings; `MulticastConfig()`
+    ///     leaves the transport disabled with SDK-default group/port
     ///
     /// Cloud sync (Big Peer) is governed by the connect mode passed at
     /// `Ditto.open()` in v5 and is not toggled here.
@@ -666,7 +783,8 @@ extension DittoManager {
     func applyTransportConfig(
         isBluetoothLeEnabled: Bool,
         isLanEnabled: Bool,
-        isAwdlEnabled: Bool
+        isAwdlEnabled: Bool,
+        multicast: MulticastConfig
     ) async throws {
         guard let ditto = dittoSelectedApp else {
             throw AppError.error(message: "No Ditto app is currently selected")
@@ -674,7 +792,7 @@ extension DittoManager {
 
         Log
             .info(
-                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
+                "[Transport] Applying config: bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) multicast=\(multicast.isEnabled)"
             )
 
         // Apply transport configuration changes
@@ -682,11 +800,19 @@ extension DittoManager {
             // Configure peer-to-peer transports
             config.peerToPeer.bluetoothLE.isEnabled = isBluetoothLeEnabled
             config.peerToPeer.lan.isEnabled = isLanEnabled
+            // VS Code extension parity: mDNS + multicast peer *discovery* ride the
+            // single LAN preference.
+            config.peerToPeer.lan.isMDNSEnabled = isLanEnabled
+            config.peerToPeer.lan.isMulticastEnabled = isLanEnabled
             config.peerToPeer.awdl.isEnabled = isAwdlEnabled
+            config.peerToPeer.multicastBeta.isEnabled = multicast.isEnabled
+            config.peerToPeer.multicastBeta.groupAddress = multicast.groupAddress
+            config.peerToPeer.multicastBeta.port = multicast.sdkPort
+            config.peerToPeer.multicastBeta.interfaceName = multicast.interfaceName
         }
         Log
             .info(
-                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled)"
+                "[Transport] Config applied — bluetoothLE=\(isBluetoothLeEnabled) lan=\(isLanEnabled) awdl=\(isAwdlEnabled) multicast=\(multicast.isEnabled)"
             )
         logTransportReadback(from: ditto, context: "applyTransportConfig")
     }
@@ -710,7 +836,10 @@ extension DittoManager {
             "[Transport] Readback (\(context)): " +
                 "bluetoothLE=\(tc.peerToPeer.bluetoothLE.isEnabled) " +
                 "lan=\(tc.peerToPeer.lan.isEnabled) " +
+                "lanMdns=\(tc.peerToPeer.lan.isMDNSEnabled) " +
+                "lanMulticast=\(tc.peerToPeer.lan.isMulticastEnabled) " +
                 "awdl=\(tc.peerToPeer.awdl.isEnabled) " +
+                "multicast=\(tc.peerToPeer.multicastBeta.isEnabled) " +
                 "webSocketURLs=[\(wsDescription)]"
         )
     }

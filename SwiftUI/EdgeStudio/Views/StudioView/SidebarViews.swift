@@ -204,7 +204,10 @@ extension MainStudioView {
                         .foregroundStyle(.secondary)
                         Text(sub.name)
                             .font(sidebarItemFont)
-                        Spacer()
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(sub.name)
+                        Spacer(minLength: 8)
                     }
                 }
                 .buttonStyle(.plain)
@@ -252,29 +255,46 @@ extension MainStudioView {
                     }
                 }
             } label: {
-                HStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "book.pages")
-                            .foregroundStyle(.secondary)
+                // Name on one line, count stacked beneath it.
+                //
+                // Side by side, the two compete for a sidebar that is only
+                // 200-320pt wide: the name wrapped and hyphenated
+                // ("customers" as "cus-tomer s") and the count wrapped too,
+                // which rendered "25,000" as "25,00" over "0" — a *wrong
+                // number*, not just an ugly one. Truncating the name instead
+                // fixed the correctness problem but still hid the thing the
+                // user came to read. Stacking fits both at every width.
+                HStack(spacing: 8) {
+                    Image(systemName: "book.pages")
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(collection.name)
                             .font(sidebarItemFont)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(collection.name)
+                        if let count = collection.documentCount {
+                            // Deliberately a step smaller than the name: the
+                            // name is what the row is, the count is metadata
+                            // about it.
+                            Text("\(count)")
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(
+                                    colorScheme == .dark
+                                        ? .black : Color.dittoYellow
+                                )
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 1)
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color.dittoYellow : Color.black
+                                )
+                                .cornerRadius(8)
+                        }
                     }
-                    Spacer()
-                    if let count = collection.documentCount {
-                        Text("\(count)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(
-                                colorScheme == .dark
-                                    ? .black : Color.dittoYellow
-                            )
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(
-                                colorScheme == .dark
-                                    ? Color.dittoYellow : Color.black
-                            )
-                            .cornerRadius(10)
-                    }
+                    Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -318,10 +338,15 @@ extension MainStudioView {
                             .foregroundStyle(.secondary)
                         Text(observer.name)
                             .font(sidebarItemFont)
-                        Spacer()
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(observer.name)
+                        Spacer(minLength: 8)
                         if observer.storeObserver != nil {
                             Text("Active")
                                 .font(.caption2)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                                 .foregroundStyle(.green)
                         }
                     }

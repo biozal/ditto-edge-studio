@@ -4,6 +4,7 @@ import com.costoda.dittoedgestudio.domain.model.AdvancedSettingsDql
 import com.costoda.dittoedgestudio.domain.model.AuthMode
 import com.costoda.dittoedgestudio.domain.model.CollectionSyncScope
 import com.costoda.dittoedgestudio.domain.model.DittoDatabase
+import com.costoda.dittoedgestudio.domain.model.MulticastConfig
 import com.costoda.dittoedgestudio.domain.model.StartupSetting
 import com.costoda.dittoedgestudio.domain.model.StartupSettingType
 import com.costoda.dittoedgestudio.domain.model.SyncScope
@@ -19,17 +20,24 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.spyk
 import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class DittoManagerTest {
 
@@ -184,6 +192,95 @@ class DittoManagerTest {
         assertNull(manager.currentInstance())
     }
 
+    @Test
+    fun `late close of replaced same-database handle preserves new instance and multicast lock`() = runTest {
+        val multicastLock = mockk<MulticastLockController>(relaxed = true)
+        manager = DittoManager(scope, multicastLockController = multicastLock)
+        val replacement = mockk<Ditto>(relaxed = true) {
+            every { store } returns mockStore
+            every { sync } returns mockSync
+        }
+        coEvery { DittoFactory.create(any<DittoConfig>(), any()) } returnsMany listOf(mockDitto, replacement)
+        val database = smallPeersDatabase.copy(isMulticastEnabled = true)
+        manager.hydrate(database)
+        val oldHandle = manager.currentInstanceForDatabase(database.id)
+        assertSame(mockDitto, oldHandle)
+        assertNull(manager.currentInstanceForDatabase(database.id + 1))
+
+        // Reopening the same configuration still creates a different SDK identity.
+        manager.hydrate(database)
+        manager.closeIfCurrent(oldHandle)
+        manager.closeIfCurrent(null)
+
+        assertSame(replacement, manager.currentInstance())
+        assertEquals(database, manager.currentDatabase())
+        verify(exactly = 1) { mockDitto.close() }
+        verify(exactly = 0) { replacement.close() }
+        verify(exactly = 2) { multicastLock.acquire() }
+        verify(exactly = 1) { multicastLock.release() }
+
+        manager.closeIfCurrent(replacement)
+        manager.closeIfCurrent(replacement)
+        assertNull(manager.currentInstance())
+        verify(exactly = 1) { replacement.close() }
+        verify(exactly = 2) { multicastLock.release() }
+    }
+
+    @Test
+    fun `config refresh cannot restore an old config after concurrent detach`() = runTest {
+        assertConfigMutationSerializesWithDetach(reset = false)
+    }
+
+    @Test
+    fun `reset captures its handle and config before concurrent detach`() = runTest {
+        assertConfigMutationSerializesWithDetach(reset = true)
+    }
+
+    private suspend fun assertConfigMutationSerializesWithDetach(reset: Boolean) {
+        manager.hydrate(smallPeersDatabase)
+        val validationStarted = CountDownLatch(1)
+        val continueValidation = CountDownLatch(1)
+        val closeStarted = CountDownLatch(1)
+        val closeFinished = CountDownLatch(1)
+        val updated = spyk(smallPeersDatabase.copy(logLevel = "debug"))
+        // Pause at the ownership check, after it read the active database's ID.
+        // All SDK/session state is real manager state; only scheduling is gated.
+        every { updated.id } answers {
+            validationStarted.countDown()
+            check(continueValidation.await(5, TimeUnit.SECONDS))
+            smallPeersDatabase.id
+        }
+        val workers = Executors.newFixedThreadPool(2)
+        try {
+            val mutation = workers.submit {
+                runBlocking {
+                    if (reset) manager.resetSystemSettingsToDefaults(updated)
+                    else manager.refreshActiveConfigIfMatching(updated)
+                }
+            }
+            assertTrue(validationStarted.await(5, TimeUnit.SECONDS))
+            val closing = workers.submit {
+                closeStarted.countDown()
+                runBlocking { manager.close() }
+                closeFinished.countDown()
+            }
+            assertTrue(closeStarted.await(5, TimeUnit.SECONDS))
+            // Detach must wait for the check+write transaction to finish. Before
+            // the fix close completed here, then the old config was restored.
+            val detachedDuringValidation = closeFinished.await(100, TimeUnit.MILLISECONDS)
+            continueValidation.countDown()
+            mutation.get(5, TimeUnit.SECONDS)
+            closing.get(5, TimeUnit.SECONDS)
+            assertFalse("Detach interleaved with config ownership validation", detachedDuringValidation)
+            assertNull(manager.currentInstance())
+            assertNull(manager.currentDatabase())
+            verify(exactly = 1) { mockDitto.close() }
+        } finally {
+            continueValidation.countDown()
+            workers.shutdownNow()
+        }
+    }
+
     // --- buildConfig ---
 
     @Test
@@ -298,5 +395,43 @@ class DittoManagerTest {
         manager.startSync()
 
         assertTrue(events.any { it == "dql:ALTER SYSTEM SET new_setting = :value" })
+    }
+
+    // --- multicastBeta transport-config mapping (SDK 5.1 reliable UDP multicast) ---
+
+    @Test
+    fun `multicastBeta spec maps flag group port and interface from the database config`() {
+        val db = serverDatabase.copy(
+            isMulticastEnabled = true,
+            multicastGroupAddress = "239.1.2.3",
+            multicastPort = 7000,
+            multicastInterfaceName = "en0",
+        )
+
+        val spec = db.toMulticastBetaSpec()
+
+        assertTrue(spec.enabled)
+        assertEquals("239.1.2.3", spec.groupAddress)
+        assertEquals(7000.toUShort(), spec.port)
+        assertEquals("en0", spec.interfaceName)
+    }
+
+    @Test
+    fun `multicastBeta spec defaults to disabled with SDK defaults`() {
+        val spec = serverDatabase.toMulticastBetaSpec()
+
+        assertTrue(!spec.enabled)
+        assertEquals(MulticastConfig.DEFAULT_GROUP_ADDRESS, spec.groupAddress)
+        assertEquals(MulticastConfig.DEFAULT_PORT.toUShort(), spec.port)
+        assertNull(spec.interfaceName)
+    }
+
+    @Test
+    fun `multicastBeta spec coerces the port with toUShort`() {
+        // The SDK field is a UShort; the mapping is the exact truncation contract
+        // the QR decode boundary validates against (0 → broken sentinel, 70000 → 4464).
+        assertEquals(1.toUShort(), serverDatabase.copy(multicastPort = 1).toMulticastBetaSpec().port)
+        assertEquals(65535.toUShort(), serverDatabase.copy(multicastPort = 65535).toMulticastBetaSpec().port)
+        assertEquals(4464.toUShort(), serverDatabase.copy(multicastPort = 70000).toMulticastBetaSpec().port)
     }
 }

@@ -24,8 +24,15 @@ class SettingsViewModel(
     val presenceSplitView: StateFlow<Boolean> = appPreferences.presenceSplitView
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val collectSystemMetrics: StateFlow<Boolean> = appPreferences.collectSystemMetrics
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     fun setMetricsEnabled(enabled: Boolean) {
         viewModelScope.launch { appPreferences.setMetricsEnabled(enabled) }
+    }
+
+    fun setCollectSystemMetrics(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setCollectSystemMetrics(enabled) }
     }
 
     fun setPresenceSplitView(enabled: Boolean) {

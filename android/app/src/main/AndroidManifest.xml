@@ -18,6 +18,11 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Multicast (beta) transport: lets the SDK/app hold a Wi-Fi multicast lock.
+         Declared unconditionally — DittoSync.start throws if multicast is enabled
+         while the permission is missing. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <!-- SSID / BSSID (API 33+ preferred path — does not require location) -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />

@@ -4,7 +4,6 @@ import Testing
 
 @Suite("QueryExplainRecord Tests")
 struct QueryExplainRecordTests {
-
     @Test("usedIndex is true when explainOutput contains 'Index'", .tags(.model, .fast))
     func testUsedIndexTrue() {
         // ARRANGE

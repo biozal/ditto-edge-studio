@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  QueryResultsUITests.swift
 //  EdgeStudioUITests
@@ -20,7 +21,6 @@ import XCTest
 
 @MainActor
 final class QueryResultsUITests: UITestBase {
-
     private let pageCollection = "e2e_page"
     private let tableCollection = "e2e_table"
 
@@ -51,7 +51,11 @@ final class QueryResultsUITests: UITestBase {
         }
 
         guard waitForPageIndicator("1 of 2", timeout: 10) else {
-            if app.alerts.count > 0 { XCTFail("Pagination blocked by Alert: \(app.alerts.firstMatch.label)") }
+            // XCUIElementQuery is not a Collection (no isEmpty member).
+            // swiftlint:disable:next empty_count
+            if app.alerts.count != 0 {
+                XCTFail("Pagination blocked by Alert: \(app.alerts.firstMatch.label)")
+            }
             captureScreenshot(named: "FAIL-page-1-of-2", lifetime: .keepAlways)
             XCTFail("12 results at pageSize 10 should show '1 of 2'.")
             try cleanup(token: token, collection: pageCollection)
@@ -62,7 +66,7 @@ final class QueryResultsUITests: UITestBase {
         // Next → page 2.
         let next = app.buttons["PaginationNextButton"].firstMatch
         XCTAssertTrue(next.waitForExistence(timeout: 5), "Next button should exist.")
-        next.tap()
+        next.click()
         reactivateAfterTransition()
         XCTAssertTrue(waitForPageIndicator("2 of 2", timeout: 10), "Tapping Next should move to '2 of 2'.")
         captureScreenshot(named: "02-page-2-of-2", lifetime: .deleteOnSuccess)
@@ -70,7 +74,7 @@ final class QueryResultsUITests: UITestBase {
         // Prev → back to page 1.
         let prev = app.buttons["PaginationPrevButton"].firstMatch
         XCTAssertTrue(prev.waitForExistence(timeout: 5), "Prev button should exist.")
-        prev.tap()
+        prev.click()
         reactivateAfterTransition()
         XCTAssertTrue(waitForPageIndicator("1 of 2", timeout: 10), "Tapping Prev should return to '1 of 2'.")
 
@@ -98,16 +102,19 @@ final class QueryResultsUITests: UITestBase {
             throw XCTSkip("Results pane did not appear.")
         }
 
-        // Diagnostic gate: the data must show in the default (Raw) view FIRST.
-        // If this fails, the SELECT returned nothing (a query/editor-clearing
-        // problem) — which is a different bug than table rendering.
-        let rawValue = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", token))
+        // Diagnostic gate: verify the document in Raw before switching to Table.
+        // macOS may expose JSON through value instead of label. Scope the match
+        // to results and keep field + token together so editor text cannot pass.
+        let rawValue = app.scrollViews["QueryResultsView"].firstMatch.staticTexts
+            .matching(NSPredicate(
+                format: "(label CONTAINS %@ AND label CONTAINS %@) OR (value CONTAINS %@ AND value CONTAINS %@)",
+                "marker", token, "marker", token
+            ))
             .firstMatch
         guard rawValue.waitForExistence(timeout: 10) else {
             captureScreenshot(named: "FAIL-no-data-in-raw", lifetime: .keepAlways)
             try cleanup(token: token, collection: tableCollection)
-            XCTFail("SELECT returned no rows in the Raw view — the query produced no data (clearing/typing issue), not a table problem.")
+            XCTFail("The selected document was not found in Raw results — inspect the attached screenshot before diagnosing execution or rendering.")
             return
         }
 
@@ -121,15 +128,32 @@ final class QueryResultsUITests: UITestBase {
         }
         reactivateAfterTransition()
 
-        // The inserted value renders as a table cell.
-        let cell = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", token, token))
+        let tableMode = app.radioButtons["ResultViewMode_Table"].firstMatch
+        let tableSelected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 1 OR value == '1'"),
+            object: tableMode
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [tableSelected], timeout: 5), .completed, "Table mode must be selected.")
+
+        let table = app.scrollViews["QueryResultsView"].firstMatch
+        guard table.waitForExistence(timeout: 10) else {
+            dumpAccessibilityTree(named: "table-view-hierarchy")
+            captureScreenshot(named: "FAIL-no-table-container", lifetime: .keepAlways)
+            try cleanup(token: token, collection: tableCollection)
+            XCTFail("The Table results container did not appear after selecting Table.")
+            return
+        }
+
+        // Exact marker value inside the table: neither the editor's SELECT nor
+        // the ID cell (id-<token>) can satisfy this assertion.
+        let cell = table.staticTexts
+            .matching(NSPredicate(format: "label == %@ OR value == %@", token, token))
             .firstMatch
         if !cell.waitForExistence(timeout: 10) {
             dumpAccessibilityTree(named: "table-view-hierarchy")
             captureScreenshot(named: "FAIL-no-table-cell", lifetime: .keepAlways)
             try cleanup(token: token, collection: tableCollection)
-            XCTFail("Data was present in Raw view but did NOT render as a table cell — table-renderer issue. See attached 'table-view-hierarchy'.")
+            XCTFail("The marker cell was not found inside Table results. See attached 'table-view-hierarchy'.")
             return
         }
         captureScreenshot(named: "01-table-shows-data", lifetime: .deleteOnSuccess)
@@ -171,7 +195,7 @@ final class QueryResultsUITests: UITestBase {
         // Fallback: tap the segment (surfaces as a radioButton on macOS).
         let radio = app.radioButtons["ResultViewMode_\(mode)"].firstMatch
         if radio.waitForExistence(timeout: 2) {
-            radio.tap()
+            radio.click()
             return true
         }
         return false
@@ -188,3 +212,5 @@ final class QueryResultsUITests: UITestBase {
         add(attachment)
     }
 }
+
+#endif

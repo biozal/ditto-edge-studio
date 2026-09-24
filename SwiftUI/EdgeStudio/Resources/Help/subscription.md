@@ -20,6 +20,14 @@ On macOS / iPadOS, tap the **+** button in the bottom-left of the sidebar, then 
 **Removing a subscription:**
 Swipe left on the subscription row (iPadOS) or right-click and choose *Delete* (macOS). On Android, tap the delete (trash) icon on the subscription row.
 
+**Bulk sharing via QR:**
+The QR icon at the top of the Subscriptions list encodes **all** subscriptions into a single QR code that any Edge Studio instance (macOS, iPadOS, or Android) can scan to import them at once (`EDS_SUBS1:` payload).
+
+**Bulk import:**
+The download icon at the top of the Subscriptions list offers two paths:
+- **From QR code** — scans a subscription QR code produced by another Edge Studio instance and imports every subscription in it.
+- **From server** *(requires the database's HTTP API URL + key)* — queries the server-side `__small_peer_info` for every peer's `local_subscriptions`, filters out system collections and subscriptions you already have, and lets you cherry-pick with checkboxes.
+
 **Best practices:**
 - Keep subscription queries as specific as possible to minimize data transfer.
 
@@ -55,5 +63,7 @@ Use the **reset** button (crosshairs icon) to recenter the camera and snap any d
 
 ## Updating Transports
 The **Cog** icon in the upper right handle corner of the Details part of the screen can be used to turn on and off transports like Bluetooth, P2P WiFi (AWDL), and LAN traffic.  This can allow you to test fail over and firewall settings to validate that your app can talk to other devices on the network without adding a bunch of debug code into your app.
+
+Enabling **Multicast (beta)** turns on the reliable UDP multicast transport (Ditto SDK 5.1.0 beta): all peers on the same Wi-Fi segment join a shared multicast group instead of maintaining one connection per peer. When it is on, three extra fields appear — **Group Address** (class-D IPv4, default `224.1.2.3`), **Port** (UDP 1–65535, default `6003`), and an optional **Interface Name** (blank lets the OS pick). Every peer in the group must use the same group address and port. Applying transport settings temporarily stops sync, as with the other transports.
 
 

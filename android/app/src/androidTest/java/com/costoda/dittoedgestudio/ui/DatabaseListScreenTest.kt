@@ -163,9 +163,38 @@ class DatabaseListScreenTest {
         }
 
         composeTestRule.onNodeWithText("DeleteMe").performTouchInput { longClick() }
+        // The menu item now only OPENS the confirmation; deletion is irreversible and
+        // cascade-deletes the database's subscriptions, observers, favorites and history.
         composeTestRule.onNodeWithText("Delete").performClick()
+        assert(!deleted) { "menu tap must not delete before the user confirms" }
 
-        assert(deleted) { "onDelete callback was not called" }
+        // Target the confirm button by tag: after the dialog opens, the text "Delete"
+        // matches three nodes (title, body, confirm button) and onNodeWithText would throw.
+        composeTestRule.onNodeWithTag("ConfirmDeleteDatabaseButton").performClick()
+
+        assert(deleted) { "onDelete callback was not called after confirming" }
+    }
+
+    @Test
+    fun cancellingTheDeleteConfirmationDoesNotDelete() {
+        var deleted = false
+        val db = DittoDatabase(id = 1L, name = "KeepMe", databaseId = "db-1", token = "tok")
+        composeTestRule.setContent {
+            EdgeStudioTheme {
+                DatabaseCard(
+                    database = db,
+                    onTap = {},
+                    onEdit = {},
+                    onDelete = { deleted = true },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("KeepMe").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("Delete").performClick()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        assert(!deleted) { "Cancel must not delete the database configuration" }
     }
 
     @Test

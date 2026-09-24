@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.costoda.dittoedgestudio.domain.model.AppMetrics
 import com.costoda.dittoedgestudio.viewmodel.AppMetricsViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun AppMetricsScreen(
@@ -58,10 +59,17 @@ fun AppMetricsScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Same shape as the Query Metrics header: a weighted title
+                // sharing a narrow pane with a timestamp and action icons. It
+                // needs a line limit or it wraps a character at a time once the
+                // pane is narrow enough. (The top app bar already names the
+                // section, so truncating here loses nothing.)
                 Text(
                     text = "App Metrics",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 Text(

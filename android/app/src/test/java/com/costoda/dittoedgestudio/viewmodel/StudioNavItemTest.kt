@@ -43,7 +43,8 @@ class StudioNavItemTest {
         val visible = StudioNavItem.visibleEntries(metricsEnabled = false)
         assertFalse(StudioNavItem.APP_METRICS in visible)
         assertFalse(StudioNavItem.QUERY_METRICS in visible)
-        assertEquals(StudioNavItem.entries.size - 2, visible.size)
+        assertFalse(StudioNavItem.SYSTEM_METRICS in visible)
+        assertEquals(StudioNavItem.entries.size - 3, visible.size)
         // Order of the surviving items is preserved.
         assertEquals(
             StudioNavItem.entries.filter { !it.isMetricsDestination },

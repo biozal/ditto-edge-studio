@@ -72,6 +72,10 @@ The third tab next to **Raw** and **Table** shows an execution-plan profile for 
 
 Profiles only fire for `SELECT` statements via the Local execute mode — `INSERT` / `UPDATE` / `DELETE` / `EVICT` and HTTP-mode queries don't capture one. On macOS / iPadOS, see the **User Guide → Collections & Query → Execution Profile** section for the full reference (the User Guide is not shipped on Android).
 
+### Index Advice (ADVISE)
+
+For any `SELECT` in the editor, use **Advise (index suggestions)…** (macOS: query toolbar menu; iPhone: results overflow; Android: the query toolbar options menu → **Run ADVISE**). Edge Studio runs `ADVISE <your query>` and shows Ditto's index recommendations in a card: each suggestion is a ready-to-run `CREATE INDEX` statement with the planner's reason. Nothing executes until you confirm **Create Index** — applying creates the index verbatim. When there is nothing to advise on, the card shows the engine's outcome message instead. `EXPLAIN ADVISE …` is not valid DQL, so the EXPLAIN action is disabled while an ADVISE statement is in the editor.
+
 ### Row Actions (right-click / long-press)
 
 On macOS / iPadOS, **right-click** any document row in **Raw** or **Table** mode; on Android, **long-press** the row — either gesture opens a per-row action menu:
